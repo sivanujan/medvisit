@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -15,6 +16,26 @@ class AuthenticationTest extends TestCase
         $response = $this->get('/login');
 
         $response->assertStatus(200);
+    }
+
+    public function test_demo_credentials_are_only_displayed_in_local_environment(): void
+    {
+        // In testing environment, showDemoCredentials must be false
+        $response = $this->get('/login');
+        $response->assertStatus(200);
+        $response->assertInertia(fn ($page) => $page
+            ->component('Auth/Login')
+            ->where('showDemoCredentials', false)
+        );
+
+        // In local environment, showDemoCredentials must be true
+        $this->app->detectEnvironment(fn () => 'local');
+        $responseLocal = $this->get('/login');
+        $responseLocal->assertStatus(200);
+        $responseLocal->assertInertia(fn ($page) => $page
+            ->component('Auth/Login')
+            ->where('showDemoCredentials', true)
+        );
     }
 
     public function test_users_can_authenticate_using_the_login_screen(): void
@@ -50,5 +71,50 @@ class AuthenticationTest extends TestCase
 
         $this->assertGuest();
         $response->assertRedirect('/');
+    }
+
+    public function test_find_your_clinic_by_subdomain_redirects_to_clinic_login(): void
+    {
+        Tenant::factory()->create([
+            'id' => 'ruhunu',
+            'subdomain' => 'ruhunu',
+        ]);
+
+        $response = $this->post('/find-clinic/subdomain', [
+            'subdomain' => 'ruhunu',
+        ]);
+
+        $response->assertRedirect('http://ruhunu.medvisit.test/login');
+    }
+
+    public function test_find_your_clinic_does_not_leak_tenant_membership(): void
+    {
+        $tenant = Tenant::factory()->create([
+            'id' => 'ruhunu',
+            'subdomain' => 'ruhunu',
+        ]);
+
+        User::factory()->create([
+            'tenant_id' => $tenant->id,
+            'email' => 'registered@clinic.lk',
+        ]);
+
+        // Request with registered email
+        $responseRegistered = $this->post('/find-clinic/email', [
+            'email' => 'registered@clinic.lk',
+        ]);
+        $responseRegistered->assertSessionHas('status');
+        $registeredStatus = session('status');
+
+        // Request with unknown email
+        $responseUnknown = $this->post('/find-clinic/email', [
+            'email' => 'unknown@random.lk',
+        ]);
+        $responseUnknown->assertSessionHas('status');
+        $unknownStatus = session('status');
+
+        // Verify the response is identical and does not leak whether clinics exist
+        $this->assertSame($registeredStatus, $unknownStatus);
+        $this->assertStringNotContainsString('ruhunu', $registeredStatus);
     }
 }

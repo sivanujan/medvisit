@@ -2,7 +2,9 @@ export interface User {
     id: number;
     name: string;
     email: string;
-    email_verified_at?: string;
+    email_verified_at?: string | null;
+    tenant_id?: string | null;
+    roles?: Array<{ name: string }> | string[];
 }
 
 export type PageProps<
@@ -10,5 +12,18 @@ export type PageProps<
 > = T & {
     auth: {
         user: User;
+    };
+    tenant?: {
+        id: string;
+        name: string;
+        subdomain: string;
+        status?: string;
+        phone?: string;
+        address?: string;
+    } | null;
+    flash?: {
+        status?: string | null;
+        success?: string | null;
+        error?: string | null;
     };
 };

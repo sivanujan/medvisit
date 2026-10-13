@@ -1,21 +1,37 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\Auth\ClinicRegistrationController;
 use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
+use App\Http\Controllers\Auth\FindClinicController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
-use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
-    Route::get('register', [RegisteredUserController::class, 'create'])
+    Route::get('register', [ClinicRegistrationController::class, 'create'])
         ->name('register');
 
-    Route::post('register', [RegisteredUserController::class, 'store']);
+    Route::post('register', [ClinicRegistrationController::class, 'store'])
+        ->middleware('throttle:10,1');
+
+    Route::get('register/success', [ClinicRegistrationController::class, 'success'])
+        ->name('register.success');
+
+    Route::post('check-subdomain', [ClinicRegistrationController::class, 'checkSubdomain'])
+        ->middleware('throttle:30,1')
+        ->name('subdomain.check');
+
+    Route::post('find-clinic/subdomain', [FindClinicController::class, 'searchSubdomain'])
+        ->name('find.clinic.subdomain');
+
+    Route::post('find-clinic/email', [FindClinicController::class, 'searchEmail'])
+        ->middleware('throttle:10,1')
+        ->name('find.clinic.email');
 
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');

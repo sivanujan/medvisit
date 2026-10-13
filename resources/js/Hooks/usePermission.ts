@@ -20,12 +20,18 @@ export function usePermission() {
     const page = usePage<SharedPageProps>();
     const user = page.props?.auth?.user;
 
-    const userRoles: string[] = Array.isArray(user?.roles)
-        ? user.roles.map((r) => (typeof r === 'string' ? r : r.name))
+    const rawRoles = user?.roles;
+    const userRoles: string[] = Array.isArray(rawRoles)
+        ? (rawRoles as Array<string | { name: string }>).map((r: string | { name: string }) =>
+              typeof r === 'string' ? r : r.name
+          )
         : [];
 
-    const userPermissions: string[] = Array.isArray(user?.permissions)
-        ? user.permissions.map((p) => (typeof p === 'string' ? p : p.name))
+    const rawPermissions = user?.permissions;
+    const userPermissions: string[] = Array.isArray(rawPermissions)
+        ? (rawPermissions as Array<string | { name: string }>).map((p: string | { name: string }) =>
+              typeof p === 'string' ? p : p.name
+          )
         : [];
 
     const hasRole = (role: string | string[]): boolean => {

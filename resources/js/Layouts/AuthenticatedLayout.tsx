@@ -36,6 +36,7 @@ export default function AuthenticatedLayout({
                 id: number;
                 name: string;
                 email: string;
+                email_verified_at?: string | null;
                 tenant_id?: string | null;
                 roles?: Array<{ name: string }> | string[];
             };
@@ -303,6 +304,24 @@ export default function AuthenticatedLayout({
                         </div>
                     </div>
                 </header>
+
+                {/* Unverified Email Warning Banner */}
+                {user && !user.email_verified_at && (
+                    <div className="bg-gradient-to-r from-amber-500/15 via-amber-600/10 to-transparent border-b border-amber-500/25 px-4 sm:px-8 py-3 text-xs text-amber-900 dark:text-amber-200 flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                            <span>
+                                <strong>Admin Email Verification Pending:</strong> Please verify your email address (<strong>{user.email}</strong>). Staff invitations and external integrations are disabled until verified. Check your inbox or local mail logs.
+                            </span>
+                        </div>
+                        <Link
+                            href={route('verification.notice')}
+                            className="px-3 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-100 font-bold text-xs transition-colors shrink-0"
+                        >
+                            Verify Email
+                        </Link>
+                    </div>
+                )}
 
                 {/* Main Content Area */}
                 <main className="flex-1 p-4 sm:p-8 max-w-7xl w-full mx-auto">
