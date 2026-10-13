@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\ClinicRegistrationRequest;
+use App\Mail\Auth\WelcomeClinicMail;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Rules\SubdomainRule;
@@ -16,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -161,6 +163,7 @@ class ClinicRegistrationController extends Controller
             ]);
 
             $user->sendEmailVerificationNotification();
+            Mail::to($user->email)->queue(new WelcomeClinicMail($tenant, $user));
         });
 
         // Generate short-lived signed auto-login URL

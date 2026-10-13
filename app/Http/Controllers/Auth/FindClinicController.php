@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Mail\Auth\FindClinicAccessMail;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
@@ -77,13 +79,19 @@ class FindClinicController extends Controller
             $port = $request->getPort();
             $portSuffix = ($port && ! in_array($port, [80, 443])) ? ":{$port}" : '';
 
-            $clinicLinks = $users->map(function ($u) use ($centralDomain, $scheme, $portSuffix) {
-                $sub = $u->tenant?->subdomain ?? $u->tenant_id;
+            $clinics = $users->map(function ($u) use ($centralDomain, $scheme, $portSuffix) {
+                $sub = (string) ($u->tenant?->subdomain ?? $u->tenant_id);
+                $name = (string) ($u->tenant?->name ?? 'Clinic');
 
-                return "{$scheme}://{$sub}.{$centralDomain}{$portSuffix}/login";
-            })->all();
+                return [
+                    'name' => $name,
+                    'subdomain' => $sub,
+                    'login_url' => "{$scheme}://{$sub}.{$centralDomain}{$portSuffix}/login",
+                ];
+            })->values()->all();
 
-            Log::info("Dispatched clinic access links for [{$email}] to: ".implode(', ', $clinicLinks));
+            Mail::to($email)->queue(new FindClinicAccessMail($email, $clinics));
+            Log::info("Dispatched clinic access email for [{$email}] covering ".count($clinics).' clinic(s)');
         }
 
         return back()->with('status', 'If your work email is registered with a clinic, we have sent your direct login link(s) to your inbox.');

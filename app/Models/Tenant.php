@@ -20,10 +20,14 @@ class Tenant extends BaseTenant
         'plan',
         'status',
         'trial_ends_at',
+        'trial_ending_reminder_sent_at',
+        'trial_ended_reminder_sent_at',
     ];
 
     protected $casts = [
         'trial_ends_at' => 'datetime',
+        'trial_ending_reminder_sent_at' => 'datetime',
+        'trial_ended_reminder_sent_at' => 'datetime',
     ];
 
     public static function getCustomColumns(): array
@@ -37,6 +41,8 @@ class Tenant extends BaseTenant
             'plan',
             'status',
             'trial_ends_at',
+            'trial_ending_reminder_sent_at',
+            'trial_ended_reminder_sent_at',
         ];
     }
 
@@ -60,5 +66,29 @@ class Tenant extends BaseTenant
     public function isUsable(): bool
     {
         return ! $this->isSuspended() && ! $this->isTrialExpired();
+    }
+
+    /**
+     * Build an absolute URL scoped to this tenant's subdomain.
+     */
+    public function url(string $path = ''): string
+    {
+        return static::urlForSubdomain((string) $this->subdomain, $path);
+    }
+
+    /**
+     * Build an absolute URL scoped to any given subdomain.
+     */
+    public static function urlForSubdomain(string $subdomain, string $path = ''): string
+    {
+        $centralDomain = config('tenancy.central_domains.0', 'medvisit.test');
+        $appUrl = config('app.url', 'http://medvisit.test');
+        $scheme = parse_url((string) $appUrl, PHP_URL_SCHEME) ?: 'http';
+        $port = parse_url((string) $appUrl, PHP_URL_PORT);
+        $portSuffix = ($port && ! in_array($port, [80, 443])) ? ":{$port}" : '';
+        $path = ltrim($path, '/');
+        $pathString = $path !== '' ? "/{$path}" : '';
+
+        return "{$scheme}://{$subdomain}.{$centralDomain}{$portSuffix}{$pathString}";
     }
 }

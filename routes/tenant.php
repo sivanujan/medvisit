@@ -69,6 +69,7 @@ Route::middleware([
             ->name('tenant.password.request');
 
         Route::post('/forgot-password', [TenantPasswordResetLinkController::class, 'store'])
+            ->middleware('throttle:5,1')
             ->name('tenant.password.email');
 
         Route::get('/reset-password/{token}', [TenantNewPasswordController::class, 'create'])
