@@ -14,6 +14,7 @@ import {
     Globe,
 } from 'lucide-react';
 import ApplicationLogo from '@/Components/ApplicationLogo';
+import AuthHeader from '@/Components/AuthHeader';
 import ThemeToggle from '@/Components/Common/ThemeToggle';
 
 interface Props {
@@ -40,20 +41,18 @@ export default function RegisterClinicSuccess({ registration }: Props) {
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col justify-between relative selection:bg-primary-100 selection:text-primary-800 overflow-hidden">
-            {/* Ambient Background Glow */}
+            {/* Subtle Ambient Background Glows */}
             <div aria-hidden="true" className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
-                <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-secondary-500/15 dark:bg-secondary-500/20 blur-3xl" />
-                <div className="absolute top-1/2 -right-32 w-[32rem] h-[32rem] rounded-full bg-primary-500/15 dark:bg-primary-500/20 blur-3xl" />
-                <div className="absolute -bottom-32 left-1/3 w-96 h-96 rounded-full bg-accent-500/10 dark:bg-accent-500/15 blur-3xl" />
+                <div className="absolute -top-32 left-1/4 w-[42rem] h-[32rem] rounded-full bg-primary-500/10 dark:bg-primary-500/15 blur-[120px]" />
+                <div className="absolute top-1/3 -right-20 w-[36rem] h-[36rem] rounded-full bg-secondary-500/10 dark:bg-secondary-500/15 blur-[130px]" />
+                <div className="absolute -bottom-24 left-1/3 w-[32rem] h-[32rem] rounded-full bg-primary-500/5 dark:bg-primary-500/10 blur-[100px]" />
             </div>
 
-            {/* Header */}
-            <header className="h-18 px-4 sm:px-8 border-b border-slate-200/70 dark:border-white/10 flex items-center justify-between bg-white/60 dark:bg-slate-900/50 backdrop-blur-xl">
-                <Link href="/" className="group flex items-center gap-2">
-                    <ApplicationLogo className="h-8 sm:h-9 w-auto transition-transform group-hover:scale-105" />
-                </Link>
-                <ThemeToggle size="sm" />
-            </header>
+            {/* Redesigned Shared Header */}
+            <AuthHeader
+                subtitle="Registration complete"
+                rightAction="none"
+            />
 
             {/* Main Content Card */}
             <main className="flex-1 max-w-2xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex items-center justify-center">
@@ -126,14 +125,20 @@ export default function RegisterClinicSuccess({ registration }: Props) {
                     </div>
 
                     {/* Email Verification Banner */}
-                    <div className="p-3.5 rounded-2xl bg-primary-50/80 dark:bg-primary-950/40 border border-primary-500/20 text-left flex items-start gap-3 text-xs text-slate-600 dark:text-slate-300">
-                        <Mail className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-                        <div>
-                            <p className="font-bold text-slate-900 dark:text-white">
+                    <div className="p-4 rounded-2xl bg-primary-50/90 dark:bg-slate-800/90 border border-primary-200/80 dark:border-primary-500/30 text-left flex items-start gap-3.5 text-xs shadow-xs">
+                        <div className="w-8 h-8 rounded-xl bg-primary-100 dark:bg-primary-950 text-primary dark:text-primary-300 flex items-center justify-center shrink-0 border border-primary-200 dark:border-primary-800/60 mt-0.5">
+                            <Mail className="w-4 h-4 text-primary dark:text-primary-300" />
+                        </div>
+                        <div className="min-w-0 flex-1 space-y-1">
+                            <p className="font-bold text-sm text-slate-900 dark:text-white">
                                 Verification Email Sent
                             </p>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                We sent a confirmation link to <strong className="text-slate-700 dark:text-slate-200">{registration.admin_email}</strong>. Unverified admins can still explore and use the clinic, but staff invitations remain restricted until verified.
+                            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                                We sent a confirmation link to{' '}
+                                <strong className="text-primary-700 dark:text-primary-300 font-semibold break-all">
+                                    {registration.admin_email}
+                                </strong>
+                                . Unverified admins can still explore and use the clinic, but staff invitations remain restricted until verified.
                             </p>
                         </div>
                     </div>
