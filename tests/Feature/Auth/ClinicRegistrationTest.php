@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Auth;
 
+use App\Models\PendingRegistration;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
@@ -14,11 +17,13 @@ class ClinicRegistrationTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected string $baseDomain;
+
     protected function setUp(): void
     {
         parent::setUp();
-        // Ensure central domain is set for named routes
-        $this->app['url']->defaults(['central_domain' => 'medvisit.test']);
+        $this->baseDomain = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
+        $this->app['url']->defaults(['central_domain' => $this->baseDomain]);
     }
 
     public function test_registration_screen_can_be_rendered(): void
@@ -76,6 +81,17 @@ class ClinicRegistrationTest extends TestCase
     {
         Notification::fake();
 
+        $token = 'test-token-happy-path';
+        PendingRegistration::create([
+            'email' => 'bandara@ruhunuclinic.lk',
+            'token' => $token,
+            'code_hash' => Hash::make('123456'),
+            'attempts' => 0,
+            'expires_at' => now()->addMinutes(10),
+            'verified_at' => now(),
+            'payload' => Crypt::encryptString(json_encode([])),
+        ]);
+
         $payload = [
             'clinic_name' => 'Ruhunu Medical Centre',
             'clinic_type' => 'medical centre',
@@ -90,6 +106,7 @@ class ClinicRegistrationTest extends TestCase
             'password' => 'Passw0rd123!',
             'password_confirmation' => 'Passw0rd123!',
             'terms' => true,
+            'registration_token' => $token,
         ];
 
         $response = $this->post('/register', $payload);
@@ -253,6 +270,17 @@ class ClinicRegistrationTest extends TestCase
     {
         Notification::fake();
 
+        $token = 'test-token-sigiriya';
+        PendingRegistration::create([
+            'email' => 'perera@sigiriya.lk',
+            'token' => $token,
+            'code_hash' => Hash::make('123456'),
+            'attempts' => 0,
+            'expires_at' => now()->addMinutes(10),
+            'verified_at' => now(),
+            'payload' => Crypt::encryptString(json_encode([])),
+        ]);
+
         // 1. Register a clinic
         $payload = [
             'clinic_name' => 'Sigiriya Care',
@@ -268,6 +296,7 @@ class ClinicRegistrationTest extends TestCase
             'password' => 'Secret123Pass!',
             'password_confirmation' => 'Secret123Pass!',
             'terms' => true,
+            'registration_token' => $token,
         ];
 
         $this->post('/register', $payload);
@@ -277,10 +306,12 @@ class ClinicRegistrationTest extends TestCase
 
         // Parse path & query from the signed url
         $parsed = parse_url($autoLoginUrl);
+        $host = $parsed['host'];
+        $port = isset($parsed['port']) ? ":{$parsed['port']}" : '';
         $pathAndQuery = $parsed['path'].'?'.$parsed['query'];
 
         // 2. Use the signed link the FIRST time on tenant domain
-        $firstResponse = $this->get("http://sigiriya.medvisit.test{$pathAndQuery}");
+        $firstResponse = $this->get("http://{$host}{$port}{$pathAndQuery}");
         $this->assertAuthenticated();
         $this->assertSame('sigiriya', auth()->user()->tenant_id);
 
@@ -289,15 +320,15 @@ class ClinicRegistrationTest extends TestCase
         $this->assertGuest();
 
         // 3. Try to use the same link a SECOND time (single-use check)
-        $secondResponse = $this->get("http://sigiriya.medvisit.test{$pathAndQuery}");
+        $secondResponse = $this->get("http://{$host}{$port}{$pathAndQuery}");
         $this->assertGuest();
-        $secondResponse->assertRedirect('http://sigiriya.medvisit.test/login');
+        $secondResponse->assertRedirect("http://{$host}{$port}/login");
         $secondResponse->assertSessionHas('error');
 
         // 4. Test expired link fails
-        $expiredUrl = 'http://sigiriya.medvisit.test/login/one-time?token=dummy&expires=1000000000&signature=invalid';
+        $expiredUrl = "http://{$host}{$port}/login/one-time?token=dummy&expires=1000000000&signature=invalid";
         $expiredResponse = $this->get($expiredUrl);
         $this->assertGuest();
-        $expiredResponse->assertRedirect('http://sigiriya.medvisit.test/login');
+        $expiredResponse->assertRedirect("http://{$host}{$port}/login");
     }
 }

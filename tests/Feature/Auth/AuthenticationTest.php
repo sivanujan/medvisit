@@ -75,7 +75,7 @@ class AuthenticationTest extends TestCase
 
     public function test_find_your_clinic_by_subdomain_redirects_to_clinic_login(): void
     {
-        Tenant::factory()->create([
+        $tenant = Tenant::factory()->create([
             'id' => 'ruhunu',
             'subdomain' => 'ruhunu',
         ]);
@@ -84,7 +84,7 @@ class AuthenticationTest extends TestCase
             'subdomain' => 'ruhunu',
         ]);
 
-        $response->assertRedirect('http://ruhunu.medvisit.test/login');
+        $response->assertRedirect($tenant->url('/login'));
     }
 
     public function test_find_your_clinic_does_not_leak_tenant_membership(): void

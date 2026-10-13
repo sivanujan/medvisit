@@ -5,6 +5,7 @@ return [
     'currency_symbol' => 'Rs.',
     'country' => 'LK',
     'timezone' => env('APP_TIMEZONE', 'Asia/Colombo'),
+    'base_domain' => env('MEDVISIT_BASE_DOMAIN', 'medvisit.localhost'),
 
     'mail' => [
         'reply_to' => [

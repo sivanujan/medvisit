@@ -19,6 +19,15 @@ Route::middleware('guest')->group(function () {
     Route::post('register', [ClinicRegistrationController::class, 'store'])
         ->middleware('throttle:10,1');
 
+    Route::post('register/send-code', [ClinicRegistrationController::class, 'sendVerificationCode'])
+        ->name('register.send_code');
+
+    Route::post('register/verify-code', [ClinicRegistrationController::class, 'verifyCode'])
+        ->name('register.verify_code');
+
+    Route::post('register/resend-code', [ClinicRegistrationController::class, 'resendCode'])
+        ->name('register.resend_code');
+
     Route::get('register/success', [ClinicRegistrationController::class, 'success'])
         ->name('register.success');
 

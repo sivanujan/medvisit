@@ -38,8 +38,13 @@ class AppServiceProvider extends ServiceProvider
         Vite::prefetch(concurrency: 3);
 
         $host = request()->getHost();
-        $centralDomains = config('tenancy.central_domains', ['medvisit.test', '127.0.0.1', 'localhost']);
-        $defaultCentral = in_array($host, $centralDomains, true) ? $host : ($centralDomains[0] ?? 'localhost');
+        $centralDomains = config('tenancy.central_domains', [
+            config('medvisit.base_domain', 'medvisit.localhost'),
+            'medvisit.localhost',
+            'localhost',
+            '127.0.0.1',
+        ]);
+        $defaultCentral = in_array($host, $centralDomains, true) ? $host : ($centralDomains[0] ?? 'medvisit.localhost');
 
         URL::defaults(['central_domain' => $defaultCentral]);
 

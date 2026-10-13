@@ -21,6 +21,9 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->validateCsrfTokens(except: [
             'check-subdomain',
+            'register/send-code',
+            'register/verify-code',
+            'register/resend-code',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

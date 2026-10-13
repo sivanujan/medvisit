@@ -82,6 +82,7 @@ class ClinicRegistrationRequest extends FormRequest
                 Password::min(8)->letters()->mixedCase()->numbers(),
             ],
             'terms' => ['accepted'],
+            'registration_token' => ['required', 'string'],
         ];
     }
 

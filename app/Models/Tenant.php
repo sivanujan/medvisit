@@ -81,14 +81,14 @@ class Tenant extends BaseTenant
      */
     public static function urlForSubdomain(string $subdomain, string $path = ''): string
     {
-        $centralDomain = config('tenancy.central_domains.0', 'medvisit.test');
-        $appUrl = config('app.url', 'http://medvisit.test');
+        $baseDomain = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
+        $appUrl = config('app.url', 'http://medvisit.localhost:8000');
         $scheme = parse_url((string) $appUrl, PHP_URL_SCHEME) ?: 'http';
         $port = parse_url((string) $appUrl, PHP_URL_PORT);
         $portSuffix = ($port && ! in_array($port, [80, 443])) ? ":{$port}" : '';
         $path = ltrim($path, '/');
         $pathString = $path !== '' ? "/{$path}" : '';
 
-        return "{$scheme}://{$subdomain}.{$centralDomain}{$portSuffix}{$pathString}";
+        return "{$scheme}://{$subdomain}.{$baseDomain}{$portSuffix}{$pathString}";
     }
 }

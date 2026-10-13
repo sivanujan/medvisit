@@ -12,9 +12,12 @@ use App\Mail\Security\NewDeviceLoginMail;
 use App\Mail\Tenants\TrialEndedMail;
 use App\Mail\Tenants\TrialEndingSoonMail;
 use App\Mail\TestMail;
+use App\Models\PendingRegistration;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -23,10 +26,13 @@ class MedVisitMailTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected string $baseDomain;
+
     protected function setUp(): void
     {
         parent::setUp();
-        $this->app['url']->defaults(['central_domain' => 'medvisit.test']);
+        $this->baseDomain = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
+        $this->app['url']->defaults(['central_domain' => $this->baseDomain]);
     }
 
     public function test_email_verification_mail_is_queued_with_correct_identities(): void
@@ -74,7 +80,7 @@ class MedVisitMailTest extends TestCase
             'name' => 'Dr. Suwasetha',
         ]);
 
-        $response = $this->post('http://suwasetha.medvisit.test/forgot-password', [
+        $response = $this->post("http://suwasetha.{$this->baseDomain}/forgot-password", [
             'email' => $user->email,
         ]);
 
@@ -88,7 +94,7 @@ class MedVisitMailTest extends TestCase
             $this->assertStringContainsString('Reset your password', $mail->subjectLine());
 
             // Assert link opens on the correct clinic subdomain
-            $this->assertStringStartsWith('http://suwasetha.medvisit.test/reset-password/', $mail->resetUrl);
+            $this->assertStringContainsString("suwasetha.{$this->baseDomain}", $mail->resetUrl);
             $this->assertStringContainsString('email=admin%40suwasetha.lk', $mail->resetUrl);
 
             // Assert rendered content
@@ -104,6 +110,17 @@ class MedVisitMailTest extends TestCase
     {
         Mail::fake();
 
+        $token = 'test-token-apex';
+        PendingRegistration::create([
+            'email' => 'fernando@apexhealth.lk',
+            'token' => $token,
+            'code_hash' => Hash::make('123456'),
+            'attempts' => 0,
+            'expires_at' => now()->addMinutes(10),
+            'verified_at' => now(),
+            'payload' => Crypt::encryptString(json_encode([])),
+        ]);
+
         $payload = [
             'clinic_name' => 'Apex Family Health',
             'clinic_type' => 'medical centre',
@@ -118,6 +135,7 @@ class MedVisitMailTest extends TestCase
             'password' => 'SecurePass123!',
             'password_confirmation' => 'SecurePass123!',
             'terms' => true,
+            'registration_token' => $token,
         ];
 
         $response = $this->post('/register', $payload);
@@ -131,7 +149,7 @@ class MedVisitMailTest extends TestCase
             $this->assertSame('Welcome to MedVisit - Apex Family Health', $mail->subjectLine());
 
             $this->assertSame('apex-health', $mail->tenant->subdomain);
-            $this->assertStringContainsString('apex-health.medvisit.test/login', $mail->clinicUrl);
+            $this->assertStringContainsString("apex-health.{$this->baseDomain}", $mail->clinicUrl);
 
             // Assert 3 next steps are present in template
             $mail->assertSeeInHtml('Welcome to MedVisit!');

@@ -6,9 +6,12 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\ClinicRegistrationRequest;
+use App\Mail\Auth\RegistrationVerificationCodeMail;
 use App\Mail\Auth\WelcomeClinicMail;
+use App\Models\PendingRegistration;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Rules\NotDisposableEmail;
 use App\Rules\SubdomainRule;
 use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
@@ -19,7 +22,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Inertia\Response;
 use Spatie\Permission\Models\Role;
@@ -32,10 +37,12 @@ class ClinicRegistrationController extends Controller
      */
     public function create(): Response
     {
+        $baseDomain = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
+
         return Inertia::render('Auth/RegisterClinic', [
             'districts' => ClinicRegistrationRequest::DISTRICTS,
             'clinicTypes' => ClinicRegistrationRequest::CLINIC_TYPES,
-            'centralDomain' => config('tenancy.central_domains.0', 'medvisit.test'),
+            'centralDomain' => $baseDomain,
         ]);
     }
 
@@ -76,7 +83,7 @@ class ClinicRegistrationController extends Controller
             ]);
         }
 
-        $centralDomain = config('tenancy.central_domains.0', 'medvisit.test');
+        $centralDomain = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
 
         $tenantExists = Tenant::where('id', $subdomain)
             ->orWhere('subdomain', $subdomain)
@@ -102,11 +109,273 @@ class ClinicRegistrationController extends Controller
     }
 
     /**
+     * Send email verification code before clinic is created (Step 3 -> Step 4).
+     */
+    public function sendVerificationCode(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'honeypot' => ['nullable', 'max:0'],
+            'clinic_name' => ['required', 'string', 'max:120'],
+            'clinic_type' => ['required', 'string', 'in:'.implode(',', ClinicRegistrationRequest::CLINIC_TYPES)],
+            'district' => ['required', 'string', 'in:'.implode(',', ClinicRegistrationRequest::DISTRICTS)],
+            'city' => ['required', 'string', 'max:100'],
+            'address' => ['required', 'string', 'max:255'],
+            'clinic_phone' => ['required', 'string', 'max:30'],
+            'subdomain' => ['required', 'string', new SubdomainRule],
+            'name' => ['required', 'string', 'max:120'],
+            'email' => [
+                'required',
+                'string',
+                'lowercase',
+                'email',
+                'max:255',
+                'unique:users,email',
+                new NotDisposableEmail,
+            ],
+            'mobile' => ['required', 'string', 'max:30'],
+            'password' => [
+                'required',
+                'confirmed',
+                Password::min(8)->letters()->mixedCase()->numbers(),
+            ],
+            'terms' => ['accepted'],
+        ], [
+            'terms.accepted' => 'You must agree to the Terms of Service and Privacy Policy to register.',
+            'clinic_type.in' => 'Please select a valid clinic type.',
+            'district.in' => 'Please select one of Sri Lanka’s 25 administrative districts.',
+            'password.min' => 'Password must be at least 8 characters with uppercase, lowercase, and numbers.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'The given data was invalid.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $validated = $validator->validated();
+        $email = Str::lower(trim($validated['email']));
+        $ip = $request->ip();
+
+        // Rate limit sending: max 5 codes per email per hour and per IP
+        $oneHourAgo = now()->subHour();
+        $emailCount = PendingRegistration::where('email', $email)
+            ->where('created_at', '>=', $oneHourAgo)
+            ->count();
+
+        $ipCount = PendingRegistration::where('ip_address', $ip)
+            ->where('created_at', '>=', $oneHourAgo)
+            ->count();
+
+        if ($emailCount >= 5 || $ipCount >= 5) {
+            return response()->json([
+                'message' => 'Too many verification codes requested. Please wait an hour before requesting a new code.',
+            ], 429);
+        }
+
+        $code = sprintf('%06d', random_int(100000, 999999));
+        $token = Str::random(40);
+
+        $pending = new PendingRegistration([
+            'email' => $email,
+            'token' => $token,
+            'code_hash' => Hash::make($code),
+            'attempts' => 0,
+            'expires_at' => now()->addMinutes(10),
+            'resend_available_at' => now()->addSeconds(60),
+            'ip_address' => $ip,
+        ]);
+        $pending->setEncryptedPayload($validated);
+        $pending->save();
+
+        Mail::to($email)->send(new RegistrationVerificationCodeMail(
+            code: $code,
+            email: $email,
+            name: $validated['name'],
+            clinicName: $validated['clinic_name'],
+        ));
+
+        return response()->json([
+            'success' => true,
+            'token' => $token,
+            'email' => $email,
+            'expires_in_seconds' => 600,
+            'resend_cooldown_seconds' => 60,
+            'message' => "Verification code sent to {$email}.",
+        ]);
+    }
+
+    /**
+     * Verify the 6-digit code.
+     */
+    public function verifyCode(Request $request): JsonResponse
+    {
+        $request->validate([
+            'token' => ['required', 'string'],
+            'code' => ['required', 'string', 'size:6'],
+        ]);
+
+        $token = (string) $request->input('token');
+        $code = trim((string) $request->input('code'));
+
+        /** @var PendingRegistration|null $pending */
+        $pending = PendingRegistration::where('token', $token)->first();
+
+        if (! $pending) {
+            return response()->json([
+                'message' => 'Registration session not found or expired. Please start over.',
+            ], 404);
+        }
+
+        if ($pending->isVerified()) {
+            return response()->json([
+                'success' => true,
+                'verified' => true,
+                'token' => $pending->token,
+                'message' => 'Email is already verified.',
+            ]);
+        }
+
+        if ($pending->hasExceededAttempts()) {
+            return response()->json([
+                'message' => 'Too many incorrect attempts. Please request a new verification code.',
+                'locked' => true,
+                'attempts_remaining' => 0,
+            ], 422);
+        }
+
+        if ($pending->isExpired()) {
+            return response()->json([
+                'message' => 'Verification code has expired. Please request a new code.',
+                'expired' => true,
+            ], 422);
+        }
+
+        if (! Hash::check($code, $pending->code_hash)) {
+            $pending->increment('attempts');
+            $remaining = max(0, 5 - $pending->attempts);
+
+            if ($remaining === 0) {
+                return response()->json([
+                    'message' => 'Too many incorrect attempts. Please request a new verification code.',
+                    'locked' => true,
+                    'attempts_remaining' => 0,
+                ], 422);
+            }
+
+            return response()->json([
+                'message' => "Incorrect verification code. {$remaining} attempts remaining.",
+                'attempts_remaining' => $remaining,
+            ], 422);
+        }
+
+        $pending->update([
+            'verified_at' => now(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'verified' => true,
+            'token' => $pending->token,
+            'message' => 'Email verified successfully.',
+        ]);
+    }
+
+    /**
+     * Resend verification code (with 60-second cooldown and 1-hour rate limit).
+     */
+    public function resendCode(Request $request): JsonResponse
+    {
+        $request->validate([
+            'token' => ['required', 'string'],
+        ]);
+
+        $token = (string) $request->input('token');
+
+        /** @var PendingRegistration|null $pending */
+        $pending = PendingRegistration::where('token', $token)->first();
+
+        if (! $pending) {
+            return response()->json([
+                'message' => 'Registration session not found. Please restart registration.',
+            ], 404);
+        }
+
+        if ($pending->isVerified()) {
+            return response()->json([
+                'message' => 'Email is already verified.',
+            ], 400);
+        }
+
+        if ($pending->resend_available_at && $pending->resend_available_at->isFuture()) {
+            $diffSeconds = $pending->resend_available_at->diffInSeconds(now());
+
+            return response()->json([
+                'message' => "Please wait {$diffSeconds} seconds before requesting a new code.",
+                'retry_after' => $diffSeconds,
+            ], 429);
+        }
+
+        $oneHourAgo = now()->subHour();
+        $emailCount = PendingRegistration::where('email', $pending->email)
+            ->where('created_at', '>=', $oneHourAgo)
+            ->count();
+
+        $ipCount = PendingRegistration::where('ip_address', $request->ip())
+            ->where('created_at', '>=', $oneHourAgo)
+            ->count();
+
+        if ($emailCount >= 5 || $ipCount >= 5) {
+            return response()->json([
+                'message' => 'Too many verification requests. Please wait an hour before trying again.',
+            ], 429);
+        }
+
+        $code = sprintf('%06d', random_int(100000, 999999));
+
+        $pending->update([
+            'code_hash' => Hash::make($code),
+            'attempts' => 0,
+            'expires_at' => now()->addMinutes(10),
+            'resend_available_at' => now()->addSeconds(60),
+        ]);
+
+        $payload = $pending->getDecryptedPayload();
+
+        Mail::to($pending->email)->send(new RegistrationVerificationCodeMail(
+            code: $code,
+            email: $pending->email,
+            name: $payload['name'] ?? null,
+            clinicName: $payload['clinic_name'] ?? null,
+        ));
+
+        return response()->json([
+            'success' => true,
+            'expires_in_seconds' => 600,
+            'resend_cooldown_seconds' => 60,
+            'message' => "A new verification code has been sent to {$pending->email}.",
+        ]);
+    }
+
+    /**
      * Process clinic registration in a single database transaction.
+     * Only permitted if email has been verified upfront.
      */
     public function store(ClinicRegistrationRequest $request): RedirectResponse
     {
         $validated = $request->validated();
+        $token = (string) $validated['registration_token'];
+
+        /** @var PendingRegistration|null $pending */
+        $pending = PendingRegistration::where('token', $token)->first();
+
+        // Server-side check: refuse to create clinic unless pending registration is verified
+        if (! $pending || ! $pending->isVerified()) {
+            return back()->withErrors([
+                'email' => 'Your email address must be verified before the clinic can be created.',
+            ])->withInput();
+        }
+
         $subdomain = Str::lower(trim($validated['subdomain']));
 
         /** @var Tenant $tenant */
@@ -114,7 +383,7 @@ class ClinicRegistrationController extends Controller
         $tenant = null;
         $user = null;
 
-        DB::transaction(function () use ($validated, $subdomain, &$tenant, &$user) {
+        DB::transaction(function () use ($validated, $subdomain, $pending, &$tenant, &$user) {
             $tenant = Tenant::create([
                 'id' => $subdomain,
                 'name' => $validated['clinic_name'],
@@ -134,7 +403,7 @@ class ClinicRegistrationController extends Controller
                 ],
             ]);
 
-            $centralDomain = config('tenancy.central_domains.0', 'medvisit.test');
+            $centralDomain = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
             $tenant->domains()->create(['domain' => $subdomain]);
             $tenant->domains()->create(['domain' => "{$subdomain}.{$centralDomain}"]);
 
@@ -143,10 +412,14 @@ class ClinicRegistrationController extends Controller
                 'name' => $validated['name'],
                 'email' => $validated['email'],
                 'password' => Hash::make($validated['password']),
+                'email_verified_at' => $pending->verified_at ?? now(),
             ]);
 
             $role = Role::firstOrCreate(['name' => 'clinic_admin', 'guard_name' => 'web']);
             $user->assignRole($role);
+
+            // Clean up the verified pending registration
+            $pending->delete();
 
             AuditLogger::log('tenant.created', [
                 'tenant_id' => $tenant->id,
@@ -162,7 +435,6 @@ class ClinicRegistrationController extends Controller
                 'tenant_id' => $tenant->id,
             ]);
 
-            $user->sendEmailVerificationNotification();
             Mail::to($user->email)->queue(new WelcomeClinicMail($tenant, $user));
         });
 
@@ -173,7 +445,7 @@ class ClinicRegistrationController extends Controller
             'tenant_id' => $tenant->id,
         ], now()->addMinutes(15));
 
-        $centralDomain = config('tenancy.central_domains.0', 'medvisit.test');
+        $centralDomain = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
         $scheme = $request->getScheme();
         $port = $request->getPort();
         $portSuffix = ($port && ! in_array($port, [80, 443])) ? ":{$port}" : '';

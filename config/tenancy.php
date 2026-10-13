@@ -23,11 +23,12 @@ return [
      *
      * Only relevant if you're using the domain or subdomain identification middleware.
      */
-    'central_domains' => [
-        'medvisit.test',
-        '127.0.0.1',
+    'central_domains' => array_values(array_unique(array_filter([
+        env('MEDVISIT_BASE_DOMAIN', 'medvisit.localhost'),
+        'medvisit.localhost',
         'localhost',
-    ],
+        '127.0.0.1',
+    ]))),
 
     /**
      * Tenancy bootstrappers are executed when tenancy is initialized.

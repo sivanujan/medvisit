@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, FormEventHandler } from 'react';
+import React, { useState, useEffect, useMemo, useRef, FormEventHandler } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -21,6 +21,8 @@ import {
     Check,
     ExternalLink,
     Laptop,
+    RotateCw,
+    KeyRound,
 } from 'lucide-react';
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import AuthHeader from '@/Components/AuthHeader';
@@ -49,7 +51,7 @@ interface SubdomainCheckResult {
 }
 
 export default function RegisterClinic({ districts, clinicTypes, centralDomain }: Props) {
-    const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+    const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
     const [showPassword, setShowPassword] = useState(false);
     const [subdomainManuallyEdited, setSubdomainManuallyEdited] = useState(false);
 
@@ -57,7 +59,20 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
     const [checkingSubdomain, setCheckingSubdomain] = useState(false);
     const [subdomainResult, setSubdomainResult] = useState<SubdomainCheckResult | null>(null);
 
-    const { data, setData, post, processing, errors, clearErrors } = useForm({
+    // OTP verification state (Step 4)
+    const [digits, setDigits] = useState<string[]>(['', '', '', '', '', '']);
+    const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+    const [sendingCode, setSendingCode] = useState(false);
+    const [verifyingCode, setVerifyingCode] = useState(false);
+    const [resendingCode, setResendingCode] = useState(false);
+    const [otpError, setOtpError] = useState<string | null>(null);
+    const [otpSuccess, setOtpSuccess] = useState<string | null>(null);
+    const [isLocked, setIsLocked] = useState(false);
+    const [isVerified, setIsVerified] = useState(false);
+    const [expirySeconds, setExpirySeconds] = useState(600);
+    const [resendCooldown, setResendCooldown] = useState(60);
+
+    const { data, setData, post, processing, errors, setError, clearErrors } = useForm({
         // Honeypot field
         honeypot: '',
         // Step 1: Clinic
@@ -76,6 +91,8 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
         password: '',
         password_confirmation: '',
         terms: false as boolean,
+        // Step 4: OTP Verification
+        registration_token: '',
     });
 
     // Auto-generate subdomain from clinic name until user manually types subdomain
@@ -137,6 +154,24 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
         };
     }, [debouncedSubdomain]);
 
+    // Timer countdown for Step 4
+    useEffect(() => {
+        if (step !== 4 || isVerified) return;
+
+        const timer = setInterval(() => {
+            setExpirySeconds((prev) => (prev > 0 ? prev - 1 : 0));
+            setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [step, isVerified]);
+
+    const formatTimer = (totalSeconds: number) => {
+        const mins = Math.floor(totalSeconds / 60);
+        const secs = totalSeconds % 60;
+        return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    };
+
     // Step validation helpers
     const canProceedStep1 = useMemo(() => {
         return (
@@ -166,6 +201,212 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
         );
     }, [data.name, data.email, data.mobile, data.password, data.password_confirmation, data.terms]);
 
+    // Send OTP code (Transition from Step 3 -> Step 4)
+    const handleSendCode = async () => {
+        clearErrors();
+        setOtpError(null);
+        setSendingCode(true);
+
+        const csrfToken = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
+
+        try {
+            const res = await fetch(route('register.send_code'), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    Accept: 'application/json',
+                },
+                body: JSON.stringify(data),
+            });
+
+            const resData = await res.json();
+
+            if (!res.ok) {
+                if (res.status === 422 && resData.errors) {
+                    Object.entries(resData.errors).forEach(([field, msgs]) => {
+                        const firstMsg = Array.isArray(msgs) ? msgs[0] : (msgs as string);
+                        setError(field as any, firstMsg);
+                    });
+                } else {
+                    setOtpError(resData.message || 'Failed to send verification code. Please check your details.');
+                }
+                setSendingCode(false);
+                return;
+            }
+
+            setData('registration_token', resData.token);
+            setExpirySeconds(resData.expires_in_seconds || 600);
+            setResendCooldown(resData.resend_cooldown_seconds || 60);
+            setDigits(['', '', '', '', '', '']);
+            setIsLocked(false);
+            setIsVerified(false);
+            setSendingCode(false);
+            setStep(4);
+
+            setTimeout(() => {
+                inputRefs.current[0]?.focus();
+            }, 150);
+        } catch {
+            setOtpError('Network error while requesting verification code. Please try again.');
+            setSendingCode(false);
+        }
+    };
+
+    // Verify OTP code
+    const handleVerifyCode = async (codeToVerify?: string) => {
+        const code = codeToVerify || digits.join('');
+        if (code.length !== 6 || verifyingCode) return;
+
+        setVerifyingCode(true);
+        setOtpError(null);
+
+        const csrfToken = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
+
+        try {
+            const res = await fetch(route('register.verify_code'), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    Accept: 'application/json',
+                },
+                body: JSON.stringify({
+                    token: data.registration_token,
+                    code,
+                }),
+            });
+
+            const resData = await res.json();
+
+            if (!res.ok) {
+                setOtpError(resData.message || 'Incorrect verification code.');
+                if (resData.locked) {
+                    setIsLocked(true);
+                }
+                setVerifyingCode(false);
+                return;
+            }
+
+            setIsVerified(true);
+            setOtpSuccess('Email verified successfully!');
+            setVerifyingCode(false);
+
+            // Auto-advance to Step 5 (Review & Create) after 600ms
+            setTimeout(() => {
+                setStep(5);
+            }, 600);
+        } catch {
+            setOtpError('Network error while verifying code. Please try again.');
+            setVerifyingCode(false);
+        }
+    };
+
+    // Resend OTP code
+    const handleResendCode = async () => {
+        if (resendCooldown > 0 || resendingCode || !data.registration_token) return;
+
+        setResendingCode(true);
+        setOtpError(null);
+
+        const csrfToken = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
+
+        try {
+            const res = await fetch(route('register.resend_code'), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    Accept: 'application/json',
+                },
+                body: JSON.stringify({
+                    token: data.registration_token,
+                }),
+            });
+
+            const resData = await res.json();
+
+            if (!res.ok) {
+                setOtpError(resData.message || 'Failed to resend code.');
+                setResendingCode(false);
+                return;
+            }
+
+            setExpirySeconds(resData.expires_in_seconds || 600);
+            setResendCooldown(resData.resend_cooldown_seconds || 60);
+            setDigits(['', '', '', '', '', '']);
+            setIsLocked(false);
+            setOtpSuccess('A new verification code has been sent to your email.');
+            setTimeout(() => setOtpSuccess(null), 3500);
+            setResendingCode(false);
+
+            setTimeout(() => {
+                inputRefs.current[0]?.focus();
+            }, 100);
+        } catch {
+            setOtpError('Network error while resending verification code.');
+            setResendingCode(false);
+        }
+    };
+
+    // OTP Input Handlers
+    const handleDigitChange = (index: number, value: string) => {
+        if (isLocked || isVerified) return;
+
+        const cleanDigit = value.replace(/\D/g, '').slice(-1);
+        const newDigits = [...digits];
+        newDigits[index] = cleanDigit;
+        setDigits(newDigits);
+        setOtpError(null);
+
+        if (cleanDigit && index < 5) {
+            inputRefs.current[index + 1]?.focus();
+        }
+
+        // Auto submit on 6th digit
+        if (cleanDigit && index === 5) {
+            const fullCode = newDigits.join('');
+            if (fullCode.length === 6) {
+                handleVerifyCode(fullCode);
+            }
+        }
+    };
+
+    const handleDigitKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Backspace') {
+            if (!digits[index] && index > 0) {
+                inputRefs.current[index - 1]?.focus();
+            }
+        } else if (e.key === 'ArrowLeft' && index > 0) {
+            inputRefs.current[index - 1]?.focus();
+        } else if (e.key === 'ArrowRight' && index < 5) {
+            inputRefs.current[index + 1]?.focus();
+        }
+    };
+
+    const handleDigitPaste = (e: React.ClipboardEvent) => {
+        e.preventDefault();
+        if (isLocked || isVerified) return;
+
+        const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+        if (!pasted) return;
+
+        const newDigits = ['', '', '', '', '', ''];
+        for (let i = 0; i < 6; i++) {
+            newDigits[i] = pasted[i] || '';
+        }
+        setDigits(newDigits);
+        setOtpError(null);
+
+        if (pasted.length === 6) {
+            inputRefs.current[5]?.focus();
+            handleVerifyCode(pasted);
+        } else {
+            const nextIndex = Math.min(pasted.length, 5);
+            inputRefs.current[nextIndex]?.focus();
+        }
+    };
+
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
         post(route('register'));
@@ -186,7 +427,7 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
             <AuthHeader
                 subtitle="Create your clinic"
                 step={step}
-                totalSteps={4}
+                totalSteps={5}
                 stepLabel={
                     step === 1
                         ? 'Clinic details'
@@ -194,7 +435,9 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                         ? 'Web address'
                         : step === 3
                         ? 'Admin account'
-                        : 'Review & launch'
+                        : step === 4
+                        ? 'Verify email'
+                        : 'Review & create'
                 }
                 rightAction="signin"
             />
@@ -204,7 +447,7 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                 <div className="flex items-center gap-2 truncate">
                     <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                     <span className="font-mono text-slate-300 truncate">
-                        https://<span className="text-white font-bold">{displaySubdomain}</span>.medvisit.lk
+                        http://<span className="text-white font-bold">{displaySubdomain}</span>.{centralDomain}:8000
                     </span>
                 </div>
                 <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-primary/30 text-primary-300">
@@ -212,20 +455,21 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                 </span>
             </div>
 
-            {/* Main Content: Split Desktop Layout (aligned to exact container) */}
+            {/* Main Content: Split Desktop Layout */}
             <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                {/* Left Column: Multi-Step Wizard Form (~58% cols on desktop) */}
+                {/* Left Column: Multi-Step Wizard Form */}
                 <div className="lg:col-span-7 space-y-4">
                     {/* Step Form Container */}
                     <div className="p-6 sm:p-8 rounded-3xl bg-white/80 dark:bg-slate-900/70 backdrop-blur-2xl border border-slate-200/80 dark:border-white/10 shadow-xl dark:shadow-2xl">
-                        {/* Clean 4-Step Indicator Inside Form Card */}
+                        {/* 5-Step Indicator Inside Form Card */}
                         <div className="pb-6 mb-6 border-b border-slate-200/80 dark:border-white/10">
                             <div className="flex items-center justify-between">
                                 {[
                                     { num: 1, label: 'Clinic', icon: Building2 },
                                     { num: 2, label: 'Web Address', icon: Globe },
-                                    { num: 3, label: 'Admin Account', icon: UserCheck },
-                                    { num: 4, label: 'Launch', icon: CheckCircle2 },
+                                    { num: 3, label: 'Admin', icon: UserCheck },
+                                    { num: 4, label: 'Verify', icon: Mail },
+                                    { num: 5, label: 'Launch', icon: CheckCircle2 },
                                 ].map((s, idx) => {
                                     const Icon = s.icon;
                                     const isCurrent = step === s.num;
@@ -239,7 +483,7 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                                         if (isDone) setStep(s.num as any);
                                                     }}
                                                     disabled={!isDone && !isCurrent}
-                                                    className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-300 ${
+                                                    className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-300 ${
                                                         isCurrent
                                                             ? 'bg-primary text-white shadow-lg shadow-primary/30 ring-4 ring-primary/20 scale-105'
                                                             : isDone
@@ -250,26 +494,26 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                                     title={`Step ${s.num}: ${s.label}`}
                                                 >
                                                     {isDone ? (
-                                                        <Check className="w-4 h-4 stroke-[2.5]" />
+                                                        <Check className="w-4 h-4 text-secondary stroke-[3]" />
                                                     ) : (
                                                         <Icon className="w-4 h-4" />
                                                     )}
                                                 </button>
                                                 <span
-                                                    className={`text-[10px] sm:text-xs font-semibold text-center truncate max-w-[65px] sm:max-w-none transition-colors duration-200 ${
+                                                    className={`text-[10px] sm:text-xs font-semibold truncate max-w-full ${
                                                         isCurrent
                                                             ? 'text-primary dark:text-primary-400 font-bold'
                                                             : isDone
-                                                            ? 'text-secondary-600 dark:text-secondary-400'
+                                                            ? 'text-slate-700 dark:text-slate-300'
                                                             : 'text-slate-400 dark:text-slate-500'
                                                     }`}
                                                 >
                                                     {s.label}
                                                 </span>
                                             </div>
-                                            {idx < 3 && (
+                                            {idx < 4 && (
                                                 <div
-                                                    className={`flex-1 h-0.5 mx-1 sm:mx-2 rounded-full transition-colors duration-300 self-center -mt-5 ${
+                                                    className={`h-0.5 flex-1 mx-1 sm:mx-2 rounded transition-colors ${
                                                         step > idx + 1
                                                             ? 'bg-secondary'
                                                             : 'bg-slate-200 dark:bg-slate-800'
@@ -739,21 +983,27 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
 
                                             <button
                                                 type="button"
-                                                disabled={!canProceedStep3}
-                                                onClick={() => {
-                                                    clearErrors();
-                                                    setStep(4);
-                                                }}
+                                                disabled={!canProceedStep3 || sendingCode}
+                                                onClick={handleSendCode}
                                                 className="py-3 px-6 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-primary to-primary-600 hover:from-primary-600 hover:to-primary-700 shadow-md shadow-primary/25 hover:shadow-lg transition-all duration-200 flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
-                                                <span>Review & Finish</span>
-                                                <ArrowRight className="w-4 h-4" />
+                                                {sendingCode ? (
+                                                    <>
+                                                        <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                                                        <span>Sending Verification Code...</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <span>Verify Email</span>
+                                                        <ArrowRight className="w-4 h-4" />
+                                                    </>
+                                                )}
                                             </button>
                                         </div>
                                     </motion.div>
                                 )}
 
-                                {/* STEP 4: REVIEW & CREATE */}
+                                {/* STEP 4: VERIFY EMAIL (NEW OTP STEP) */}
                                 {step === 4 && (
                                     <motion.div
                                         key="step4"
@@ -763,13 +1013,185 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                         transition={{ duration: 0.25 }}
                                         className="space-y-5"
                                     >
+                                        <div className="text-center space-y-1">
+                                            <div className="inline-flex w-12 h-12 rounded-2xl bg-primary/10 dark:bg-primary-500/20 text-primary items-center justify-center mb-2">
+                                                <Mail className="w-6 h-6" />
+                                            </div>
+                                            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                                                Verify Your Admin Email
+                                            </h2>
+                                            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 max-w-sm mx-auto">
+                                                We sent a 6-digit verification code to{' '}
+                                                <strong className="text-primary-700 dark:text-primary-300 font-bold break-all">
+                                                    {data.email}
+                                                </strong>
+                                                . Enter it below to confirm your account.
+                                            </p>
+                                        </div>
+
+                                        {/* 6 Digit Input Boxes */}
+                                        <div className="py-2">
+                                            <div
+                                                className="flex items-center justify-center gap-2 sm:gap-3"
+                                                onPaste={handleDigitPaste}
+                                            >
+                                                {digits.map((digit, idx) => (
+                                                    <input
+                                                        key={idx}
+                                                        ref={(el) => (inputRefs.current[idx] = el)}
+                                                        type="text"
+                                                        inputMode="numeric"
+                                                        autoComplete={idx === 0 ? 'one-time-code' : 'off'}
+                                                        maxLength={1}
+                                                        value={digit}
+                                                        disabled={isLocked || isVerified}
+                                                        onChange={(e) => handleDigitChange(idx, e.target.value)}
+                                                        onKeyDown={(e) => handleDigitKeyDown(idx, e)}
+                                                        className={`w-11 h-14 sm:w-13 sm:h-16 text-center font-mono font-extrabold text-2xl sm:text-3xl rounded-2xl border transition-all duration-200 outline-none select-all ${
+                                                            digit
+                                                                ? 'border-primary bg-primary/5 dark:bg-primary-950/40 text-primary-700 dark:text-primary-300 ring-2 ring-primary/20'
+                                                                : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white'
+                                                        } ${
+                                                            isLocked
+                                                                ? 'border-rose-400 bg-rose-50/50 dark:bg-rose-950/20 cursor-not-allowed opacity-60'
+                                                                : 'focus:border-primary focus:ring-4 focus:ring-primary/20'
+                                                        }`}
+                                                        aria-label={`Digit ${idx + 1}`}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Status / Error Messages */}
+                                        {otpError && (
+                                            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs flex items-center justify-between gap-2">
+                                                <div className="flex items-center gap-2">
+                                                    <AlertCircle className="w-4 h-4 shrink-0" />
+                                                    <span>{otpError}</span>
+                                                </div>
+                                                {isLocked && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleResendCode}
+                                                        className="font-bold underline hover:no-underline cursor-pointer shrink-0"
+                                                    >
+                                                        Request new code
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {otpSuccess && (
+                                            <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2 justify-center">
+                                                <Check className="w-4 h-4 text-emerald-500" />
+                                                <span className="font-semibold">{otpSuccess}</span>
+                                            </div>
+                                        )}
+
+                                        {/* Timer & Resend Controls */}
+                                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 text-xs text-slate-500 dark:text-slate-400">
+                                            <div className="flex items-center gap-1.5 font-medium">
+                                                <Clock className="w-3.5 h-3.5 text-slate-400" />
+                                                {expirySeconds > 0 ? (
+                                                    <span>
+                                                        Code expires in{' '}
+                                                        <strong className="font-mono text-primary font-bold">
+                                                            {formatTimer(expirySeconds)}
+                                                        </strong>
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-rose-500 font-bold">
+                                                        Code has expired
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <div className="flex items-center gap-4">
+                                                <button
+                                                    type="button"
+                                                    disabled={resendCooldown > 0 || resendingCode}
+                                                    onClick={handleResendCode}
+                                                    className="font-bold text-xs text-primary hover:underline disabled:text-slate-400 disabled:no-underline disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer"
+                                                >
+                                                    {resendingCode ? (
+                                                        <>
+                                                            <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                                                            <span>Resending...</span>
+                                                        </>
+                                                    ) : resendCooldown > 0 ? (
+                                                        <span>Resend code in {resendCooldown}s</span>
+                                                    ) : (
+                                                        <span>Resend code</span>
+                                                    )}
+                                                </button>
+
+                                                <span className="text-slate-300 dark:text-slate-700">•</span>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setStep(3)}
+                                                    className="font-medium text-xs text-slate-600 dark:text-slate-300 hover:text-primary hover:underline cursor-pointer"
+                                                >
+                                                    Change email
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Actions */}
+                                        <div className="pt-4 flex items-center justify-between border-t border-slate-200/80 dark:border-white/10">
+                                            <button
+                                                type="button"
+                                                onClick={() => setStep(3)}
+                                                className="py-3 px-5 rounded-xl font-semibold text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer"
+                                            >
+                                                <ArrowLeft className="w-4 h-4" />
+                                                <span>Back</span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                disabled={digits.join('').length !== 6 || verifyingCode || isLocked}
+                                                onClick={() => handleVerifyCode()}
+                                                className="py-3 px-6 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-primary to-primary-600 hover:from-primary-600 hover:to-primary-700 shadow-md shadow-primary/25 hover:shadow-lg transition-all duration-200 flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                {verifyingCode ? (
+                                                    <>
+                                                        <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                                                        <span>Verifying...</span>
+                                                    </>
+                                                ) : isVerified ? (
+                                                    <>
+                                                        <Check className="w-4 h-4" />
+                                                        <span>Verified • Continue</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <span>Confirm Code</span>
+                                                        <ArrowRight className="w-4 h-4" />
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                    </motion.div>
+                                )}
+
+                                {/* STEP 5: REVIEW & CREATE */}
+                                {step === 5 && (
+                                    <motion.div
+                                        key="step5"
+                                        initial={{ opacity: 0, x: -16 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: 16 }}
+                                        transition={{ duration: 0.25 }}
+                                        className="space-y-5"
+                                    >
                                         <div>
                                             <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
                                                 <CheckCircle2 className="w-5 h-5 text-secondary" />
-                                                Review Your Clinic Details
+                                                Review & Launch Clinic
                                             </h2>
                                             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-                                                Please confirm your details before creating your clinic workspace.
+                                                Your email is confirmed. Please review your details before creating your clinic workspace.
                                             </p>
                                         </div>
 
@@ -810,7 +1232,7 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                                         https://{data.subdomain}.medvisit.lk
                                                     </p>
                                                     <p className="text-slate-500 dark:text-slate-400">
-                                                        Local test access: https://{data.subdomain}.{centralDomain}
+                                                        Local URL: http://{data.subdomain}.{centralDomain}:8000
                                                     </p>
                                                 </div>
                                                 <button
@@ -822,12 +1244,18 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                                 </button>
                                             </div>
 
-                                            {/* Admin Summary */}
+                                            {/* Admin Summary with Verified Badge */}
                                             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-white/10 flex items-start justify-between">
                                                 <div className="space-y-1 text-xs">
-                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-accent">
-                                                        3. Administrator Account
-                                                    </span>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[10px] font-bold uppercase tracking-wider text-accent">
+                                                            3. Administrator Account
+                                                        </span>
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                                                            <Check className="w-3 h-3 text-emerald-600" />
+                                                            Email Verified
+                                                        </span>
+                                                    </div>
                                                     <p className="font-bold text-sm text-slate-900 dark:text-white">
                                                         {data.name}
                                                     </p>
@@ -857,7 +1285,7 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                             <button
                                                 type="button"
                                                 disabled={processing}
-                                                onClick={() => setStep(3)}
+                                                onClick={() => setStep(4)}
                                                 className="py-3 px-5 rounded-xl font-semibold text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer"
                                             >
                                                 <ArrowLeft className="w-4 h-4" />
@@ -866,7 +1294,7 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
 
                                             <button
                                                 type="submit"
-                                                disabled={processing}
+                                                disabled={processing || !data.registration_token}
                                                 className="py-3.5 px-8 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-primary via-primary-600 to-secondary hover:shadow-xl shadow-lg shadow-primary/30 transition-all duration-200 flex items-center gap-2 cursor-pointer disabled:opacity-50"
                                             >
                                                 {processing ? (

@@ -14,10 +14,13 @@ class TenantLoginTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected string $baseDomain;
+
     protected function setUp(): void
     {
         parent::setUp();
-        $this->app['url']->defaults(['central_domain' => 'medvisit.test']);
+        $this->baseDomain = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
+        $this->app['url']->defaults(['central_domain' => $this->baseDomain]);
     }
 
     public function test_tenant_login_screen_renders_with_clinic_identity(): void
@@ -28,7 +31,7 @@ class TenantLoginTest extends TestCase
             'subdomain' => 'ruhunu',
         ]);
 
-        $response = $this->get('http://ruhunu.medvisit.test/login');
+        $response = $this->get("http://ruhunu.{$this->baseDomain}/login");
 
         $response->assertStatus(200);
         $response->assertInertia(fn ($page) => $page
@@ -52,7 +55,7 @@ class TenantLoginTest extends TestCase
             'password' => Hash::make('Secret123!'),
         ]);
 
-        $response = $this->post('http://ruhunu.medvisit.test/login', [
+        $response = $this->post("http://ruhunu.{$this->baseDomain}/login", [
             'email' => 'doctor@ruhunu.lk',
             'password' => 'Secret123!',
         ]);
@@ -86,7 +89,7 @@ class TenantLoginTest extends TestCase
         ]);
 
         // Attempt login on Clinic B's subdomain using Clinic A user's email and password
-        $response = $this->post('http://clinic-b.medvisit.test/login', [
+        $response = $this->post("http://clinic-b.{$this->baseDomain}/login", [
             'email' => 'nurse@clinica.lk',
             'password' => 'AlphaPass123!',
         ]);
@@ -107,14 +110,14 @@ class TenantLoginTest extends TestCase
         ]);
 
         for ($i = 0; $i < 5; $i++) {
-            $this->post('http://ruhunu.medvisit.test/login', [
+            $this->post("http://ruhunu.{$this->baseDomain}/login", [
                 'email' => 'staff@ruhunu.lk',
                 'password' => 'wrong-pass',
             ]);
         }
 
         // 6th attempt should be throttled
-        $response = $this->post('http://ruhunu.medvisit.test/login', [
+        $response = $this->post("http://ruhunu.{$this->baseDomain}/login", [
             'email' => 'staff@ruhunu.lk',
             'password' => 'wrong-pass',
         ]);
@@ -139,16 +142,16 @@ class TenantLoginTest extends TestCase
         ]);
 
         // Logging in on suspended tenant redirects to suspension page
-        $response = $this->post('http://paused-clinic.medvisit.test/login', [
+        $response = $this->post("http://paused-clinic.{$this->baseDomain}/login", [
             'email' => 'admin@paused.lk',
             'password' => 'Secret123!',
         ]);
 
-        $response->assertRedirect('http://paused-clinic.medvisit.test/clinic/suspended');
+        $response->assertRedirect("http://paused-clinic.{$this->baseDomain}/clinic/suspended");
 
         // Accessing dashboard on suspended tenant is intercepted by EnsureTenantIsActive
-        $dashResponse = $this->actingAs($user)->get('http://paused-clinic.medvisit.test/dashboard');
-        $dashResponse->assertRedirect('http://paused-clinic.medvisit.test/clinic/suspended');
+        $dashResponse = $this->actingAs($user)->get("http://paused-clinic.{$this->baseDomain}/dashboard");
+        $dashResponse->assertRedirect("http://paused-clinic.{$this->baseDomain}/clinic/suspended");
     }
 
     public function test_trial_expired_tenant_redirects_to_notice_page(): void
@@ -166,15 +169,15 @@ class TenantLoginTest extends TestCase
         ]);
 
         // Logging in on expired tenant redirects to suspension page
-        $response = $this->post('http://expired-clinic.medvisit.test/login', [
+        $response = $this->post("http://expired-clinic.{$this->baseDomain}/login", [
             'email' => 'admin@expired.lk',
             'password' => 'Secret123!',
         ]);
 
-        $response->assertRedirect('http://expired-clinic.medvisit.test/clinic/suspended');
+        $response->assertRedirect("http://expired-clinic.{$this->baseDomain}/clinic/suspended");
 
         // Accessing dashboard on expired tenant is intercepted
-        $dashResponse = $this->actingAs($user)->get('http://expired-clinic.medvisit.test/dashboard');
-        $dashResponse->assertRedirect('http://expired-clinic.medvisit.test/clinic/suspended');
+        $dashResponse = $this->actingAs($user)->get("http://expired-clinic.{$this->baseDomain}/dashboard");
+        $dashResponse->assertRedirect("http://expired-clinic.{$this->baseDomain}/clinic/suspended");
     }
 }

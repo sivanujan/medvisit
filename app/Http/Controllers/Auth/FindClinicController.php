@@ -43,7 +43,7 @@ class FindClinicController extends Controller
             ]);
         }
 
-        $centralDomain = config('tenancy.central_domains.0', 'medvisit.test');
+        $centralDomain = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
         $scheme = $request->getScheme();
         $port = $request->getPort();
         $portSuffix = ($port && ! in_array($port, [80, 443])) ? ":{$port}" : '';
@@ -74,7 +74,7 @@ class FindClinicController extends Controller
             ->get();
 
         if ($users->isNotEmpty()) {
-            $centralDomain = config('tenancy.central_domains.0', 'medvisit.test');
+            $centralDomain = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
             $scheme = $request->getScheme();
             $port = $request->getPort();
             $portSuffix = ($port && ! in_array($port, [80, 443])) ? ":{$port}" : '';

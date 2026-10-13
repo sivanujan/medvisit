@@ -36,11 +36,12 @@ class DatabaseSeeder extends Seeder
         );
 
         // Map subdomains for Stancl Tenancy
+        $baseDomain = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
         if (! $demoTenant->domains()->where('domain', 'demo')->exists()) {
             $demoTenant->domains()->create(['domain' => 'demo']);
         }
-        if (! $demoTenant->domains()->where('domain', 'demo.medvisit.test')->exists()) {
-            $demoTenant->domains()->create(['domain' => 'demo.medvisit.test']);
+        if (! $demoTenant->domains()->where('domain', "demo.{$baseDomain}")->exists()) {
+            $demoTenant->domains()->create(['domain' => "demo.{$baseDomain}"]);
         }
 
         // 3. Clinic Admin User (scoped to demo tenant)

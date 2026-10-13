@@ -90,7 +90,7 @@ class SubdomainRule implements ValidationRule
             return;
         }
 
-        $centralDomain = config('tenancy.central_domains.0', 'medvisit.test');
+        $centralDomain = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
         $domainQuery = Domain::where(function ($query) use ($subdomain, $centralDomain) {
             $query->where('domain', $subdomain)
                 ->orWhere('domain', "{$subdomain}.{$centralDomain}");
@@ -127,7 +127,7 @@ class SubdomainRule implements ValidationRule
         ];
 
         $suggestions = [];
-        $centralDomain = config('tenancy.central_domains.0', 'medvisit.test');
+        $centralDomain = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
 
         foreach ($candidates as $candidate) {
             if (strlen($candidate) < 3 || strlen($candidate) > 30) {

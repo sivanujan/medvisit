@@ -16,7 +16,12 @@ use Inertia\Inertia;
 */
 
 Route::domain('{central_domain}')
-    ->whereIn('central_domain', config('tenancy.central_domains', ['medvisit.test', '127.0.0.1', 'localhost']))
+    ->whereIn('central_domain', config('tenancy.central_domains', [
+        config('medvisit.base_domain', 'medvisit.localhost'),
+        'medvisit.localhost',
+        'localhost',
+        '127.0.0.1',
+    ]))
     ->group(function () {
         Route::get('/', function () {
             return Inertia::render('Welcome', [

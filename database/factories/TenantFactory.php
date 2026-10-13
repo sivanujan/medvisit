@@ -64,9 +64,9 @@ class TenantFactory extends Factory
     public function configure(): static
     {
         return $this->afterCreating(function (Tenant $tenant) {
-            $centralDomain = config('tenancy.central_domains.0', 'medvisit.test');
+            $baseDomain = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
             $tenant->domains()->firstOrCreate(['domain' => $tenant->subdomain]);
-            $tenant->domains()->firstOrCreate(['domain' => "{$tenant->subdomain}.{$centralDomain}"]);
+            $tenant->domains()->firstOrCreate(['domain' => "{$tenant->subdomain}.{$baseDomain}"]);
         });
     }
 }
