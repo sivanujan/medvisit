@@ -1,3 +1,71 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+    --mv-primary: #1E6FD9;
+    --mv-primary-rgb: 30, 111, 217;
+    --mv-secondary: #0E9E8F;
+    --mv-secondary-rgb: 14, 158, 143;
+    --mv-accent: #FF7A59;
+    --mv-accent-rgb: 255, 122, 89;
+
+    /* Light Theme Glass Tokens */
+    --mv-surface-bg: rgba(255, 255, 255, 0.72);
+    --mv-surface-border: rgba(226, 232, 240, 0.85);
+    --mv-surface-shadow: 0 10px 30px -10px rgba(30, 111, 217, 0.08), 0 4px 12px -2px rgba(15, 23, 42, 0.04);
+    --mv-input-bg: rgba(255, 255, 255, 0.85);
+    --mv-text-primary: #0F172A;
+    --mv-text-muted: #64748B;
+}
+
+.dark {
+    /* Dark Theme Glass Tokens */
+    --mv-surface-bg: rgba(15, 23, 42, 0.75);
+    --mv-surface-border: rgba(255, 255, 255, 0.08);
+    --mv-surface-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    --mv-input-bg: rgba(30, 41, 59, 0.6);
+    --mv-text-primary: #F8FAFC;
+    --mv-text-muted: #94A3B8;
+}
+
+body {
+    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: var(--mv-text-primary);
+    background-color: #F8FAFC;
+}
+
+.dark body {
+    background-color: #0B1120;
+}
+
+/* Glass Surface Utility */
+.glass-panel {
+    background: var(--mv-surface-bg);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid var(--mv-surface-border);
+    box-shadow: var(--mv-surface-shadow);
+}
+
+/* Accessible focus styling */
+:focus-visible {
+    outline: 2px solid #1E6FD9;
+    outline-offset: 2px;
+}
+
+/* Subtle scrollbars */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.3);
+    border-radius: 9999px;
+}
+.dark ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+}

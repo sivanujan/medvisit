@@ -32,10 +32,24 @@ Route::domain('{central_domain}')
             return Inertia::render('Dashboard');
         })->middleware(['auth', 'verified'])->name('dashboard');
 
+        if (app()->environment('local', 'testing')) {
+            Route::get('/dev/components', function () {
+                return Inertia::render('Dev/Components');
+            })->name('dev.components');
+        }
+
         Route::middleware('auth')->group(function () {
             Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
             Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
             Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+            Route::get('/reception', function () {
+                return Inertia::render('Dashboard', ['view' => 'reception']);
+            })->name('reception.index');
+
+            Route::get('/doctor', function () {
+                return Inertia::render('Dashboard', ['view' => 'doctor']);
+            })->name('doctor.index');
         });
 
         require __DIR__.'/auth.php';

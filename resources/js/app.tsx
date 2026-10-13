@@ -5,7 +5,9 @@ import { createInertiaApp } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+import ThemeProvider from './Contexts/ThemeContext';
+
+const appName = import.meta.env.VITE_APP_NAME || 'MedVisit';
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,
@@ -17,9 +19,13 @@ createInertiaApp({
     setup({ el, App, props }) {
         const root = createRoot(el);
 
-        root.render(<App {...props} />);
+        root.render(
+            <ThemeProvider>
+                <App {...props} />
+            </ThemeProvider>
+        );
     },
     progress: {
-        color: '#4B5563',
+        color: '#1E6FD9',
     },
 });
