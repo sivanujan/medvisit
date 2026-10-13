@@ -16,6 +16,7 @@ import {
     ArrowLeft,
 } from 'lucide-react';
 import ApplicationLogo from '@/Components/ApplicationLogo';
+import AuthHeader from '@/Components/AuthHeader';
 import ThemeToggle from '@/Components/Common/ThemeToggle';
 import {
     GlassLabel,
@@ -62,27 +63,26 @@ export default function TenantLogin({ tenant, canResetPassword = true, status, e
             <Head title={`Sign In • ${tenant.name}`} />
 
             {/* Ambient Background Glow */}
+            {/* Subtle Ambient Background Glows */}
             <div aria-hidden="true" className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
-                <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-primary-500/15 dark:bg-primary-500/20 blur-3xl" />
-                <div className="absolute top-1/2 -right-32 w-[30rem] h-[30rem] rounded-full bg-secondary-500/15 dark:bg-secondary-500/20 blur-3xl" />
-                <div className="absolute -bottom-32 left-1/3 w-96 h-96 rounded-full bg-accent-500/10 dark:bg-accent-500/15 blur-3xl" />
+                <div className="absolute -top-32 left-1/4 w-[42rem] h-[32rem] rounded-full bg-primary-500/10 dark:bg-primary-500/15 blur-[120px]" />
+                <div className="absolute top-1/3 -right-20 w-[36rem] h-[36rem] rounded-full bg-secondary-500/10 dark:bg-secondary-500/15 blur-[130px]" />
+                <div className="absolute -bottom-24 left-1/3 w-[32rem] h-[32rem] rounded-full bg-primary-500/5 dark:bg-primary-500/10 blur-[100px]" />
             </div>
 
-            {/* Header */}
-            <header className="h-18 px-4 sm:px-8 border-b border-slate-200/70 dark:border-white/10 flex items-center justify-between bg-white/60 dark:bg-slate-900/50 backdrop-blur-xl sticky top-0 z-40">
-                <div className="flex items-center gap-3">
-                    <Link href="/" className="group flex items-center gap-2">
-                        <ApplicationLogo className="h-8 sm:h-9 w-auto transition-transform group-hover:scale-105" />
-                    </Link>
-                    <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        {tenant.subdomain}.medvisit.lk
-                    </span>
-                </div>
-                <div className="flex items-center gap-4">
-                    <ThemeToggle size="sm" />
-                </div>
-            </header>
+            {/* Redesigned Shared Header */}
+            <AuthHeader
+                subtitle={tenant.name || 'Clinic Sign In'}
+                customRightContent={
+                    <div className="flex items-center gap-3">
+                        <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono font-semibold bg-secondary-500/10 text-secondary-700 dark:text-secondary-300 border border-secondary-500/25">
+                            <span className="w-1.5 h-1.5 rounded-full bg-secondary-500 animate-pulse" />
+                            {tenant.subdomain}.medvisit.lk
+                        </span>
+                        <ThemeToggle size="md" />
+                    </div>
+                }
+            />
 
             {/* Mobile Header Strip: Clinic Identity */}
             <div className="lg:hidden px-4 py-3 bg-white/80 dark:bg-slate-900/80 border-b border-slate-200/70 dark:border-white/10 backdrop-blur-md flex items-center gap-3">
@@ -100,7 +100,7 @@ export default function TenantLogin({ tenant, canResetPassword = true, status, e
             </div>
 
             {/* Split Desktop Layout */}
-            <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+            <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
                 {/* Left Column: Staff Sign In Form (7 cols on desktop) */}
                 <div className="lg:col-span-7 max-w-lg mx-auto w-full">
                     <motion.div

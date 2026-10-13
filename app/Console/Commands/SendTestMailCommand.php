@@ -45,7 +45,7 @@ class SendTestMailCommand extends Command
             $testMail = new TestMail($email, $mailer);
 
             // Send synchronously to immediately check provider acceptance
-            Mail::to($email)->send($testMail);
+            Mail::to($email)->sendNow($testMail);
 
             $this->info("Success! Test email successfully sent to <{$email}>.");
             $this->line("From:      {$testMail->resolveFromAddress()->address} ({$testMail->resolveFromAddress()->name})");

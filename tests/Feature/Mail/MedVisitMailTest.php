@@ -305,7 +305,7 @@ class MedVisitMailTest extends TestCase
             ->expectsOutputToContain('Success! Test email successfully sent to <test@medvisit.lk>')
             ->assertExitCode(0);
 
-        Mail::assertQueued(TestMail::class, function (TestMail $mail) {
+        Mail::assertSent(TestMail::class, function (TestMail $mail) {
             $this->assertTrue($mail->hasTo('test@medvisit.lk'));
             $this->assertSame('notifications@medvisit.lk', $mail->resolveFromAddress()->address);
             $this->assertSame('MedVisit', $mail->resolveFromAddress()->name);

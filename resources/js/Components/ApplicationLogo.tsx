@@ -1,6 +1,37 @@
 import { SVGAttributes } from 'react';
 
-export default function ApplicationLogo(props: SVGAttributes<SVGElement>) {
+interface ApplicationLogoProps extends SVGAttributes<SVGElement> {
+    iconOnly?: boolean;
+}
+
+export function MedVisitIcon(props: SVGAttributes<SVGElement>) {
+    return (
+        <svg
+            viewBox="0 0 200 200"
+            xmlns="http://www.w3.org/2000/svg"
+            {...props}
+        >
+            <circle cx="54" cy="42" r="22" fill="#1E6FD9" />
+            <circle cx="146" cy="42" r="22" fill="#13B5A4" />
+            <rect x="14" y="74" width="80" height="110" rx="26" fill="#1E6FD9" />
+            <rect x="106" y="74" width="80" height="110" rx="26" fill="#13B5A4" />
+            <path d="M40 150 Q100 188 160 150" fill="none" stroke="#FFFFFF" strokeWidth="7" strokeLinecap="round" />
+            <path
+                d="M88 86 h24 a4 4 0 0 1 4 4 v18 h18 a4 4 0 0 1 4 4 v24 a4 4 0 0 1 -4 4 h-18 v18 a4 4 0 0 1 -4 4 h-24 a4 4 0 0 1 -4 -4 v-18 h-18 a4 4 0 0 1 -4 -4 v-24 a4 4 0 0 1 4 -4 h18 v-18 a4 4 0 0 1 4 -4 z"
+                fill="#FF7A59"
+                stroke="#FFFFFF"
+                strokeWidth="6"
+                strokeLinejoin="round"
+            />
+        </svg>
+    );
+}
+
+export default function ApplicationLogo({ iconOnly = false, ...props }: ApplicationLogoProps) {
+    if (iconOnly) {
+        return <MedVisitIcon {...props} />;
+    }
+
     return (
         <svg
             viewBox="-40 -40 840 280"

@@ -23,6 +23,7 @@ import {
     Laptop,
 } from 'lucide-react';
 import ApplicationLogo from '@/Components/ApplicationLogo';
+import AuthHeader from '@/Components/AuthHeader';
 import ThemeToggle from '@/Components/Common/ThemeToggle';
 import {
     GlassLabel,
@@ -113,7 +114,12 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
             },
             body: JSON.stringify({ subdomain: debouncedSubdomain }),
         })
-            .then((res) => res.json())
+            .then((res) => {
+                if (!res.ok) {
+                    throw new Error(`Status ${res.status}`);
+                }
+                return res.json();
+            })
             .then((resData: SubdomainCheckResult) => {
                 if (isMounted) {
                     setSubdomainResult(resData);
@@ -169,33 +175,29 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col relative selection:bg-primary-100 selection:text-primary-800">
-            {/* Ambient Background Glow */}
+            {/* Subtle Ambient Background Glows */}
             <div aria-hidden="true" className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
-                <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-primary-500/15 dark:bg-primary-500/20 blur-3xl" />
-                <div className="absolute top-1/2 -right-32 w-[30rem] h-[30rem] rounded-full bg-secondary-500/15 dark:bg-secondary-500/20 blur-3xl" />
-                <div className="absolute -bottom-32 left-1/3 w-96 h-96 rounded-full bg-accent-500/10 dark:bg-accent-500/15 blur-3xl" />
+                <div className="absolute -top-32 left-1/4 w-[42rem] h-[32rem] rounded-full bg-primary-500/10 dark:bg-primary-500/15 blur-[120px]" />
+                <div className="absolute top-1/3 -right-20 w-[36rem] h-[36rem] rounded-full bg-secondary-500/10 dark:bg-secondary-500/15 blur-[130px]" />
+                <div className="absolute -bottom-24 left-1/3 w-[32rem] h-[32rem] rounded-full bg-primary-500/5 dark:bg-primary-500/10 blur-[100px]" />
             </div>
 
-            {/* Header */}
-            <header className="h-18 px-4 sm:px-8 border-b border-slate-200/70 dark:border-white/10 flex items-center justify-between bg-white/60 dark:bg-slate-900/50 backdrop-blur-xl sticky top-0 z-40">
-                <div className="flex items-center gap-3">
-                    <Link href="/" className="group flex items-center gap-2">
-                        <ApplicationLogo className="h-8 sm:h-9 w-auto transition-transform group-hover:scale-105" />
-                    </Link>
-                    <span className="hidden sm:inline-block text-xs font-semibold px-2.5 py-0.5 rounded-full bg-primary-50 dark:bg-primary-950/60 text-primary border border-primary/20">
-                        14-Day Free Trial
-                    </span>
-                </div>
-                <div className="flex items-center gap-4">
-                    <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:inline">
-                        Already have a clinic?{' '}
-                        <Link href={route('login')} className="font-bold text-primary hover:underline">
-                            Sign In
-                        </Link>
-                    </span>
-                    <ThemeToggle size="sm" />
-                </div>
-            </header>
+            {/* Redesigned Shared Header */}
+            <AuthHeader
+                subtitle="Create your clinic"
+                step={step}
+                totalSteps={4}
+                stepLabel={
+                    step === 1
+                        ? 'Clinic details'
+                        : step === 2
+                        ? 'Web address'
+                        : step === 3
+                        ? 'Admin account'
+                        : 'Review & launch'
+                }
+                rightAction="signin"
+            />
 
             {/* Mobile Live URL Preview Header Strip */}
             <div className="lg:hidden px-4 py-2.5 bg-slate-900 text-white flex items-center justify-between text-xs border-b border-slate-800">
@@ -210,71 +212,76 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                 </span>
             </div>
 
-            {/* Main Content: Split Desktop Layout */}
-            <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                {/* Left Column: Multi-Step Wizard Form (7 cols on desktop) */}
-                <div className="lg:col-span-7 space-y-6">
-                    {/* Stepper Progress Indicator */}
-                    <div className="p-4 sm:p-5 rounded-2xl bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 shadow-sm">
-                        <div className="flex items-center justify-between">
-                            {[
-                                { num: 1, label: 'Clinic', icon: Building2 },
-                                { num: 2, label: 'Web Address', icon: Globe },
-                                { num: 3, label: 'Admin Account', icon: UserCheck },
-                                { num: 4, label: 'Review', icon: CheckCircle2 },
-                            ].map((s, idx) => {
-                                const Icon = s.icon;
-                                const isCurrent = step === s.num;
-                                const isDone = step > s.num;
-                                return (
-                                    <React.Fragment key={s.num}>
-                                        <div className="flex flex-col items-center gap-1.5">
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    // Allow going back to earlier steps
-                                                    if (isDone) setStep(s.num as any);
-                                                }}
-                                                disabled={!isDone && !isCurrent}
-                                                className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-300 ${
-                                                    isCurrent
-                                                        ? 'bg-primary text-white shadow-md shadow-primary/30 scale-105'
-                                                        : isDone
-                                                        ? 'bg-emerald-500 text-white cursor-pointer hover:bg-emerald-600'
-                                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed'
-                                                }`}
-                                            >
-                                                {isDone ? <Check className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
-                                            </button>
-                                            <span
-                                                className={`text-[10px] sm:text-xs font-semibold ${
-                                                    isCurrent
-                                                        ? 'text-primary font-bold'
-                                                        : isDone
-                                                        ? 'text-slate-700 dark:text-slate-300'
-                                                        : 'text-slate-400 dark:text-slate-500'
-                                                }`}
-                                            >
-                                                {s.label}
-                                            </span>
-                                        </div>
-                                        {idx < 3 && (
-                                            <div
-                                                className={`flex-1 h-0.5 mx-2 rounded-full transition-colors duration-300 ${
-                                                    step > idx + 1
-                                                        ? 'bg-emerald-500'
-                                                        : 'bg-slate-200 dark:bg-slate-800'
-                                                }`}
-                                            />
-                                        )}
-                                    </React.Fragment>
-                                );
-                            })}
-                        </div>
-                    </div>
-
+            {/* Main Content: Split Desktop Layout (aligned to exact container) */}
+            <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                {/* Left Column: Multi-Step Wizard Form (~58% cols on desktop) */}
+                <div className="lg:col-span-7 space-y-4">
                     {/* Step Form Container */}
                     <div className="p-6 sm:p-8 rounded-3xl bg-white/80 dark:bg-slate-900/70 backdrop-blur-2xl border border-slate-200/80 dark:border-white/10 shadow-xl dark:shadow-2xl">
+                        {/* Clean 4-Step Indicator Inside Form Card */}
+                        <div className="pb-6 mb-6 border-b border-slate-200/80 dark:border-white/10">
+                            <div className="flex items-center justify-between">
+                                {[
+                                    { num: 1, label: 'Clinic', icon: Building2 },
+                                    { num: 2, label: 'Web Address', icon: Globe },
+                                    { num: 3, label: 'Admin Account', icon: UserCheck },
+                                    { num: 4, label: 'Launch', icon: CheckCircle2 },
+                                ].map((s, idx) => {
+                                    const Icon = s.icon;
+                                    const isCurrent = step === s.num;
+                                    const isDone = step > s.num;
+                                    return (
+                                        <React.Fragment key={s.num}>
+                                            <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (isDone) setStep(s.num as any);
+                                                    }}
+                                                    disabled={!isDone && !isCurrent}
+                                                    className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-300 ${
+                                                        isCurrent
+                                                            ? 'bg-primary text-white shadow-lg shadow-primary/30 ring-4 ring-primary/20 scale-105'
+                                                            : isDone
+                                                            ? 'bg-secondary/15 text-secondary border border-secondary/40 hover:bg-secondary/25 cursor-pointer'
+                                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed'
+                                                    }`}
+                                                    aria-label={`Step ${s.num}: ${s.label}`}
+                                                    title={`Step ${s.num}: ${s.label}`}
+                                                >
+                                                    {isDone ? (
+                                                        <Check className="w-4 h-4 stroke-[2.5]" />
+                                                    ) : (
+                                                        <Icon className="w-4 h-4" />
+                                                    )}
+                                                </button>
+                                                <span
+                                                    className={`text-[10px] sm:text-xs font-semibold text-center truncate max-w-[65px] sm:max-w-none transition-colors duration-200 ${
+                                                        isCurrent
+                                                            ? 'text-primary dark:text-primary-400 font-bold'
+                                                            : isDone
+                                                            ? 'text-secondary-600 dark:text-secondary-400'
+                                                            : 'text-slate-400 dark:text-slate-500'
+                                                    }`}
+                                                >
+                                                    {s.label}
+                                                </span>
+                                            </div>
+                                            {idx < 3 && (
+                                                <div
+                                                    className={`flex-1 h-0.5 mx-1 sm:mx-2 rounded-full transition-colors duration-300 self-center -mt-5 ${
+                                                        step > idx + 1
+                                                            ? 'bg-secondary'
+                                                            : 'bg-slate-200 dark:bg-slate-800'
+                                                    }`}
+                                                />
+                                            )}
+                                        </React.Fragment>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
                         <form onSubmit={submit}>
                             {/* Honeypot field (hidden from real users) */}
                             <div className="hidden" aria-hidden="true">
@@ -300,6 +307,12 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                         className="space-y-4 sm:space-y-5"
                                     >
                                         <div>
+                                            {/* Refined Teal Trial Chip in Hero Area */}
+                                            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold text-secondary-700 dark:text-secondary-300 bg-secondary-500/10 dark:bg-secondary-500/15 border border-secondary-500/30 backdrop-blur-md mb-2.5 shadow-xs">
+                                                <Sparkles className="w-3.5 h-3.5 text-secondary-500 dark:text-secondary-400 animate-pulse" />
+                                                <span>14 days free · No card needed</span>
+                                            </div>
+
                                             <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
                                                 <Building2 className="w-5 h-5 text-primary" />
                                                 Clinic Information
@@ -870,6 +883,18 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                 )}
                             </AnimatePresence>
                         </form>
+                    </div>
+
+                    {/* Small Trust Line Under Form */}
+                    <div className="pt-1 px-2 flex flex-col sm:flex-row items-center justify-between gap-2.5 text-xs text-slate-500 dark:text-slate-400">
+                        <div className="flex items-center gap-1.5">
+                            <Lock className="w-3.5 h-3.5 text-secondary shrink-0" />
+                            <span>Your clinic data is isolated and encrypted</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500">
+                            <Clock className="w-3.5 h-3.5 text-primary shrink-0" />
+                            <span>Setup in under 60 seconds</span>
+                        </div>
                     </div>
                 </div>
 
