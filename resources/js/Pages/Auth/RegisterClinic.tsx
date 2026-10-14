@@ -71,6 +71,7 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
     const [isVerified, setIsVerified] = useState(false);
     const [expirySeconds, setExpirySeconds] = useState(600);
     const [resendCooldown, setResendCooldown] = useState(60);
+    const [devCode, setDevCode] = useState<string | null>(null);
 
     const { data, setData, post, processing, errors, setError, clearErrors } = useForm({
         // Honeypot field
@@ -238,6 +239,9 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
             setData('registration_token', resData.token);
             setExpirySeconds(resData.expires_in_seconds || 600);
             setResendCooldown(resData.resend_cooldown_seconds || 60);
+            if (resData.dev_code) {
+                setDevCode(resData.dev_code);
+            }
             setDigits(['', '', '', '', '', '']);
             setIsLocked(false);
             setIsVerified(false);
@@ -334,6 +338,9 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
 
             setExpirySeconds(resData.expires_in_seconds || 600);
             setResendCooldown(resData.resend_cooldown_seconds || 60);
+            if (resData.dev_code) {
+                setDevCode(resData.dev_code);
+            }
             setDigits(['', '', '', '', '', '']);
             setIsLocked(false);
             setOtpSuccess('A new verification code has been sent to your email.');
@@ -1028,6 +1035,23 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                                 . Enter it below to confirm your account.
                                             </p>
                                         </div>
+
+                                        {devCode && (
+                                            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs flex items-center justify-between gap-2 max-w-sm mx-auto">
+                                                <span>Dev Code: <strong className="font-mono font-bold tracking-wider">{devCode}</strong></span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const parts = devCode.split('');
+                                                        setDigits(parts);
+                                                        handleVerifyCode(devCode);
+                                                    }}
+                                                    className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 font-semibold cursor-pointer text-[11px] transition-colors"
+                                                >
+                                                    Auto-fill & Confirm
+                                                </button>
+                                            </div>
+                                        )}
 
                                         {/* 6 Digit Input Boxes */}
                                         <div className="py-2">

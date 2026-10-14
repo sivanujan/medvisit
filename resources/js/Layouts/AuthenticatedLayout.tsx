@@ -1,4 +1,4 @@
-import React, { ReactNode, useState } from 'react';
+import React, { ReactNode, useState, useEffect, useRef } from 'react';
 import { Link, usePage } from '@inertiajs/react';
 import {
     LayoutDashboard,
@@ -9,15 +9,21 @@ import {
     LogOut,
     Menu,
     X,
-    Sparkles,
     User,
     ChevronDown,
-    Layers,
-    Shield,
+    Clock,
+    Ticket,
     Stethoscope,
+    Globe,
+    UserCheck,
+    Search,
+    Building2,
+    Shield,
 } from 'lucide-react';
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import ThemeToggle from '@/Components/Common/ThemeToggle';
+import CommandPaletteModal from '@/Components/Layout/CommandPaletteModal';
+import NotificationDropdown from '@/Components/Layout/NotificationDropdown';
 import { getFirstName, getAvatarInitial } from '@/Utils/name';
 import { usePermission } from '@/Hooks/usePermission';
 
@@ -30,7 +36,7 @@ export default function AuthenticatedLayout({
     header,
     children,
 }: AuthenticatedLayoutProps) {
-    const { auth } = usePage<{
+    const { auth, tenant } = usePage<{
         auth: {
             user: {
                 id: number;
@@ -41,12 +47,22 @@ export default function AuthenticatedLayout({
                 roles?: Array<{ name: string }> | string[];
             };
         };
+        tenant?: {
+            id: string;
+            name: string;
+            subdomain: string;
+            phone?: string;
+            address?: string;
+            logo_url?: string;
+        } | null;
     }>().props;
 
     const user = auth.user;
     const { isSuperAdmin, isClinicAdmin, isDoctor, isReceptionist } = usePermission();
     const [mobileOpen, setMobileOpen] = useState(false);
     const [userMenuOpen, setUserMenuOpen] = useState(false);
+    const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+    const userMenuRef = useRef<HTMLDivElement>(null);
 
     const userInitial = getAvatarInitial(user.name);
     const firstName = getFirstName(user.name);
@@ -61,273 +77,442 @@ export default function AuthenticatedLayout({
         ? 'Receptionist'
         : 'Staff';
 
-    const navigation = [
+    // Global Ctrl+K / Cmd+K shortcut
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                setCommandPaletteOpen((prev) => !prev);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
+
+    // Close user dropdown on outside click
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+                setUserMenuOpen(false);
+            }
+        };
+        if (userMenuOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [userMenuOpen]);
+
+    const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+
+    const isItemActive = (href: string) => {
+        if (href === '/dashboard' && (currentPath === '/dashboard' || currentPath === '/')) return true;
+        if (href !== '/dashboard' && currentPath.startsWith(href)) return true;
+        return false;
+    };
+
+    // Grouped navigation structure with role filtering
+    const navGroups = [
         {
-            name: 'Dashboard',
-            href: route('dashboard'),
-            active: route().current('dashboard'),
-            icon: LayoutDashboard,
+            title: 'OPERATIONS',
+            items: [
+                {
+                    name: 'Overview',
+                    href: '/dashboard',
+                    icon: LayoutDashboard,
+                    visible: true,
+                },
+                {
+                    name: "Today's Queue",
+                    href: '/sessions/today',
+                    icon: Clock,
+                    visible: true,
+                    badge: 'Live',
+                },
+                {
+                    name: 'Channeling Calendar',
+                    href: '/calendar',
+                    icon: Calendar,
+                    visible: true,
+                },
+            ],
         },
         {
-            name: 'Component Library',
-            href: '/dev/components',
-            active: window.location.pathname === '/dev/components',
-            icon: Layers,
-            badge: 'Dev',
+            title: 'CLINICAL',
+            items: [
+                {
+                    name: 'Issue Token / Bookings',
+                    href: '/bookings',
+                    icon: Ticket,
+                    visible: !isDoctor, // Receptionist & Admin
+                },
+                {
+                    name: 'Doctors & Schedules',
+                    href: '/doctors',
+                    icon: Stethoscope,
+                    visible: isClinicAdmin || isReceptionist,
+                },
+            ],
+        },
+        {
+            title: 'PATIENTS & BILLING',
+            items: [
+                {
+                    name: 'Patient Directory',
+                    href: '/patients',
+                    icon: Users,
+                    visible: true,
+                },
+                {
+                    name: 'Billing & Collections',
+                    href: '/billing',
+                    icon: Receipt,
+                    visible: isClinicAdmin || isReceptionist,
+                },
+            ],
+        },
+        {
+            title: 'ADMINISTRATION',
+            items: [
+                {
+                    name: 'Clinic Website',
+                    href: '/website',
+                    icon: Globe,
+                    visible: isClinicAdmin,
+                },
+                {
+                    name: 'Staff & Team',
+                    href: '/staff',
+                    icon: UserCheck,
+                    visible: isClinicAdmin,
+                },
+                {
+                    name: 'Clinic Settings & Audit',
+                    href: '/settings',
+                    icon: Settings,
+                    visible: isClinicAdmin,
+                },
+            ],
         },
     ];
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex relative selection:bg-primary-100 selection:text-primary-800">
-            {/* Ambient Background Glow (Calm Healthcare Palette) */}
+            {/* Ambient Background Glow (Calm Healthcare Palette: Primary #1E6FD9, Secondary #0E9E8F, Accent #FF7A59) */}
             <div aria-hidden="true" className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
                 <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-primary-500/10 dark:bg-primary-500/15 blur-3xl" />
                 <div className="absolute top-1/3 -right-32 w-[30rem] h-[30rem] rounded-full bg-secondary-500/10 dark:bg-secondary-500/15 blur-3xl" />
                 <div className="absolute -bottom-32 left-1/3 w-96 h-96 rounded-full bg-accent-500/5 dark:bg-accent-500/10 blur-3xl" />
             </div>
 
-            {/* Desktop Sidebar */}
+            {/* Desktop Collapsible Sidebar */}
             <aside className="hidden lg:flex flex-col w-64 border-r border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 backdrop-blur-2xl shrink-0 z-30 sticky top-0 h-screen">
-                {/* Brand Header */}
-                <div className="h-18 px-6 flex items-center border-b border-slate-200/70 dark:border-white/10">
-                    <Link href="/" className="flex items-center gap-2 group">
-                        <ApplicationLogo className="h-8 w-auto transition-transform group-hover:scale-105" />
-                    </Link>
-                </div>
-
-                {/* Tenant / Scope Card */}
-                <div className="p-4">
-                    <div className="px-3.5 py-2.5 rounded-2xl bg-slate-100/80 dark:bg-white/[0.05] border border-slate-200/60 dark:border-white/10 flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-primary-100 dark:bg-primary-900/50 text-primary flex items-center justify-center font-bold text-xs shrink-0">
-                            {user.tenant_id ? user.tenant_id.charAt(0).toUpperCase() : <Shield className="w-4 h-4" />}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                            <p className="text-xs font-bold truncate text-slate-800 dark:text-slate-200">
-                                {user.tenant_id ? `Clinic: ${user.tenant_id}` : 'MedVisit Central'}
-                            </p>
-                            <span className="inline-block text-[10px] font-semibold text-primary uppercase tracking-wider">
-                                {roleLabel}
-                            </span>
-                        </div>
+                {/* Clinic Brand Header (No Switcher - Single Clinic Scope) */}
+                <div className="h-18 px-5 flex items-center gap-3 border-b border-slate-200/70 dark:border-white/10">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary-600 to-secondary-500 flex items-center justify-center text-white font-bold shadow-md shadow-primary-500/20 shrink-0">
+                        {tenant?.name ? tenant.name.charAt(0).toUpperCase() : <Building2 className="w-5 h-5" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <h2 className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                            {tenant?.name || 'Clinic Workspace'}
+                        </h2>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono truncate">
+                            {tenant?.subdomain ? `${tenant.subdomain}.medvisit.lk` : 'Sri Lankan Clinic'}
+                        </p>
                     </div>
                 </div>
 
-                {/* Navigation Links */}
-                <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto">
-                    {navigation.map((item) => {
-                        const Icon = item.icon;
+                {/* Grouped Sidebar Navigation */}
+                <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-6">
+                    {navGroups.map((group) => {
+                        const visibleItems = group.items.filter((item) => item.visible);
+                        if (visibleItems.length === 0) return null;
+
                         return (
-                            <Link
-                                key={item.name}
-                                href={item.href}
-                                className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 ${
-                                    item.active
-                                        ? 'bg-primary text-white shadow-sm shadow-primary/20'
-                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-white/[0.05]'
-                                }`}
-                            >
-                                <div className="flex items-center gap-3">
-                                    <Icon className="w-4 h-4 shrink-0" />
-                                    <span>{item.name}</span>
+                            <div key={group.title} className="space-y-1">
+                                <div className="px-3 pb-1 text-[10px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase">
+                                    {group.title}
                                 </div>
-                                {item.badge && (
-                                    <span
-                                        className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
-                                            item.active
-                                                ? 'bg-white/20 text-white'
-                                                : 'bg-primary-100 dark:bg-primary-950/60 text-primary dark:text-primary-300'
-                                        }`}
-                                    >
-                                        {item.badge}
-                                    </span>
-                                )}
-                            </Link>
+                                <div className="space-y-1">
+                                    {visibleItems.map((item) => {
+                                        const active = isItemActive(item.href);
+                                        const Icon = item.icon;
+
+                                        return (
+                                            <Link
+                                                key={item.name}
+                                                href={item.href}
+                                                className={`group flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 ${
+                                                    active
+                                                        ? 'bg-primary/10 text-primary-700 dark:text-primary-300 font-bold shadow-sm'
+                                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/70 dark:hover:bg-white/[0.04]'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-2.5 min-w-0">
+                                                    <Icon
+                                                        className={`w-4 h-4 shrink-0 transition-colors ${
+                                                            active
+                                                                ? 'text-primary'
+                                                                : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'
+                                                        }`}
+                                                    />
+                                                    <span className="truncate">{item.name}</span>
+                                                </div>
+                                                {item.badge && (
+                                                    <span className="px-1.5 py-0.5 text-[9px] font-bold rounded-md bg-accent/15 text-accent shrink-0">
+                                                        {item.badge}
+                                                    </span>
+                                                )}
+                                            </Link>
+                                        );
+                                    })}
+                                </div>
+                            </div>
                         );
                     })}
-                </nav>
+                </div>
 
-                {/* Sidebar Footer User Card */}
-                <div className="p-4 border-t border-slate-200/70 dark:border-white/10">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-primary to-secondary text-white font-bold text-xs flex items-center justify-center shrink-0">
-                                {userInitial}
-                            </div>
-                            <div className="min-w-0">
-                                <p className="text-xs font-bold truncate text-slate-900 dark:text-white leading-tight">
-                                    {firstName}
-                                </p>
-                                <p className="text-[10px] text-slate-500 truncate">{user.email}</p>
-                            </div>
-                        </div>
-                        <Link
-                            href={route('logout')}
-                            method="post"
-                            as="button"
-                            className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
-                            title="Sign out"
-                        >
-                            <LogOut className="w-4 h-4" />
-                        </Link>
+                {/* Sidebar Bottom Clinic Status */}
+                <div className="p-3 border-t border-slate-200/70 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.02]">
+                    <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-2">
+                        <span className="flex items-center gap-1.5 font-medium">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                            Live Channeling
+                        </span>
+                        <span className="text-[10px] font-mono font-bold bg-slate-200/70 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                            LKR (Rs.)
+                        </span>
                     </div>
                 </div>
             </aside>
 
-            {/* Mobile Drawer Backdrop & Panel */}
-            {mobileOpen && (
-                <div className="lg:hidden fixed inset-0 z-50 flex">
-                    <div
-                        className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm"
-                        onClick={() => setMobileOpen(false)}
-                    />
-                    <div className="relative w-64 max-w-xs bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-white/10 flex flex-col z-10 p-4">
-                        <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-white/10">
-                            <ApplicationLogo className="h-7 w-auto" />
-                            <button
-                                onClick={() => setMobileOpen(false)}
-                                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <nav className="flex-1 py-4 space-y-1">
-                            {navigation.map((item) => {
-                                const Icon = item.icon;
-                                return (
-                                    <Link
-                                        key={item.name}
-                                        href={item.href}
-                                        onClick={() => setMobileOpen(false)}
-                                        className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
-                                            item.active
-                                                ? 'bg-primary text-white'
-                                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.05]'
-                                        }`}
-                                    >
-                                        <Icon className="w-4 h-4 shrink-0" />
-                                        <span>{item.name}</span>
-                                    </Link>
-                                );
-                            })}
-                        </nav>
-                        <div className="pt-4 border-t border-slate-200 dark:border-white/10 flex items-center justify-between">
-                            <ThemeToggle size="sm" />
-                            <Link
-                                href={route('logout')}
-                                method="post"
-                                as="button"
-                                className="text-xs font-bold text-rose-600 flex items-center gap-1.5"
-                            >
-                                <LogOut className="w-3.5 h-3.5" />
-                                <span>Sign out</span>
-                            </Link>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Main Area */}
-            <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-                {/* Top Glass Bar */}
-                <header className="h-18 px-4 sm:px-8 border-b border-slate-200/70 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 backdrop-blur-xl sticky top-0 z-20 flex items-center justify-between">
+            {/* Main Application Column */}
+            <div className="flex-1 flex flex-col min-w-0">
+                {/* Workspace Top Header Bar */}
+                <header className="h-18 border-b border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 backdrop-blur-2xl sticky top-0 z-20 px-4 sm:px-6 flex items-center justify-between gap-4">
+                    {/* Left: Mobile Toggle & Brand */}
                     <div className="flex items-center gap-3">
                         <button
                             type="button"
-                            onClick={() => setMobileOpen(true)}
-                            className="lg:hidden p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10"
-                            aria-label="Open sidebar menu"
+                            onClick={() => setMobileOpen(!mobileOpen)}
+                            className="lg:hidden p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none"
+                            aria-label="Toggle Mobile Menu"
                         >
-                            <Menu className="w-5 h-5" />
+                            {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
                         </button>
-                        {header ? (
-                            <div>{header}</div>
-                        ) : (
-                            <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight">
-                                Overview
-                            </h2>
-                        )}
+                        <div className="lg:hidden flex items-center gap-2">
+                            <ApplicationLogo className="h-7 w-auto" />
+                            <span className="font-bold text-sm text-slate-900 dark:text-white truncate">
+                                {tenant?.name || 'MedVisit'}
+                            </span>
+                        </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                        {/* Theme Toggle Button */}
-                        <ThemeToggle size="md" />
+                    {/* Center: Global Search Bar (Ctrl+K Command Palette Trigger) */}
+                    <div className="flex-1 max-w-md mx-2 sm:mx-6 hidden sm:block">
+                        <button
+                            type="button"
+                            onClick={() => setCommandPaletteOpen(true)}
+                            className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-xs bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-white/10 text-slate-500 dark:text-slate-400 hover:border-primary/40 hover:bg-white dark:hover:bg-slate-800 transition-all shadow-inner shadow-black/[0.02]"
+                        >
+                            <span className="flex items-center gap-2 truncate">
+                                <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                <span className="truncate">Search patients, doctors, tokens...</span>
+                            </span>
+                            <kbd className="inline-flex items-center gap-1 font-mono text-[10px] font-bold bg-white dark:bg-slate-700 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 shrink-0">
+                                ⌘K
+                            </kbd>
+                        </button>
+                    </div>
+
+                    {/* Right: Search Mobile Icon + Notifications Bell + ThemeToggle + User Menu */}
+                    <div className="flex items-center gap-2 sm:gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setCommandPaletteOpen(true)}
+                            className="sm:hidden p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                            aria-label="Open Search"
+                        >
+                            <Search className="w-5 h-5" />
+                        </button>
+
+                        {/* Real-time Queue Notification Bell */}
+                        <NotificationDropdown />
+
+                        {/* Light / Dark Mode Toggle Pill */}
+                        <ThemeToggle />
+
+                        <div className="h-5 w-px bg-slate-200 dark:bg-white/10 mx-1 hidden sm:block" />
 
                         {/* User Profile Dropdown Menu */}
-                        <div className="relative">
+                        <div ref={userMenuRef} className="relative">
                             <button
                                 type="button"
-                                onClick={() => setUserMenuOpen((p) => !p)}
-                                className="flex items-center gap-2 p-1.5 sm:px-3 rounded-xl border border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-800 transition-all text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary shadow-xs"
-                                aria-expanded={userMenuOpen}
+                                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                                className="flex items-center gap-2.5 p-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/70 transition-colors focus:outline-none"
                             >
-                                <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-primary to-secondary text-white font-bold text-[10px] flex items-center justify-center">
+                                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-primary to-secondary text-white font-bold text-xs flex items-center justify-center shadow-sm">
                                     {userInitial}
                                 </div>
-                                <span className="hidden sm:inline-block max-w-[120px] truncate">{firstName}</span>
-                                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                                <div className="hidden md:block text-left">
+                                    <div className="text-xs font-bold text-slate-900 dark:text-white truncate max-w-[120px]">
+                                        {firstName}
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-none">
+                                        {roleLabel}
+                                    </div>
+                                </div>
+                                <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
                             </button>
 
                             {userMenuOpen && (
-                                <>
-                                    <div
-                                        className="fixed inset-0 z-20"
-                                        onClick={() => setUserMenuOpen(false)}
-                                    />
-                                    <div className="absolute right-0 mt-2 w-48 rounded-2xl p-1.5 bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-white/10 shadow-xl backdrop-blur-xl z-30 space-y-0.5">
-                                        <div className="px-3 py-2 border-b border-slate-100 dark:border-white/5 mb-1">
-                                            <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                                                {user.name}
-                                            </p>
-                                            <p className="text-[10px] text-slate-500 truncate">{user.email}</p>
+                                <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-slate-200/80 dark:border-white/10 shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+                                    <div className="px-3 py-2 border-b border-slate-100 dark:border-white/5 mb-1">
+                                        <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                            {user.name}
                                         </div>
-                                        <Link
-                                            href={route('profile.edit')}
-                                            onClick={() => setUserMenuOpen(false)}
-                                            className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
-                                        >
-                                            <User className="w-3.5 h-3.5" />
-                                            <span>Profile Settings</span>
-                                        </Link>
-                                        <Link
-                                            href={route('logout')}
-                                            method="post"
-                                            as="button"
-                                            onClick={() => setUserMenuOpen(false)}
-                                            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors text-left"
-                                        >
-                                            <LogOut className="w-3.5 h-3.5" />
-                                            <span>Sign out</span>
-                                        </Link>
+                                        <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                                            {user.email}
+                                        </div>
+                                        <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary">
+                                            {roleLabel}
+                                        </span>
                                     </div>
-                                </>
+
+                                    <Link
+                                        href="/settings"
+                                        onClick={() => setUserMenuOpen(false)}
+                                        className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                    >
+                                        <Settings className="w-4 h-4 text-slate-400" />
+                                        Clinic Settings
+                                    </Link>
+
+                                    <Link
+                                        href="/profile"
+                                        onClick={() => setUserMenuOpen(false)}
+                                        className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                    >
+                                        <User className="w-4 h-4 text-slate-400" />
+                                        My Profile
+                                    </Link>
+
+                                    <div className="my-1 border-t border-slate-100 dark:border-white/5" />
+
+                                    <Link
+                                        href="/logout"
+                                        method="post"
+                                        as="button"
+                                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors text-left"
+                                    >
+                                        <LogOut className="w-4 h-4" />
+                                        Sign Out
+                                    </Link>
+                                </div>
                             )}
                         </div>
                     </div>
                 </header>
 
-                {/* Unverified Email Warning Banner */}
-                {user && !user.email_verified_at && (
-                    <div className="bg-gradient-to-r from-amber-500/15 via-amber-600/10 to-transparent border-b border-amber-500/25 px-4 sm:px-8 py-3 text-xs text-amber-900 dark:text-amber-200 flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex items-center gap-2.5">
-                            <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
-                            <span>
-                                <strong>Admin Email Verification Pending:</strong> Please verify your email address (<strong>{user.email}</strong>). Staff invitations and external integrations are disabled until verified. Check your inbox or local mail logs.
-                            </span>
+                {/* Mobile Slide-out Menu */}
+                {mobileOpen && (
+                    <div className="lg:hidden fixed inset-0 z-40 flex">
+                        <div
+                            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm"
+                            onClick={() => setMobileOpen(false)}
+                        />
+                        <div className="relative w-72 max-w-[80%] bg-white dark:bg-slate-900 h-full p-4 flex flex-col shadow-2xl z-10 overflow-y-auto">
+                            <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="w-8 h-8 rounded-lg bg-primary text-white font-bold text-xs flex items-center justify-center">
+                                        {tenant?.name ? tenant.name.charAt(0).toUpperCase() : 'M'}
+                                    </div>
+                                    <span className="font-bold text-sm text-slate-900 dark:text-white truncate">
+                                        {tenant?.name || 'Clinic Workspace'}
+                                    </span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setMobileOpen(false)}
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            <div className="flex-1 py-4 space-y-6">
+                                {navGroups.map((group) => {
+                                    const visibleItems = group.items.filter((item) => item.visible);
+                                    if (visibleItems.length === 0) return null;
+
+                                    return (
+                                        <div key={group.title} className="space-y-1">
+                                            <div className="px-3 pb-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                                                {group.title}
+                                            </div>
+                                            {visibleItems.map((item) => {
+                                                const active = isItemActive(item.href);
+                                                const Icon = item.icon;
+                                                return (
+                                                    <Link
+                                                        key={item.name}
+                                                        href={item.href}
+                                                        onClick={() => setMobileOpen(false)}
+                                                        className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold ${
+                                                            active
+                                                                ? 'bg-primary/10 text-primary font-bold'
+                                                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <Icon className="w-4 h-4 text-slate-400" />
+                                                            <span>{item.name}</span>
+                                                        </div>
+                                                        {item.badge && (
+                                                            <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-accent/20 text-accent">
+                                                                {item.badge}
+                                                            </span>
+                                                        )}
+                                                    </Link>
+                                                );
+                                            })}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
+                                <Link
+                                    href="/logout"
+                                    method="post"
+                                    as="button"
+                                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-rose-600 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                                >
+                                    <LogOut className="w-4 h-4" />
+                                    Sign Out
+                                </Link>
+                            </div>
                         </div>
-                        <Link
-                            href={route('verification.notice')}
-                            className="px-3 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-100 font-bold text-xs transition-colors shrink-0"
-                        >
-                            Verify Email
-                        </Link>
                     </div>
                 )}
 
-                {/* Main Content Area */}
-                <main className="flex-1 p-4 sm:p-8 max-w-7xl w-full mx-auto">
+                {/* Optional Page Header */}
+                {header && (
+                    <div className="border-b border-slate-200/70 dark:border-white/10 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md px-4 sm:px-6 py-4">
+                        {header}
+                    </div>
+                )}
+
+                {/* Page Content Body */}
+                <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
                     {children}
                 </main>
             </div>
+
+            {/* Global Command Palette Modal */}
+            <CommandPaletteModal
+                isOpen={commandPaletteOpen}
+                onClose={() => setCommandPaletteOpen(false)}
+            />
         </div>
     );
 }

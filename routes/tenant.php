@@ -3,10 +3,13 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Tenant\TenantAuthenticatedSessionController;
+use App\Http\Controllers\Tenant\TenantDashboardController;
 use App\Http\Controllers\Tenant\TenantNewPasswordController;
 use App\Http\Controllers\Tenant\TenantPasswordResetLinkController;
 use App\Http\Controllers\Tenant\TenantSignedLoginController;
 use App\Http\Controllers\Tenant\TenantSuspendedController;
+use App\Http\Controllers\Tenant\WorkspaceNotificationController;
+use App\Http\Controllers\Tenant\WorkspaceSearchController;
 use App\Http\Middleware\EnsureTenantIsActive;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -81,9 +84,34 @@ Route::middleware([
 
     // 4. Authenticated & Active Tenant Routes
     Route::middleware(['auth', EnsureTenantIsActive::class])->group(function () {
-        Route::get('/dashboard', function () {
-            return Inertia::render('Dashboard');
-        })->name('tenant.dashboard');
+        Route::get('/dashboard', [TenantDashboardController::class, 'index'])
+            ->name('tenant.dashboard');
+
+        // Global Search & Notification APIs
+        Route::get('/api/search', [WorkspaceSearchController::class, 'search'])
+            ->name('tenant.api.search');
+        Route::get('/api/notifications', [WorkspaceNotificationController::class, 'index'])
+            ->name('tenant.api.notifications');
+
+        // Navigation placeholders for subsequent phases
+        Route::get('/sessions/today', [TenantDashboardController::class, 'index'])
+            ->name('tenant.sessions.today');
+        Route::get('/calendar', fn () => redirect()->route('tenant.dashboard'))
+            ->name('tenant.calendar');
+        Route::get('/bookings', fn () => redirect()->route('tenant.dashboard'))
+            ->name('tenant.bookings');
+        Route::get('/patients', fn () => redirect()->route('tenant.dashboard'))
+            ->name('tenant.patients');
+        Route::get('/doctors', fn () => redirect()->route('tenant.dashboard'))
+            ->name('tenant.doctors');
+        Route::get('/billing', fn () => redirect()->route('tenant.dashboard'))
+            ->name('tenant.billing');
+        Route::get('/website', fn () => redirect()->route('tenant.dashboard'))
+            ->name('tenant.website');
+        Route::get('/staff', fn () => redirect()->route('tenant.dashboard'))
+            ->name('tenant.staff');
+        Route::get('/settings', fn () => redirect()->route('tenant.dashboard'))
+            ->name('tenant.settings');
 
         Route::get('/reception', function () {
             return Inertia::render('Dashboard', ['view' => 'reception']);

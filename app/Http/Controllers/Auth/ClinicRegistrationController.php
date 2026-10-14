@@ -20,6 +20,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Validator;
@@ -188,6 +189,8 @@ class ClinicRegistrationController extends Controller
         $pending->setEncryptedPayload($validated);
         $pending->save();
 
+        Log::info("[MedVisit OTP Code] For {$email}: {$code}");
+
         Mail::to($email)->send(new RegistrationVerificationCodeMail(
             code: $code,
             email: $email,
@@ -202,6 +205,7 @@ class ClinicRegistrationController extends Controller
             'expires_in_seconds' => 600,
             'resend_cooldown_seconds' => 60,
             'message' => "Verification code sent to {$email}.",
+            'dev_code' => config('app.debug') ? $code : null,
         ]);
     }
 
@@ -342,6 +346,8 @@ class ClinicRegistrationController extends Controller
 
         $payload = $pending->getDecryptedPayload();
 
+        Log::info("[MedVisit OTP Code] For {$pending->email}: {$code}");
+
         Mail::to($pending->email)->send(new RegistrationVerificationCodeMail(
             code: $code,
             email: $pending->email,
@@ -354,6 +360,7 @@ class ClinicRegistrationController extends Controller
             'expires_in_seconds' => 600,
             'resend_cooldown_seconds' => 60,
             'message' => "A new verification code has been sent to {$pending->email}.",
+            'dev_code' => config('app.debug') ? $code : null,
         ]);
     }
 
