@@ -113,6 +113,114 @@ interface Props {
     upcomingSessions: SessionItem[];
 }
 
+class BuilderErrorBoundary extends React.Component<
+    { children: React.ReactNode },
+    { hasError: boolean; error: Error | null }
+> {
+    constructor(props: any) {
+        super(props);
+        this.state = { hasError: false, error: null };
+    }
+    static getDerivedStateFromError(error: Error) {
+        return { hasError: true, error };
+    }
+    componentDidCatch(error: Error, errorInfo: any) {
+        console.error('Builder error caught by ErrorBoundary:', error, errorInfo);
+    }
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="p-4 bg-rose-950/80 border border-rose-500/30 rounded-xl text-rose-200 text-xs m-4">
+                    <p className="font-bold text-rose-300 mb-1">Inspector Notice</p>
+                    <p className="text-[11px] opacity-80">{this.state.error?.message || 'Property read error'}</p>
+                    <button
+                        type="button"
+                        onClick={() => this.setState({ hasError: false, error: null })}
+                        className="mt-2 px-2.5 py-1 rounded bg-rose-700 hover:bg-rose-600 text-white font-bold"
+                    >
+                        Reset Inspector
+                    </button>
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
+
+// Safe helper to read component text/HTML content
+function getComponentContent(comp: any): string {
+    if (!comp) return '';
+    try {
+        if (comp.view?.el?.innerHTML) {
+            return comp.view.el.innerHTML;
+        }
+        if (typeof comp.get === 'function') {
+            const content = comp.get('content');
+            if (content) return content;
+        }
+        if (typeof comp.components === 'function') {
+            const comps = comp.components();
+            if (comps && typeof comps.map === 'function') {
+                return comps
+                    .map((c: any) =>
+                        typeof c.toHTML === 'function'
+                            ? c.toHTML()
+                            : (typeof c.get === 'function' ? c.get('content') : '') || ''
+                    )
+                    .join('');
+            }
+        }
+    } catch (err) {
+        console.warn('Error reading component content', err);
+    }
+    return '';
+}
+
+// Safe helper to set component text/HTML content
+function setComponentContent(comp: any, value: string) {
+    if (!comp) return;
+    try {
+        if (typeof comp.components === 'function') {
+            comp.components(value);
+        } else if (typeof comp.set === 'function') {
+            comp.set('content', value);
+        }
+        if (comp.view?.el) {
+            comp.view.el.innerHTML = value;
+        }
+    } catch (err) {
+        console.warn('Error setting component content', err);
+    }
+}
+
+// Safe helper to read component classes
+function getComponentClasses(comp: any): string {
+    if (!comp || typeof comp.getClasses !== 'function') return '';
+    try {
+        const classes = comp.getClasses();
+        if (Array.isArray(classes)) {
+            return classes
+                .map((c: any) => (typeof c === 'string' ? c : (c.get?.('name') || c.name || '')))
+                .filter(Boolean)
+                .join(' ');
+        }
+    } catch (err) {
+        console.warn('Error reading component classes', err);
+    }
+    return '';
+}
+
+// Safe helper to read component attributes
+function getComponentAttribute(comp: any, attr: string): string {
+    if (!comp || typeof comp.getAttributes !== 'function') return '';
+    try {
+        const attrs = comp.getAttributes();
+        return attrs ? attrs[attr] || '' : '';
+    } catch {
+        return '';
+    }
+}
+
 export default function PageBuilder({
     tenant,
     page,
@@ -1698,8 +1806,20 @@ export default function PageBuilder({
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        selectedComponent.clone();
-                                        setIsDirty(true);
+                                        try {
+                                            const parent = selectedComponent.parent?.();
+                                            if (parent) {
+                                                const clone = selectedComponent.clone();
+                                                const index = selectedComponent.index?.() ?? 0;
+                                                parent.append(clone, { at: index + 1 });
+                                                editorInstance.current?.select(clone);
+                                            } else {
+                                                selectedComponent.clone();
+                                            }
+                                            setIsDirty(true);
+                                        } catch (err) {
+                                            console.warn('Clone error', err);
+                                        }
                                     }}
                                     className="p-1 text-slate-400 hover:text-white hover:bg-white/10 rounded"
                                     title="Duplicate element"
@@ -1709,9 +1829,13 @@ export default function PageBuilder({
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        selectedComponent.remove();
-                                        setSelectedComponent(null);
-                                        setIsDirty(true);
+                                        try {
+                                            selectedComponent.remove?.();
+                                            setSelectedComponent(null);
+                                            setIsDirty(true);
+                                        } catch (err) {
+                                            console.warn('Remove error', err);
+                                        }
                                     }}
                                     className="p-1 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded"
                                     title="Delete element"
@@ -1761,231 +1885,249 @@ export default function PageBuilder({
 
                     {/* Inspector Scroll Area */}
                     <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
-                        {/* Fallback prompt when no component selected */}
-                        {!selectedComponent && (
-                            <div className="text-center py-12 text-slate-500">
-                                <Sliders className="w-8 h-8 stroke-1 mx-auto mb-2 opacity-50" />
-                                <p className="text-xs font-bold text-slate-400">No element selected</p>
-                                <p className="text-[11px] text-slate-500 mt-1 max-w-[200px] mx-auto">
-                                    Click any section, heading, button, or widget on the canvas to configure its content &amp; styles.
-                                </p>
-                            </div>
-                        )}
-
-                        {/* Component Inspector Controls - Always mounted in DOM for GrapesJS appendTo */}
-                        <div
-                            style={
-                                selectedComponent
-                                    ? { display: 'block' }
-                                    : { height: 0, opacity: 0, overflow: 'hidden', position: 'absolute', pointerEvents: 'none' }
-                            }
-                            className="space-y-4"
-                        >
-                            <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
-                                <div>
-                                    <span className="text-[10px] text-slate-400 block">Selected Target</span>
-                                    <span className="font-bold text-white text-xs">
-                                        {selectedWidgetName || selectedTagName}
-                                    </span>
+                        <BuilderErrorBoundary>
+                            {/* Fallback prompt when no component selected */}
+                            {!selectedComponent && (
+                                <div className="text-center py-12 text-slate-500">
+                                    <Sliders className="w-8 h-8 stroke-1 mx-auto mb-2 opacity-50" />
+                                    <p className="text-xs font-bold text-slate-400">No element selected</p>
+                                    <p className="text-[11px] text-slate-500 mt-1 max-w-[200px] mx-auto">
+                                        Click any section, heading, button, or widget on the canvas to configure its content &amp; styles.
+                                    </p>
                                 </div>
-                                <span className="font-mono text-[10px] text-teal-400 bg-teal-500/10 px-1.5 py-0.5 rounded">
-                                    &lt;{selectedTagName}&gt;
-                                </span>
-                            </div>
+                            )}
 
-                            {/* Content Tab */}
+                            {/* Component Inspector Controls - Always mounted in DOM for GrapesJS appendTo */}
                             <div
                                 style={
-                                    inspectorTab === 'content'
-                                        ? { display: 'block' }
-                                        : { height: 0, opacity: 0, overflow: 'hidden', position: 'absolute', pointerEvents: 'none' }
-                                }
-                                className="space-y-3"
-                            >
-                                {/* Image source chooser if image */}
-                                {selectedTagName === 'IMG' && selectedComponent && (
-                                    <div>
-                                        <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                                            Image Source
-                                        </label>
-                                        <div className="flex gap-1.5">
-                                            <input
-                                                type="text"
-                                                value={selectedComponent.get ? selectedComponent.get('src') || '' : ''}
-                                                onChange={(e) => {
-                                                    selectedComponent.set?.('src', e.target.value);
-                                                    setIsDirty(true);
-                                                }}
-                                                className="flex-1 text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-2.5 py-1.5"
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setMediaCurrentValue(selectedComponent.get ? selectedComponent.get('src') || '' : '');
-                                                    setMediaModalOpen(true);
-                                                }}
-                                                className="px-2.5 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold"
-                                                title="Open Media Library"
-                                            >
-                                                <ImageIcon className="w-3.5 h-3.5" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* GrapesJS Traits - Always mounted */}
-                                <div id="builder-traits-container" className="space-y-2 text-xs" />
-
-                                {/* Text content quick editor */}
-                                {['H1', 'H2', 'H3', 'H4', 'P', 'SPAN', 'A', 'BUTTON'].includes(
-                                    selectedTagName
-                                ) && selectedComponent && (
-                                    <div>
-                                        <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                                            Text Content
-                                        </label>
-                                        <textarea
-                                            rows={3}
-                                            defaultValue={selectedComponent.components ? selectedComponent.components().asHtml() || '' : ''}
-                                            onChange={(e) => {
-                                                selectedComponent.components?.(e.target.value);
-                                                setIsDirty(true);
-                                            }}
-                                            className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-2.5 py-1.5"
-                                        />
-                                    </div>
-                                )}
-
-                                {/* Link URL if anchor or button */}
-                                {(selectedTagName === 'A' || selectedTagName === 'BUTTON') && selectedComponent && (
-                                    <div>
-                                        <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                                            Link Destination (href)
-                                        </label>
-                                        <input
-                                            type="text"
-                                            defaultValue={selectedComponent.getAttributes ? selectedComponent.getAttributes()['href'] || '' : ''}
-                                            onChange={(e) => {
-                                                selectedComponent.addAttributes?.({ href: e.target.value });
-                                                setIsDirty(true);
-                                            }}
-                                            placeholder="/book or https://..."
-                                            className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-2.5 py-1.5"
-                                        />
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Style Tab */}
-                            <div
-                                style={
-                                    inspectorTab === 'style'
+                                    selectedComponent
                                         ? { display: 'block' }
                                         : { height: 0, opacity: 0, overflow: 'hidden', position: 'absolute', pointerEvents: 'none' }
                                 }
                                 className="space-y-4"
                             >
-                                {/* Color Swatches */}
-                                <div>
-                                    <label className="block text-[11px] font-bold text-slate-300 mb-1.5">
-                                        Quick Color Swatches
-                                    </label>
-                                    <div className="flex gap-2">
-                                        {colorSwatches.map((c) => (
-                                            <button
-                                                key={c.value}
-                                                type="button"
-                                                onClick={() => {
-                                                    selectedComponent?.addStyle?.({ color: c.value });
+                                <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
+                                    <div>
+                                        <span className="text-[10px] text-slate-400 block">Selected Target</span>
+                                        <span className="font-bold text-white text-xs">
+                                            {selectedWidgetName || selectedTagName}
+                                        </span>
+                                    </div>
+                                    <span className="font-mono text-[10px] text-teal-400 bg-teal-500/10 px-1.5 py-0.5 rounded">
+                                        &lt;{selectedTagName}&gt;
+                                    </span>
+                                </div>
+
+                                {/* Content Tab */}
+                                <div
+                                    style={
+                                        inspectorTab === 'content'
+                                            ? { display: 'block' }
+                                            : { height: 0, opacity: 0, overflow: 'hidden', position: 'absolute', pointerEvents: 'none' }
+                                    }
+                                    className="space-y-3"
+                                >
+                                    {/* Image source chooser if image */}
+                                    {selectedTagName === 'IMG' && selectedComponent && (
+                                        <div>
+                                            <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                                                Image Source
+                                            </label>
+                                            <div className="flex gap-1.5">
+                                                <input
+                                                    type="text"
+                                                    value={selectedComponent.get ? selectedComponent.get('src') || '' : ''}
+                                                    onChange={(e) => {
+                                                        selectedComponent.set?.('src', e.target.value);
+                                                        setIsDirty(true);
+                                                    }}
+                                                    className="flex-1 text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-2.5 py-1.5"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setMediaCurrentValue(selectedComponent.get ? selectedComponent.get('src') || '' : '');
+                                                        setMediaModalOpen(true);
+                                                    }}
+                                                    className="px-2.5 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold"
+                                                    title="Open Media Library"
+                                                >
+                                                    <ImageIcon className="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* GrapesJS Traits - Always mounted */}
+                                    <div id="builder-traits-container" className="space-y-2 text-xs" />
+
+                                    {/* Text content quick editor */}
+                                    {['H1', 'H2', 'H3', 'H4', 'P', 'SPAN', 'A', 'BUTTON', 'LI'].includes(
+                                        selectedTagName
+                                    ) && selectedComponent && (
+                                        <div key={`text-edit-${selectedComponent.cid || 'text'}`}>
+                                            <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                                                Text Content
+                                            </label>
+                                            <textarea
+                                                rows={3}
+                                                defaultValue={getComponentContent(selectedComponent)}
+                                                onChange={(e) => {
+                                                    setComponentContent(selectedComponent, e.target.value);
                                                     setIsDirty(true);
                                                 }}
-                                                className="w-6 h-6 rounded-full border border-white/20 hover:scale-110 transition-transform shadow-xs"
-                                                style={{ backgroundColor: c.value }}
-                                                title={c.label}
+                                                className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-2.5 py-1.5 focus:border-teal-500"
                                             />
-                                        ))}
+                                        </div>
+                                    )}
+
+                                    {/* Link URL if anchor or button */}
+                                    {(selectedTagName === 'A' || selectedTagName === 'BUTTON') && selectedComponent && (
+                                        <div key={`link-edit-${selectedComponent.cid || 'link'}`}>
+                                            <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                                                Link Destination (href)
+                                            </label>
+                                            <input
+                                                type="text"
+                                                defaultValue={getComponentAttribute(selectedComponent, 'href')}
+                                                onChange={(e) => {
+                                                    try {
+                                                        selectedComponent.addAttributes?.({ href: e.target.value });
+                                                        setIsDirty(true);
+                                                    } catch (err) {
+                                                        console.warn('Error setting href', err);
+                                                    }
+                                                }}
+                                                placeholder="/book or https://..."
+                                                className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-2.5 py-1.5 focus:border-teal-500"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Style Tab */}
+                                <div
+                                    style={
+                                        inspectorTab === 'style'
+                                            ? { display: 'block' }
+                                            : { height: 0, opacity: 0, overflow: 'hidden', position: 'absolute', pointerEvents: 'none' }
+                                    }
+                                    className="space-y-4"
+                                >
+                                    {/* Color Swatches */}
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-slate-300 mb-1.5">
+                                            Quick Color Swatches
+                                        </label>
+                                        <div className="flex gap-2">
+                                            {colorSwatches.map((c) => (
+                                                <button
+                                                    key={c.value}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        selectedComponent?.addStyle?.({ color: c.value });
+                                                        setIsDirty(true);
+                                                    }}
+                                                    className="w-6 h-6 rounded-full border border-white/20 hover:scale-110 transition-transform shadow-xs"
+                                                    style={{ backgroundColor: c.value }}
+                                                    title={c.label}
+                                                />
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
 
-                                {/* Alignment controls */}
-                                <div>
-                                    <label className="block text-[11px] font-bold text-slate-300 mb-1.5">
-                                        Text Alignment
-                                    </label>
-                                    <div className="flex rounded-xl bg-white/5 border border-white/10 p-0.5">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                selectedComponent?.addStyle?.({ 'text-align': 'left' });
-                                                setIsDirty(true);
-                                            }}
-                                            className="flex-1 py-1 rounded-lg text-slate-300 hover:bg-white/10 flex items-center justify-center"
-                                        >
-                                            <AlignLeft className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                selectedComponent?.addStyle?.({ 'text-align': 'center' });
-                                                setIsDirty(true);
-                                            }}
-                                            className="flex-1 py-1 rounded-lg text-slate-300 hover:bg-white/10 flex items-center justify-center"
-                                        >
-                                            <AlignCenter className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                selectedComponent?.addStyle?.({ 'text-align': 'right' });
-                                                setIsDirty(true);
-                                            }}
-                                            className="flex-1 py-1 rounded-lg text-slate-300 hover:bg-white/10 flex items-center justify-center"
-                                        >
-                                            <AlignRight className="w-3.5 h-3.5" />
-                                        </button>
+                                    {/* Alignment controls */}
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-slate-300 mb-1.5">
+                                            Text Alignment
+                                        </label>
+                                        <div className="flex rounded-xl bg-white/5 border border-white/10 p-0.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    selectedComponent?.addStyle?.({ 'text-align': 'left' });
+                                                    setIsDirty(true);
+                                                }}
+                                                className="flex-1 py-1 rounded-lg text-slate-300 hover:bg-white/10 flex items-center justify-center"
+                                            >
+                                                <AlignLeft className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    selectedComponent?.addStyle?.({ 'text-align': 'center' });
+                                                    setIsDirty(true);
+                                                }}
+                                                className="flex-1 py-1 rounded-lg text-slate-300 hover:bg-white/10 flex items-center justify-center"
+                                            >
+                                                <AlignCenter className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    selectedComponent?.addStyle?.({ 'text-align': 'right' });
+                                                    setIsDirty(true);
+                                                }}
+                                                className="flex-1 py-1 rounded-lg text-slate-300 hover:bg-white/10 flex items-center justify-center"
+                                            >
+                                                <AlignRight className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
                                     </div>
+
+                                    {/* Selector Manager - Always mounted */}
+                                    <div id="builder-selectors-container" className="space-y-1" />
+
+                                    {/* Standard GrapesJS Styles Container - Always mounted */}
+                                    <div id="builder-styles-container" className="space-y-3" />
                                 </div>
 
-                                {/* Selector Manager - Always mounted */}
-                                <div id="builder-selectors-container" className="space-y-1" />
+                                {/* Advanced Tab */}
+                                <div className={inspectorTab === 'advanced' ? 'space-y-3' : 'hidden'}>
+                                    {selectedComponent ? (
+                                        <>
+                                            <div key={`id-edit-${selectedComponent?.cid || 'id'}`}>
+                                                <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                                                    Element ID (#)
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    defaultValue={typeof selectedComponent?.getId === 'function' ? selectedComponent.getId() || '' : ''}
+                                                    onChange={(e) => {
+                                                        try {
+                                                            selectedComponent?.setId?.(e.target.value);
+                                                            setIsDirty(true);
+                                                        } catch (err) {
+                                                            console.warn('Error setting id', err);
+                                                        }
+                                                    }}
+                                                    className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-2.5 py-1.5 focus:border-teal-500"
+                                                />
+                                            </div>
 
-                                {/* Standard GrapesJS Styles Container - Always mounted */}
-                                <div id="builder-styles-container" className="space-y-3" />
+                                            <div key={`class-edit-${selectedComponent?.cid || 'class'}`}>
+                                                <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                                                    CSS Classes
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    defaultValue={getComponentClasses(selectedComponent)}
+                                                    onChange={(e) => {
+                                                        try {
+                                                            selectedComponent?.setClass?.(e.target.value.split(' ').filter(Boolean));
+                                                            setIsDirty(true);
+                                                        } catch (err) {
+                                                            console.warn('Error setting classes', err);
+                                                        }
+                                                    }}
+                                                    className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-2.5 py-1.5 focus:border-teal-500"
+                                                />
+                                            </div>
+                                        </>
+                                    ) : null}
+                                </div>
                             </div>
-
-                            {/* Advanced Tab */}
-                            <div className={inspectorTab === 'advanced' ? 'space-y-3' : 'hidden'}>
-                                <div>
-                                    <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                                        Element ID (#)
-                                    </label>
-                                    <input
-                                        type="text"
-                                        defaultValue={selectedComponent?.getId ? selectedComponent.getId() || '' : ''}
-                                        onChange={(e) => {
-                                            selectedComponent?.setId?.(e.target.value);
-                                            setIsDirty(true);
-                                        }}
-                                        className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-2.5 py-1.5"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                                        CSS Classes
-                                    </label>
-                                    <input
-                                        type="text"
-                                        defaultValue={selectedComponent?.getClasses ? selectedComponent.getClasses().join(' ') : ''}
-                                        onChange={(e) => {
-                                            selectedComponent?.setClass?.(e.target.value.split(' ').filter(Boolean));
-                                            setIsDirty(true);
-                                        }}
-                                        className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-2.5 py-1.5"
-                                    />
-                                </div>
-                            </div>
-                        </div>
+                        </BuilderErrorBoundary>
                     </div>
                 </aside>
             </div>
