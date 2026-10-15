@@ -104,6 +104,12 @@ Route::middleware([
 
         Route::get('/calendar', [ChannelingCalendarController::class, 'index'])
             ->name('tenant.calendar');
+        Route::get('/calendar/roster/{session}', [ChannelingCalendarController::class, 'roster'])
+            ->name('tenant.calendar.roster');
+        Route::post('/calendar/sessions/{session}/cancel', [ChannelingCalendarController::class, 'cancelSession'])
+            ->name('tenant.calendar.sessions.cancel');
+        Route::post('/calendar/sessions/{session}/reschedule', [ChannelingCalendarController::class, 'rescheduleSession'])
+            ->name('tenant.calendar.sessions.reschedule');
 
         Route::get('/patients', [PatientController::class, 'index'])
             ->name('tenant.patients');
@@ -124,6 +130,28 @@ Route::middleware([
 
             Route::get('/doctors', [DoctorController::class, 'index'])
                 ->name('tenant.doctors');
+            Route::post('/doctors', [DoctorController::class, 'store'])
+                ->name('tenant.doctors.store');
+            Route::put('/doctors/{doctor}', [DoctorController::class, 'update'])
+                ->name('tenant.doctors.update');
+            Route::patch('/doctors/{doctor}/toggle', [DoctorController::class, 'toggleActive'])
+                ->name('tenant.doctors.toggle');
+            Route::delete('/doctors/{doctor}', [DoctorController::class, 'destroy'])
+                ->name('tenant.doctors.destroy');
+
+            Route::post('/doctors/templates', [DoctorController::class, 'storeTemplate'])
+                ->name('tenant.doctors.templates.store');
+            Route::delete('/doctors/templates/{template}', [DoctorController::class, 'destroyTemplate'])
+                ->name('tenant.doctors.templates.destroy');
+
+            Route::post('/doctors/sessions/one-off', [DoctorController::class, 'storeOneOffSession'])
+                ->name('tenant.doctors.sessions.one_off');
+            Route::post('/doctors/leaves', [DoctorController::class, 'storeLeave'])
+                ->name('tenant.doctors.leaves.store');
+            Route::delete('/doctors/leaves/{leave}', [DoctorController::class, 'destroyLeave'])
+                ->name('tenant.doctors.leaves.destroy');
+            Route::post('/doctors/generate-sessions', [DoctorController::class, 'generateSessions'])
+                ->name('tenant.doctors.generate_sessions');
 
             Route::get('/billing', [BillingController::class, 'index'])
                 ->name('tenant.billing');

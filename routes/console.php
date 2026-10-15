@@ -9,3 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('medvisit:send-trial-reminders')->daily();
+Schedule::command('sessions:generate-from-templates --days=30')->daily();
