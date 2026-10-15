@@ -2,12 +2,22 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Tenant\BillingController;
+use App\Http\Controllers\Tenant\BookingTokenController;
+use App\Http\Controllers\Tenant\ChannelingCalendarController;
+use App\Http\Controllers\Tenant\ClinicSettingsController;
+use App\Http\Controllers\Tenant\ClinicWebsiteController;
+use App\Http\Controllers\Tenant\DoctorController;
+use App\Http\Controllers\Tenant\LiveQueueTvController;
+use App\Http\Controllers\Tenant\PatientController;
+use App\Http\Controllers\Tenant\StaffController;
 use App\Http\Controllers\Tenant\TenantAuthenticatedSessionController;
 use App\Http\Controllers\Tenant\TenantDashboardController;
 use App\Http\Controllers\Tenant\TenantNewPasswordController;
 use App\Http\Controllers\Tenant\TenantPasswordResetLinkController;
 use App\Http\Controllers\Tenant\TenantSignedLoginController;
 use App\Http\Controllers\Tenant\TenantSuspendedController;
+use App\Http\Controllers\Tenant\TodayQueueController;
 use App\Http\Controllers\Tenant\WorkspaceNotificationController;
 use App\Http\Controllers\Tenant\WorkspaceSearchController;
 use App\Http\Middleware\EnsureTenantIsActive;
@@ -46,10 +56,11 @@ Route::middleware([
         return Inertia::render('Welcome', [
             'tenant' => [
                 'id' => $tenant->id,
-                'name' => $tenant->name ?? 'Demo Clinic',
+                'name' => ucwords((string) ($tenant->name ?? 'Demo Clinic')),
                 'subdomain' => $tenant->subdomain ?? 'demo',
                 'plan' => $tenant->plan ?? 'starter',
                 'status' => $tenant->status ?? 'active',
+                'base_domain' => config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost')),
             ],
             'canLogin' => true,
             'canRegister' => false,
@@ -84,8 +95,21 @@ Route::middleware([
 
     // 4. Authenticated & Active Tenant Routes
     Route::middleware(['auth', EnsureTenantIsActive::class])->group(function () {
+        // Universal Clinical Routes (accessible to all authenticated staff: clinic_admin, doctor, receptionist)
         Route::get('/dashboard', [TenantDashboardController::class, 'index'])
             ->name('tenant.dashboard');
+
+        Route::get('/sessions/today', [TodayQueueController::class, 'index'])
+            ->name('tenant.sessions.today');
+
+        Route::get('/calendar', [ChannelingCalendarController::class, 'index'])
+            ->name('tenant.calendar');
+
+        Route::get('/patients', [PatientController::class, 'index'])
+            ->name('tenant.patients');
+
+        Route::get('/queue/tv', [LiveQueueTvController::class, 'index'])
+            ->name('tenant.queue.tv');
 
         // Global Search & Notification APIs
         Route::get('/api/search', [WorkspaceSearchController::class, 'search'])
@@ -93,33 +117,36 @@ Route::middleware([
         Route::get('/api/notifications', [WorkspaceNotificationController::class, 'index'])
             ->name('tenant.api.notifications');
 
-        // Navigation placeholders for subsequent phases
-        Route::get('/sessions/today', [TenantDashboardController::class, 'index'])
-            ->name('tenant.sessions.today');
-        Route::get('/calendar', fn () => redirect()->route('tenant.dashboard'))
-            ->name('tenant.calendar');
-        Route::get('/bookings', fn () => redirect()->route('tenant.dashboard'))
-            ->name('tenant.bookings');
-        Route::get('/patients', fn () => redirect()->route('tenant.dashboard'))
-            ->name('tenant.patients');
-        Route::get('/doctors', fn () => redirect()->route('tenant.dashboard'))
-            ->name('tenant.doctors');
-        Route::get('/billing', fn () => redirect()->route('tenant.dashboard'))
-            ->name('tenant.billing');
-        Route::get('/website', fn () => redirect()->route('tenant.dashboard'))
-            ->name('tenant.website');
-        Route::get('/staff', fn () => redirect()->route('tenant.dashboard'))
-            ->name('tenant.staff');
-        Route::get('/settings', fn () => redirect()->route('tenant.dashboard'))
-            ->name('tenant.settings');
+        // Operations routes: Receptionist & Clinic Admin (Doctor role restricted -> 403)
+        Route::middleware(['role:clinic_admin|receptionist|super_admin'])->group(function () {
+            Route::get('/bookings', [BookingTokenController::class, 'index'])
+                ->name('tenant.bookings');
 
-        Route::get('/reception', function () {
-            return Inertia::render('Dashboard', ['view' => 'reception']);
-        })->name('tenant.reception.index');
+            Route::get('/doctors', [DoctorController::class, 'index'])
+                ->name('tenant.doctors');
 
-        Route::get('/doctor', function () {
-            return Inertia::render('Dashboard', ['view' => 'doctor']);
-        })->name('tenant.doctor.index');
+            Route::get('/billing', [BillingController::class, 'index'])
+                ->name('tenant.billing');
+        });
+
+        // Administration routes: Clinic Admin Only (Doctor & Receptionist restricted -> 403)
+        Route::middleware(['role:clinic_admin|super_admin'])->group(function () {
+            Route::get('/website', [ClinicWebsiteController::class, 'index'])
+                ->name('tenant.website');
+
+            Route::get('/staff', [StaffController::class, 'index'])
+                ->name('tenant.staff');
+
+            Route::get('/settings', [ClinicSettingsController::class, 'index'])
+                ->name('tenant.settings');
+        });
+
+        // Legacy / shortcut redirects
+        Route::get('/reception', fn () => redirect()->route('tenant.bookings'))
+            ->name('tenant.reception.index');
+
+        Route::get('/doctor', fn () => redirect()->route('tenant.sessions.today'))
+            ->name('tenant.doctor.index');
 
         Route::post('/logout', [TenantAuthenticatedSessionController::class, 'destroy'])
             ->name('tenant.logout');

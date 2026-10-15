@@ -29,12 +29,20 @@ interface Props {
     status?: string;
     canResetPassword?: boolean;
     showDemoCredentials?: boolean;
+    matchedClinics?: Array<{
+        name: string;
+        subdomain: string;
+        login_url: string;
+    }>;
+    lookupEmail?: string;
 }
 
 export default function Login({
     status,
     canResetPassword = false,
     showDemoCredentials = false,
+    matchedClinics,
+    lookupEmail,
 }: Props) {
     // Mode: 'find' (Find Your Clinic) vs 'admin' (Platform Admin Login)
     const [mode, setMode] = useState<'find' | 'admin'>('find');
@@ -63,9 +71,7 @@ export default function Login({
 
     const submitEmailLookup: FormEventHandler = (e) => {
         e.preventDefault();
-        emailLookupForm.post(route('find.clinic.email'), {
-            onSuccess: () => emailLookupForm.reset(),
-        });
+        emailLookupForm.post(route('find.clinic.email'));
     };
 
     const submitAdmin: FormEventHandler = (e) => {
@@ -136,64 +142,52 @@ export default function Login({
                                             Find Your Clinic
                                         </h1>
                                         <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-                                            Enter your clinic address or search by your work email to access your MedVisit workspace.
+                                            Enter your work email or clinic address to automatically access your clinic workspace.
                                         </p>
                                     </div>
 
-                                    {/* Option 1: Enter Subdomain */}
-                                    <form onSubmit={submitSubdomain} className="space-y-3">
-                                        <GlassLabel htmlFor="subdomain" required>
-                                            Clinic Address / Subdomain
-                                        </GlassLabel>
-                                        <div className="relative flex rounded-xl border border-slate-300 dark:border-white/10 bg-white/90 dark:bg-slate-900/80 overflow-hidden focus-within:ring-2 focus-within:ring-primary/40 focus-within:border-primary transition-all">
-                                            <input
-                                                id="subdomain"
-                                                type="text"
-                                                value={subdomainForm.data.subdomain}
-                                                placeholder="e.g. ruhunu"
-                                                autoFocus
-                                                onChange={(e) =>
-                                                    subdomainForm.setData(
-                                                        'subdomain',
-                                                        e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')
-                                                    )
-                                                }
-                                                className="w-full px-3.5 py-2.5 text-sm font-semibold text-slate-900 dark:text-white outline-none bg-transparent"
-                                            />
-                                            <span className="px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800/80 text-xs font-mono text-slate-500 dark:text-slate-400 border-l border-slate-200 dark:border-white/10 flex items-center shrink-0">
-                                                .medvisit.lk
-                                            </span>
-                                        </div>
-                                        <GlassError message={subdomainForm.errors.subdomain} />
-
-                                        <button
-                                            type="submit"
-                                            disabled={subdomainForm.processing || !subdomainForm.data.subdomain}
-                                            className="w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-white bg-primary hover:bg-primary-600 shadow-md shadow-primary/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                                    {/* Multiple Clinics Found Selector */}
+                                    {matchedClinics && matchedClinics.length > 0 && (
+                                        <motion.div
+                                            initial={{ opacity: 0, scale: 0.98 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            className="p-4 rounded-2xl bg-primary-500/10 border border-primary-500/20 space-y-3"
                                         >
-                                            <ArrowRight className="w-4 h-4" />
-                                            <span>
-                                                {subdomainForm.processing
-                                                    ? 'Locating Clinic...'
-                                                    : 'Go to Clinic Sign In'}
-                                            </span>
-                                        </button>
-                                    </form>
+                                            <div className="flex items-center gap-2 text-xs font-semibold text-slate-800 dark:text-slate-100">
+                                                <Building2 className="w-4 h-4 text-primary shrink-0" />
+                                                <span>
+                                                    Multiple clinics found for <strong className="text-primary">{lookupEmail}</strong>. Select your clinic:
+                                                </span>
+                                            </div>
+                                            <div className="space-y-2">
+                                                {matchedClinics.map((clinic) => (
+                                                    <a
+                                                        key={clinic.subdomain}
+                                                        href={clinic.login_url}
+                                                        className="flex items-center justify-between p-3 rounded-xl bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-white/10 hover:border-primary text-xs font-semibold text-slate-800 dark:text-white transition-all shadow-sm hover:shadow"
+                                                    >
+                                                        <div className="flex items-center gap-2.5">
+                                                            <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
+                                                                {clinic.name.charAt(0).toUpperCase()}
+                                                            </div>
+                                                            <div>
+                                                                <div className="font-bold">{clinic.name}</div>
+                                                                <div className="text-[10px] text-slate-400 font-mono">
+                                                                    {clinic.subdomain}.medvisit.lk
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <ArrowRight className="w-4 h-4 text-primary" />
+                                                    </a>
+                                                ))}
+                                            </div>
+                                        </motion.div>
+                                    )}
 
-                                    {/* Divider */}
-                                    <div className="relative flex items-center justify-center">
-                                        <div className="absolute inset-0 flex items-center">
-                                            <div className="w-full border-t border-slate-200 dark:border-white/10" />
-                                        </div>
-                                        <span className="relative px-3 bg-white dark:bg-slate-900 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                            Don't remember your clinic URL?
-                                        </span>
-                                    </div>
-
-                                    {/* Option 2: Search by Email */}
+                                    {/* Option 1: Search by Email (Primary) */}
                                     <form onSubmit={submitEmailLookup} className="space-y-3">
-                                        <GlassLabel htmlFor="lookup_email">
-                                            Search by Your Registered Work Email
+                                        <GlassLabel htmlFor="lookup_email" required>
+                                            Sign In with Your Work Email
                                         </GlassLabel>
                                         <GlassInput
                                             id="lookup_email"
@@ -202,6 +196,7 @@ export default function Login({
                                             placeholder="doctor@hospital.lk"
                                             icon={<Mail className="w-4 h-4" />}
                                             error={!!emailLookupForm.errors.email}
+                                            autoFocus
                                             onChange={(e) => emailLookupForm.setData('email', e.target.value)}
                                         />
                                         <GlassError message={emailLookupForm.errors.email} />
@@ -209,18 +204,67 @@ export default function Login({
                                         <button
                                             type="submit"
                                             disabled={emailLookupForm.processing || !emailLookupForm.data.email}
-                                            className="w-full py-2.5 px-4 rounded-xl font-semibold text-xs text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                                            className="w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-white bg-primary hover:bg-primary-600 shadow-md shadow-primary/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                                         >
-                                            <Send className="w-3.5 h-3.5" />
+                                            <ArrowRight className="w-4 h-4" />
                                             <span>
                                                 {emailLookupForm.processing
-                                                    ? 'Searching...'
-                                                    : 'Email Me Clinic Access Links'}
+                                                    ? 'Locating Clinic & Redirecting...'
+                                                    : 'Continue to Clinic'}
                                             </span>
                                         </button>
                                         <p className="text-[11px] text-slate-400 dark:text-slate-500 text-center">
-                                            For security and privacy, clinic memberships are never displayed on-screen.
+                                            Enter your work email and we will automatically direct you to your clinic's workspace.
                                         </p>
+                                    </form>
+
+                                    {/* Divider */}
+                                    <div className="relative flex items-center justify-center">
+                                        <div className="absolute inset-0 flex items-center">
+                                            <div className="w-full border-t border-slate-200 dark:border-white/10" />
+                                        </div>
+                                        <span className="relative px-3 bg-white dark:bg-slate-900 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                            Or enter clinic address directly
+                                        </span>
+                                    </div>
+
+                                    {/* Option 2: Enter Subdomain */}
+                                    <form onSubmit={submitSubdomain} className="space-y-3">
+                                        <GlassLabel htmlFor="subdomain">
+                                            Clinic Address / Subdomain
+                                        </GlassLabel>
+                                        <div className="relative flex rounded-xl border border-slate-300 dark:border-white/10 bg-white/90 dark:bg-slate-900/80 overflow-hidden focus-within:ring-2 focus-within:ring-primary/40 focus-within:border-primary transition-all">
+                                            <input
+                                                id="subdomain"
+                                                type="text"
+                                                value={subdomainForm.data.subdomain}
+                                                placeholder="e.g. ruhunu"
+                                                onChange={(e) =>
+                                                    subdomainForm.setData(
+                                                        'subdomain',
+                                                        e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')
+                                                    )
+                                                }
+                                                className="w-full px-3.5 py-2 text-sm font-semibold text-slate-900 dark:text-white outline-none bg-transparent"
+                                            />
+                                            <span className="px-3.5 py-2 bg-slate-100 dark:bg-slate-800/80 text-xs font-mono text-slate-500 dark:text-slate-400 border-l border-slate-200 dark:border-white/10 flex items-center shrink-0">
+                                                .medvisit.lk
+                                            </span>
+                                        </div>
+                                        <GlassError message={subdomainForm.errors.subdomain} />
+
+                                        <button
+                                            type="submit"
+                                            disabled={subdomainForm.processing || !subdomainForm.data.subdomain}
+                                            className="w-full py-2.5 px-4 rounded-xl font-semibold text-xs text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                                        >
+                                            <ArrowRight className="w-3.5 h-3.5" />
+                                            <span>
+                                                {subdomainForm.processing
+                                                    ? 'Locating Clinic...'
+                                                    : 'Go to Clinic Sign In'}
+                                            </span>
+                                        </button>
                                     </form>
 
                                     {/* Footer Switcher */}

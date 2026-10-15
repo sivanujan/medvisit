@@ -57,10 +57,9 @@ class FindClinicController extends Controller
     }
 
     /**
-     * Look up clinics matching a work email and dispatch login links.
-     * Never reveals whether matching clinics exist or not on screen.
+     * Look up clinic by work email and automatically redirect to its clinic login page.
      */
-    public function searchEmail(Request $request): RedirectResponse
+    public function searchEmail(Request $request): Response|RedirectResponse
     {
         $request->validate([
             'email' => ['required', 'string', 'email'],
@@ -73,27 +72,83 @@ class FindClinicController extends Controller
             ->with('tenant')
             ->get();
 
-        if ($users->isNotEmpty()) {
-            $centralDomain = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
-            $scheme = $request->getScheme();
-            $port = $request->getPort();
-            $portSuffix = ($port && ! in_array($port, [80, 443])) ? ":{$port}" : '';
+        if ($users->isEmpty()) {
+            $superAdmin = User::where('email', $email)->whereNull('tenant_id')->first();
+            if ($superAdmin) {
+                return back()->withErrors([
+                    'email' => 'This email belongs to a Platform Admin. Please sign in via the Platform Admin Sign In below.',
+                ]);
+            }
 
-            $clinics = $users->map(function ($u) use ($centralDomain, $scheme, $portSuffix) {
-                $sub = (string) ($u->tenant?->subdomain ?? $u->tenant_id);
-                $name = (string) ($u->tenant?->name ?? 'Clinic');
-
-                return [
-                    'name' => $name,
-                    'subdomain' => $sub,
-                    'login_url' => "{$scheme}://{$sub}.{$centralDomain}{$portSuffix}/login",
-                ];
-            })->values()->all();
-
-            Mail::to($email)->queue(new FindClinicAccessMail($email, $clinics));
-            Log::info("Dispatched clinic access email for [{$email}] covering ".count($clinics).' clinic(s)');
+            return back()->withErrors([
+                'email' => "We could not find a clinic associated with '{$email}'. Please verify your email or register a new clinic.",
+            ]);
         }
 
-        return back()->with('status', 'If your work email is registered with a clinic, we have sent your direct login link(s) to your inbox.');
+        $centralDomain = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
+        $scheme = $request->getScheme();
+        $port = $request->getPort();
+        $portSuffix = ($port && ! in_array($port, [80, 443])) ? ":{$port}" : '';
+
+        $clinicsForMail = $users->map(function ($u) use ($centralDomain, $scheme, $portSuffix) {
+            $sub = (string) ($u->tenant?->subdomain ?? $u->tenant_id);
+            $name = (string) ($u->tenant?->name ?? 'Clinic');
+
+            return [
+                'name' => $name,
+                'subdomain' => $sub,
+                'login_url' => "{$scheme}://{$sub}.{$centralDomain}{$portSuffix}/login",
+            ];
+        })->values()->all();
+
+        try {
+            Mail::to($email)->queue(new FindClinicAccessMail($email, $clinicsForMail));
+        } catch (\Throwable $e) {
+            Log::warning("Could not dispatch clinic access email: {$e->getMessage()}");
+        }
+
+        session()->flash('status', 'Redirecting to your clinic workspace...');
+
+        // Single clinic match -> automatically redirect to clinic login
+        if ($users->count() === 1) {
+            $user = $users->first();
+            $tenant = $user->tenant ?? Tenant::find($user->tenant_id);
+
+            if (! $tenant) {
+                return back()->withErrors([
+                    'email' => "Could not locate an active clinic workspace for '{$email}'.",
+                ]);
+            }
+
+            $clinicUrl = $tenant->url('/login?email='.urlencode($email));
+
+            if ($request->header('X-Inertia')) {
+                return Inertia::location($clinicUrl);
+            }
+
+            return redirect()->away($clinicUrl);
+        }
+
+        // Multiple clinic matches -> provide selection
+        $clinics = $users->map(function ($u) use ($email) {
+            $tenant = $u->tenant ?? Tenant::find($u->tenant_id);
+            $sub = (string) ($tenant?->subdomain ?? $u->tenant_id);
+            $name = (string) ($tenant?->name ?? 'Clinic');
+
+            $url = $tenant
+                ? $tenant->url('/login?email='.urlencode($email))
+                : Tenant::urlForSubdomain($sub, '/login?email='.urlencode($email));
+
+            return [
+                'name' => $name,
+                'subdomain' => $sub,
+                'login_url' => $url,
+            ];
+        })->values()->all();
+
+        return back()->with([
+            'matchedClinics' => $clinics,
+            'lookupEmail' => $email,
+        ]);
     }
 }

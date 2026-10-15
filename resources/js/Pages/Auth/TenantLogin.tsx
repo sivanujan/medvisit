@@ -38,13 +38,20 @@ interface Props {
     canResetPassword?: boolean;
     status?: string;
     error?: string;
+    defaultEmail?: string;
 }
 
-export default function TenantLogin({ tenant, canResetPassword = true, status, error }: Props) {
+export default function TenantLogin({
+    tenant,
+    canResetPassword = true,
+    status,
+    error,
+    defaultEmail = '',
+}: Props) {
     const [showPassword, setShowPassword] = useState(false);
 
     const { data, setData, post, processing, errors, reset } = useForm({
-        email: '',
+        email: defaultEmail || '',
         password: '',
         remember: false as boolean,
     });
@@ -153,7 +160,7 @@ export default function TenantLogin({ tenant, canResetPassword = true, status, e
                                     icon={<Mail className="w-4 h-4" />}
                                     error={!!errors.email}
                                     autoComplete="username"
-                                    autoFocus
+                                    autoFocus={!defaultEmail}
                                     onChange={(e) => setData('email', e.target.value)}
                                 />
                                 <GlassError message={errors.email} />
@@ -183,6 +190,7 @@ export default function TenantLogin({ tenant, canResetPassword = true, status, e
                                         icon={<Lock className="w-4 h-4" />}
                                         error={!!errors.password}
                                         autoComplete="current-password"
+                                        autoFocus={!!defaultEmail}
                                         onChange={(e) => setData('password', e.target.value)}
                                     />
                                     <button

@@ -45,11 +45,12 @@ class HandleInertiaRequests extends Middleware
             ],
             'tenant' => $tenant ? [
                 'id' => $tenant->id,
-                'name' => $tenant->name,
+                'name' => ucwords((string) $tenant->name),
                 'subdomain' => $tenant->subdomain,
                 'status' => $tenant->status,
                 'phone' => $tenant->phone,
                 'address' => $tenant->address,
+                'base_domain' => config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost')),
             ] : null,
             'flash' => [
                 'status' => session('status'),

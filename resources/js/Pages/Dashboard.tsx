@@ -32,6 +32,7 @@ interface DashboardProps {
         subdomain: string;
         currency: string;
         currency_symbol: string;
+        base_domain?: string;
     };
     userRole: 'clinic_admin' | 'doctor' | 'receptionist';
     stats: {
@@ -128,6 +129,11 @@ export default function Dashboard({
     checklist,
 }: DashboardProps) {
     const isNewClinic = checklist.completedCount < 5;
+    const baseDomain =
+        tenant.base_domain ||
+        (typeof window !== 'undefined' && window.location.hostname.includes('localhost')
+            ? 'medvisit.localhost'
+            : 'medvisit.lk');
 
     const checklistTasks = [
         {
@@ -157,7 +163,7 @@ export default function Dashboard({
         {
             key: 'publish_website',
             label: 'Configure Public Clinic Website',
-            description: 'Publish your branded landing page at ' + tenant.subdomain + '.medvisit.lk.',
+            description: `Publish your branded landing page at ${tenant.subdomain}.${baseDomain}.`,
             done: checklist.items.publish_website,
             href: '/website',
             icon: Globe,
@@ -184,7 +190,7 @@ export default function Dashboard({
                             Sri Lankan Channeling
                         </span>
                         <span className="text-xs text-slate-400 font-medium font-mono">
-                            {tenant.subdomain}.medvisit.lk
+                            {tenant.subdomain}.{baseDomain}
                         </span>
                     </div>
                     <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">

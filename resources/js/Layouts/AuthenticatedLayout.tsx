@@ -54,6 +54,7 @@ export default function AuthenticatedLayout({
             phone?: string;
             address?: string;
             logo_url?: string;
+            base_domain?: string;
         } | null;
     }>().props;
 
@@ -66,6 +67,12 @@ export default function AuthenticatedLayout({
 
     const userInitial = getAvatarInitial(user.name);
     const firstName = getFirstName(user.name);
+
+    const baseDomain =
+        tenant?.base_domain ||
+        (typeof window !== 'undefined' && window.location.hostname.includes('localhost')
+            ? 'medvisit.localhost'
+            : 'medvisit.lk');
 
     const roleLabel = isSuperAdmin
         ? 'Super Admin'
@@ -216,7 +223,7 @@ export default function AuthenticatedLayout({
                             {tenant?.name || 'Clinic Workspace'}
                         </h2>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono truncate">
-                            {tenant?.subdomain ? `${tenant.subdomain}.medvisit.lk` : 'Sri Lankan Clinic'}
+                            {tenant?.subdomain ? `${tenant.subdomain}.${baseDomain}` : `Clinic • ${baseDomain}`}
                         </p>
                     </div>
                 </div>

@@ -172,11 +172,12 @@ class TenantDashboardController extends Controller
         return Inertia::render('Dashboard', [
             'tenant' => [
                 'id' => tenant('id'),
-                'name' => tenant('name') ?? 'Clinic Workspace',
+                'name' => ucwords((string) (tenant('name') ?? 'Clinic Workspace')),
                 'subdomain' => tenant('subdomain') ?? 'clinic',
                 'logo_url' => tenant('logo_url') ?? null,
                 'currency' => config('medvisit.currency', 'LKR'),
                 'currency_symbol' => config('medvisit.currency_symbol', 'Rs.'),
+                'base_domain' => config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost')),
             ],
             'userRole' => $isClinicAdmin ? 'clinic_admin' : ($isDoctor ? 'doctor' : 'receptionist'),
             'stats' => [

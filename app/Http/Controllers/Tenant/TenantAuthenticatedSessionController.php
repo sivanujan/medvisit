@@ -40,6 +40,7 @@ class TenantAuthenticatedSessionController extends Controller
             'canResetPassword' => Route::has('tenant.password.request'),
             'status' => session('status'),
             'error' => session('error'),
+            'defaultEmail' => (string) request()->query('email', ''),
         ]);
     }
 

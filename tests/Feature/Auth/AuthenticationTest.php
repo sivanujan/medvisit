@@ -87,7 +87,7 @@ class AuthenticationTest extends TestCase
         $response->assertRedirect($tenant->url('/login'));
     }
 
-    public function test_find_your_clinic_does_not_leak_tenant_membership(): void
+    public function test_find_your_clinic_by_email_redirects_to_clinic_login(): void
     {
         $tenant = Tenant::factory()->create([
             'id' => 'ruhunu',
@@ -99,22 +99,19 @@ class AuthenticationTest extends TestCase
             'email' => 'registered@clinic.lk',
         ]);
 
-        // Request with registered email
-        $responseRegistered = $this->post('/find-clinic/email', [
+        $response = $this->post('/find-clinic/email', [
             'email' => 'registered@clinic.lk',
         ]);
-        $responseRegistered->assertSessionHas('status');
-        $registeredStatus = session('status');
 
-        // Request with unknown email
-        $responseUnknown = $this->post('/find-clinic/email', [
+        $response->assertRedirect($tenant->url('/login?email='.urlencode('registered@clinic.lk')));
+    }
+
+    public function test_find_your_clinic_by_email_with_unknown_email_returns_error(): void
+    {
+        $response = $this->post('/find-clinic/email', [
             'email' => 'unknown@random.lk',
         ]);
-        $responseUnknown->assertSessionHas('status');
-        $unknownStatus = session('status');
 
-        // Verify the response is identical and does not leak whether clinics exist
-        $this->assertSame($registeredStatus, $unknownStatus);
-        $this->assertStringNotContainsString('ruhunu', $registeredStatus);
+        $response->assertSessionHasErrors('email');
     }
 }
