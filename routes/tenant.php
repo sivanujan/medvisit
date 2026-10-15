@@ -57,6 +57,15 @@ Route::middleware([
         ->middleware('throttle:10,1')
         ->name('tenant.book.store');
 
+    Route::get('/queue', [ClinicWebsiteController::class, 'publicQueue'])
+        ->name('tenant.queue.public');
+
+    Route::get('/tokens/{token}/status', [ClinicWebsiteController::class, 'publicTokenStatus'])
+        ->name('tenant.token.status');
+
+    Route::post('/tokens/{token}/cancel', [ClinicWebsiteController::class, 'cancelPublicToken'])
+        ->name('tenant.token.cancel');
+
     // 3. Guest Auth Routes
     Route::middleware('guest')->group(function () {
         Route::get('/login', [TenantAuthenticatedSessionController::class, 'create'])

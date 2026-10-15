@@ -54,6 +54,12 @@ class HandleInertiaRequests extends Middleware
                 'trial_days_left' => $tenant->trial_ends_at ? max(0, (int) now()->diffInDays($tenant->trial_ends_at, false)) : 14,
                 'is_trial' => $tenant->status === 'trialing' || ($tenant->trial_ends_at && now()->lt($tenant->trial_ends_at)),
                 'base_domain' => config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost')),
+                'website_theme' => $tenant->website_theme ?? 'medvisit-teal',
+                'website_header' => $tenant->website_header ?? null,
+                'website_footer' => $tenant->website_footer ?? null,
+                'logo_url' => $tenant->logo_url ?? null,
+                'whatsapp_number' => $tenant->whatsapp_number ?? null,
+                'opening_hours' => $tenant->opening_hours ?? null,
             ] : null,
             'flash' => [
                 'status' => session('status'),

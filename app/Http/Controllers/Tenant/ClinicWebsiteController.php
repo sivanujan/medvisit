@@ -292,6 +292,8 @@ class ClinicWebsiteController extends Controller
             'mediaAssets' => $mediaAssets,
             'doctors' => $doctors,
             'upcomingSessions' => $upcomingSessions,
+            'headerConfig' => $tenant->website_header,
+            'footerConfig' => $tenant->website_footer,
         ]);
     }
 
@@ -309,10 +311,20 @@ class ClinicWebsiteController extends Controller
             'theme_preset' => ['nullable', 'string'],
             'seo_title' => ['nullable', 'string', 'max:255'],
             'seo_description' => ['nullable', 'string', 'max:500'],
+            'header_config' => ['nullable', 'array'],
+            'footer_config' => ['nullable', 'array'],
         ]);
 
         $cleanHtml = HtmlSanitizer::sanitize($validated['html'] ?? '');
         $cleanCss = HtmlSanitizer::sanitizeCss($validated['css'] ?? '');
+
+        if ($request->has('header_config')) {
+            $tenant->website_header = $validated['header_config'];
+        }
+        if ($request->has('footer_config')) {
+            $tenant->website_footer = $validated['footer_config'];
+        }
+        $tenant->save();
 
         $page = ClinicPage::firstOrCreate(
             ['tenant_id' => $tenant->id, 'slug' => 'home'],
@@ -358,10 +370,19 @@ class ClinicWebsiteController extends Controller
             'theme_preset' => ['nullable', 'string'],
             'seo_title' => ['nullable', 'string', 'max:255'],
             'seo_description' => ['nullable', 'string', 'max:500'],
+            'header_config' => ['nullable', 'array'],
+            'footer_config' => ['nullable', 'array'],
         ]);
 
         $cleanHtml = HtmlSanitizer::sanitize($validated['html'] ?? '');
         $cleanCss = HtmlSanitizer::sanitizeCss($validated['css'] ?? '');
+
+        if ($request->has('header_config')) {
+            $tenant->website_header = $validated['header_config'];
+        }
+        if ($request->has('footer_config')) {
+            $tenant->website_footer = $validated['footer_config'];
+        }
 
         $page = ClinicPage::firstOrCreate(
             ['tenant_id' => $tenant->id, 'slug' => 'home'],
@@ -704,7 +725,12 @@ class ClinicWebsiteController extends Controller
                 'subdomain' => $tenant->subdomain,
                 'phone' => $tenant->phone ?? '+94 11 234 5678',
                 'address' => $tenant->address ?? 'Colombo, Sri Lanka',
+                'logo_url' => $tenant->logo_url,
+                'whatsapp_number' => $tenant->whatsapp_number,
+                'opening_hours' => $tenant->opening_hours,
             ],
+            'headerConfig' => $tenant->website_header,
+            'footerConfig' => $tenant->website_footer,
             'sections' => $sections,
             'theme' => $theme,
             'isPublished' => $isPublished,
@@ -772,7 +798,13 @@ class ClinicWebsiteController extends Controller
                 'phone' => $tenant->phone ?? '+94 11 234 5678',
                 'address' => $tenant->address ?? 'Colombo, Sri Lanka',
                 'subdomain' => $tenant->subdomain,
+                'logo_url' => $tenant->logo_url,
+                'whatsapp_number' => $tenant->whatsapp_number,
+                'opening_hours' => $tenant->opening_hours,
             ],
+            'headerConfig' => $tenant->website_header,
+            'footerConfig' => $tenant->website_footer,
+            'theme' => $tenant->website_theme ?? 'medvisit-teal',
             'sessions' => $sessions,
         ]);
     }
@@ -902,5 +934,110 @@ class ClinicWebsiteController extends Controller
         $approxTime = $token->estimated_time ? Carbon::parse($token->estimated_time)->format('h:i A') : $session->start_time;
 
         return redirect()->back()->with('success', "Appointment Confirmed! Your Token is #{$token->token_number} with Dr. {$session->doctor?->name}. Approximately at {$approxTime}. Please arrive 15 minutes early.");
+    }
+
+    /**
+     * Public Queue Status page (GET /queue).
+     */
+    public function publicQueue(): Response
+    {
+        $tenant = tenant();
+        $today = Carbon::today('Asia/Colombo')->toDateString();
+
+        $activeSessions = DoctorSession::with('doctor')
+            ->where('session_date', $today)
+            ->whereIn('status', ['scheduled', 'in_progress'])
+            ->get()
+            ->map(function ($s) {
+                $currentToken = $s->tokens()
+                    ->whereIn('status', ['called', 'in_consultation'])
+                    ->orderByDesc('token_number')
+                    ->value('token_number');
+
+                return [
+                    'id' => $s->id,
+                    'doctor_name' => trim(($s->doctor?->title ?? 'Dr.').' '.($s->doctor?->name ?? 'Doctor')),
+                    'specialty' => $s->doctor?->specialty ?? 'Specialist',
+                    'room' => $s->room_number ?? 'Suite 1',
+                    'currentToken' => $currentToken,
+                    'status' => $s->status,
+                    'totalTokens' => $s->tokens()->whereNotIn('status', ['cancelled'])->count(),
+                ];
+            });
+
+        return Inertia::render('Public/QueueStatus', [
+            'clinic' => [
+                'name' => ucwords((string) ($tenant->name ?? 'Clinic')),
+                'subdomain' => $tenant->subdomain,
+                'phone' => $tenant->phone ?? '+94 11 234 5678',
+                'address' => $tenant->address ?? 'Colombo, Sri Lanka',
+                'logo_url' => $tenant->logo_url,
+                'whatsapp_number' => $tenant->whatsapp_number,
+                'opening_hours' => $tenant->opening_hours,
+            ],
+            'headerConfig' => $tenant->website_header,
+            'footerConfig' => $tenant->website_footer,
+            'theme' => $tenant->website_theme ?? 'medvisit-teal',
+            'activeSessions' => $activeSessions,
+        ]);
+    }
+
+    /**
+     * Public Token status and cancellation (GET /tokens/{signedToken}/status).
+     */
+    public function publicTokenStatus(string $signedToken): Response
+    {
+        $tenant = tenant();
+        $token = BookingToken::with(['doctorSession.doctor', 'patient'])
+            ->where('tenant_id', $tenant->id)
+            ->where('signed_cancel_token', $signedToken)
+            ->first();
+
+        $tokenData = $token ? [
+            'id' => $token->id,
+            'token_number' => $token->token_number,
+            'status' => $token->status,
+            'doctor_name' => trim(($token->doctorSession?->doctor?->title ?? 'Dr.').' '.($token->doctorSession?->doctor?->name ?? 'Doctor')),
+            'specialty' => $token->doctorSession?->doctor?->specialty ?? 'Specialist',
+            'session_date' => $token->doctorSession?->session_date->format('M d, Y (D)') ?? '',
+            'start_time' => $token->doctorSession ? Carbon::parse($token->doctorSession->start_time)->format('h:i A') : '',
+            'estimated_time' => $token->estimated_time ? Carbon::parse($token->estimated_time)->format('h:i A') : null,
+            'patient_name' => $token->patient?->name ?? 'Patient',
+            'total_fee_formatted' => $token->doctorSession ? 'Rs. '.number_format(($token->doctorSession->doctor_fee + $token->doctorSession->clinic_fee) / 100, 2) : 'Rs. 0.00',
+            'signed_cancel_token' => $token->signed_cancel_token,
+        ] : null;
+
+        return Inertia::render('Public/BookingStatus', [
+            'clinic' => [
+                'name' => ucwords((string) ($tenant->name ?? 'Clinic')),
+                'subdomain' => $tenant->subdomain,
+                'phone' => $tenant->phone ?? '+94 11 234 5678',
+                'address' => $tenant->address ?? 'Colombo, Sri Lanka',
+                'logo_url' => $tenant->logo_url,
+                'whatsapp_number' => $tenant->whatsapp_number,
+                'opening_hours' => $tenant->opening_hours,
+            ],
+            'headerConfig' => $tenant->website_header,
+            'footerConfig' => $tenant->website_footer,
+            'theme' => $tenant->website_theme ?? 'medvisit-teal',
+            'token' => $tokenData,
+        ]);
+    }
+
+    /**
+     * Cancel a booking token via signed cancel token (POST /tokens/{signedToken}/cancel).
+     */
+    public function cancelPublicToken(string $signedToken): RedirectResponse
+    {
+        $tenant = tenant();
+        $token = BookingToken::where('tenant_id', $tenant->id)
+            ->where('signed_cancel_token', $signedToken)
+            ->firstOrFail();
+
+        if ($token->status === BookingToken::STATUS_BOOKED) {
+            $token->update(['status' => BookingToken::STATUS_CANCELLED]);
+        }
+
+        return redirect()->back()->with('success', 'Your appointment token has been cancelled.');
     }
 }

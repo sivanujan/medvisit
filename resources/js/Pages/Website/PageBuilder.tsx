@@ -46,8 +46,14 @@ import {
     AlignRight,
     Type,
     Image as ImageIcon,
+    PanelTop,
+    PanelBottom,
+    MessageCircle,
 } from 'lucide-react';
 import MediaLibraryModal, { MediaAsset } from '@/Components/PageBuilder/MediaLibraryModal';
+import { HeaderConfig } from '@/Components/Public/PublicSiteHeader';
+import { FooterConfig } from '@/Components/Public/PublicSiteFooter';
+import { MEDICAL_ICONS, getMedicalSvg, MedicalIconName } from '@/Utils/medicalIcons';
 
 interface DoctorItem {
     id: number;
@@ -111,6 +117,8 @@ interface Props {
     mediaAssets: MediaAsset[];
     doctors: DoctorItem[];
     upcomingSessions: SessionItem[];
+    headerConfig?: HeaderConfig | null;
+    footerConfig?: FooterConfig | null;
 }
 
 class BuilderErrorBoundary extends React.Component<
@@ -228,6 +236,8 @@ export default function PageBuilder({
     mediaAssets,
     doctors,
     upcomingSessions,
+    headerConfig: initialHeaderConfig,
+    footerConfig: initialFooterConfig,
 }: Props) {
     const editorRef = useRef<HTMLDivElement>(null);
     const editorInstance = useRef<any>(null);
@@ -242,8 +252,54 @@ export default function PageBuilder({
     // Active Device Viewport ('Desktop' | 'Tablet' | 'Mobile')
     const [currentDevice, setCurrentDevice] = useState<'Desktop' | 'Tablet' | 'Mobile'>('Desktop');
 
-    // Left Panel Tab: 'elements' | 'navigator' | 'settings'
-    const [leftPanelTab, setLeftPanelTab] = useState<'elements' | 'navigator' | 'settings'>('elements');
+    // Left Panel Tab: 'elements' | 'navigator' | 'header' | 'footer' | 'settings'
+    const [leftPanelTab, setLeftPanelTab] = useState<'elements' | 'navigator' | 'header' | 'footer' | 'settings'>('elements');
+
+    // Header & Footer Configuration State
+    const [headerConfig, setHeaderConfig] = useState<HeaderConfig>(() => ({
+        logo_url: initialHeaderConfig?.logo_url ?? tenant.logo_url ?? '',
+        show_tagline: initialHeaderConfig?.show_tagline ?? true,
+        tagline: initialHeaderConfig?.tagline ?? 'Compassionate, Modern Healthcare',
+        menu_items: initialHeaderConfig?.menu_items ?? [
+            { label: 'Home', url: '/' },
+            { label: 'About', url: '/about' },
+            { label: 'Doctors', url: '/doctors' },
+            { label: 'Services', url: '/services' },
+            { label: 'Contact', url: '/contact' },
+        ],
+        show_phone: initialHeaderConfig?.show_phone ?? true,
+        phone: initialHeaderConfig?.phone ?? tenant.phone ?? '+94 77 204 6898',
+        show_whatsapp: initialHeaderConfig?.show_whatsapp ?? false,
+        whatsapp_number: initialHeaderConfig?.whatsapp_number ?? '',
+        cta_text: initialHeaderConfig?.cta_text ?? 'Book a token',
+        cta_url: initialHeaderConfig?.cta_url ?? '/book',
+        is_sticky: initialHeaderConfig?.is_sticky ?? true,
+        is_transparent_over_hero: initialHeaderConfig?.is_transparent_over_hero ?? false,
+    }));
+
+    const [footerConfig, setFooterConfig] = useState<FooterConfig>(() => ({
+        about_text: initialFooterConfig?.about_text ?? '',
+        quick_links: initialFooterConfig?.quick_links ?? [
+            { label: 'Home', url: '/' },
+            { label: 'About Us', url: '/about' },
+            { label: 'Doctors & Specialists', url: '/doctors' },
+            { label: 'Clinical Services', url: '/services' },
+            { label: 'Channeling / Book Token', url: '/book' },
+            { label: 'Live Queue Status', url: '/queue' },
+            { label: 'Contact & Location', url: '/contact' },
+        ],
+        address: initialFooterConfig?.address ?? tenant.address ?? '',
+        phone: initialFooterConfig?.phone ?? tenant.phone ?? '',
+        email: initialFooterConfig?.email ?? '',
+        whatsapp_number: initialFooterConfig?.whatsapp_number ?? '',
+        opening_hours: initialFooterConfig?.opening_hours ?? 'Mon – Sat: 8:00 AM – 9:00 PM | Sun: 8:00 AM – 2:00 PM',
+        cta_text: initialFooterConfig?.cta_text ?? 'Book a token',
+        cta_url: initialFooterConfig?.cta_url ?? '/book',
+        show_social: initialFooterConfig?.show_social ?? true,
+        facebook_url: initialFooterConfig?.facebook_url ?? '',
+        instagram_url: initialFooterConfig?.instagram_url ?? '',
+        show_powered_by: initialFooterConfig?.show_powered_by ?? true,
+    }));
 
     // Right Inspector Subtab: 'content' | 'style' | 'advanced'
     const [inspectorTab, setInspectorTab] = useState<'content' | 'style' | 'advanced'>('content');
@@ -556,6 +612,16 @@ export default function PageBuilder({
             `,
         });
 
+        bm.add('widget-medical-icon', {
+            label: '<div style="font-size: 20px; margin-bottom: 4px;">🩺</div><b>Medical Icon</b><div style="font-size: 10px; color: #0E9E8F; font-weight: bold;">Lucide SVG</div>',
+            category: catCore,
+            content: `
+                <div class="medvisit-medical-icon" style="display: inline-flex; align-items: center; justify-content: center; width: 56px; height: 56px; border-radius: 14px; background: #ecfdf5; color: #059669; margin: 12px 0;">
+                    ${getMedicalSvg('Stethoscope', { size: 32, color: '#059669' })}
+                </div>
+            `,
+        });
+
         bm.add('widget-video', {
             label: '<div style="font-size: 20px; margin-bottom: 4px;">🎬</div><b>Video Embed</b><div style="font-size: 10px; color: #64748b;">YouTube / Vimeo</div>',
             category: catCore,
@@ -804,19 +870,19 @@ export default function PageBuilder({
                         </div>
                         <div class="medvisit-grid-3" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;">
                             <div style="padding: 28px; border: 1px solid #e2e8f0; border-radius: 20px; background: #faf5ff; text-align: left;">
-                                <div style="font-size: 32px; margin-bottom: 12px;">🫀</div>
+                                <div style="margin-bottom: 14px; color: #7C3AED;">${getMedicalSvg('HeartPulse', { size: 36, color: '#7C3AED' })}</div>
                                 <h4 style="margin: 0 0 6px 0; font-size: 1.2rem; font-weight: 700; color: #0f172a;">Cardiology &amp; Cardiac Health</h4>
                                 <p style="color: #64748b; font-size: 0.85rem; margin: 0 0 16px 0;">Echocardiography, ECG, cardiac risk profiles, and hypertension management.</p>
                                 <a href="/book" style="color: #7C3AED; font-weight: 700; font-size: 0.85rem; text-decoration: none;">Book Cardiologist →</a>
                             </div>
                             <div style="padding: 28px; border: 1px solid #e2e8f0; border-radius: 20px; background: #f0fdf4; text-align: left;">
-                                <div style="font-size: 32px; margin-bottom: 12px;">🧠</div>
+                                <div style="margin-bottom: 14px; color: #059669;">${getMedicalSvg('Brain', { size: 36, color: '#059669' })}</div>
                                 <h4 style="margin: 0 0 6px 0; font-size: 1.2rem; font-weight: 700; color: #0f172a;">Neurology &amp; Neuro-Medicine</h4>
                                 <p style="color: #64748b; font-size: 0.85rem; margin: 0 0 16px 0;">Stroke assessment, headache clinics, migraine therapy, and peripheral nerve diagnostics.</p>
                                 <a href="/book" style="color: #059669; font-weight: 700; font-size: 0.85rem; text-decoration: none;">Book Neurologist →</a>
                             </div>
                             <div style="padding: 28px; border: 1px solid #e2e8f0; border-radius: 20px; background: #eff6ff; text-align: left;">
-                                <div style="font-size: 32px; margin-bottom: 12px;">🦴</div>
+                                <div style="margin-bottom: 14px; color: #2563eb;">${getMedicalSvg('Activity', { size: 36, color: '#2563eb' })}</div>
                                 <h4 style="margin: 0 0 6px 0; font-size: 1.2rem; font-weight: 700; color: #0f172a;">Orthopaedics &amp; Joint Surgery</h4>
                                 <p style="color: #64748b; font-size: 0.85rem; margin: 0 0 16px 0;">Arthritis clinics, joint injections, sports trauma recovery, and spine evaluations.</p>
                                 <a href="/book" style="color: #2563eb; font-weight: 700; font-size: 0.85rem; text-decoration: none;">Book Orthopaedic →</a>
@@ -920,22 +986,22 @@ export default function PageBuilder({
                         </div>
                         <div class="medvisit-grid-4" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;">
                             <div style="padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff;">
-                                <div style="font-size: 28px; margin-bottom: 12px;">👶</div>
+                                <div style="margin-bottom: 12px; color: #059669;">${getMedicalSvg('Baby', { size: 32, color: '#059669' })}</div>
                                 <h4 style="margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 700; color: #0f172a;">Child Health &amp; Vaccines</h4>
                                 <p style="color: #64748b; font-size: 0.85rem; margin: 0;">Growth monitoring, pediatric wellness, and immunization schedules.</p>
                             </div>
                             <div style="padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff;">
-                                <div style="font-size: 28px; margin-bottom: 12px;">🩺</div>
+                                <div style="margin-bottom: 12px; color: #059669;">${getMedicalSvg('Stethoscope', { size: 32, color: '#059669' })}</div>
                                 <h4 style="margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 700; color: #0f172a;">General Consultations</h4>
                                 <p style="color: #64748b; font-size: 0.85rem; margin: 0;">Experienced family physicians for acute fever, infections, and common illnesses.</p>
                             </div>
                             <div style="padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff;">
-                                <div style="font-size: 28px; margin-bottom: 12px;">🩸</div>
+                                <div style="margin-bottom: 12px; color: #059669;">${getMedicalSvg('Droplet', { size: 32, color: '#059669' })}</div>
                                 <h4 style="margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 700; color: #0f172a;">Diabetes &amp; Chronic Care</h4>
                                 <p style="color: #64748b; font-size: 0.85rem; margin: 0;">Regular glucose screening, blood pressure monitoring, and prescription renewals.</p>
                             </div>
                             <div style="padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff;">
-                                <div style="font-size: 28px; margin-bottom: 12px;">🧪</div>
+                                <div style="margin-bottom: 12px; color: #059669;">${getMedicalSvg('FlaskConical', { size: 32, color: '#059669' })}</div>
                                 <h4 style="margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 700; color: #0f172a;">Diagnostic Laboratory</h4>
                                 <p style="color: #64748b; font-size: 0.85rem; margin: 0;">Complete blood count, urine analysis, and rapid same-day test results.</p>
                             </div>
@@ -1017,7 +1083,7 @@ export default function PageBuilder({
             <div class="medvisit-container" style="max-width: 1200px; margin: 0 auto; padding: 0 20px;">
                 <div style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 16px 24px; border-radius: 16px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
                     <div style="display: flex; align-items: center; gap: 12px;">
-                        <span style="font-size: 20px;">🏥</span>
+                        <span style="display: flex; align-items: center; color: #065f46;">${getMedicalSvg('Hospital', { size: 22, color: '#065f46' })}</span>
                         <span style="font-size: 0.9rem; font-weight: 600; color: #065f46;">
                             Real-Time Waiting Room Queue Monitoring is active for all current doctor sessions.
                         </span>
@@ -1072,22 +1138,22 @@ export default function PageBuilder({
                     </div>
                     <div class="medvisit-grid-4" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;">
                         <div style="padding: 24px; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; text-align: left;">
-                            <div style="font-size: 28px; margin-bottom: 12px;">🩺</div>
+                            <div style="margin-bottom: 12px; color: #0E9E8F;">${getMedicalSvg('Stethoscope', { size: 32, color: '#0E9E8F' })}</div>
                             <h4 style="margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 700; color: #0f172a;">Specialist Channeling</h4>
                             <p style="color: #64748b; font-size: 0.85rem; margin: 0;">Direct consultations with verified senior SLMC specialist doctors.</p>
                         </div>
                         <div style="padding: 24px; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; text-align: left;">
-                            <div style="font-size: 28px; margin-bottom: 12px;">🔬</div>
+                            <div style="margin-bottom: 12px; color: #0E9E8F;">${getMedicalSvg('FlaskConical', { size: 32, color: '#0E9E8F' })}</div>
                             <h4 style="margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 700; color: #0f172a;">Clinical Laboratory</h4>
                             <p style="color: #64748b; font-size: 0.85rem; margin: 0;">Automated blood screening, biochemistry, and rapid diagnostic tests.</p>
                         </div>
                         <div style="padding: 24px; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; text-align: left;">
-                            <div style="font-size: 28px; margin-bottom: 12px;">💓</div>
+                            <div style="margin-bottom: 12px; color: #0E9E8F;">${getMedicalSvg('HeartPulse', { size: 32, color: '#0E9E8F' })}</div>
                             <h4 style="margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 700; color: #0f172a;">Digital ECG &amp; Vitals</h4>
                             <p style="color: #64748b; font-size: 0.85rem; margin: 0;">Rapid cardiovascular monitoring and doctor-certified reports.</p>
                         </div>
                         <div style="padding: 24px; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; text-align: left;">
-                            <div style="font-size: 28px; margin-bottom: 12px;">💊</div>
+                            <div style="margin-bottom: 12px; color: #0E9E8F;">${getMedicalSvg('Pill', { size: 32, color: '#0E9E8F' })}</div>
                             <h4 style="margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 700; color: #0f172a;">Certified Pharmacy</h4>
                             <p style="color: #64748b; font-size: 0.85rem; margin: 0;">Licensed pharmaceuticals and experienced pharmacist counseling.</p>
                         </div>
@@ -1175,6 +1241,8 @@ export default function PageBuilder({
                     theme_preset: pageTheme,
                     seo_title: seoTitle,
                     seo_description: seoDescription,
+                    header_config: headerConfig,
+                    footer_config: footerConfig,
                 }),
             });
 
@@ -1590,48 +1658,77 @@ export default function PageBuilder({
                 {/* 1. LEFT PANEL: Widget Library & Structure Navigator (w-80) */}
                 <aside className="w-80 bg-slate-950 border-r border-white/10 flex flex-col flex-shrink-0 z-20">
                     {/* Header Tabs */}
-                    <div className="h-11 border-b border-white/10 bg-slate-900/50 px-3 flex items-center justify-between flex-shrink-0">
+                    <div className="h-11 border-b border-white/10 bg-slate-900/50 px-2 flex items-center justify-between flex-shrink-0">
                         <div className="flex items-center gap-1">
                             <button
                                 type="button"
                                 onClick={() => setLeftPanelTab('elements')}
-                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                                className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
                                     leftPanelTab === 'elements'
                                         ? 'bg-teal-600 text-white'
                                         : 'text-slate-400 hover:text-white'
                                 }`}
+                                title="Widgets Library"
                             >
                                 <LayoutGrid className="w-3.5 h-3.5" />
-                                <span>Widgets</span>
+                                <span className="hidden xl:inline">Widgets</span>
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setLeftPanelTab('navigator')}
-                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                                className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
                                     leftPanelTab === 'navigator'
                                         ? 'bg-teal-600 text-white'
                                         : 'text-slate-400 hover:text-white'
                                 }`}
+                                title="DOM Layers"
                             >
                                 <Layers className="w-3.5 h-3.5" />
-                                <span>Layers</span>
+                                <span className="hidden xl:inline">Layers</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setLeftPanelTab('header')}
+                                className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                                    leftPanelTab === 'header'
+                                        ? 'bg-teal-600 text-white'
+                                        : 'text-slate-400 hover:text-white'
+                                }`}
+                                title="Shared Public Header Settings"
+                            >
+                                <PanelTop className="w-3.5 h-3.5" />
+                                <span>Header</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setLeftPanelTab('footer')}
+                                className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                                    leftPanelTab === 'footer'
+                                        ? 'bg-teal-600 text-white'
+                                        : 'text-slate-400 hover:text-white'
+                                }`}
+                                title="Shared Public Footer Settings"
+                            >
+                                <PanelBottom className="w-3.5 h-3.5" />
+                                <span>Footer</span>
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setLeftPanelTab('settings')}
-                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                                className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
                                     leftPanelTab === 'settings'
                                         ? 'bg-teal-600 text-white'
                                         : 'text-slate-400 hover:text-white'
                                 }`}
+                                title="Clinic Theme & SEO"
                             >
                                 <Settings className="w-3.5 h-3.5" />
-                                <span>Page</span>
+                                <span className="hidden xl:inline">Page</span>
                             </button>
                         </div>
 
                         {selectedTagName && (
-                            <span className="font-mono text-[10px] font-bold text-teal-400 bg-teal-500/10 px-1.5 py-0.5 rounded border border-teal-500/20">
+                            <span className="font-mono text-[10px] font-bold text-teal-400 bg-teal-500/10 px-1 py-0.5 rounded border border-teal-500/20 truncate max-w-[60px]">
                                 &lt;{selectedTagName}&gt;
                             </span>
                         )}
@@ -1746,6 +1843,406 @@ export default function PageBuilder({
                                     className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-3 py-1.5 focus:border-teal-500"
                                 />
                             </div>
+                        </div>
+                    </div>
+
+                    {/* Header Editor Panel */}
+                    <div className={`flex-1 overflow-y-auto p-4 space-y-4 text-xs ${leftPanelTab === 'header' ? '' : 'hidden'}`}>
+                        <div>
+                            <h4 className="font-bold text-sm text-white mb-1">Shared Public Header</h4>
+                            <p className="text-[11px] text-slate-400">
+                                Controls the persistent header displayed across all public clinic pages.
+                            </p>
+                        </div>
+
+                        {/* Clinic Logo */}
+                        <div className="space-y-1.5 pt-2 border-t border-white/10">
+                            <label className="block text-[11px] font-bold text-slate-300">Clinic Logo URL</label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={headerConfig.logo_url || ''}
+                                    onChange={(e) => {
+                                        setHeaderConfig((prev) => ({ ...prev, logo_url: e.target.value }));
+                                        setIsDirty(true);
+                                    }}
+                                    placeholder="https://... or choose from media"
+                                    className="flex-1 text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-3 py-1.5 focus:border-teal-500"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setMediaCurrentValue(headerConfig.logo_url || '');
+                                        setMediaModalOpen(true);
+                                    }}
+                                    className="px-2.5 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold"
+                                    title="Choose from media library"
+                                >
+                                    <ImageIcon className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Tagline */}
+                        <div className="space-y-2 pt-2 border-t border-white/10">
+                            <div className="flex items-center justify-between">
+                                <label className="text-[11px] font-bold text-slate-300">Show Tagline</label>
+                                <input
+                                    type="checkbox"
+                                    checked={headerConfig.show_tagline ?? true}
+                                    onChange={(e) => {
+                                        setHeaderConfig((prev) => ({ ...prev, show_tagline: e.target.checked }));
+                                        setIsDirty(true);
+                                    }}
+                                    className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 bg-slate-900 border-white/20"
+                                />
+                            </div>
+                            {(headerConfig.show_tagline ?? true) && (
+                                <input
+                                    type="text"
+                                    value={headerConfig.tagline || ''}
+                                    onChange={(e) => {
+                                        setHeaderConfig((prev) => ({ ...prev, tagline: e.target.value }));
+                                        setIsDirty(true);
+                                    }}
+                                    placeholder="e.g. Compassionate, Modern Healthcare"
+                                    className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-3 py-1.5 focus:border-teal-500"
+                                />
+                            )}
+                        </div>
+
+                        {/* Sticky & Transparent options */}
+                        <div className="space-y-2 pt-2 border-t border-white/10">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <label className="text-[11px] font-bold text-slate-300 block">Sticky Header</label>
+                                    <span className="text-[10px] text-slate-400">Fixes to top with blur effect on scroll</span>
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    checked={headerConfig.is_sticky ?? true}
+                                    onChange={(e) => {
+                                        setHeaderConfig((prev) => ({ ...prev, is_sticky: e.target.checked }));
+                                        setIsDirty(true);
+                                    }}
+                                    className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 bg-slate-900 border-white/20"
+                                />
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <label className="text-[11px] font-bold text-slate-300 block">Transparent over hero</label>
+                                    <span className="text-[10px] text-slate-400">Blends over hero until scrolled</span>
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    checked={headerConfig.is_transparent_over_hero ?? false}
+                                    onChange={(e) => {
+                                        setHeaderConfig((prev) => ({ ...prev, is_transparent_over_hero: e.target.checked }));
+                                        setIsDirty(true);
+                                    }}
+                                    className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 bg-slate-900 border-white/20"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Phone Hotline */}
+                        <div className="space-y-2 pt-2 border-t border-white/10">
+                            <div className="flex items-center justify-between">
+                                <label className="text-[11px] font-bold text-slate-300">Show Phone Number</label>
+                                <input
+                                    type="checkbox"
+                                    checked={headerConfig.show_phone ?? true}
+                                    onChange={(e) => {
+                                        setHeaderConfig((prev) => ({ ...prev, show_phone: e.target.checked }));
+                                        setIsDirty(true);
+                                    }}
+                                    className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 bg-slate-900 border-white/20"
+                                />
+                            </div>
+                            {(headerConfig.show_phone ?? true) && (
+                                <input
+                                    type="text"
+                                    value={headerConfig.phone || ''}
+                                    onChange={(e) => {
+                                        setHeaderConfig((prev) => ({ ...prev, phone: e.target.value }));
+                                        setIsDirty(true);
+                                    }}
+                                    placeholder="+94 77 204 6898"
+                                    className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-3 py-1.5 focus:border-teal-500"
+                                />
+                            )}
+                        </div>
+
+                        {/* WhatsApp */}
+                        <div className="space-y-2 pt-2 border-t border-white/10">
+                            <div className="flex items-center justify-between">
+                                <label className="text-[11px] font-bold text-slate-300">Show WhatsApp Button</label>
+                                <input
+                                    type="checkbox"
+                                    checked={headerConfig.show_whatsapp ?? false}
+                                    onChange={(e) => {
+                                        setHeaderConfig((prev) => ({ ...prev, show_whatsapp: e.target.checked }));
+                                        setIsDirty(true);
+                                    }}
+                                    className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 bg-slate-900 border-white/20"
+                                />
+                            </div>
+                            {(headerConfig.show_whatsapp ?? false) && (
+                                <input
+                                    type="text"
+                                    value={headerConfig.whatsapp_number || ''}
+                                    onChange={(e) => {
+                                        setHeaderConfig((prev) => ({ ...prev, whatsapp_number: e.target.value }));
+                                        setIsDirty(true);
+                                    }}
+                                    placeholder="+94 77 123 4567"
+                                    className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-3 py-1.5 focus:border-teal-500"
+                                />
+                            )}
+                        </div>
+
+                        {/* Primary CTA */}
+                        <div className="space-y-2 pt-2 border-t border-white/10">
+                            <label className="block text-[11px] font-bold text-slate-300">Header CTA Button</label>
+                            <div className="grid grid-cols-2 gap-2">
+                                <input
+                                    type="text"
+                                    value={headerConfig.cta_text || ''}
+                                    onChange={(e) => {
+                                        setHeaderConfig((prev) => ({ ...prev, cta_text: e.target.value }));
+                                        setIsDirty(true);
+                                    }}
+                                    placeholder="Button text (e.g. Book a token)"
+                                    className="text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-3 py-1.5 focus:border-teal-500"
+                                />
+                                <input
+                                    type="text"
+                                    value={headerConfig.cta_url || ''}
+                                    onChange={(e) => {
+                                        setHeaderConfig((prev) => ({ ...prev, cta_url: e.target.value }));
+                                        setIsDirty(true);
+                                    }}
+                                    placeholder="URL (e.g. /book)"
+                                    className="text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-3 py-1.5 focus:border-teal-500"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Menu Items Editor */}
+                        <div className="space-y-2 pt-2 border-t border-white/10">
+                            <div className="flex items-center justify-between">
+                                <label className="text-[11px] font-bold text-slate-300">Navigation Menu Links</label>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setHeaderConfig((prev) => ({
+                                            ...prev,
+                                            menu_items: [...(prev.menu_items || []), { label: 'New Link', url: '/' }],
+                                        }));
+                                        setIsDirty(true);
+                                    }}
+                                    className="inline-flex items-center gap-1 text-[11px] font-bold text-teal-400 hover:text-teal-300"
+                                >
+                                    <Plus className="w-3 h-3" /> Add Link
+                                </button>
+                            </div>
+                            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                                {(headerConfig.menu_items || []).map((item, idx) => (
+                                    <div key={idx} className="p-2 rounded-xl bg-slate-900 border border-white/10 space-y-1.5">
+                                        <div className="flex items-center gap-1.5">
+                                            <input
+                                                type="text"
+                                                value={item.label}
+                                                onChange={(e) => {
+                                                    const newItems = [...(headerConfig.menu_items || [])];
+                                                    newItems[idx] = { ...newItems[idx], label: e.target.value };
+                                                    setHeaderConfig((prev) => ({ ...prev, menu_items: newItems }));
+                                                    setIsDirty(true);
+                                                }}
+                                                placeholder="Menu Label"
+                                                className="flex-1 text-xs rounded-lg bg-slate-950 border border-white/10 text-white px-2 py-1 focus:border-teal-500"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const newItems = (headerConfig.menu_items || []).filter((_, i) => i !== idx);
+                                                    setHeaderConfig((prev) => ({ ...prev, menu_items: newItems }));
+                                                    setIsDirty(true);
+                                                }}
+                                                className="p-1 text-rose-400 hover:text-rose-300"
+                                                title="Remove menu link"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+                                        <input
+                                            type="text"
+                                            value={item.url}
+                                            onChange={(e) => {
+                                                const newItems = [...(headerConfig.menu_items || [])];
+                                                newItems[idx] = { ...newItems[idx], url: e.target.value };
+                                                setHeaderConfig((prev) => ({ ...prev, menu_items: newItems }));
+                                                setIsDirty(true);
+                                            }}
+                                            placeholder="URL (e.g. /doctors)"
+                                            className="w-full text-[11px] rounded-lg bg-slate-950 border border-white/10 text-slate-300 px-2 py-1 focus:border-teal-500"
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Footer Editor Panel */}
+                    <div className={`flex-1 overflow-y-auto p-4 space-y-4 text-xs ${leftPanelTab === 'footer' ? '' : 'hidden'}`}>
+                        <div>
+                            <h4 className="font-bold text-sm text-white mb-1">Shared Public Footer</h4>
+                            <p className="text-[11px] text-slate-400">
+                                Unified footer applied across every public page and channeling portal view.
+                            </p>
+                        </div>
+
+                        {/* About clinic summary */}
+                        <div className="space-y-1.5 pt-2 border-t border-white/10">
+                            <label className="block text-[11px] font-bold text-slate-300">About Clinic Summary</label>
+                            <textarea
+                                rows={3}
+                                value={footerConfig.about_text || ''}
+                                onChange={(e) => {
+                                    setFooterConfig((prev) => ({ ...prev, about_text: e.target.value }));
+                                    setIsDirty(true);
+                                }}
+                                placeholder="Short clinic description appearing under footer logo..."
+                                className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-3 py-1.5 focus:border-teal-500"
+                            />
+                        </div>
+
+                        {/* Address & Phone */}
+                        <div className="space-y-2 pt-2 border-t border-white/10">
+                            <div>
+                                <label className="block text-[11px] font-bold text-slate-300 mb-1">Physical Address</label>
+                                <input
+                                    type="text"
+                                    value={footerConfig.address || ''}
+                                    onChange={(e) => {
+                                        setFooterConfig((prev) => ({ ...prev, address: e.target.value }));
+                                        setIsDirty(true);
+                                    }}
+                                    placeholder="123 Hospital Road, Colombo"
+                                    className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-3 py-1.5 focus:border-teal-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-bold text-slate-300 mb-1">Clinic Hotline Phone</label>
+                                <input
+                                    type="text"
+                                    value={footerConfig.phone || ''}
+                                    onChange={(e) => {
+                                        setFooterConfig((prev) => ({ ...prev, phone: e.target.value }));
+                                        setIsDirty(true);
+                                    }}
+                                    placeholder="+94 11 234 5678"
+                                    className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-3 py-1.5 focus:border-teal-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-bold text-slate-300 mb-1">Support Email</label>
+                                <input
+                                    type="text"
+                                    value={footerConfig.email || ''}
+                                    onChange={(e) => {
+                                        setFooterConfig((prev) => ({ ...prev, email: e.target.value }));
+                                        setIsDirty(true);
+                                    }}
+                                    placeholder="info@clinic.lk"
+                                    className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-3 py-1.5 focus:border-teal-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-bold text-slate-300 mb-1">WhatsApp Hotline</label>
+                                <input
+                                    type="text"
+                                    value={footerConfig.whatsapp_number || ''}
+                                    onChange={(e) => {
+                                        setFooterConfig((prev) => ({ ...prev, whatsapp_number: e.target.value }));
+                                        setIsDirty(true);
+                                    }}
+                                    placeholder="+94 77 123 4567"
+                                    className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-3 py-1.5 focus:border-teal-500"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Opening Hours */}
+                        <div className="space-y-1.5 pt-2 border-t border-white/10">
+                            <label className="block text-[11px] font-bold text-slate-300">Clinical Opening Hours</label>
+                            <textarea
+                                rows={2}
+                                value={footerConfig.opening_hours || ''}
+                                onChange={(e) => {
+                                    setFooterConfig((prev) => ({ ...prev, opening_hours: e.target.value }));
+                                    setIsDirty(true);
+                                }}
+                                placeholder="Mon – Sat: 8:00 AM – 9:00 PM | Sun: 8:00 AM – 2:00 PM"
+                                className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-3 py-1.5 focus:border-teal-500"
+                            />
+                        </div>
+
+                        {/* Social Links */}
+                        <div className="space-y-2 pt-2 border-t border-white/10">
+                            <div className="flex items-center justify-between">
+                                <label className="text-[11px] font-bold text-slate-300">Show Social Media Links</label>
+                                <input
+                                    type="checkbox"
+                                    checked={footerConfig.show_social ?? true}
+                                    onChange={(e) => {
+                                        setFooterConfig((prev) => ({ ...prev, show_social: e.target.checked }));
+                                        setIsDirty(true);
+                                    }}
+                                    className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 bg-slate-900 border-white/20"
+                                />
+                            </div>
+                            {(footerConfig.show_social ?? true) && (
+                                <div className="space-y-2">
+                                    <input
+                                        type="text"
+                                        value={footerConfig.facebook_url || ''}
+                                        onChange={(e) => {
+                                            setFooterConfig((prev) => ({ ...prev, facebook_url: e.target.value }));
+                                            setIsDirty(true);
+                                        }}
+                                        placeholder="Facebook page URL"
+                                        className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-3 py-1.5 focus:border-teal-500"
+                                    />
+                                    <input
+                                        type="text"
+                                        value={footerConfig.instagram_url || ''}
+                                        onChange={(e) => {
+                                            setFooterConfig((prev) => ({ ...prev, instagram_url: e.target.value }));
+                                            setIsDirty(true);
+                                        }}
+                                        placeholder="Instagram profile URL"
+                                        className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-3 py-1.5 focus:border-teal-500"
+                                    />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Powered by */}
+                        <div className="pt-2 border-t border-white/10 flex items-center justify-between">
+                            <div>
+                                <label className="text-[11px] font-bold text-slate-300 block">Powered by MedVisit</label>
+                                <span className="text-[10px] text-slate-400">Displays "Powered by MedVisit" link to medvisit.lk</span>
+                            </div>
+                            <input
+                                type="checkbox"
+                                checked={footerConfig.show_powered_by ?? true}
+                                onChange={(e) => {
+                                    setFooterConfig((prev) => ({ ...prev, show_powered_by: e.target.checked }));
+                                    setIsDirty(true);
+                                }}
+                                className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 bg-slate-900 border-white/20"
+                            />
                         </div>
                     </div>
                 </aside>
@@ -2003,6 +2500,39 @@ export default function PageBuilder({
                                             />
                                         </div>
                                     )}
+
+                                    {/* Medical Icon Picker */}
+                                    <div className="pt-2 border-t border-white/10">
+                                        <label className="block text-[11px] font-bold text-slate-300 mb-1.5 flex items-center justify-between">
+                                            <span className="flex items-center gap-1.5">
+                                                <Sparkles className="w-3.5 h-3.5 text-teal-400" />
+                                                <span>Medical Icon Picker</span>
+                                            </span>
+                                            <span className="text-[10px] text-teal-400 font-semibold">{MEDICAL_ICONS.length} icons</span>
+                                        </label>
+                                        <div className="grid grid-cols-5 gap-1.5 p-2 bg-slate-900 rounded-xl border border-white/10 max-h-44 overflow-y-auto">
+                                            {MEDICAL_ICONS.map((icon) => (
+                                                <button
+                                                    key={icon.name}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (!selectedComponent) return;
+                                                        const svgStr = getMedicalSvg(icon.name, { size: 28, color: '#0E9E8F' });
+                                                        setComponentContent(selectedComponent, svgStr);
+                                                        setIsDirty(true);
+                                                    }}
+                                                    className="p-1.5 rounded-lg bg-white/5 hover:bg-teal-500/20 hover:border-teal-500/50 border border-transparent flex flex-col items-center justify-center text-slate-300 hover:text-teal-300 transition-all group"
+                                                    title={`${icon.label} (Click to insert)`}
+                                                >
+                                                    <span dangerouslySetInnerHTML={{ __html: getMedicalSvg(icon.name, { size: 18 }) }} />
+                                                    <span className="text-[8px] text-slate-400 mt-1 truncate max-w-[40px] text-center group-hover:text-teal-200">
+                                                        {icon.label}
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <p className="text-[10px] text-slate-500 mt-1">Click any icon to embed high-res Lucide SVG into the selected element.</p>
+                                    </div>
                                 </div>
 
                                 {/* Style Tab */}

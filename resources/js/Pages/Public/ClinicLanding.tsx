@@ -17,6 +17,9 @@ import {
     Activity,
 } from 'lucide-react';
 
+import PublicSiteHeader, { HeaderConfig } from '@/Components/Public/PublicSiteHeader';
+import PublicSiteFooter, { FooterConfig } from '@/Components/Public/PublicSiteFooter';
+
 interface DoctorItem {
     id: number;
     name: string;
@@ -58,7 +61,12 @@ interface Props {
         subdomain: string;
         phone?: string;
         address?: string;
+        logo_url?: string;
+        whatsapp_number?: string;
+        opening_hours?: string;
     };
+    headerConfig?: HeaderConfig;
+    footerConfig?: FooterConfig;
     sections: Section[];
     theme: string;
     isPublished: boolean;
@@ -77,6 +85,8 @@ interface Props {
 
 export default function ClinicLanding({
     clinic,
+    headerConfig,
+    footerConfig,
     sections,
     theme,
     isPublished,
@@ -95,7 +105,7 @@ export default function ClinicLanding({
 
     if (customPage?.html) {
         return (
-            <div className="min-h-screen bg-white text-slate-900 font-sans">
+            <div className="min-h-screen bg-white text-slate-900 font-sans flex flex-col">
                 <Head>
                     <title>{seo.title || `${clinic.name} - Specialist Doctor Channeling`}</title>
                     <meta
@@ -122,13 +132,36 @@ export default function ClinicLanding({
                     </div>
                 )}
 
-                {customPage.css && (
-                    <style dangerouslySetInnerHTML={{ __html: customPage.css }} />
-                )}
+                {/* Shared Public Header */}
+                <PublicSiteHeader
+                    clinic={clinic}
+                    headerConfig={headerConfig}
+                    themePreset={theme}
+                />
 
-                <div
-                    className="medvisit-custom-page-canvas"
+                <style
+                    dangerouslySetInnerHTML={{
+                        __html: `
+                            .medvisit-custom-page-canvas header,
+                            .medvisit-custom-page-canvas footer {
+                                display: none !important;
+                            }
+                            ${customPage.css || ''}
+                        `,
+                    }}
+                />
+
+                <main
+                    id="main-content"
+                    className="flex-1 medvisit-custom-page-canvas"
                     dangerouslySetInnerHTML={{ __html: customPage.html }}
+                />
+
+                {/* Shared Public Footer */}
+                <PublicSiteFooter
+                    clinic={clinic}
+                    footerConfig={footerConfig}
+                    themePreset={theme}
                 />
             </div>
         );
@@ -147,84 +180,14 @@ export default function ClinicLanding({
                 />
             </Head>
 
-            {/* Top Announcement Bar */}
-            <header className="bg-slate-900 text-slate-300 text-xs py-2 px-4 border-b border-slate-800">
-                <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left">
-                    <div className="flex items-center gap-4">
-                        <span className="flex items-center gap-1.5 text-teal-400 font-medium">
-                            <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
-                            Live Channeling Queue Active
-                        </span>
-                        {clinic.phone && (
-                            <span className="hidden md:inline-flex items-center gap-1 text-slate-400">
-                                <Phone className="w-3 h-3 text-teal-400" />
-                                {clinic.phone}
-                            </span>
-                        )}
-                        {clinic.address && (
-                            <span className="hidden lg:inline-flex items-center gap-1 text-slate-400 truncate max-w-sm">
-                                <MapPin className="w-3 h-3 text-teal-400" />
-                                {clinic.address}
-                            </span>
-                        )}
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <span className="text-[11px] text-slate-400">Sri Lanka Medical Council Verified</span>
-                        <Link
-                            href="/login"
-                            className="text-xs font-semibold text-slate-200 hover:text-white underline underline-offset-4"
-                        >
-                            Staff Portal
-                        </Link>
-                    </div>
-                </div>
-            </header>
+            {/* Shared Public Header */}
+            <PublicSiteHeader
+                clinic={clinic}
+                headerConfig={headerConfig}
+                themePreset={theme}
+            />
 
-            {/* Main Navigation Header */}
-            <nav className="bg-white/80 backdrop-blur-md sticky top-0 z-30 border-b border-slate-200/80 shadow-sm">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between gap-4">
-                    <Link href="/" className="flex items-center gap-3 group">
-                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-teal-600 to-cyan-600 flex items-center justify-center text-white font-extrabold text-lg shadow-md shadow-teal-600/20 group-hover:scale-105 transition-transform">
-                            {clinic.name.charAt(0)}
-                        </div>
-                        <div>
-                            <span className="text-lg font-extrabold tracking-tight text-slate-900 block leading-tight">
-                                {clinic.name}
-                            </span>
-                            <span className="text-xs text-teal-700 font-medium">
-                                Specialist Channeling & Healthcare
-                            </span>
-                        </div>
-                    </Link>
-
-                    <div className="hidden md:flex items-center gap-6 text-sm font-semibold text-slate-600">
-                        <a href="#sessions" className="hover:text-teal-700 transition-colors">
-                            This Week Sessions
-                        </a>
-                        <a href="#doctors" className="hover:text-teal-700 transition-colors">
-                            Specialists
-                        </a>
-                        <a href="#services" className="hover:text-teal-700 transition-colors">
-                            Services
-                        </a>
-                        <a href="#contact" className="hover:text-teal-700 transition-colors">
-                            Contact
-                        </a>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        <Link
-                            href="/book"
-                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500 text-white font-bold text-sm shadow-md shadow-teal-600/30 transition-all hover:shadow-lg active:scale-95"
-                        >
-                            <Calendar className="w-4 h-4" />
-                            Book Token Online
-                        </Link>
-                    </div>
-                </div>
-            </nav>
-
-            <main className="space-y-16 pb-20">
+            <main id="main-content" className="space-y-16 pb-20">
                 {/* 1. Hero Section */}
                 {heroSection && (
                     <section className="relative overflow-hidden bg-gradient-to-b from-teal-50/60 via-white to-slate-50 pt-16 pb-20 px-4 sm:px-6">
@@ -609,30 +572,12 @@ export default function ClinicLanding({
                 </section>
             </main>
 
-            {/* Footer */}
-            <footer className="border-t border-slate-200 bg-white py-12 px-4 sm:px-6 text-xs text-slate-500">
-                <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
-                    <div className="space-y-1">
-                        <span className="font-extrabold text-slate-900 text-sm">{clinic.name}</span>
-                        <p className="text-slate-500 max-w-md">
-                            {footerSection?.notice ||
-                                'All doctor channeling schedules are subject to practitioner availability. Token appointment times are approximate.'}
-                        </p>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row items-center gap-4">
-                        <Link href="/book" className="font-bold text-teal-700 hover:underline">
-                            Book Token
-                        </Link>
-                        <Link href="/login" className="font-bold text-slate-700 hover:underline">
-                            Staff Login
-                        </Link>
-                        <span className="text-slate-400">
-                            Powered by MedVisit Sri Lanka
-                        </span>
-                    </div>
-                </div>
-            </footer>
+            {/* Shared Public Footer */}
+            <PublicSiteFooter
+                clinic={clinic}
+                footerConfig={footerConfig}
+                themePreset={theme}
+            />
         </div>
     );
 }
