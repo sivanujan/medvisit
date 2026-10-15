@@ -47,6 +47,9 @@ Route::middleware([
     Route::get('/', [ClinicWebsiteController::class, 'publicHome'])
         ->name('tenant.home');
 
+    Route::get('/preview', [ClinicWebsiteController::class, 'previewHome'])
+        ->name('tenant.preview');
+
     Route::get('/book', [ClinicWebsiteController::class, 'publicBooking'])
         ->name('tenant.book');
 
@@ -190,6 +193,26 @@ Route::middleware([
                 ->name('tenant.website.publish');
             Route::put('/website/theme', [ClinicWebsiteController::class, 'updateTheme'])
                 ->name('tenant.website.theme');
+
+            // Visual Page Builder & Media Library
+            Route::get('/website/builder', [ClinicWebsiteController::class, 'showBuilder'])
+                ->name('tenant.website.builder');
+            Route::post('/website/builder/save', [ClinicWebsiteController::class, 'saveBuilder'])
+                ->name('tenant.website.builder.save');
+            Route::post('/website/builder/publish', [ClinicWebsiteController::class, 'publishBuilder'])
+                ->name('tenant.website.builder.publish');
+            Route::post('/website/builder/revert/{revision}', [ClinicWebsiteController::class, 'revertRevision'])
+                ->name('tenant.website.builder.revert');
+            Route::get('/website/builder/revisions', [ClinicWebsiteController::class, 'listRevisions'])
+                ->name('tenant.website.builder.revisions');
+            Route::get('/website/builder/media', [ClinicWebsiteController::class, 'listMedia'])
+                ->name('tenant.website.builder.media');
+            Route::post('/website/builder/media/upload', [ClinicWebsiteController::class, 'uploadMedia'])
+                ->name('tenant.website.builder.media.upload');
+            Route::delete('/website/builder/media/{asset}', [ClinicWebsiteController::class, 'deleteMedia'])
+                ->name('tenant.website.builder.media.delete');
+            Route::patch('/website/builder/media/{asset}', [ClinicWebsiteController::class, 'updateMedia'])
+                ->name('tenant.website.builder.media.update');
 
             Route::get('/staff', [StaffController::class, 'index'])
                 ->name('tenant.staff');

@@ -51,6 +51,16 @@ class Tenant extends BaseTenant
         return $this->hasMany(User::class, 'tenant_id');
     }
 
+    public function pages(): HasMany
+    {
+        return $this->hasMany(ClinicPage::class, 'tenant_id');
+    }
+
+    public function mediaAssets(): HasMany
+    {
+        return $this->hasMany(ClinicMediaAsset::class, 'tenant_id');
+    }
+
     public function isSuspended(): bool
     {
         return $this->status === 'suspended';

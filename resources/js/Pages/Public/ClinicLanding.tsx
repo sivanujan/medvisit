@@ -68,6 +68,11 @@ interface Props {
         title: string;
         description: string;
     };
+    customPage?: {
+        html: string;
+        css: string;
+        isPreview?: boolean;
+    } | null;
 }
 
 export default function ClinicLanding({
@@ -78,6 +83,7 @@ export default function ClinicLanding({
     doctors,
     upcomingSessions,
     seo,
+    customPage,
 }: Props) {
     const enabledSections = sections.filter((s) => s.enabled);
     const heroSection = sections.find((s) => s.id === 'hero' && s.enabled);
@@ -86,6 +92,47 @@ export default function ClinicLanding({
     const hoursSection = sections.find((s) => s.id === 'hours' && s.enabled);
     const contactSection = sections.find((s) => s.id === 'contact' && s.enabled);
     const footerSection = sections.find((s) => s.id === 'footer' && s.enabled);
+
+    if (customPage?.html) {
+        return (
+            <div className="min-h-screen bg-white text-slate-900 font-sans">
+                <Head>
+                    <title>{seo.title || `${clinic.name} - Specialist Doctor Channeling`}</title>
+                    <meta
+                        name="description"
+                        content={
+                            seo.description ||
+                            `Book specialist doctor channeling appointments online at ${clinic.name}. Verified SLMC consultants.`
+                        }
+                    />
+                </Head>
+
+                {customPage.isPreview && (
+                    <div className="sticky top-0 z-50 bg-amber-500 text-slate-950 px-4 py-2 text-xs font-bold flex items-center justify-between shadow-md">
+                        <span className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-slate-950 animate-ping" />
+                            Draft Preview Mode — You are viewing unpublished builder changes.
+                        </span>
+                        <a
+                            href="/website/builder"
+                            className="px-3 py-1 bg-slate-900 text-white rounded-lg hover:bg-slate-800 text-[11px] font-bold"
+                        >
+                            Return to Builder
+                        </a>
+                    </div>
+                )}
+
+                {customPage.css && (
+                    <style dangerouslySetInnerHTML={{ __html: customPage.css }} />
+                )}
+
+                <div
+                    className="medvisit-custom-page-canvas"
+                    dangerouslySetInnerHTML={{ __html: customPage.html }}
+                />
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-teal-100 selection:text-teal-900 font-sans">

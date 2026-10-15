@@ -7,13 +7,20 @@ namespace App\Http\Controllers\Tenant;
 use App\Http\Controllers\Controller;
 use App\Models\Bill;
 use App\Models\BookingToken;
+use App\Models\ClinicMediaAsset;
+use App\Models\ClinicPage;
+use App\Models\ClinicPageRevision;
 use App\Models\Doctor;
 use App\Models\DoctorSession;
 use App\Models\Patient;
+use App\Models\Tenant;
+use App\Support\HtmlSanitizer;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -198,9 +205,446 @@ class ClinicWebsiteController extends Controller
     }
 
     /**
+     * Show Visual Page Builder (Elementor-Style 3-panel editor).
+     */
+    public function showBuilder(Request $request): Response
+    {
+        $tenant = tenant();
+
+        $page = ClinicPage::firstOrCreate(
+            ['tenant_id' => $tenant->id, 'slug' => 'home'],
+            [
+                'title' => 'Home',
+                'schema_version' => 2,
+                'theme_preset' => $tenant->website_theme ?? 'medvisit-teal',
+                'seo_title' => $tenant->seo_title ?? ($tenant->name.' - Specialist Doctor Channeling'),
+                'seo_description' => $tenant->seo_description ?? ('Book doctor channeling sessions online at '.$tenant->name.'.'),
+                'content_json' => $this->getDefaultPageContent($tenant),
+                'html' => null,
+                'css' => null,
+                'is_published' => (bool) ($tenant->website_published ?? false),
+            ]
+        );
+
+        $revisions = $page->revisions()
+            ->with('user:id,name')
+            ->limit(20)
+            ->get()
+            ->map(fn ($r) => [
+                'id' => $r->id,
+                'version_number' => $r->version_number,
+                'summary' => $r->summary,
+                'user_name' => $r->user?->name ?? 'Staff',
+                'created_at_formatted' => $r->created_at->format('M d, Y h:i A'),
+                'created_at_relative' => $r->created_at->diffForHumans(),
+            ]);
+
+        $mediaAssets = ClinicMediaAsset::where('tenant_id', $tenant->id)
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn ($a) => [
+                'id' => $a->id,
+                'src' => $a->url,
+                'url' => $a->url,
+                'filename' => $a->filename,
+                'name' => $a->original_name,
+                'alt' => $a->alt_text ?? $a->original_name,
+                'size' => $a->size,
+                'size_formatted' => $a->formatted_size,
+                'dimensions' => $a->dimensions,
+                'updated_at' => $a->updated_at->timestamp,
+            ]);
+
+        $doctors = Doctor::where('is_active', true)->orderBy('name')->get();
+        $upcomingSessions = DoctorSession::with('doctor')
+            ->where('session_date', '>=', Carbon::today('Asia/Colombo')->toDateString())
+            ->whereNotIn('status', ['cancelled'])
+            ->orderBy('session_date')
+            ->orderBy('start_time')
+            ->limit(10)
+            ->get();
+
+        return Inertia::render('Website/PageBuilder', [
+            'tenant' => [
+                'id' => $tenant->id,
+                'name' => ucwords((string) ($tenant->name ?? 'Clinic')),
+                'subdomain' => $tenant->subdomain,
+                'phone' => $tenant->phone ?? '+94 11 234 5678',
+                'address' => $tenant->address ?? 'Colombo, Sri Lanka',
+                'logo_url' => $tenant->logo_url ?? null,
+                'theme' => $page->theme_preset,
+            ],
+            'page' => [
+                'id' => $page->id,
+                'slug' => $page->slug,
+                'title' => $page->title,
+                'schema_version' => $page->schema_version,
+                'content_json' => $page->content_json,
+                'html' => $page->html,
+                'css' => $page->css,
+                'is_published' => (bool) $page->is_published,
+                'published_at' => $page->published_at?->toIso8601String(),
+                'seo_title' => $page->seo_title,
+                'seo_description' => $page->seo_description,
+                'theme_preset' => $page->theme_preset,
+            ],
+            'revisions' => $revisions,
+            'mediaAssets' => $mediaAssets,
+            'doctors' => $doctors,
+            'upcomingSessions' => $upcomingSessions,
+        ]);
+    }
+
+    /**
+     * Save draft of visual page builder layout.
+     */
+    public function saveBuilder(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+
+        $validated = $request->validate([
+            'content_json' => ['nullable'],
+            'html' => ['nullable', 'string'],
+            'css' => ['nullable', 'string'],
+            'theme_preset' => ['nullable', 'string'],
+            'seo_title' => ['nullable', 'string', 'max:255'],
+            'seo_description' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $cleanHtml = HtmlSanitizer::sanitize($validated['html'] ?? '');
+        $cleanCss = HtmlSanitizer::sanitizeCss($validated['css'] ?? '');
+
+        $page = ClinicPage::firstOrCreate(
+            ['tenant_id' => $tenant->id, 'slug' => 'home'],
+            [
+                'title' => 'Home',
+                'theme_preset' => $tenant->website_theme ?? 'medvisit-teal',
+            ]
+        );
+
+        $page->update([
+            'content_json' => $validated['content_json'] ?? $page->content_json,
+            'html' => $cleanHtml,
+            'css' => $cleanCss,
+            'theme_preset' => $validated['theme_preset'] ?? $page->theme_preset ?? 'medvisit-teal',
+            'seo_title' => $validated['seo_title'] ?? $page->seo_title,
+            'seo_description' => $validated['seo_description'] ?? $page->seo_description,
+        ]);
+
+        $revision = $page->createRevision(
+            userId: auth()->id(),
+            summary: 'Autosaved Draft'
+        );
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Draft saved successfully.',
+            'version_number' => $revision->version_number,
+            'updated_at' => now()->toIso8601String(),
+        ]);
+    }
+
+    /**
+     * Publish visual page builder layout to public clinic website.
+     */
+    public function publishBuilder(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+
+        $validated = $request->validate([
+            'content_json' => ['nullable'],
+            'html' => ['nullable', 'string'],
+            'css' => ['nullable', 'string'],
+            'theme_preset' => ['nullable', 'string'],
+            'seo_title' => ['nullable', 'string', 'max:255'],
+            'seo_description' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $cleanHtml = HtmlSanitizer::sanitize($validated['html'] ?? '');
+        $cleanCss = HtmlSanitizer::sanitizeCss($validated['css'] ?? '');
+
+        $page = ClinicPage::firstOrCreate(
+            ['tenant_id' => $tenant->id, 'slug' => 'home'],
+            [
+                'title' => 'Home',
+                'theme_preset' => $tenant->website_theme ?? 'medvisit-teal',
+            ]
+        );
+
+        $page->update([
+            'content_json' => $validated['content_json'] ?? $page->content_json,
+            'html' => $cleanHtml,
+            'css' => $cleanCss,
+            'published_json' => $validated['content_json'] ?? $page->content_json,
+            'published_html' => $cleanHtml,
+            'published_css' => $cleanCss,
+            'is_published' => true,
+            'published_at' => now(),
+            'theme_preset' => $validated['theme_preset'] ?? $page->theme_preset ?? 'medvisit-teal',
+            'seo_title' => $validated['seo_title'] ?? $page->seo_title,
+            'seo_description' => $validated['seo_description'] ?? $page->seo_description,
+        ]);
+
+        $tenant->website_published = true;
+        if (isset($validated['theme_preset'])) {
+            $tenant->website_theme = $validated['theme_preset'];
+        }
+        $tenant->save();
+
+        $revision = $page->createRevision(
+            userId: auth()->id(),
+            summary: 'Published to Live Site'
+        );
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Page layout published to live site.',
+            'published_at' => now()->toIso8601String(),
+            'version_number' => $revision->version_number,
+        ]);
+    }
+
+    /**
+     * Revert page to a chosen historical revision.
+     */
+    public function revertRevision(Request $request, ClinicPageRevision $revision): JsonResponse
+    {
+        $tenant = tenant();
+
+        if ($revision->tenant_id !== $tenant->id) {
+            abort(403, 'Unauthorized access to revision.');
+        }
+
+        $page = ClinicPage::where('tenant_id', $tenant->id)->where('id', $revision->page_id)->firstOrFail();
+        $page->revertToRevision($revision);
+
+        return response()->json([
+            'ok' => true,
+            'message' => "Restored revision #{$revision->version_number}.",
+            'content_json' => $page->content_json,
+            'html' => $page->html,
+            'css' => $page->css,
+        ]);
+    }
+
+    /**
+     * List historical revisions.
+     */
+    public function listRevisions(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $page = ClinicPage::where('tenant_id', $tenant->id)->where('slug', 'home')->first();
+
+        if (! $page) {
+            return response()->json(['revisions' => []]);
+        }
+
+        $revisions = $page->revisions()
+            ->with('user:id,name')
+            ->limit(20)
+            ->get()
+            ->map(fn ($r) => [
+                'id' => $r->id,
+                'version_number' => $r->version_number,
+                'summary' => $r->summary,
+                'user_name' => $r->user?->name ?? 'Staff',
+                'created_at_formatted' => $r->created_at->format('M d, Y h:i A'),
+                'created_at_relative' => $r->created_at->diffForHumans(),
+            ]);
+
+        return response()->json(['revisions' => $revisions]);
+    }
+
+    /**
+     * List media library assets for tenant.
+     */
+    public function listMedia(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+
+        $assets = ClinicMediaAsset::where('tenant_id', $tenant->id)
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn ($a) => [
+                'id' => $a->id,
+                'src' => $a->url,
+                'url' => $a->url,
+                'filename' => $a->filename,
+                'name' => $a->original_name,
+                'alt' => $a->alt_text ?? $a->original_name,
+                'size' => $a->size,
+                'size_formatted' => $a->formatted_size,
+                'dimensions' => $a->dimensions,
+                'updated_at' => $a->updated_at->timestamp,
+            ]);
+
+        return response()->json([
+            'ok' => true,
+            'assets' => $assets,
+        ]);
+    }
+
+    /**
+     * Upload images to media library with multi-tenant isolation.
+     */
+    public function uploadMedia(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $tenantId = $tenant->id;
+
+        if ($request->filled('url') || $request->filled('src')) {
+            $url = trim((string) ($request->input('url') ?? $request->input('src')));
+            $filename = basename(parse_url($url, PHP_URL_PATH) ?: 'image_'.time());
+
+            $asset = ClinicMediaAsset::create([
+                'tenant_id' => $tenantId,
+                'filename' => $filename,
+                'original_name' => $request->input('name') ?: 'External Image',
+                'disk' => 'url',
+                'path' => $url,
+                'url' => $url,
+                'mime_type' => 'image/jpeg',
+                'size' => 0,
+                'alt_text' => $request->input('alt') ?: 'Clinic Image',
+            ]);
+
+            return response()->json([
+                'ok' => true,
+                'asset' => [
+                    'id' => $asset->id,
+                    'src' => $asset->url,
+                    'url' => $asset->url,
+                    'filename' => $asset->filename,
+                    'name' => $asset->original_name,
+                    'size_formatted' => 'External',
+                ],
+            ]);
+        }
+
+        $request->validate([
+            'files' => ['nullable', 'array'],
+            'files.*' => ['file', 'mimes:jpeg,png,jpg,webp,svg,gif', 'max:5120'],
+            'file' => ['nullable', 'file', 'mimes:jpeg,png,jpg,webp,svg,gif', 'max:5120'],
+        ]);
+
+        $uploadedFiles = $request->file('files') ?? ($request->hasFile('file') ? [$request->file('file')] : []);
+        $createdAssets = [];
+
+        foreach ($uploadedFiles as $file) {
+            $extension = $file->getClientOriginalExtension();
+            $filename = Str::uuid()->toString().'.'.$extension;
+            $path = $file->storeAs("media/{$tenantId}", $filename, 'public');
+            $url = Storage::disk('public')->url($path);
+
+            $dimensions = null;
+            if (in_array(strtolower($extension), ['jpg', 'jpeg', 'png', 'webp'])) {
+                if (function_exists('getimagesize')) {
+                    $imageSize = @getimagesize($file->getRealPath());
+                    if ($imageSize) {
+                        $dimensions = "{$imageSize[0]}x{$imageSize[1]}";
+                    }
+                }
+            }
+
+            $asset = ClinicMediaAsset::create([
+                'tenant_id' => $tenantId,
+                'filename' => $filename,
+                'original_name' => $file->getClientOriginalName(),
+                'disk' => 'public',
+                'path' => $path,
+                'url' => $url,
+                'mime_type' => $file->getClientMimeType() ?: 'image/jpeg',
+                'size' => $file->getSize(),
+                'dimensions' => $dimensions,
+                'alt_text' => pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME),
+            ]);
+
+            $createdAssets[] = [
+                'id' => $asset->id,
+                'src' => $asset->url,
+                'url' => $asset->url,
+                'filename' => $asset->filename,
+                'name' => $asset->original_name,
+                'alt' => $asset->alt_text,
+                'size' => $asset->size,
+                'size_formatted' => $asset->formatted_size,
+                'dimensions' => $asset->dimensions,
+                'updated_at' => $asset->updated_at->timestamp,
+            ];
+        }
+
+        return response()->json([
+            'ok' => true,
+            'assets' => $createdAssets,
+            'asset' => $createdAssets[0] ?? null,
+            'data' => array_column($createdAssets, 'url'),
+        ]);
+    }
+
+    /**
+     * Delete a media asset with strict multi-tenant check.
+     */
+    public function deleteMedia(Request $request, ClinicMediaAsset $asset): JsonResponse
+    {
+        $tenant = tenant();
+
+        if ($asset->tenant_id !== $tenant->id) {
+            abort(403, 'Unauthorized access to this asset.');
+        }
+
+        if ($asset->disk === 'public' && Storage::disk('public')->exists($asset->path)) {
+            Storage::disk('public')->delete($asset->path);
+        }
+
+        $asset->delete();
+
+        return response()->json(['ok' => true, 'message' => 'Asset deleted successfully.']);
+    }
+
+    /**
+     * Update asset metadata.
+     */
+    public function updateMedia(Request $request, ClinicMediaAsset $asset): JsonResponse
+    {
+        $tenant = tenant();
+
+        if ($asset->tenant_id !== $tenant->id) {
+            abort(403, 'Unauthorized access to this asset.');
+        }
+
+        $validated = $request->validate([
+            'name' => ['nullable', 'string', 'max:255'],
+            'alt_text' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $asset->update([
+            'original_name' => $validated['name'] ?? $asset->original_name,
+            'alt_text' => $validated['alt_text'] ?? $asset->alt_text,
+        ]);
+
+        return response()->json(['ok' => true, 'asset' => $asset]);
+    }
+
+    /**
+     * Preview homepage (draft mode).
+     */
+    public function previewHome(Request $request): Response|RedirectResponse
+    {
+        return $this->renderPublicHome(isPreview: true);
+    }
+
+    /**
      * Public Landing Page at clinic subdomain root (GET /).
      */
     public function publicHome(): Response|RedirectResponse
+    {
+        return $this->renderPublicHome(isPreview: false);
+    }
+
+    /**
+     * Unified renderer for public homepage & draft preview.
+     */
+    protected function renderPublicHome(bool $isPreview = false): Response|RedirectResponse
     {
         $tenant = tenant();
 
@@ -208,11 +652,13 @@ class ClinicWebsiteController extends Controller
             return redirect()->route('tenant.suspended');
         }
 
-        $sections = $tenant->website_sections ?? $this->defaultSections;
-        $theme = $tenant->website_theme ?? 'medvisit-teal';
-        $isPublished = (bool) ($tenant->website_published ?? false);
+        $page = ClinicPage::where('tenant_id', $tenant->id)->where('slug', 'home')->first();
 
-        // Fetch live active doctors and upcoming channeling sessions
+        $sections = $tenant->website_sections ?? $this->defaultSections;
+        $theme = $page?->theme_preset ?? ($tenant->website_theme ?? 'medvisit-teal');
+        $isPublished = (bool) ($page?->is_published ?? ($tenant->website_published ?? false));
+
+        // Live active doctors
         $doctors = Doctor::where('is_active', true)
             ->orderBy('name')
             ->get()
@@ -225,6 +671,7 @@ class ClinicWebsiteController extends Controller
                 'total_fee_formatted' => 'Rs. '.number_format(($d->doctor_fee + $d->clinic_fee) / 100, 2),
             ]);
 
+        // Upcoming channeling sessions this week
         $upcomingSessions = DoctorSession::with('doctor')
             ->where('session_date', '>=', Carbon::today('Asia/Colombo')->toDateString())
             ->where('session_date', '<=', Carbon::today('Asia/Colombo')->addDays(7)->toDateString())
@@ -248,6 +695,9 @@ class ClinicWebsiteController extends Controller
                 ];
             });
 
+        $customHtml = $isPreview ? ($page?->html ?? $page?->published_html) : $page?->published_html;
+        $customCss = $isPreview ? ($page?->css ?? $page?->published_css) : $page?->published_css;
+
         return Inertia::render('Public/ClinicLanding', [
             'clinic' => [
                 'name' => ucwords((string) ($tenant->name ?? 'Clinic')),
@@ -261,10 +711,28 @@ class ClinicWebsiteController extends Controller
             'doctors' => $doctors,
             'upcomingSessions' => $upcomingSessions,
             'seo' => [
-                'title' => $tenant->seo_title ?? ($tenant->name.' - Doctor Channeling'),
-                'description' => $tenant->seo_description ?? ('Book doctor appointments online at '.$tenant->name.'.'),
+                'title' => $page?->seo_title ?? ($tenant->seo_title ?? ($tenant->name.' - Doctor Channeling')),
+                'description' => $page?->seo_description ?? ($tenant->seo_description ?? ('Book doctor appointments online at '.$tenant->name.'.')),
             ],
+            'customPage' => $customHtml ? [
+                'html' => $customHtml,
+                'css' => $customCss,
+                'isPreview' => $isPreview,
+            ] : null,
         ]);
+    }
+
+    /**
+     * Initial starter content for new clinics.
+     */
+    protected function getDefaultPageContent(Tenant $tenant): array
+    {
+        return [
+            'version' => 2,
+            'template' => 'modern-clinic',
+            'components' => [],
+            'styles' => [],
+        ];
     }
 
     /**
