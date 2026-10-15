@@ -187,55 +187,16 @@ export default function PageBuilder({
     useEffect(() => {
         if (!editorRef.current || editorInstance.current) return;
 
-        const editor = grapesjs.init({
-            container: editorRef.current,
-            fromElement: false,
-            height: '100%',
-            width: 'auto',
-            storageManager: false,
-            assetManager: {
-                custom: {
-                    open(props: any) {
-                        setMediaCurrentValue(props.target?.get('src') || '');
-                        setMediaModalOpen(true);
-                    },
-                    close() {
-                        setMediaModalOpen(false);
-                    },
-                },
-            },
-            deviceManager: {
-                devices: [
-                    { name: 'Desktop', width: '' },
-                    { name: 'Tablet', width: '768px', widthMedia: '992px' },
-                    { name: 'Mobile', width: '375px', widthMedia: '480px' },
-                ],
-            },
-            panels: { defaults: [] }, // Custom external header & panels
-            blockManager: { appendTo: '#builder-blocks-container' },
-            layerManager: { appendTo: '#builder-layers-container' },
-            styleManager: { appendTo: '#builder-styles-container' },
-            selectorManager: { appendTo: '#builder-selectors-container' },
-            traitManager: { appendTo: '#builder-traits-container' },
-            canvas: {
-                styles: [
-                    'https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap',
-                ],
-                scripts: [],
-            },
-        });
-
-        editorInstance.current = editor;
-
         // Custom GrapesJS Canvas base styling
         const cssBase = `
             * { box-sizing: border-box; }
-            body {
-                font-family: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            html, body {
                 margin: 0;
                 padding: 0;
+                min-height: 100vh;
                 background-color: #ffffff;
                 color: #0f172a;
+                font-family: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
                 line-height: 1.6;
             }
             .medvisit-section {
@@ -272,18 +233,54 @@ export default function PageBuilder({
                 }
             }
         `;
-        editor.addComponents(`<style>${cssBase}</style>`);
 
-        // Load existing HTML/CSS or Default Template
-        if (page.html && page.html.trim().length > 0) {
-            editor.setComponents(page.html);
-            if (page.css) {
-                editor.setStyle(page.css);
-            }
-        } else {
-            // Apply Modern Clinic default layout
-            loadTemplate('modern-clinic', editor);
-        }
+        const initialHtml =
+            page.html && page.html.trim().length > 0
+                ? page.html
+                : getTemplateHtml('modern-clinic');
+        const initialCss = cssBase + (page.css ? '\n' + page.css : '');
+
+        const editor = grapesjs.init({
+            container: editorRef.current,
+            fromElement: false,
+            height: '100%',
+            width: '100%',
+            storageManager: false,
+            components: initialHtml,
+            style: initialCss,
+            assetManager: {
+                custom: {
+                    open(props: any) {
+                        setMediaCurrentValue(props.target?.get('src') || '');
+                        setMediaModalOpen(true);
+                    },
+                    close() {
+                        setMediaModalOpen(false);
+                    },
+                },
+            },
+            deviceManager: {
+                devices: [
+                    { name: 'Desktop', width: '' },
+                    { name: 'Tablet', width: '768px', widthMedia: '992px' },
+                    { name: 'Mobile', width: '375px', widthMedia: '480px' },
+                ],
+            },
+            panels: { defaults: [] }, // Custom external header & panels
+            blockManager: { appendTo: '#builder-blocks-container' },
+            layerManager: { appendTo: '#builder-layers-container' },
+            styleManager: { appendTo: '#builder-styles-container' },
+            selectorManager: { appendTo: '#builder-selectors-container' },
+            traitManager: { appendTo: '#builder-traits-container' },
+            canvas: {
+                styles: [
+                    'https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap',
+                ],
+                scripts: [],
+            },
+        });
+
+        editorInstance.current = editor;
 
         // Register Blocks into categories
         registerCustomBlocks(editor);
@@ -313,6 +310,19 @@ export default function PageBuilder({
         editor.on('component:add', markDirty);
         editor.on('component:remove', markDirty);
         editor.on('style:update', markDirty);
+
+        // Ensure canvas renders on load
+        editor.on('load', () => {
+            if (!editor.getHtml() || editor.getHtml().trim() === '<body></body>') {
+                editor.setComponents(initialHtml);
+            }
+            editor.setStyle(initialCss);
+            editor.refresh();
+        });
+
+        setTimeout(() => {
+            editor.refresh();
+        }, 150);
 
         return () => {
             editor.destroy();
@@ -626,150 +636,94 @@ export default function PageBuilder({
         });
     };
 
-    // Load Ready-Made Templates
-    const loadTemplate = (templateId: string, editorInstanceParam?: any) => {
-        const editor = editorInstanceParam || editorInstance.current;
-        if (!editor) return;
-
-        let templateHtml = '';
-
-        if (templateId === 'modern-clinic') {
-            templateHtml = `
-                <!-- Navbar -->
-                <header style="background: #ffffff; border-bottom: 1px solid #e2e8f0; padding: 16px 24px; position: sticky; top: 0; z-index: 100;">
-                    <div style="max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center;">
-                        <div style="display: flex; align-items: center; gap: 10px;">
+    // Helper to generate full HTML templates
+    const getTemplateHtml = (templateId: string): string => {
+        if (templateId === 'specialist-center') {
+            return `
+                <!-- Specialist Suites Header -->
+                <header style="background: #0f172a; border-bottom: 1px solid #1e293b; padding: 16px 24px; position: sticky; top: 0; z-index: 100;">
+                    <div style="max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
                             ${
                                 tenant.logo_url
-                                    ? `<img src="${tenant.logo_url}" alt="${tenant.name}" style="height: 36px; border-radius: 8px;" />`
-                                    : `<div style="width: 36px; height: 36px; border-radius: 8px; background: #0E9E8F; color: white; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 18px;">${tenant.name.charAt(0)}</div>`
+                                    ? `<img src="${tenant.logo_url}" alt="${tenant.name}" style="height: 38px; border-radius: 8px;" />`
+                                    : `<div style="width: 40px; height: 40px; border-radius: 10px; background: #7C3AED; color: white; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 20px;">${tenant.name.charAt(0)}</div>`
                             }
                             <div>
-                                <span style="font-size: 1.15rem; font-weight: 800; color: #0f172a; display: block; line-height: 1.2;">${tenant.name}</span>
-                                <span style="font-size: 0.75rem; color: #0E9E8F; font-weight: 600;">Specialist Medical Center</span>
+                                <span style="font-size: 1.25rem; font-weight: 800; color: #ffffff; display: block; line-height: 1.2;">${tenant.name}</span>
+                                <span style="font-size: 0.75rem; color: #a78bfa; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Consultant Specialist Suites</span>
                             </div>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 16px;">
-                            <span style="color: #475569; font-size: 0.85rem; font-weight: 600;">Hotline: ${tenant.phone || '+94 11 234 5678'}</span>
-                            <a href="/book" style="background: #0E9E8F; color: #ffffff; padding: 10px 20px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; text-decoration: none; box-shadow: 0 4px 10px rgba(14, 158, 143, 0.25);">
-                                Book Token Online
+                        <div style="display: flex; align-items: center; gap: 20px;">
+                            <span style="color: #cbd5e1; font-size: 0.85rem; font-weight: 600;">Direct Channeling: ${tenant.phone || '+94 11 234 5678'}</span>
+                            <a href="/book" style="background: #7C3AED; color: #ffffff; padding: 12px 24px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; text-decoration: none; box-shadow: 0 4px 14px rgba(124, 58, 237, 0.4);">
+                                Book Consultant Chamber →
                             </a>
                         </div>
                     </div>
                 </header>
 
-                <!-- Hero Section -->
-                <section class="medvisit-section" style="background: linear-gradient(180deg, #f0fdfa 0%, #ffffff 100%); padding: 80px 20px;">
+                <!-- Specialist Hero -->
+                <section class="medvisit-section" style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%); padding: 90px 20px; color: #ffffff;">
                     <div class="medvisit-container" style="max-width: 1200px; margin: 0 auto; text-align: center;">
-                        <span style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; background: #ccfbf1; color: #0f766e; border-radius: 9999px; font-size: 0.8rem; font-weight: 700; margin-bottom: 20px;">
-                            ✦ Open Daily • SLMC Verified Specialist Channeling
+                        <span style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 18px; background: rgba(124, 58, 237, 0.2); border: 1px solid rgba(167, 139, 250, 0.3); color: #c4b5fd; border-radius: 9999px; font-size: 0.8rem; font-weight: 700; margin-bottom: 24px;">
+                            ★ Premier Medical Specialist Chambers • SLMC Accredited
                         </span>
-                        <h1 style="font-size: 3rem; font-weight: 800; color: #0f172a; line-height: 1.15; margin: 0 auto 20px auto; max-width: 850px;">
-                            Compassionate Care, Specialist Excellence
+                        <h1 style="font-size: 3.25rem; font-weight: 800; color: #ffffff; line-height: 1.15; margin: 0 auto 24px auto; max-width: 900px;">
+                            Sri Lanka's Leading Medical Specialists Under One Roof
                         </h1>
-                        <p style="font-size: 1.15rem; color: #475569; line-height: 1.7; max-width: 700px; margin: 0 auto 36px auto;">
-                            Consult top Sri Lankan medical specialists with live digital queue tracking. Reserve your token online and avoid waiting lounge congestion.
+                        <p style="font-size: 1.2rem; color: #94a3b8; line-height: 1.7; max-width: 750px; margin: 0 auto 40px auto;">
+                            Consult senior hospital consultants in private clinical chambers with real-time queue synchronization. Zero lounge congestion and guaranteed consultation tokens.
                         </p>
-                        <div style="display: flex; justify-content: center; gap: 14px; flex-wrap: wrap;">
-                            <a href="/book" style="background: #0E9E8F; color: #ffffff; padding: 16px 36px; border-radius: 14px; font-size: 1.05rem; font-weight: 700; text-decoration: none; box-shadow: 0 6px 20px rgba(14, 158, 143, 0.35);">
-                                Book Appointment Online
+                        <div style="display: flex; justify-content: center; gap: 16px; flex-wrap: wrap;">
+                            <a href="/book" style="background: #7C3AED; color: #ffffff; padding: 16px 36px; border-radius: 12px; font-size: 1rem; font-weight: 700; text-decoration: none; box-shadow: 0 6px 20px rgba(124, 58, 237, 0.4);">
+                                Reserve Channeling Token
                             </a>
-                            <a href="#services" style="background: #ffffff; color: #334155; border: 1px solid #cbd5e1; padding: 16px 28px; border-radius: 14px; font-size: 1.05rem; font-weight: 700; text-decoration: none;">
-                                Explore Clinical Services
+                            <a href="#chambers" style="background: rgba(255, 255, 255, 0.05); color: #ffffff; border: 1px solid rgba(255, 255, 255, 0.2); padding: 16px 28px; border-radius: 12px; font-size: 1rem; font-weight: 700; text-decoration: none;">
+                                View Specialty Chambers
                             </a>
                         </div>
                     </div>
                 </section>
 
-                <!-- Announcement Banner -->
-                <div class="medvisit-container" style="max-width: 1200px; margin: 0 auto; padding: 0 20px;">
-                    <div style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 16px 24px; border-radius: 16px; display: flex; align-items: center; justify-content: space-between; gap: 16px;">
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            <span style="font-size: 20px;">🏥</span>
-                            <span style="font-size: 0.9rem; font-weight: 600; color: #065f46;">
-                                Real-Time Waiting Room Queue Monitoring is active for all current doctor sessions.
-                            </span>
-                        </div>
-                        <a href="/book" style="color: #047857; font-weight: 700; font-size: 0.85rem; text-decoration: underline;">
-                            Book Token →
-                        </a>
-                    </div>
-                </div>
-
-                <!-- Doctors Roster -->
-                <section class="medvisit-section" style="background: #ffffff; padding: 80px 20px;">
+                <!-- Chambers Grid -->
+                <section id="chambers" class="medvisit-section" style="background: #ffffff; padding: 80px 20px;">
                     <div class="medvisit-container" style="max-width: 1200px; margin: 0 auto;">
-                        <div style="text-align: center; max-width: 600px; margin: 0 auto 48px auto;">
-                            <span style="font-size: 0.8rem; font-weight: 700; color: #0E9E8F; text-transform: uppercase;">Medical Practitioners</span>
-                            <h2 style="font-size: 2.25rem; font-weight: 800; color: #0f172a; margin: 8px 0 12px 0;">Meet Our Medical Specialists</h2>
-                            <p style="color: #64748b; font-size: 1rem; margin: 0;">Board certified consultants practicing at our modern medical center.</p>
+                        <div style="text-align: center; max-width: 650px; margin: 0 auto 48px auto;">
+                            <span style="font-size: 0.8rem; font-weight: 700; color: #7C3AED; text-transform: uppercase; letter-spacing: 0.05em;">Clinical Divisions</span>
+                            <h2 style="font-size: 2.25rem; font-weight: 800; color: #0f172a; margin: 8px 0 12px 0;">Specialized Consultation Chambers</h2>
+                            <p style="color: #64748b; font-size: 1rem; margin: 0;">Comprehensive outpatient care covering major adult and pediatric medical sub-specialties.</p>
                         </div>
                         <div class="medvisit-grid-3" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;">
-                            <div style="padding: 24px; border: 1px solid #e2e8f0; border-radius: 20px; background: #ffffff; text-align: center;">
-                                <div style="width: 72px; height: 72px; border-radius: 50%; background: #ccfbf1; color: #0E9E8F; font-size: 28px; font-weight: 800; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto;">S</div>
-                                <h4 style="margin: 0 0 4px 0; font-size: 1.2rem; font-weight: 700; color: #0f172a;">Dr. Priyantha Silva</h4>
-                                <span style="display: inline-block; padding: 4px 12px; background: #f0fdfa; color: #0f766e; border-radius: 9999px; font-size: 0.8rem; font-weight: 700; margin-bottom: 12px;">Consultant Physician</span>
-                                <p style="color: #64748b; font-size: 0.85rem; margin: 0 0 16px 0;">Specialized in adult internal medicine, diabetes management, and preventive wellness.</p>
-                                <a href="/book" style="display: block; width: 100%; padding: 10px; background: #0E9E8F; color: #ffffff; border-radius: 10px; font-weight: 700; text-decoration: none; font-size: 0.9rem;">Book Token</a>
+                            <div style="padding: 28px; border: 1px solid #e2e8f0; border-radius: 20px; background: #faf5ff; text-align: left;">
+                                <div style="font-size: 32px; margin-bottom: 12px;">🫀</div>
+                                <h4 style="margin: 0 0 6px 0; font-size: 1.2rem; font-weight: 700; color: #0f172a;">Cardiology &amp; Cardiac Health</h4>
+                                <p style="color: #64748b; font-size: 0.85rem; margin: 0 0 16px 0;">Echocardiography, ECG, cardiac risk profiles, and hypertension management.</p>
+                                <a href="/book" style="color: #7C3AED; font-weight: 700; font-size: 0.85rem; text-decoration: none;">Book Cardiologist →</a>
                             </div>
-                            <div style="padding: 24px; border: 1px solid #e2e8f0; border-radius: 20px; background: #ffffff; text-align: center;">
-                                <div style="width: 72px; height: 72px; border-radius: 50%; background: #ccfbf1; color: #0E9E8F; font-size: 28px; font-weight: 800; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto;">A</div>
-                                <h4 style="margin: 0 0 4px 0; font-size: 1.2rem; font-weight: 700; color: #0f172a;">Dr. Anoma Jayawardena</h4>
-                                <span style="display: inline-block; padding: 4px 12px; background: #f0fdfa; color: #0f766e; border-radius: 9999px; font-size: 0.8rem; font-weight: 700; margin-bottom: 12px;">Consultant Paediatrician</span>
-                                <p style="color: #64748b; font-size: 0.85rem; margin: 0 0 16px 0;">Expert pediatric care, newborn screening, and child growth and immunization.</p>
-                                <a href="/book" style="display: block; width: 100%; padding: 10px; background: #0E9E8F; color: #ffffff; border-radius: 10px; font-weight: 700; text-decoration: none; font-size: 0.9rem;">Book Token</a>
+                            <div style="padding: 28px; border: 1px solid #e2e8f0; border-radius: 20px; background: #f0fdf4; text-align: left;">
+                                <div style="font-size: 32px; margin-bottom: 12px;">🧠</div>
+                                <h4 style="margin: 0 0 6px 0; font-size: 1.2rem; font-weight: 700; color: #0f172a;">Neurology &amp; Neuro-Medicine</h4>
+                                <p style="color: #64748b; font-size: 0.85rem; margin: 0 0 16px 0;">Stroke assessment, headache clinics, migraine therapy, and peripheral nerve diagnostics.</p>
+                                <a href="/book" style="color: #059669; font-weight: 700; font-size: 0.85rem; text-decoration: none;">Book Neurologist →</a>
                             </div>
-                            <div style="padding: 24px; border: 1px solid #e2e8f0; border-radius: 20px; background: #ffffff; text-align: center;">
-                                <div style="width: 72px; height: 72px; border-radius: 50%; background: #ccfbf1; color: #0E9E8F; font-size: 28px; font-weight: 800; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto;">R</div>
-                                <h4 style="margin: 0 0 4px 0; font-size: 1.2rem; font-weight: 700; color: #0f172a;">Dr. Rohan Senanayake</h4>
-                                <span style="display: inline-block; padding: 4px 12px; background: #f0fdfa; color: #0f766e; border-radius: 9999px; font-size: 0.8rem; font-weight: 700; margin-bottom: 12px;">Consultant Cardiologist</span>
-                                <p style="color: #64748b; font-size: 0.85rem; margin: 0 0 16px 0;">Cardiac assessment, digital ECG interpretation, and cardiovascular health management.</p>
-                                <a href="/book" style="display: block; width: 100%; padding: 10px; background: #0E9E8F; color: #ffffff; border-radius: 10px; font-weight: 700; text-decoration: none; font-size: 0.9rem;">Book Token</a>
+                            <div style="padding: 28px; border: 1px solid #e2e8f0; border-radius: 20px; background: #eff6ff; text-align: left;">
+                                <div style="font-size: 32px; margin-bottom: 12px;">🦴</div>
+                                <h4 style="margin: 0 0 6px 0; font-size: 1.2rem; font-weight: 700; color: #0f172a;">Orthopaedics &amp; Joint Surgery</h4>
+                                <p style="color: #64748b; font-size: 0.85rem; margin: 0 0 16px 0;">Arthritis clinics, joint injections, sports trauma recovery, and spine evaluations.</p>
+                                <a href="/book" style="color: #2563eb; font-weight: 700; font-size: 0.85rem; text-decoration: none;">Book Orthopaedic →</a>
                             </div>
                         </div>
                     </div>
                 </section>
 
-                <!-- Clinical Services Section -->
-                <section id="services" class="medvisit-section" style="background: #f8fafc; padding: 80px 20px;">
-                    <div class="medvisit-container" style="max-width: 1200px; margin: 0 auto;">
-                        <div style="text-align: center; max-width: 600px; margin: 0 auto 48px auto;">
-                            <span style="font-size: 0.8rem; font-weight: 700; color: #0E9E8F; text-transform: uppercase;">Comprehensive Care</span>
-                            <h2 style="font-size: 2.25rem; font-weight: 800; color: #0f172a; margin: 8px 0 12px 0;">Our Clinical Services</h2>
-                            <p style="color: #64748b; font-size: 1rem; margin: 0;">Full outpatient diagnostics and pharmacy services under one roof.</p>
-                        </div>
-                        <div class="medvisit-grid-4" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;">
-                            <div style="padding: 24px; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; text-align: left;">
-                                <div style="font-size: 28px; margin-bottom: 12px;">🩺</div>
-                                <h4 style="margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 700; color: #0f172a;">Specialist Channeling</h4>
-                                <p style="color: #64748b; font-size: 0.85rem; margin: 0;">Direct consultations with verified senior SLMC specialist doctors.</p>
-                            </div>
-                            <div style="padding: 24px; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; text-align: left;">
-                                <div style="font-size: 28px; margin-bottom: 12px;">🔬</div>
-                                <h4 style="margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 700; color: #0f172a;">Clinical Laboratory</h4>
-                                <p style="color: #64748b; font-size: 0.85rem; margin: 0;">Automated blood screening, biochemistry, and rapid diagnostic tests.</p>
-                            </div>
-                            <div style="padding: 24px; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; text-align: left;">
-                                <div style="font-size: 28px; margin-bottom: 12px;">💓</div>
-                                <h4 style="margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 700; color: #0f172a;">Digital ECG &amp; Vitals</h4>
-                                <p style="color: #64748b; font-size: 0.85rem; margin: 0;">Rapid cardiovascular monitoring and doctor-certified reports.</p>
-                            </div>
-                            <div style="padding: 24px; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; text-align: left;">
-                                <div style="font-size: 28px; margin-bottom: 12px;">💊</div>
-                                <h4 style="margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 700; color: #0f172a;">Certified Pharmacy</h4>
-                                <p style="color: #64748b; font-size: 0.85rem; margin: 0;">Licensed pharmaceuticals and experienced pharmacist counseling.</p>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Book Token Banner -->
-                <section class="medvisit-section" style="background: linear-gradient(135deg, #0E9E8F 0%, #065f46 100%); padding: 70px 20px; color: #ffffff;">
+                <!-- Fast-track Token CTA -->
+                <section class="medvisit-section" style="background: #7C3AED; padding: 70px 20px; color: #ffffff;">
                     <div class="medvisit-container" style="max-width: 900px; margin: 0 auto; text-align: center;">
-                        <h2 style="font-size: 2.5rem; font-weight: 800; margin: 0 0 16px 0;">Reserve Your Channeling Token Online</h2>
-                        <p style="font-size: 1.1rem; opacity: 0.9; margin: 0 0 32px 0;">Experience peaceful doctor consultations with our atomic queue number system.</p>
-                        <a href="/book" style="display: inline-block; background: #ffffff; color: #0E9E8F; padding: 16px 40px; border-radius: 14px; font-size: 1.1rem; font-weight: 800; text-decoration: none; box-shadow: 0 6px 20px rgba(0,0,0,0.2);">
-                            Book Appointment Now →
+                        <h2 style="font-size: 2.25rem; font-weight: 800; margin: 0 0 16px 0;">Fast-Track Consultation Tokens</h2>
+                        <p style="font-size: 1.05rem; opacity: 0.9; margin: 0 0 28px 0;">Reserve an exact consultation token and track live doctor arrivals from your mobile phone.</p>
+                        <a href="/book" style="display: inline-block; background: #ffffff; color: #7C3AED; padding: 14px 36px; border-radius: 12px; font-size: 1rem; font-weight: 800; text-decoration: none; box-shadow: 0 6px 20px rgba(0,0,0,0.2);">
+                            Book Channeling Appointment →
                         </a>
                     </div>
                 </section>
@@ -779,30 +733,307 @@ export default function PageBuilder({
                     <div style="max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; margin-bottom: 40px;">
                         <div>
                             <h3 style="color: #ffffff; font-size: 1.15rem; font-weight: 700; margin: 0 0 12px 0;">${tenant.name}</h3>
-                            <p style="line-height: 1.6; margin: 0 0 16px 0;">${tenant.address || 'Colombo, Sri Lanka'}</p>
+                            <p style="line-height: 1.6; margin: 0 0 16px 0;">${tenant.address || 'Specialist Hospital Suites, Colombo, Sri Lanka'}</p>
                             <p style="margin: 0;">Hotline: <strong style="color: #ffffff;">${tenant.phone || '+94 11 234 5678'}</strong></p>
                         </div>
                         <div>
-                            <h4 style="color: #ffffff; font-size: 1rem; font-weight: 700; margin: 0 0 12px 0;">Clinical Hours</h4>
-                            <p style="margin: 0 0 6px 0;">Monday – Friday: 07:30 AM – 10:00 PM</p>
-                            <p style="margin: 0 0 6px 0;">Saturday: 07:30 AM – 10:00 PM</p>
-                            <p style="margin: 0;">Sunday: 08:00 AM – 08:00 PM</p>
+                            <h4 style="color: #ffffff; font-size: 1rem; font-weight: 700; margin: 0 0 12px 0;">Consultant Hours</h4>
+                            <p style="margin: 0 0 6px 0;">Daily: 08:00 AM – 10:00 PM</p>
+                            <p style="margin: 0;">Emergency Outpatient Desk: 24/7 Active</p>
                         </div>
                         <div>
-                            <h4 style="color: #ffffff; font-size: 1rem; font-weight: 700; margin: 0 0 12px 0;">Quick Navigation</h4>
-                            <p style="margin: 0 0 8px 0;"><a href="/book" style="color: #0E9E8F; text-decoration: none; font-weight: 700;">Book Token Online</a></p>
-                            <p style="margin: 0 0 8px 0;"><a href="/login" style="color: #94a3b8; text-decoration: none;">Staff Workspace Login</a></p>
+                            <h4 style="color: #ffffff; font-size: 1rem; font-weight: 700; margin: 0 0 12px 0;">Quick Links</h4>
+                            <p style="margin: 0 0 8px 0;"><a href="/book" style="color: #a78bfa; text-decoration: none; font-weight: 700;">Book Channeling Online</a></p>
+                            <p style="margin: 0 0 8px 0;"><a href="/login" style="color: #94a3b8; text-decoration: none;">Staff Workspace</a></p>
                             <p style="margin: 0;"><a href="/clinic/live-queue" style="color: #94a3b8; text-decoration: none;">Live Waiting Queue</a></p>
                         </div>
                     </div>
                     <div style="max-width: 1200px; margin: 0 auto; border-top: 1px solid #1e293b; padding-top: 24px; text-align: center; font-size: 0.8rem; color: #64748b;">
-                        © ${new Date().getFullYear()} ${tenant.name}. Certified by Ministry of Health &amp; PHSRC Sri Lanka. Powered by MedVisit.
+                        © ${new Date().getFullYear()} ${tenant.name}. Powered by MedVisit.
                     </div>
                 </footer>
             `;
         }
 
+        if (templateId === 'family-practice') {
+            return `
+                <!-- Family Practice Header -->
+                <header style="background: #ffffff; border-bottom: 1px solid #e2e8f0; padding: 16px 24px; position: sticky; top: 0; z-index: 100;">
+                    <div style="max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            ${
+                                tenant.logo_url
+                                    ? `<img src="${tenant.logo_url}" alt="${tenant.name}" style="height: 38px; border-radius: 8px;" />`
+                                    : `<div style="width: 40px; height: 40px; border-radius: 10px; background: #059669; color: white; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 20px;">${tenant.name.charAt(0)}</div>`
+                            }
+                            <div>
+                                <span style="font-size: 1.25rem; font-weight: 800; color: #0f172a; display: block; line-height: 1.2;">${tenant.name}</span>
+                                <span style="font-size: 0.75rem; color: #059669; font-weight: 700;">Family Medical &amp; Preventive Clinic</span>
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 16px;">
+                            <span style="color: #475569; font-size: 0.85rem; font-weight: 600;">Clinic Hotline: ${tenant.phone || '+94 11 234 5678'}</span>
+                            <a href="/book" style="background: #059669; color: #ffffff; padding: 10px 22px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; text-decoration: none; box-shadow: 0 4px 10px rgba(5, 150, 105, 0.25);">
+                                Book Appointment
+                            </a>
+                        </div>
+                    </div>
+                </header>
+
+                <!-- Family Practice Hero -->
+                <section class="medvisit-section" style="background: linear-gradient(180deg, #ecfdf5 0%, #ffffff 100%); padding: 80px 20px;">
+                    <div class="medvisit-container" style="max-width: 1200px; margin: 0 auto; text-align: center;">
+                        <span style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; background: #d1fae5; color: #065f46; border-radius: 9999px; font-size: 0.8rem; font-weight: 700; margin-bottom: 20px;">
+                            ✦ Caring for All Generations • Open 7 Days a Week
+                        </span>
+                        <h1 style="font-size: 3rem; font-weight: 800; color: #0f172a; line-height: 1.2; margin: 0 auto 20px auto; max-width: 850px;">
+                            Compassionate Healthcare for Your Entire Family
+                        </h1>
+                        <p style="font-size: 1.15rem; color: #475569; line-height: 1.7; max-width: 700px; margin: 0 auto 36px auto;">
+                            From newborn health checks and routine family medicine to senior chronic care and certified outpatient lab tests.
+                        </p>
+                        <div style="display: flex; justify-content: center; gap: 14px; flex-wrap: wrap;">
+                            <a href="/book" style="background: #059669; color: #ffffff; padding: 16px 36px; border-radius: 12px; font-size: 1rem; font-weight: 700; text-decoration: none; box-shadow: 0 6px 20px rgba(5, 150, 105, 0.35);">
+                                Schedule a Doctor Visit
+                            </a>
+                            <a href="#services" style="background: #ffffff; color: #334155; border: 1px solid #cbd5e1; padding: 16px 28px; border-radius: 12px; font-size: 1rem; font-weight: 700; text-decoration: none;">
+                                Our Family Services
+                            </a>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Services Grid -->
+                <section id="services" class="medvisit-section" style="background: #ffffff; padding: 70px 20px;">
+                    <div class="medvisit-container" style="max-width: 1200px; margin: 0 auto;">
+                        <div style="text-align: center; max-width: 600px; margin: 0 auto 48px auto;">
+                            <h2 style="font-size: 2.2rem; font-weight: 800; color: #0f172a; margin: 0 0 12px 0;">Primary &amp; Preventive Care</h2>
+                            <p style="color: #64748b; font-size: 1rem; margin: 0;">Comprehensive clinical support tailored for patients of every age.</p>
+                        </div>
+                        <div class="medvisit-grid-4" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;">
+                            <div style="padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff;">
+                                <div style="font-size: 28px; margin-bottom: 12px;">👶</div>
+                                <h4 style="margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 700; color: #0f172a;">Child Health &amp; Vaccines</h4>
+                                <p style="color: #64748b; font-size: 0.85rem; margin: 0;">Growth monitoring, pediatric wellness, and immunization schedules.</p>
+                            </div>
+                            <div style="padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff;">
+                                <div style="font-size: 28px; margin-bottom: 12px;">🩺</div>
+                                <h4 style="margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 700; color: #0f172a;">General Consultations</h4>
+                                <p style="color: #64748b; font-size: 0.85rem; margin: 0;">Experienced family physicians for acute fever, infections, and common illnesses.</p>
+                            </div>
+                            <div style="padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff;">
+                                <div style="font-size: 28px; margin-bottom: 12px;">🩸</div>
+                                <h4 style="margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 700; color: #0f172a;">Diabetes &amp; Chronic Care</h4>
+                                <p style="color: #64748b; font-size: 0.85rem; margin: 0;">Regular glucose screening, blood pressure monitoring, and prescription renewals.</p>
+                            </div>
+                            <div style="padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff;">
+                                <div style="font-size: 28px; margin-bottom: 12px;">🧪</div>
+                                <h4 style="margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 700; color: #0f172a;">Diagnostic Laboratory</h4>
+                                <p style="color: #64748b; font-size: 0.85rem; margin: 0;">Complete blood count, urine analysis, and rapid same-day test results.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Book Token Banner -->
+                <section class="medvisit-section" style="background: linear-gradient(135deg, #059669 0%, #047857 100%); padding: 60px 20px; color: #ffffff;">
+                    <div class="medvisit-container" style="max-width: 900px; margin: 0 auto; text-align: center;">
+                        <h2 style="font-size: 2.2rem; font-weight: 800; margin: 0 0 16px 0;">Reserve Your Token Online Before Leaving Home</h2>
+                        <p style="font-size: 1rem; opacity: 0.9; margin: 0 0 28px 0;">Avoid crowded waiting rooms with live digital queuing.</p>
+                        <a href="/book" style="display: inline-block; background: #ffffff; color: #059669; padding: 14px 36px; border-radius: 12px; font-size: 1rem; font-weight: 800; text-decoration: none;">
+                            Book Token Now →
+                        </a>
+                    </div>
+                </section>
+
+                <!-- Footer -->
+                <footer style="background: #0f172a; color: #94a3b8; padding: 50px 20px 30px 20px; font-size: 0.9rem;">
+                    <div style="max-width: 1200px; margin: 0 auto; text-align: center;">
+                        <h3 style="color: #ffffff; font-size: 1.2rem; font-weight: 700; margin: 0 0 8px 0;">${tenant.name}</h3>
+                        <p style="margin: 0 0 16px 0;">${tenant.address || 'Colombo, Sri Lanka'} • Tel: ${tenant.phone || '+94 11 234 5678'}</p>
+                        <p style="font-size: 0.8rem; color: #64748b; margin: 0;">© ${new Date().getFullYear()} ${tenant.name}. Powered by MedVisit.</p>
+                    </div>
+                </footer>
+            `;
+        }
+
+        // Default: modern-clinic
+        return `
+            <!-- Navbar -->
+            <header style="background: #ffffff; border-bottom: 1px solid #e2e8f0; padding: 16px 24px; position: sticky; top: 0; z-index: 100;">
+                <div style="max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        ${
+                            tenant.logo_url
+                                ? `<img src="${tenant.logo_url}" alt="${tenant.name}" style="height: 36px; border-radius: 8px;" />`
+                                : `<div style="width: 36px; height: 36px; border-radius: 8px; background: #0E9E8F; color: white; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 18px;">${tenant.name.charAt(0)}</div>`
+                        }
+                        <div>
+                            <span style="font-size: 1.15rem; font-weight: 800; color: #0f172a; display: block; line-height: 1.2;">${tenant.name}</span>
+                            <span style="font-size: 0.75rem; color: #0E9E8F; font-weight: 600;">Specialist Medical Center</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <span style="color: #475569; font-size: 0.85rem; font-weight: 600;">Hotline: ${tenant.phone || '+94 11 234 5678'}</span>
+                        <a href="/book" style="background: #0E9E8F; color: #ffffff; padding: 10px 20px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; text-decoration: none; box-shadow: 0 4px 10px rgba(14, 158, 143, 0.25);">
+                            Book Token Online
+                        </a>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Hero Section -->
+            <section class="medvisit-section" style="background: linear-gradient(180deg, #f0fdfa 0%, #ffffff 100%); padding: 80px 20px;">
+                <div class="medvisit-container" style="max-width: 1200px; margin: 0 auto; text-align: center;">
+                    <span style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; background: #ccfbf1; color: #0f766e; border-radius: 9999px; font-size: 0.8rem; font-weight: 700; margin-bottom: 20px;">
+                        ✦ Open Daily • SLMC Verified Specialist Channeling
+                    </span>
+                    <h1 style="font-size: 3rem; font-weight: 800; color: #0f172a; line-height: 1.15; margin: 0 auto 20px auto; max-width: 850px;">
+                        Compassionate Care, Specialist Excellence
+                    </h1>
+                    <p style="font-size: 1.15rem; color: #475569; line-height: 1.7; max-width: 700px; margin: 0 auto 36px auto;">
+                        Consult top Sri Lankan medical specialists with live digital queue tracking. Reserve your token online and avoid waiting lounge congestion.
+                    </p>
+                    <div style="display: flex; justify-content: center; gap: 14px; flex-wrap: wrap;">
+                        <a href="/book" style="background: #0E9E8F; color: #ffffff; padding: 16px 36px; border-radius: 14px; font-size: 1.05rem; font-weight: 700; text-decoration: none; box-shadow: 0 6px 20px rgba(14, 158, 143, 0.35);">
+                            Book Appointment Online
+                        </a>
+                        <a href="#services" style="background: #ffffff; color: #334155; border: 1px solid #cbd5e1; padding: 16px 28px; border-radius: 14px; font-size: 1.05rem; font-weight: 700; text-decoration: none;">
+                            Explore Clinical Services
+                        </a>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Announcement Banner -->
+            <div class="medvisit-container" style="max-width: 1200px; margin: 0 auto; padding: 0 20px;">
+                <div style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 16px 24px; border-radius: 16px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 20px;">🏥</span>
+                        <span style="font-size: 0.9rem; font-weight: 600; color: #065f46;">
+                            Real-Time Waiting Room Queue Monitoring is active for all current doctor sessions.
+                        </span>
+                    </div>
+                    <a href="/book" style="color: #047857; font-weight: 700; font-size: 0.85rem; text-decoration: underline;">
+                        Book Token →
+                    </a>
+                </div>
+            </div>
+
+            <!-- Doctors Roster -->
+            <section class="medvisit-section" style="background: #ffffff; padding: 80px 20px;">
+                <div class="medvisit-container" style="max-width: 1200px; margin: 0 auto;">
+                    <div style="text-align: center; max-width: 600px; margin: 0 auto 48px auto;">
+                        <span style="font-size: 0.8rem; font-weight: 700; color: #0E9E8F; text-transform: uppercase;">Medical Practitioners</span>
+                        <h2 style="font-size: 2.25rem; font-weight: 800; color: #0f172a; margin: 8px 0 12px 0;">Meet Our Medical Specialists</h2>
+                        <p style="color: #64748b; font-size: 1rem; margin: 0;">Board certified consultants practicing at our modern medical center.</p>
+                    </div>
+                    <div class="medvisit-grid-3" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;">
+                        <div style="padding: 24px; border: 1px solid #e2e8f0; border-radius: 20px; background: #ffffff; text-align: center;">
+                            <div style="width: 72px; height: 72px; border-radius: 50%; background: #ccfbf1; color: #0E9E8F; font-size: 28px; font-weight: 800; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto;">S</div>
+                            <h4 style="margin: 0 0 4px 0; font-size: 1.2rem; font-weight: 700; color: #0f172a;">Dr. Priyantha Silva</h4>
+                            <span style="display: inline-block; padding: 4px 12px; background: #f0fdfa; color: #0f766e; border-radius: 9999px; font-size: 0.8rem; font-weight: 700; margin-bottom: 12px;">Consultant Physician</span>
+                            <p style="color: #64748b; font-size: 0.85rem; margin: 0 0 16px 0;">Specialized in adult internal medicine, diabetes management, and preventive wellness.</p>
+                            <a href="/book" style="display: block; width: 100%; padding: 10px; background: #0E9E8F; color: #ffffff; border-radius: 10px; font-weight: 700; text-decoration: none; font-size: 0.9rem;">Book Token</a>
+                        </div>
+                        <div style="padding: 24px; border: 1px solid #e2e8f0; border-radius: 20px; background: #ffffff; text-align: center;">
+                            <div style="width: 72px; height: 72px; border-radius: 50%; background: #ccfbf1; color: #0E9E8F; font-size: 28px; font-weight: 800; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto;">A</div>
+                            <h4 style="margin: 0 0 4px 0; font-size: 1.2rem; font-weight: 700; color: #0f172a;">Dr. Anoma Jayawardena</h4>
+                            <span style="display: inline-block; padding: 4px 12px; background: #f0fdfa; color: #0f766e; border-radius: 9999px; font-size: 0.8rem; font-weight: 700; margin-bottom: 12px;">Consultant Paediatrician</span>
+                            <p style="color: #64748b; font-size: 0.85rem; margin: 0 0 16px 0;">Expert pediatric care, newborn screening, and child growth and immunization.</p>
+                            <a href="/book" style="display: block; width: 100%; padding: 10px; background: #0E9E8F; color: #ffffff; border-radius: 10px; font-weight: 700; text-decoration: none; font-size: 0.9rem;">Book Token</a>
+                        </div>
+                        <div style="padding: 24px; border: 1px solid #e2e8f0; border-radius: 20px; background: #ffffff; text-align: center;">
+                            <div style="width: 72px; height: 72px; border-radius: 50%; background: #ccfbf1; color: #0E9E8F; font-size: 28px; font-weight: 800; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto;">R</div>
+                            <h4 style="margin: 0 0 4px 0; font-size: 1.2rem; font-weight: 700; color: #0f172a;">Dr. Rohan Senanayake</h4>
+                            <span style="display: inline-block; padding: 4px 12px; background: #f0fdfa; color: #0f766e; border-radius: 9999px; font-size: 0.8rem; font-weight: 700; margin-bottom: 12px;">Consultant Cardiologist</span>
+                            <p style="color: #64748b; font-size: 0.85rem; margin: 0 0 16px 0;">Cardiac assessment, digital ECG interpretation, and cardiovascular health management.</p>
+                            <a href="/book" style="display: block; width: 100%; padding: 10px; background: #0E9E8F; color: #ffffff; border-radius: 10px; font-weight: 700; text-decoration: none; font-size: 0.9rem;">Book Token</a>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Clinical Services Section -->
+            <section id="services" class="medvisit-section" style="background: #f8fafc; padding: 80px 20px;">
+                <div class="medvisit-container" style="max-width: 1200px; margin: 0 auto;">
+                    <div style="text-align: center; max-width: 600px; margin: 0 auto 48px auto;">
+                        <span style="font-size: 0.8rem; font-weight: 700; color: #0E9E8F; text-transform: uppercase;">Comprehensive Care</span>
+                        <h2 style="font-size: 2.25rem; font-weight: 800; color: #0f172a; margin: 8px 0 12px 0;">Our Clinical Services</h2>
+                        <p style="color: #64748b; font-size: 1rem; margin: 0;">Full outpatient diagnostics and pharmacy services under one roof.</p>
+                    </div>
+                    <div class="medvisit-grid-4" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;">
+                        <div style="padding: 24px; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; text-align: left;">
+                            <div style="font-size: 28px; margin-bottom: 12px;">🩺</div>
+                            <h4 style="margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 700; color: #0f172a;">Specialist Channeling</h4>
+                            <p style="color: #64748b; font-size: 0.85rem; margin: 0;">Direct consultations with verified senior SLMC specialist doctors.</p>
+                        </div>
+                        <div style="padding: 24px; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; text-align: left;">
+                            <div style="font-size: 28px; margin-bottom: 12px;">🔬</div>
+                            <h4 style="margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 700; color: #0f172a;">Clinical Laboratory</h4>
+                            <p style="color: #64748b; font-size: 0.85rem; margin: 0;">Automated blood screening, biochemistry, and rapid diagnostic tests.</p>
+                        </div>
+                        <div style="padding: 24px; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; text-align: left;">
+                            <div style="font-size: 28px; margin-bottom: 12px;">💓</div>
+                            <h4 style="margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 700; color: #0f172a;">Digital ECG &amp; Vitals</h4>
+                            <p style="color: #64748b; font-size: 0.85rem; margin: 0;">Rapid cardiovascular monitoring and doctor-certified reports.</p>
+                        </div>
+                        <div style="padding: 24px; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; text-align: left;">
+                            <div style="font-size: 28px; margin-bottom: 12px;">💊</div>
+                            <h4 style="margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 700; color: #0f172a;">Certified Pharmacy</h4>
+                            <p style="color: #64748b; font-size: 0.85rem; margin: 0;">Licensed pharmaceuticals and experienced pharmacist counseling.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Book Token Banner -->
+            <section class="medvisit-section" style="background: linear-gradient(135deg, #0E9E8F 0%, #065f46 100%); padding: 70px 20px; color: #ffffff;">
+                <div class="medvisit-container" style="max-width: 900px; margin: 0 auto; text-align: center;">
+                    <h2 style="font-size: 2.5rem; font-weight: 800; margin: 0 0 16px 0;">Reserve Your Channeling Token Online</h2>
+                    <p style="font-size: 1.1rem; opacity: 0.9; margin: 0 0 32px 0;">Experience peaceful doctor consultations with our atomic queue number system.</p>
+                    <a href="/book" style="display: inline-block; background: #ffffff; color: #0E9E8F; padding: 16px 40px; border-radius: 14px; font-size: 1.1rem; font-weight: 800; text-decoration: none; box-shadow: 0 6px 20px rgba(0,0,0,0.2);">
+                        Book Appointment Now →
+                    </a>
+                </div>
+            </section>
+
+            <!-- Footer -->
+            <footer style="background: #0f172a; color: #94a3b8; padding: 60px 20px 30px 20px; font-size: 0.9rem;">
+                <div style="max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; margin-bottom: 40px;">
+                    <div>
+                        <h3 style="color: #ffffff; font-size: 1.15rem; font-weight: 700; margin: 0 0 12px 0;">${tenant.name}</h3>
+                        <p style="line-height: 1.6; margin: 0 0 16px 0;">${tenant.address || 'Colombo, Sri Lanka'}</p>
+                        <p style="margin: 0;">Hotline: <strong style="color: #ffffff;">${tenant.phone || '+94 11 234 5678'}</strong></p>
+                    </div>
+                    <div>
+                        <h4 style="color: #ffffff; font-size: 1rem; font-weight: 700; margin: 0 0 12px 0;">Clinical Hours</h4>
+                        <p style="margin: 0 0 6px 0;">Monday – Friday: 07:30 AM – 10:00 PM</p>
+                        <p style="margin: 0 0 6px 0;">Saturday: 07:30 AM – 10:00 PM</p>
+                        <p style="margin: 0;">Sunday: 08:00 AM – 08:00 PM</p>
+                    </div>
+                    <div>
+                        <h4 style="color: #ffffff; font-size: 1rem; font-weight: 700; margin: 0 0 12px 0;">Quick Navigation</h4>
+                        <p style="margin: 0 0 8px 0;"><a href="/book" style="color: #0E9E8F; text-decoration: none; font-weight: 700;">Book Token Online</a></p>
+                        <p style="margin: 0 0 8px 0;"><a href="/login" style="color: #94a3b8; text-decoration: none;">Staff Workspace Login</a></p>
+                        <p style="margin: 0;"><a href="/clinic/live-queue" style="color: #94a3b8; text-decoration: none;">Live Waiting Queue</a></p>
+                    </div>
+                </div>
+                <div style="max-width: 1200px; margin: 0 auto; border-top: 1px solid #1e293b; padding-top: 24px; text-align: center; font-size: 0.8rem; color: #64748b;">
+                    © ${new Date().getFullYear()} ${tenant.name}. Certified by Ministry of Health &amp; PHSRC Sri Lanka. Powered by MedVisit.
+                </div>
+            </footer>
+        `;
+    };
+
+    // Load Ready-Made Templates
+    const loadTemplate = (templateId: string, editorInstanceParam?: any) => {
+        const editor = editorInstanceParam || editorInstance.current;
+        if (!editor) return;
+
+        const templateHtml = getTemplateHtml(templateId);
         editor.setComponents(templateHtml);
+        editor.refresh();
         setIsDirty(true);
         setTemplatesModalOpen(false);
     };
@@ -953,6 +1184,109 @@ export default function PageBuilder({
     return (
         <div className="h-screen w-screen flex flex-col bg-slate-900 text-slate-100 font-sans overflow-hidden select-none">
             <Head title={`Page Builder - ${tenant.name}`} />
+
+            <style>{`
+                /* GrapesJS Canvas Reset for Elementor 3-Panel Layout */
+                .gjs-editor, .gjs-editor-c {
+                    position: relative !important;
+                    width: 100% !important;
+                    height: 100% !important;
+                    min-height: 100% !important;
+                    background-color: #ffffff !important;
+                }
+                .gjs-cv-canvas {
+                    position: absolute !important;
+                    top: 0 !important;
+                    left: 0 !important;
+                    right: 0 !important;
+                    bottom: 0 !important;
+                    width: 100% !important;
+                    height: 100% !important;
+                    min-height: 100% !important;
+                    background-color: #ffffff !important;
+                }
+                .gjs-cv-canvas__frames {
+                    position: absolute !important;
+                    top: 0 !important;
+                    left: 0 !important;
+                    right: 0 !important;
+                    bottom: 0 !important;
+                    width: 100% !important;
+                    height: 100% !important;
+                }
+                .gjs-frame-wrapper {
+                    position: absolute !important;
+                    top: 0 !important;
+                    left: 0 !important;
+                    right: 0 !important;
+                    bottom: 0 !important;
+                    width: 100% !important;
+                    height: 100% !important;
+                }
+                .gjs-frame {
+                    position: absolute !important;
+                    top: 0 !important;
+                    left: 0 !important;
+                    width: 100% !important;
+                    height: 100% !important;
+                    min-height: 100% !important;
+                    background-color: #ffffff !important;
+                    border: none !important;
+                }
+                /* Custom GrapesJS Blocks & UI Theme */
+                .gjs-block {
+                    user-select: none !important;
+                    background-color: rgba(255, 255, 255, 0.05) !important;
+                    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+                    border-radius: 12px !important;
+                    color: #f1f5f9 !important;
+                    transition: all 0.15s ease-in-out !important;
+                    padding: 10px 6px !important;
+                    width: 48% !important;
+                    margin: 1% !important;
+                    text-align: center !important;
+                }
+                .gjs-block:hover {
+                    background-color: rgba(14, 158, 143, 0.15) !important;
+                    border-color: #0E9E8F !important;
+                    transform: translateY(-2px) !important;
+                }
+                .gjs-block-category .gjs-title {
+                    font-weight: 700 !important;
+                    font-size: 11px !important;
+                    text-transform: uppercase !important;
+                    letter-spacing: 0.05em !important;
+                    color: #94a3b8 !important;
+                    padding: 10px 4px 6px 4px !important;
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+                }
+                .gjs-layer {
+                    color: #cbd5e1 !important;
+                }
+                .gjs-layer-name {
+                    color: #f1f5f9 !important;
+                    font-size: 11px !important;
+                }
+                .gjs-sm-sector .gjs-sm-sector-title {
+                    background-color: rgba(255, 255, 255, 0.05) !important;
+                    color: #f8fafc !important;
+                    font-weight: 700 !important;
+                    font-size: 11px !important;
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+                }
+                .gjs-sm-properties {
+                    padding: 8px 4px !important;
+                }
+                .gjs-sm-property {
+                    color: #94a3b8 !important;
+                }
+                .gjs-sm-property input, .gjs-sm-property select {
+                    background-color: #0f172a !important;
+                    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+                    color: #ffffff !important;
+                    border-radius: 8px !important;
+                }
+            `}</style>
 
             {/* TOP BAR (Full Width Header) */}
             <header className="h-14 bg-slate-950 border-b border-white/10 px-4 flex items-center justify-between z-30 flex-shrink-0">
@@ -1196,121 +1530,123 @@ export default function PageBuilder({
                     </div>
 
                     {/* Subcontent according to Tab */}
-                    {leftPanelTab === 'elements' && (
-                        <div className="flex-1 flex flex-col overflow-hidden">
-                            {/* Search box */}
-                            <div className="p-3 border-b border-white/10 bg-slate-900/30">
-                                <div className="relative">
-                                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                                    <input
-                                        type="text"
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        placeholder="Search widgets & sections..."
-                                        className="w-full pl-8 pr-7 py-1.5 text-xs rounded-xl bg-slate-900 border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-teal-500"
-                                    />
-                                    {searchQuery && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setSearchQuery('')}
-                                            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-                                        >
-                                            <X className="w-3 h-3" />
-                                        </button>
-                                    )}
-                                </div>
+                    <div className={`flex-1 flex flex-col overflow-hidden ${leftPanelTab === 'elements' ? '' : 'hidden'}`}>
+                        {/* Search box */}
+                        <div className="p-3 border-b border-white/10 bg-slate-900/30">
+                            <div className="relative">
+                                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Search widgets & sections..."
+                                    className="w-full pl-8 pr-7 py-1.5 text-xs rounded-xl bg-slate-900 border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-teal-500"
+                                />
+                                {searchQuery && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSearchQuery('')}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                )}
                             </div>
-
-                            {/* GrapesJS Blocks Container */}
-                            <div
-                                id="builder-blocks-container"
-                                className="flex-1 overflow-y-auto p-3 space-y-4 text-xs"
-                            />
                         </div>
-                    )}
 
-                    {leftPanelTab === 'navigator' && (
-                        <div className="flex-1 overflow-y-auto p-3">
-                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
-                                DOM Hierarchy
-                            </span>
-                            <div id="builder-layers-container" className="text-xs" />
-                        </div>
-                    )}
+                        {/* GrapesJS Blocks Container - Always mounted */}
+                        <div
+                            id="builder-blocks-container"
+                            className="flex-1 overflow-y-auto p-3 space-y-4 text-xs"
+                        />
+                    </div>
 
-                    {leftPanelTab === 'settings' && (
-                        <div className="flex-1 overflow-y-auto p-4 space-y-5 text-xs">
-                            <div>
-                                <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-2">
-                                    Clinic Theme Preset
-                                </label>
-                                <div className="space-y-2">
-                                    {themePresets.map((t) => (
+                    <div
+                        className="flex-1 overflow-y-auto p-3"
+                        style={
+                            leftPanelTab === 'navigator'
+                                ? { display: 'block' }
+                                : { height: 0, opacity: 0, overflow: 'hidden', position: 'absolute', pointerEvents: 'none' }
+                        }
+                    >
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
+                            DOM Hierarchy
+                        </span>
+                        {/* GrapesJS Layers Container - Always mounted */}
+                        <div id="builder-layers-container" className="text-xs" />
+                    </div>
+
+                    <div className={`flex-1 overflow-y-auto p-4 space-y-5 text-xs ${leftPanelTab === 'settings' ? '' : 'hidden'}`}>
+                        <div>
+                            <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-2">
+                                Clinic Theme Preset
+                            </label>
+                            <div className="space-y-2">
+                                {themePresets.map((t) => (
+                                    <div
+                                        key={t.id}
+                                        onClick={() => {
+                                            setPageTheme(t.id);
+                                            setIsDirty(true);
+                                        }}
+                                        className={`p-2.5 rounded-xl border cursor-pointer transition-all flex items-start gap-2.5 ${
+                                            pageTheme === t.id
+                                                ? 'bg-teal-500/10 border-teal-500 text-white'
+                                                : 'bg-white/5 border-white/10 text-slate-300 hover:border-white/20'
+                                        }`}
+                                    >
                                         <div
-                                            key={t.id}
-                                            onClick={() => {
-                                                setPageTheme(t.id);
-                                                setIsDirty(true);
-                                            }}
-                                            className={`p-2.5 rounded-xl border cursor-pointer transition-all flex items-start gap-2.5 ${
-                                                pageTheme === t.id
-                                                    ? 'bg-teal-500/10 border-teal-500 text-white'
-                                                    : 'bg-white/5 border-white/10 text-slate-300 hover:border-white/20'
-                                            }`}
-                                        >
-                                            <div
-                                                className="w-4 h-4 rounded-full mt-0.5 shrink-0 shadow-xs"
-                                                style={{ backgroundColor: t.color }}
-                                            />
-                                            <div className="min-w-0">
-                                                <p className="font-bold text-xs">{t.name}</p>
-                                                <p className="text-[10px] text-slate-400 line-clamp-1">{t.desc}</p>
-                                            </div>
+                                            className="w-4 h-4 rounded-full mt-0.5 shrink-0 shadow-xs"
+                                            style={{ backgroundColor: t.color }}
+                                        />
+                                        <div className="min-w-0">
+                                            <p className="font-bold text-xs">{t.name}</p>
+                                            <p className="text-[10px] text-slate-400 line-clamp-1">{t.desc}</p>
                                         </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="pt-2 border-t border-white/10 space-y-3">
-                                <div>
-                                    <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                                        SEO Page Title
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={seoTitle}
-                                        onChange={(e) => {
-                                            setSeoTitle(e.target.value);
-                                            setIsDirty(true);
-                                        }}
-                                        className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-3 py-1.5 focus:border-teal-500"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                                        SEO Meta Description
-                                    </label>
-                                    <textarea
-                                        rows={3}
-                                        value={seoDescription}
-                                        onChange={(e) => {
-                                            setSeoDescription(e.target.value);
-                                            setIsDirty(true);
-                                        }}
-                                        className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-3 py-1.5 focus:border-teal-500"
-                                    />
-                                </div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
-                    )}
+
+                        <div className="pt-2 border-t border-white/10 space-y-3">
+                            <div>
+                                <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                                    SEO Page Title
+                                </label>
+                                <input
+                                    type="text"
+                                    value={seoTitle}
+                                    onChange={(e) => {
+                                        setSeoTitle(e.target.value);
+                                        setIsDirty(true);
+                                    }}
+                                    className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-3 py-1.5 focus:border-teal-500"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                                    SEO Meta Description
+                                </label>
+                                <textarea
+                                    rows={3}
+                                    value={seoDescription}
+                                    onChange={(e) => {
+                                        setSeoDescription(e.target.value);
+                                        setIsDirty(true);
+                                    }}
+                                    className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-3 py-1.5 focus:border-teal-500"
+                                />
+                            </div>
+                        </div>
+                    </div>
                 </aside>
 
                 {/* 2. CENTER CANVAS: Live Interactive Frame with Responsive Preview */}
                 <main className="flex-1 relative flex flex-col bg-slate-950 overflow-hidden">
                     {/* Device Header label if responsive */}
                     {currentDevice !== 'Desktop' && (
-                        <div className="h-7 bg-slate-900 border-b border-white/10 text-slate-400 text-[11px] font-bold flex items-center justify-center gap-1.5">
+                        <div className="h-7 bg-slate-900 border-b border-white/10 text-slate-400 text-[11px] font-bold flex items-center justify-center gap-1.5 flex-shrink-0">
                             {currentDevice === 'Tablet' ? (
                                 <>
                                     <Tablet className="w-3.5 h-3.5 text-teal-400" />
@@ -1326,22 +1662,24 @@ export default function PageBuilder({
                     )}
 
                     {/* Canvas Frame Container */}
-                    <div className="flex-1 relative overflow-auto flex justify-center p-4 bg-slate-950">
+                    <div className="flex-1 relative w-full h-full min-h-0 overflow-hidden flex justify-center items-stretch p-3 bg-slate-950">
                         <div
                             ref={editorRef}
+                            id="gjs"
+                            className="bg-white relative transition-all duration-300 w-full h-full flex flex-col"
                             style={{
-                                width:
+                                maxWidth:
                                     currentDevice === 'Mobile'
                                         ? '375px'
                                         : currentDevice === 'Tablet'
                                         ? '768px'
                                         : '100%',
                                 height: '100%',
-                                transition: 'width 0.25s ease-in-out',
+                                minHeight: '100%',
                                 boxShadow: currentDevice !== 'Desktop' ? '0 25px 50px -12px rgba(0, 0, 0, 0.5)' : 'none',
-                                borderRadius: currentDevice !== 'Desktop' ? '16px' : '0',
+                                borderRadius: currentDevice !== 'Desktop' ? '16px' : '0px',
                                 overflow: 'hidden',
-                                border: currentDevice !== 'Desktop' ? '1px solid rgba(255, 255, 255, 0.15)' : 'none',
+                                border: currentDevice !== 'Desktop' ? '2px solid rgba(255, 255, 255, 0.2)' : 'none',
                             }}
                         />
                     </div>
@@ -1423,203 +1761,8 @@ export default function PageBuilder({
 
                     {/* Inspector Scroll Area */}
                     <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
-                        {selectedComponent ? (
-                            <>
-                                <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
-                                    <div>
-                                        <span className="text-[10px] text-slate-400 block">Selected Target</span>
-                                        <span className="font-bold text-white text-xs">
-                                            {selectedWidgetName || selectedTagName}
-                                        </span>
-                                    </div>
-                                    <span className="font-mono text-[10px] text-teal-400 bg-teal-500/10 px-1.5 py-0.5 rounded">
-                                        &lt;{selectedTagName}&gt;
-                                    </span>
-                                </div>
-
-                                {/* Content Tab */}
-                                {inspectorTab === 'content' && (
-                                    <div className="space-y-3">
-                                        {/* Image source chooser if image */}
-                                        {selectedTagName === 'IMG' && (
-                                            <div>
-                                                <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                                                    Image Source
-                                                </label>
-                                                <div className="flex gap-1.5">
-                                                    <input
-                                                        type="text"
-                                                        value={selectedComponent.get('src') || ''}
-                                                        onChange={(e) => {
-                                                            selectedComponent.set('src', e.target.value);
-                                                            setIsDirty(true);
-                                                        }}
-                                                        className="flex-1 text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-2.5 py-1.5"
-                                                    />
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setMediaCurrentValue(selectedComponent.get('src') || '');
-                                                            setMediaModalOpen(true);
-                                                        }}
-                                                        className="px-2.5 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold"
-                                                        title="Open Media Library"
-                                                    >
-                                                        <ImageIcon className="w-3.5 h-3.5" />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* GrapesJS Traits */}
-                                        <div id="builder-traits-container" className="space-y-2 text-xs" />
-
-                                        {/* Text content quick editor */}
-                                        {['H1', 'H2', 'H3', 'H4', 'P', 'SPAN', 'A', 'BUTTON'].includes(
-                                            selectedTagName
-                                        ) && (
-                                            <div>
-                                                <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                                                    Text Content
-                                                </label>
-                                                <textarea
-                                                    rows={3}
-                                                    defaultValue={selectedComponent.components().asHtml() || ''}
-                                                    onChange={(e) => {
-                                                        selectedComponent.components(e.target.value);
-                                                        setIsDirty(true);
-                                                    }}
-                                                    className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-2.5 py-1.5"
-                                                />
-                                            </div>
-                                        )}
-
-                                        {/* Link URL if anchor or button */}
-                                        {(selectedTagName === 'A' || selectedTagName === 'BUTTON') && (
-                                            <div>
-                                                <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                                                    Link Destination (href)
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    defaultValue={selectedComponent.getAttributes()['href'] || ''}
-                                                    onChange={(e) => {
-                                                        selectedComponent.addAttributes({ href: e.target.value });
-                                                        setIsDirty(true);
-                                                    }}
-                                                    placeholder="/book or https://..."
-                                                    className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-2.5 py-1.5"
-                                                />
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-
-                                {/* Style Tab */}
-                                {inspectorTab === 'style' && (
-                                    <div className="space-y-4">
-                                        {/* Color Swatches */}
-                                        <div>
-                                            <label className="block text-[11px] font-bold text-slate-300 mb-1.5">
-                                                Quick Color Swatches
-                                            </label>
-                                            <div className="flex gap-2">
-                                                {colorSwatches.map((c) => (
-                                                    <button
-                                                        key={c.value}
-                                                        type="button"
-                                                        onClick={() => {
-                                                            selectedComponent.addStyle({ color: c.value });
-                                                            setIsDirty(true);
-                                                        }}
-                                                        className="w-6 h-6 rounded-full border border-white/20 hover:scale-110 transition-transform shadow-xs"
-                                                        style={{ backgroundColor: c.value }}
-                                                        title={c.label}
-                                                    />
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        {/* Alignment controls */}
-                                        <div>
-                                            <label className="block text-[11px] font-bold text-slate-300 mb-1.5">
-                                                Text Alignment
-                                            </label>
-                                            <div className="flex rounded-xl bg-white/5 border border-white/10 p-0.5">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        selectedComponent.addStyle({ 'text-align': 'left' });
-                                                        setIsDirty(true);
-                                                    }}
-                                                    className="flex-1 py-1 rounded-lg text-slate-300 hover:bg-white/10 flex items-center justify-center"
-                                                >
-                                                    <AlignLeft className="w-3.5 h-3.5" />
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        selectedComponent.addStyle({ 'text-align': 'center' });
-                                                        setIsDirty(true);
-                                                    }}
-                                                    className="flex-1 py-1 rounded-lg text-slate-300 hover:bg-white/10 flex items-center justify-center"
-                                                >
-                                                    <AlignCenter className="w-3.5 h-3.5" />
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        selectedComponent.addStyle({ 'text-align': 'right' });
-                                                        setIsDirty(true);
-                                                    }}
-                                                    className="flex-1 py-1 rounded-lg text-slate-300 hover:bg-white/10 flex items-center justify-center"
-                                                >
-                                                    <AlignRight className="w-3.5 h-3.5" />
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        {/* Standard GrapesJS Styles Container */}
-                                        <div id="builder-styles-container" className="space-y-3" />
-                                    </div>
-                                )}
-
-                                {/* Advanced Tab */}
-                                {inspectorTab === 'advanced' && (
-                                    <div className="space-y-3">
-                                        <div>
-                                            <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                                                Element ID (#)
-                                            </label>
-                                            <input
-                                                type="text"
-                                                defaultValue={selectedComponent.getId() || ''}
-                                                onChange={(e) => {
-                                                    selectedComponent.setId(e.target.value);
-                                                    setIsDirty(true);
-                                                }}
-                                                className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-2.5 py-1.5"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                                                CSS Classes
-                                            </label>
-                                            <input
-                                                type="text"
-                                                defaultValue={selectedComponent.getClasses().join(' ')}
-                                                onChange={(e) => {
-                                                    selectedComponent.setClass(e.target.value.split(' ').filter(Boolean));
-                                                    setIsDirty(true);
-                                                }}
-                                                className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-2.5 py-1.5"
-                                            />
-                                        </div>
-                                    </div>
-                                )}
-                            </>
-                        ) : (
+                        {/* Fallback prompt when no component selected */}
+                        {!selectedComponent && (
                             <div className="text-center py-12 text-slate-500">
                                 <Sliders className="w-8 h-8 stroke-1 mx-auto mb-2 opacity-50" />
                                 <p className="text-xs font-bold text-slate-400">No element selected</p>
@@ -1628,6 +1771,221 @@ export default function PageBuilder({
                                 </p>
                             </div>
                         )}
+
+                        {/* Component Inspector Controls - Always mounted in DOM for GrapesJS appendTo */}
+                        <div
+                            style={
+                                selectedComponent
+                                    ? { display: 'block' }
+                                    : { height: 0, opacity: 0, overflow: 'hidden', position: 'absolute', pointerEvents: 'none' }
+                            }
+                            className="space-y-4"
+                        >
+                            <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
+                                <div>
+                                    <span className="text-[10px] text-slate-400 block">Selected Target</span>
+                                    <span className="font-bold text-white text-xs">
+                                        {selectedWidgetName || selectedTagName}
+                                    </span>
+                                </div>
+                                <span className="font-mono text-[10px] text-teal-400 bg-teal-500/10 px-1.5 py-0.5 rounded">
+                                    &lt;{selectedTagName}&gt;
+                                </span>
+                            </div>
+
+                            {/* Content Tab */}
+                            <div
+                                style={
+                                    inspectorTab === 'content'
+                                        ? { display: 'block' }
+                                        : { height: 0, opacity: 0, overflow: 'hidden', position: 'absolute', pointerEvents: 'none' }
+                                }
+                                className="space-y-3"
+                            >
+                                {/* Image source chooser if image */}
+                                {selectedTagName === 'IMG' && selectedComponent && (
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                                            Image Source
+                                        </label>
+                                        <div className="flex gap-1.5">
+                                            <input
+                                                type="text"
+                                                value={selectedComponent.get ? selectedComponent.get('src') || '' : ''}
+                                                onChange={(e) => {
+                                                    selectedComponent.set?.('src', e.target.value);
+                                                    setIsDirty(true);
+                                                }}
+                                                className="flex-1 text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-2.5 py-1.5"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setMediaCurrentValue(selectedComponent.get ? selectedComponent.get('src') || '' : '');
+                                                    setMediaModalOpen(true);
+                                                }}
+                                                className="px-2.5 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold"
+                                                title="Open Media Library"
+                                            >
+                                                <ImageIcon className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* GrapesJS Traits - Always mounted */}
+                                <div id="builder-traits-container" className="space-y-2 text-xs" />
+
+                                {/* Text content quick editor */}
+                                {['H1', 'H2', 'H3', 'H4', 'P', 'SPAN', 'A', 'BUTTON'].includes(
+                                    selectedTagName
+                                ) && selectedComponent && (
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                                            Text Content
+                                        </label>
+                                        <textarea
+                                            rows={3}
+                                            defaultValue={selectedComponent.components ? selectedComponent.components().asHtml() || '' : ''}
+                                            onChange={(e) => {
+                                                selectedComponent.components?.(e.target.value);
+                                                setIsDirty(true);
+                                            }}
+                                            className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-2.5 py-1.5"
+                                        />
+                                    </div>
+                                )}
+
+                                {/* Link URL if anchor or button */}
+                                {(selectedTagName === 'A' || selectedTagName === 'BUTTON') && selectedComponent && (
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                                            Link Destination (href)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            defaultValue={selectedComponent.getAttributes ? selectedComponent.getAttributes()['href'] || '' : ''}
+                                            onChange={(e) => {
+                                                selectedComponent.addAttributes?.({ href: e.target.value });
+                                                setIsDirty(true);
+                                            }}
+                                            placeholder="/book or https://..."
+                                            className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-2.5 py-1.5"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Style Tab */}
+                            <div
+                                style={
+                                    inspectorTab === 'style'
+                                        ? { display: 'block' }
+                                        : { height: 0, opacity: 0, overflow: 'hidden', position: 'absolute', pointerEvents: 'none' }
+                                }
+                                className="space-y-4"
+                            >
+                                {/* Color Swatches */}
+                                <div>
+                                    <label className="block text-[11px] font-bold text-slate-300 mb-1.5">
+                                        Quick Color Swatches
+                                    </label>
+                                    <div className="flex gap-2">
+                                        {colorSwatches.map((c) => (
+                                            <button
+                                                key={c.value}
+                                                type="button"
+                                                onClick={() => {
+                                                    selectedComponent?.addStyle?.({ color: c.value });
+                                                    setIsDirty(true);
+                                                }}
+                                                className="w-6 h-6 rounded-full border border-white/20 hover:scale-110 transition-transform shadow-xs"
+                                                style={{ backgroundColor: c.value }}
+                                                title={c.label}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Alignment controls */}
+                                <div>
+                                    <label className="block text-[11px] font-bold text-slate-300 mb-1.5">
+                                        Text Alignment
+                                    </label>
+                                    <div className="flex rounded-xl bg-white/5 border border-white/10 p-0.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                selectedComponent?.addStyle?.({ 'text-align': 'left' });
+                                                setIsDirty(true);
+                                            }}
+                                            className="flex-1 py-1 rounded-lg text-slate-300 hover:bg-white/10 flex items-center justify-center"
+                                        >
+                                            <AlignLeft className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                selectedComponent?.addStyle?.({ 'text-align': 'center' });
+                                                setIsDirty(true);
+                                            }}
+                                            className="flex-1 py-1 rounded-lg text-slate-300 hover:bg-white/10 flex items-center justify-center"
+                                        >
+                                            <AlignCenter className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                selectedComponent?.addStyle?.({ 'text-align': 'right' });
+                                                setIsDirty(true);
+                                            }}
+                                            className="flex-1 py-1 rounded-lg text-slate-300 hover:bg-white/10 flex items-center justify-center"
+                                        >
+                                            <AlignRight className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Selector Manager - Always mounted */}
+                                <div id="builder-selectors-container" className="space-y-1" />
+
+                                {/* Standard GrapesJS Styles Container - Always mounted */}
+                                <div id="builder-styles-container" className="space-y-3" />
+                            </div>
+
+                            {/* Advanced Tab */}
+                            <div className={inspectorTab === 'advanced' ? 'space-y-3' : 'hidden'}>
+                                <div>
+                                    <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                                        Element ID (#)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        defaultValue={selectedComponent?.getId ? selectedComponent.getId() || '' : ''}
+                                        onChange={(e) => {
+                                            selectedComponent?.setId?.(e.target.value);
+                                            setIsDirty(true);
+                                        }}
+                                        className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-2.5 py-1.5"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                                        CSS Classes
+                                    </label>
+                                    <input
+                                        type="text"
+                                        defaultValue={selectedComponent?.getClasses ? selectedComponent.getClasses().join(' ') : ''}
+                                        onChange={(e) => {
+                                            selectedComponent?.setClass?.(e.target.value.split(' ').filter(Boolean));
+                                            setIsDirty(true);
+                                        }}
+                                        className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-2.5 py-1.5"
+                                    />
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </aside>
             </div>
@@ -1707,7 +2065,7 @@ export default function PageBuilder({
                                 </div>
                                 <button
                                     type="button"
-                                    onClick={() => loadTemplate('modern-clinic')}
+                                    onClick={() => loadTemplate('specialist-center')}
                                     className="mt-4 w-full py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-bold transition-colors"
                                 >
                                     Load Template
@@ -1727,7 +2085,7 @@ export default function PageBuilder({
                                 </div>
                                 <button
                                     type="button"
-                                    onClick={() => loadTemplate('modern-clinic')}
+                                    onClick={() => loadTemplate('family-practice')}
                                     className="mt-4 w-full py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-colors"
                                 >
                                     Load Template
