@@ -21,9 +21,7 @@ use App\Http\Controllers\Tenant\TodayQueueController;
 use App\Http\Controllers\Tenant\WorkspaceNotificationController;
 use App\Http\Controllers\Tenant\WorkspaceSearchController;
 use App\Http\Middleware\EnsureTenantIsActive;
-use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 use Stancl\Tenancy\Middleware\InitializeTenancyBySubdomain;
 use Stancl\Tenancy\Middleware\PreventAccessFromCentralDomains;
 
@@ -45,29 +43,16 @@ Route::middleware([
     Route::get('/clinic/suspended', [TenantSuspendedController::class, 'show'])
         ->name('tenant.suspended');
 
-    // 2. Tenant Public Landing
-    Route::get('/', function () {
-        $tenant = tenant();
+    // 2. Tenant Public Landing & Public Online Booking
+    Route::get('/', [ClinicWebsiteController::class, 'publicHome'])
+        ->name('tenant.home');
 
-        if (! $tenant->isUsable()) {
-            return redirect()->route('tenant.suspended');
-        }
+    Route::get('/book', [ClinicWebsiteController::class, 'publicBooking'])
+        ->name('tenant.book');
 
-        return Inertia::render('Welcome', [
-            'tenant' => [
-                'id' => $tenant->id,
-                'name' => ucwords((string) ($tenant->name ?? 'Demo Clinic')),
-                'subdomain' => $tenant->subdomain ?? 'demo',
-                'plan' => $tenant->plan ?? 'starter',
-                'status' => $tenant->status ?? 'active',
-                'base_domain' => config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost')),
-            ],
-            'canLogin' => true,
-            'canRegister' => false,
-            'laravelVersion' => Application::VERSION,
-            'phpVersion' => PHP_VERSION,
-        ]);
-    })->name('tenant.home');
+    Route::post('/book', [ClinicWebsiteController::class, 'storePublicBooking'])
+        ->middleware('throttle:10,1')
+        ->name('tenant.book.store');
 
     // 3. Guest Auth Routes
     Route::middleware('guest')->group(function () {
@@ -199,6 +184,12 @@ Route::middleware([
         Route::middleware(['role:clinic_admin|super_admin'])->group(function () {
             Route::get('/website', [ClinicWebsiteController::class, 'index'])
                 ->name('tenant.website');
+            Route::put('/website/sections', [ClinicWebsiteController::class, 'updateSections'])
+                ->name('tenant.website.sections');
+            Route::post('/website/publish', [ClinicWebsiteController::class, 'publish'])
+                ->name('tenant.website.publish');
+            Route::put('/website/theme', [ClinicWebsiteController::class, 'updateTheme'])
+                ->name('tenant.website.theme');
 
             Route::get('/staff', [StaffController::class, 'index'])
                 ->name('tenant.staff');
