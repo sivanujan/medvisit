@@ -8,6 +8,8 @@ use App\Http\Controllers\Tenant\ChannelingCalendarController;
 use App\Http\Controllers\Tenant\ClinicSettingsController;
 use App\Http\Controllers\Tenant\ClinicWebsiteController;
 use App\Http\Controllers\Tenant\DoctorController;
+use App\Http\Controllers\Tenant\DoctorSettlementController;
+use App\Http\Controllers\Tenant\FeeSettingsController;
 use App\Http\Controllers\Tenant\LiveQueueTvController;
 use App\Http\Controllers\Tenant\PatientController;
 use App\Http\Controllers\Tenant\StaffController;
@@ -150,6 +152,14 @@ Route::middleware([
         Route::get('/api/patients/search', [BookingTokenController::class, 'searchPatients'])
             ->name('tenant.api.patients.search');
 
+        // Doctor Settlements (accessible to doctor, receptionist, clinic_admin)
+        Route::middleware(['role:clinic_admin|receptionist|doctor|super_admin'])->group(function () {
+            Route::get('/billing/payouts', [DoctorSettlementController::class, 'index'])
+                ->name('tenant.settlements');
+            Route::get('/billing/payouts/slip/{settlement}', [DoctorSettlementController::class, 'slip'])
+                ->name('tenant.settlements.slip');
+        });
+
         // Operations routes: Receptionist & Clinic Admin (Doctor role restricted -> 403)
         Route::middleware(['role:clinic_admin|receptionist|super_admin'])->group(function () {
             Route::get('/bookings', [BookingTokenController::class, 'index'])
@@ -194,6 +204,33 @@ Route::middleware([
 
         // Administration routes: Clinic Admin Only (Doctor & Receptionist restricted -> 403)
         Route::middleware(['role:clinic_admin|super_admin'])->group(function () {
+            Route::post('/billing/payouts', [DoctorSettlementController::class, 'store'])
+                ->name('tenant.settlements.store');
+            Route::post('/billing/payouts/disburse', [DoctorSettlementController::class, 'disburse'])
+                ->name('tenant.settlements.disburse');
+            Route::post('/billing/payouts/{settlement}/pay', [DoctorSettlementController::class, 'recordPayment'])
+                ->name('tenant.settlements.pay');
+
+            // Settings: Fees & Doctor Payouts
+            Route::get('/settings/fees', [FeeSettingsController::class, 'index'])
+                ->name('tenant.settings.fees');
+            Route::put('/settings/fees/defaults', [FeeSettingsController::class, 'updateDefaults'])
+                ->name('tenant.settings.fees.defaults');
+            Route::post('/settings/fees/preset', [FeeSettingsController::class, 'applyPreset'])
+                ->name('tenant.settings.fees.preset');
+            Route::post('/settings/fees/components', [FeeSettingsController::class, 'storeComponent'])
+                ->name('tenant.settings.fees.components.store');
+            Route::put('/settings/fees/components/{component}', [FeeSettingsController::class, 'updateComponent'])
+                ->name('tenant.settings.fees.components.update');
+            Route::delete('/settings/fees/components/{component}', [FeeSettingsController::class, 'destroyComponent'])
+                ->name('tenant.settings.fees.components.destroy');
+            Route::post('/settings/fees/visit-types', [FeeSettingsController::class, 'storeVisitType'])
+                ->name('tenant.settings.fees.visit_types.store');
+            Route::put('/settings/fees/visit-types/{visitType}', [FeeSettingsController::class, 'updateVisitType'])
+                ->name('tenant.settings.fees.visit_types.update');
+            Route::delete('/settings/fees/visit-types/{visitType}', [FeeSettingsController::class, 'destroyVisitType'])
+                ->name('tenant.settings.fees.visit_types.destroy');
+
             Route::get('/website', [ClinicWebsiteController::class, 'index'])
                 ->name('tenant.website');
             Route::put('/website/sections', [ClinicWebsiteController::class, 'updateSections'])

@@ -14,6 +14,8 @@ use App\Models\Doctor;
 use App\Models\DoctorSession;
 use App\Models\Patient;
 use App\Models\Tenant;
+use App\Models\VisitType;
+use App\Services\FeeResolutionService;
 use App\Support\HtmlSanitizer;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -768,6 +770,7 @@ class ClinicWebsiteController extends Controller
     {
         $tenant = tenant();
         $today = Carbon::today('Asia/Colombo')->toDateString();
+        $feeService = app(FeeResolutionService::class);
 
         $sessions = DoctorSession::with('doctor')
             ->where('session_date', '>=', $today)
@@ -775,8 +778,13 @@ class ClinicWebsiteController extends Controller
             ->orderBy('session_date')
             ->orderBy('start_time')
             ->get()
-            ->map(function ($s) {
+            ->map(function ($s) use ($feeService) {
                 $booked = $s->tokens()->whereNotIn('status', ['cancelled'])->count();
+                $resolved = $feeService->resolve(
+                    doctor: $s->doctor,
+                    session: $s,
+                    channel: 'online'
+                );
 
                 return [
                     'id' => $s->id,
@@ -788,9 +796,16 @@ class ClinicWebsiteController extends Controller
                     'room_number' => $s->room_number ?? 'Consultation Suite 1',
                     'available_tokens_count' => max(0, $s->max_tokens - $booked),
                     'is_full' => $booked >= $s->max_tokens,
-                    'total_fee_formatted' => 'Rs. '.number_format(($s->doctor_fee + $s->clinic_fee) / 100, 2),
+                    'total_fee_formatted' => $resolved['patient_total_formatted'],
+                    'online_fee_formatted' => ! empty($resolved['online_fee']) ? 'Rs. '.number_format($resolved['online_fee'] / 100, 2) : null,
                 ];
             });
+
+        $onlineVisitTypes = VisitType::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->where('allow_online', true)
+            ->orderBy('sort_order')
+            ->get(['id', 'name', 'code', 'pricing_type', 'percentage_value', 'fixed_fee_cents', 'is_default']);
 
         return Inertia::render('Public/BookToken', [
             'clinic' => [
@@ -806,6 +821,7 @@ class ClinicWebsiteController extends Controller
             'footerConfig' => $tenant->website_footer,
             'theme' => $tenant->website_theme ?? 'medvisit-teal',
             'sessions' => $sessions,
+            'visitTypes' => $onlineVisitTypes,
         ]);
     }
 
@@ -832,6 +848,7 @@ class ClinicWebsiteController extends Controller
             'phone' => ['required', 'string', 'max:30'],
             'nic' => ['nullable', 'string', 'max:20'],
             'city' => ['nullable', 'string', 'max:100'],
+            'visit_type_id' => ['nullable', 'exists:visit_types,id'],
             'notes' => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -881,8 +898,10 @@ class ClinicWebsiteController extends Controller
         }
 
         // Concurrency-safe atomic token assignment
-        $token = DB::transaction(function () use ($validated, $patient, $tenantId) {
-            $session = DoctorSession::where('id', $validated['doctor_session_id'])
+        $feeService = app(FeeResolutionService::class);
+        $token = DB::transaction(function () use ($validated, $patient, $tenantId, $feeService) {
+            $session = DoctorSession::with('doctor')
+                ->where('id', $validated['doctor_session_id'])
                 ->lockForUpdate()
                 ->firstOrFail();
 
@@ -900,15 +919,26 @@ class ClinicWebsiteController extends Controller
             $tokenNumber = $lastTokenNumber + 1;
             $estimatedTime = $session->calculateEstimatedTime($tokenNumber);
 
+            // Resolve online fee snapshot
+            $snapshot = $feeService->resolve(
+                doctor: $session->doctor,
+                session: $session,
+                visitType: $validated['visit_type_id'] ?? null,
+                channel: 'online'
+            );
+
             $newToken = BookingToken::create([
                 'tenant_id' => $tenantId,
                 'doctor_session_id' => $session->id,
                 'patient_id' => $patient->id,
                 'token_number' => $tokenNumber,
+                'visit_type_id' => $snapshot['visit_type']['id'] ?? null,
                 'estimated_time' => $estimatedTime,
                 'status' => BookingToken::STATUS_BOOKED,
                 'booked_via' => 'online',
                 'signed_cancel_token' => Str::random(40),
+                'fee_snapshot' => $snapshot,
+                'payout_status' => 'pending',
                 'notes' => $validated['notes'] ?? null,
             ]);
 
@@ -919,10 +949,17 @@ class ClinicWebsiteController extends Controller
                 'booking_token_id' => $newToken->id,
                 'patient_id' => $patient->id,
                 'doctor_id' => $session->doctor_id,
+                'visit_type_id' => $snapshot['visit_type']['id'] ?? null,
                 'receipt_number' => $receiptNumber,
-                'doctor_fee' => $session->doctor_fee,
-                'clinic_fee' => $session->clinic_fee,
-                'total_amount' => $session->doctor_fee + $session->clinic_fee,
+                'doctor_fee' => $snapshot['doctor_fee_portion'],
+                'clinic_fee' => $snapshot['clinic_portion'],
+                'other_fee' => $snapshot['third_party_portion'],
+                'discount' => 0,
+                'total_amount' => $snapshot['patient_total'],
+                'fee_snapshot' => $snapshot,
+                'doctor_payout_amount' => $snapshot['doctor_payout_amount'],
+                'clinic_net_amount' => $snapshot['clinic_net_amount'],
+                'third_party_amount' => $snapshot['third_party_portion'],
                 'payment_method' => 'cash',
                 'payment_status' => 'pending',
             ]);

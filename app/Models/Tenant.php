@@ -22,12 +22,14 @@ class Tenant extends BaseTenant
         'trial_ends_at',
         'trial_ending_reminder_sent_at',
         'trial_ended_reminder_sent_at',
+        'fee_settings',
     ];
 
     protected $casts = [
         'trial_ends_at' => 'datetime',
         'trial_ending_reminder_sent_at' => 'datetime',
         'trial_ended_reminder_sent_at' => 'datetime',
+        'fee_settings' => 'array',
     ];
 
     public static function getCustomColumns(): array
@@ -43,6 +45,7 @@ class Tenant extends BaseTenant
             'trial_ends_at',
             'trial_ending_reminder_sent_at',
             'trial_ended_reminder_sent_at',
+            'fee_settings',
         ];
     }
 
@@ -59,6 +62,21 @@ class Tenant extends BaseTenant
     public function mediaAssets(): HasMany
     {
         return $this->hasMany(ClinicMediaAsset::class, 'tenant_id');
+    }
+
+    public function visitTypes(): HasMany
+    {
+        return $this->hasMany(VisitType::class, 'tenant_id');
+    }
+
+    public function feeComponents(): HasMany
+    {
+        return $this->hasMany(FeeComponent::class, 'tenant_id');
+    }
+
+    public function doctorSettlements(): HasMany
+    {
+        return $this->hasMany(DoctorSettlement::class, 'tenant_id');
     }
 
     public function isSuspended(): bool

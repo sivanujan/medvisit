@@ -10,6 +10,8 @@ use App\Models\DoctorLeave;
 use App\Models\DoctorSession;
 use App\Models\SessionTemplate;
 use App\Models\User;
+use App\Models\VisitType;
+use App\Services\FeeResolutionService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,12 +22,23 @@ use Inertia\Response;
 
 class DoctorController extends Controller
 {
+    public function __construct(
+        protected FeeResolutionService $feeService
+    ) {}
+
     /**
      * Display a listing of doctors, templates, and leaves.
      */
     public function index(Request $request): Response
     {
-        $tenantId = tenant('id');
+        $tenant = tenant();
+        $tenantId = $tenant->id;
+        $feeSettings = $this->feeService->getTenantSettings($tenant);
+
+        $visitTypes = VisitType::where('tenant_id', $tenantId)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->get(['id', 'name', 'code', 'pricing_type', 'percentage_value', 'fixed_fee_cents', 'is_default']);
 
         $doctors = Doctor::with(['user:id,name,email'])
             ->withCount([
@@ -37,34 +50,45 @@ class DoctorController extends Controller
             ])
             ->orderBy('name')
             ->get()
-            ->map(fn ($doc) => [
-                'id' => $doc->id,
-                'name' => $doc->name,
-                'title' => $doc->title ?? 'Dr.',
-                'full_title' => trim(($doc->title ?? 'Dr.').' '.$doc->name),
-                'specialty' => $doc->specialty,
-                'slmc_number' => $doc->slmc_number,
-                'phone' => $doc->phone,
-                'email' => $doc->email,
-                'photo_url' => $doc->photo_url,
-                'bio' => $doc->bio,
-                'doctor_fee_cents' => $doc->doctor_fee,
-                'clinic_fee_cents' => $doc->clinic_fee,
-                'doctor_fee_lkr' => round($doc->doctor_fee / 100, 2),
-                'clinic_fee_lkr' => round($doc->clinic_fee / 100, 2),
-                'total_fee_lkr' => round(($doc->doctor_fee + $doc->clinic_fee) / 100, 2),
-                'total_fee_formatted' => 'Rs. '.number_format(($doc->doctor_fee + $doc->clinic_fee) / 100, 2),
-                'avg_consultation_minutes' => $doc->avg_consultation_minutes,
-                'is_active' => (bool) $doc->is_active,
-                'user_id' => $doc->user_id,
-                'user' => $doc->user ? [
-                    'id' => $doc->user->id,
-                    'name' => $doc->user->name,
-                    'email' => $doc->user->email,
-                ] : null,
-                'templates_count' => $doc->templates_count,
-                'upcoming_sessions_count' => $doc->upcoming_sessions_count,
-            ]);
+            ->map(function ($doc) use ($feeSettings) {
+                $useDefault = (bool) ($doc->use_clinic_default_fees ?? true);
+                $docFeeCents = ! $useDefault && $doc->custom_doctor_fee !== null ? $doc->custom_doctor_fee : ($doc->doctor_fee ?: ($feeSettings['default_doctor_fee'] ?? 200000));
+                $clinicFeeCents = ! $useDefault && $doc->custom_clinic_fee !== null ? $doc->custom_clinic_fee : ($doc->clinic_fee ?: ($feeSettings['default_clinic_fee'] ?? 80000));
+                $totalCents = ! $useDefault && $doc->custom_total_fee !== null ? $doc->custom_total_fee : ($docFeeCents + $clinicFeeCents);
+
+                return [
+                    'id' => $doc->id,
+                    'name' => $doc->name,
+                    'title' => $doc->title ?? 'Dr.',
+                    'full_title' => trim(($doc->title ?? 'Dr.').' '.$doc->name),
+                    'specialty' => $doc->specialty,
+                    'slmc_number' => $doc->slmc_number,
+                    'phone' => $doc->phone,
+                    'email' => $doc->email,
+                    'photo_url' => $doc->photo_url,
+                    'bio' => $doc->bio,
+                    'use_clinic_default_fees' => $useDefault,
+                    'pricing_mode' => $doc->pricing_mode ?? ($feeSettings['pricing_mode'] ?? 'split'),
+                    'doctor_fee_cents' => $docFeeCents,
+                    'clinic_fee_cents' => $clinicFeeCents,
+                    'doctor_fee_lkr' => round($docFeeCents / 100, 2),
+                    'clinic_fee_lkr' => round($clinicFeeCents / 100, 2),
+                    'total_fee_lkr' => round($totalCents / 100, 2),
+                    'total_fee_formatted' => 'Rs. '.number_format($totalCents / 100, 2),
+                    'payout_rule' => $doc->payout_rule ?? ['type' => 'use_clinic_default'],
+                    'visit_type_overrides' => $doc->visit_type_overrides ?? (object) [],
+                    'avg_consultation_minutes' => $doc->avg_consultation_minutes,
+                    'is_active' => (bool) $doc->is_active,
+                    'user_id' => $doc->user_id,
+                    'user' => $doc->user ? [
+                        'id' => $doc->user->id,
+                        'name' => $doc->user->name,
+                        'email' => $doc->user->email,
+                    ] : null,
+                    'templates_count' => $doc->templates_count,
+                    'upcoming_sessions_count' => $doc->upcoming_sessions_count,
+                ];
+            });
 
         $templates = SessionTemplate::with(['doctor:id,name,title,specialty'])
             ->orderBy('day_of_week')
@@ -90,6 +114,9 @@ class DoctorController extends Controller
                     'mode' => $tpl->mode,
                     'doctor_fee_cents' => $tpl->doctor_fee,
                     'clinic_fee_cents' => $tpl->clinic_fee,
+                    'fee_override_type' => $tpl->fee_override_type ?? 'inherit',
+                    'custom_doctor_fee_lkr' => $tpl->custom_doctor_fee ? round($tpl->custom_doctor_fee / 100, 2) : null,
+                    'custom_clinic_fee_lkr' => $tpl->custom_clinic_fee ? round($tpl->custom_clinic_fee / 100, 2) : null,
                     'is_active' => (bool) $tpl->is_active,
                 ];
             });
@@ -141,6 +168,17 @@ class DoctorController extends Controller
             'leaves' => $leaves,
             'eligibleUsers' => $eligibleUsers,
             'specialties' => $specialties,
+            'feeSettings' => [
+                'pricing_mode' => $feeSettings['pricing_mode'] ?? 'split',
+                'default_doctor_fee_lkr' => round(($feeSettings['default_doctor_fee'] ?? 200000) / 100, 2),
+                'default_clinic_fee_lkr' => round(($feeSettings['default_clinic_fee'] ?? 80000) / 100, 2),
+                'default_total_fee_lkr' => round(($feeSettings['default_total_fee'] ?? 280000) / 100, 2),
+                'default_payout_rule' => $feeSettings['default_payout_rule'] ?? [
+                    'type' => 'full_doctor_fee',
+                    'value' => 0,
+                ],
+            ],
+            'visitTypes' => $visitTypes,
         ]);
     }
 
@@ -158,12 +196,24 @@ class DoctorController extends Controller
             'email' => ['nullable', 'email', 'max:255'],
             'photo_url' => ['nullable', 'string', 'max:2048'],
             'bio' => ['nullable', 'string'],
-            'doctor_fee_lkr' => ['required', 'numeric', 'min:0'],
-            'clinic_fee_lkr' => ['required', 'numeric', 'min:0'],
+            'use_clinic_default_fees' => ['boolean'],
+            'pricing_mode' => ['nullable', 'string', 'in:split,single_price'],
+            'doctor_fee_lkr' => ['nullable', 'numeric', 'min:0'],
+            'clinic_fee_lkr' => ['nullable', 'numeric', 'min:0'],
+            'total_fee_lkr' => ['nullable', 'numeric', 'min:0'],
+            'payout_rule' => ['nullable', 'array'],
+            'visit_type_overrides' => ['nullable', 'array'],
             'avg_consultation_minutes' => ['required', 'integer', 'min:1', 'max:120'],
             'is_active' => ['boolean'],
             'user_id' => ['nullable', 'exists:users,id'],
         ]);
+
+        $useDefault = $request->has('use_clinic_default_fees')
+            ? (bool) $request->input('use_clinic_default_fees')
+            : (empty($validated['doctor_fee_lkr']) && empty($validated['clinic_fee_lkr']));
+        $docFeeCents = isset($validated['doctor_fee_lkr']) ? (int) round($validated['doctor_fee_lkr'] * 100) : 0;
+        $clinicFeeCents = isset($validated['clinic_fee_lkr']) ? (int) round($validated['clinic_fee_lkr'] * 100) : 0;
+        $totalFeeCents = isset($validated['total_fee_lkr']) ? (int) round($validated['total_fee_lkr'] * 100) : ($docFeeCents + $clinicFeeCents);
 
         $doctor = Doctor::create([
             'tenant_id' => tenant('id'),
@@ -176,8 +226,15 @@ class DoctorController extends Controller
             'email' => $validated['email'] ?? null,
             'photo_url' => $validated['photo_url'] ?? null,
             'bio' => $validated['bio'] ?? null,
-            'doctor_fee' => (int) round($validated['doctor_fee_lkr'] * 100),
-            'clinic_fee' => (int) round($validated['clinic_fee_lkr'] * 100),
+            'use_clinic_default_fees' => $useDefault,
+            'pricing_mode' => $validated['pricing_mode'] ?? 'split',
+            'custom_doctor_fee' => ! $useDefault ? $docFeeCents : null,
+            'custom_clinic_fee' => ! $useDefault ? $clinicFeeCents : null,
+            'custom_total_fee' => ! $useDefault ? $totalFeeCents : null,
+            'doctor_fee' => $docFeeCents,
+            'clinic_fee' => $clinicFeeCents,
+            'payout_rule' => $validated['payout_rule'] ?? null,
+            'visit_type_overrides' => $validated['visit_type_overrides'] ?? null,
             'avg_consultation_minutes' => $validated['avg_consultation_minutes'],
             'is_active' => $validated['is_active'] ?? true,
         ]);
@@ -199,12 +256,22 @@ class DoctorController extends Controller
             'email' => ['nullable', 'email', 'max:255'],
             'photo_url' => ['nullable', 'string', 'max:2048'],
             'bio' => ['nullable', 'string'],
-            'doctor_fee_lkr' => ['required', 'numeric', 'min:0'],
-            'clinic_fee_lkr' => ['required', 'numeric', 'min:0'],
+            'use_clinic_default_fees' => ['boolean'],
+            'pricing_mode' => ['nullable', 'string', 'in:split,single_price'],
+            'doctor_fee_lkr' => ['nullable', 'numeric', 'min:0'],
+            'clinic_fee_lkr' => ['nullable', 'numeric', 'min:0'],
+            'total_fee_lkr' => ['nullable', 'numeric', 'min:0'],
+            'payout_rule' => ['nullable', 'array'],
+            'visit_type_overrides' => ['nullable', 'array'],
             'avg_consultation_minutes' => ['required', 'integer', 'min:1', 'max:120'],
             'is_active' => ['boolean'],
             'user_id' => ['nullable', 'exists:users,id'],
         ]);
+
+        $useDefault = $validated['use_clinic_default_fees'] ?? true;
+        $docFeeCents = isset($validated['doctor_fee_lkr']) ? (int) round($validated['doctor_fee_lkr'] * 100) : 0;
+        $clinicFeeCents = isset($validated['clinic_fee_lkr']) ? (int) round($validated['clinic_fee_lkr'] * 100) : 0;
+        $totalFeeCents = isset($validated['total_fee_lkr']) ? (int) round($validated['total_fee_lkr'] * 100) : ($docFeeCents + $clinicFeeCents);
 
         $doctor->update([
             'user_id' => $validated['user_id'] ?? null,
@@ -216,8 +283,15 @@ class DoctorController extends Controller
             'email' => $validated['email'] ?? null,
             'photo_url' => $validated['photo_url'] ?? null,
             'bio' => $validated['bio'] ?? null,
-            'doctor_fee' => (int) round($validated['doctor_fee_lkr'] * 100),
-            'clinic_fee' => (int) round($validated['clinic_fee_lkr'] * 100),
+            'use_clinic_default_fees' => $useDefault,
+            'pricing_mode' => $validated['pricing_mode'] ?? 'split',
+            'custom_doctor_fee' => ! $useDefault ? $docFeeCents : null,
+            'custom_clinic_fee' => ! $useDefault ? $clinicFeeCents : null,
+            'custom_total_fee' => ! $useDefault ? $totalFeeCents : null,
+            'doctor_fee' => $docFeeCents,
+            'clinic_fee' => $clinicFeeCents,
+            'payout_rule' => $validated['payout_rule'] ?? null,
+            'visit_type_overrides' => $validated['visit_type_overrides'] ?? null,
             'avg_consultation_minutes' => $validated['avg_consultation_minutes'],
             'is_active' => $validated['is_active'] ?? true,
         ]);
@@ -269,9 +343,18 @@ class DoctorController extends Controller
             'max_patients' => ['required', 'integer', 'min:1', 'max:200'],
             'room_number' => ['nullable', 'string', 'max:50'],
             'mode' => ['nullable', 'string', Rule::in(['token', 'slot'])],
+            'fee_override_type' => ['nullable', 'string', 'in:inherit,custom'],
+            'custom_doctor_fee_lkr' => ['nullable', 'numeric', 'min:0'],
+            'custom_clinic_fee_lkr' => ['nullable', 'numeric', 'min:0'],
+            'custom_total_fee_lkr' => ['nullable', 'numeric', 'min:0'],
+            'payout_rule_override' => ['nullable', 'array'],
         ]);
 
         $doctor = Doctor::findOrFail($validated['doctor_id']);
+        $isCustom = ($validated['fee_override_type'] ?? 'inherit') === 'custom';
+        $customDoc = $isCustom && isset($validated['custom_doctor_fee_lkr']) ? (int) round($validated['custom_doctor_fee_lkr'] * 100) : null;
+        $customClinic = $isCustom && isset($validated['custom_clinic_fee_lkr']) ? (int) round($validated['custom_clinic_fee_lkr'] * 100) : null;
+        $customTotal = $isCustom && isset($validated['custom_total_fee_lkr']) ? (int) round($validated['custom_total_fee_lkr'] * 100) : null;
 
         SessionTemplate::create([
             'tenant_id' => tenant('id'),
@@ -283,8 +366,13 @@ class DoctorController extends Controller
             'max_patients' => $validated['max_patients'],
             'room_number' => $validated['room_number'] ?? 'Suite A',
             'mode' => $validated['mode'] ?? 'token',
-            'doctor_fee' => $doctor->doctor_fee,
-            'clinic_fee' => $doctor->clinic_fee,
+            'doctor_fee' => $customDoc ?? $doctor->doctor_fee,
+            'clinic_fee' => $customClinic ?? $doctor->clinic_fee,
+            'fee_override_type' => $validated['fee_override_type'] ?? 'inherit',
+            'custom_doctor_fee' => $customDoc,
+            'custom_clinic_fee' => $customClinic,
+            'custom_total_fee' => $customTotal,
+            'payout_rule_override' => $validated['payout_rule_override'] ?? null,
             'is_active' => true,
         ]);
 
@@ -319,6 +407,11 @@ class DoctorController extends Controller
             'max_tokens' => ['required', 'integer', 'min:1', 'max:200'],
             'room_number' => ['nullable', 'string', 'max:50'],
             'notes' => ['nullable', 'string'],
+            'fee_override_type' => ['nullable', 'string', 'in:inherit,custom'],
+            'custom_doctor_fee_lkr' => ['nullable', 'numeric', 'min:0'],
+            'custom_clinic_fee_lkr' => ['nullable', 'numeric', 'min:0'],
+            'custom_total_fee_lkr' => ['nullable', 'numeric', 'min:0'],
+            'payout_rule_override' => ['nullable', 'array'],
         ]);
 
         $doctor = Doctor::findOrFail($validated['doctor_id']);
@@ -335,6 +428,18 @@ class DoctorController extends Controller
             ]);
         }
 
+        $rawDocFee = $request->input('custom_doctor_fee_lkr') ?? $request->input('doctor_fee');
+        $rawClinicFee = $request->input('custom_clinic_fee_lkr') ?? $request->input('clinic_fee');
+        $rawTotalFee = $request->input('custom_total_fee_lkr');
+
+        $isCustom = ($validated['fee_override_type'] ?? null) === 'custom'
+            || ($request->has('doctor_fee') && ! $request->has('fee_override_type'));
+
+        $customDoc = $isCustom && $rawDocFee !== null ? (int) round(((float) $rawDocFee) * 100) : null;
+        $customClinic = $isCustom && $rawClinicFee !== null ? (int) round(((float) $rawClinicFee) * 100) : null;
+        $customTotal = $isCustom && $rawTotalFee !== null ? (int) round(((float) $rawTotalFee) * 100) : null;
+        $overrideType = $isCustom ? 'custom' : ($validated['fee_override_type'] ?? 'inherit');
+
         DoctorSession::create([
             'tenant_id' => tenant('id'),
             'doctor_id' => $doctor->id,
@@ -346,8 +451,13 @@ class DoctorController extends Controller
             'mode' => 'token',
             'status' => 'scheduled',
             'room_number' => $validated['room_number'] ?? 'Suite A',
-            'doctor_fee' => $doctor->doctor_fee,
-            'clinic_fee' => $doctor->clinic_fee,
+            'doctor_fee' => $customDoc ?? $doctor->doctor_fee,
+            'clinic_fee' => $customClinic ?? $doctor->clinic_fee,
+            'fee_override_type' => $overrideType,
+            'custom_doctor_fee' => $customDoc,
+            'custom_clinic_fee' => $customClinic,
+            'custom_total_fee' => $customTotal,
+            'payout_rule_override' => $validated['payout_rule_override'] ?? null,
             'notes' => $validated['notes'] ?? null,
         ]);
 

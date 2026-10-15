@@ -26,6 +26,12 @@ class SessionTemplate extends Model
         'room_number',
         'doctor_fee',
         'clinic_fee',
+        'fee_override_type',
+        'custom_doctor_fee',
+        'custom_clinic_fee',
+        'custom_total_fee',
+        'payout_rule_override',
+        'component_overrides',
         'is_active',
     ];
 
@@ -36,6 +42,11 @@ class SessionTemplate extends Model
             'max_patients' => 'integer',
             'doctor_fee' => 'integer',
             'clinic_fee' => 'integer',
+            'custom_doctor_fee' => 'integer',
+            'custom_clinic_fee' => 'integer',
+            'custom_total_fee' => 'integer',
+            'payout_rule_override' => 'array',
+            'component_overrides' => 'array',
             'is_active' => 'boolean',
         ];
     }

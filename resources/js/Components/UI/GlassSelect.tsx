@@ -321,9 +321,16 @@ export default function GlassSelect({
                     }
                     shadow-xs disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
             >
-                <span className={`truncate block flex-1 ${!selectedOption && !currentValue ? 'text-slate-400 dark:text-slate-500' : ''}`}>
-                    {selectedOption ? selectedOption.label : (currentValue || placeholder)}
-                </span>
+                <div className="flex-1 text-left min-w-0 py-0.5">
+                    <span className={`block truncate ${!selectedOption && !currentValue ? 'text-slate-400 dark:text-slate-500' : 'font-medium'}`}>
+                        {selectedOption ? selectedOption.label : (currentValue || placeholder)}
+                    </span>
+                    {selectedOption?.description && (
+                        <span className="block text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                            {selectedOption.description}
+                        </span>
+                    )}
+                </div>
                 <ChevronDown
                     className={`w-4 h-4 text-slate-400 transition-transform duration-200 shrink-0 ${
                         isOpen ? 'rotate-180 text-primary' : ''

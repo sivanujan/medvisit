@@ -28,6 +28,12 @@ class DoctorSession extends Model
         'room_number',
         'doctor_fee',
         'clinic_fee',
+        'fee_override_type',
+        'custom_doctor_fee',
+        'custom_clinic_fee',
+        'custom_total_fee',
+        'payout_rule_override',
+        'component_overrides',
         'current_token_number',
         'notes',
         'cancellation_reason',
@@ -41,6 +47,11 @@ class DoctorSession extends Model
             'current_token_number' => 'integer',
             'doctor_fee' => 'integer',
             'clinic_fee' => 'integer',
+            'custom_doctor_fee' => 'integer',
+            'custom_clinic_fee' => 'integer',
+            'custom_total_fee' => 'integer',
+            'payout_rule_override' => 'array',
+            'component_overrides' => 'array',
         ];
     }
 
@@ -52,6 +63,11 @@ class DoctorSession extends Model
     public function template(): BelongsTo
     {
         return $this->belongsTo(SessionTemplate::class, 'session_template_id');
+    }
+
+    public function settlements(): HasMany
+    {
+        return $this->hasMany(DoctorSettlement::class);
     }
 
     public function tokens(): HasMany

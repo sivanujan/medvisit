@@ -8,6 +8,7 @@ import { Tabs } from '@/Components/UI/Tabs';
 import { StatusBadge } from '@/Components/UI/StatusBadge';
 import { EmptyState } from '@/Components/UI/EmptyState';
 import GlassSelect from '@/Components/UI/GlassSelect';
+import { PhoneInput } from '@/Components/UI/PhoneInput';
 import {
     Stethoscope,
     Calendar,
@@ -26,6 +27,9 @@ import {
     RefreshCw,
     User,
     CheckCircle2,
+    Layers,
+    Info,
+    ChevronDown,
 } from 'lucide-react';
 
 interface DoctorData {
@@ -43,6 +47,14 @@ interface DoctorData {
     clinic_fee_lkr: number;
     total_fee_lkr: number;
     total_fee_formatted: string;
+    use_clinic_default_fees?: boolean;
+    pricing_mode?: 'split' | 'single';
+    payout_rule?: {
+        type: string;
+        value: number;
+        min_patients?: number;
+    };
+    visit_type_overrides?: Record<string, any>;
     avg_consultation_minutes: number;
     is_active: boolean;
     user_id: number | null;
@@ -89,12 +101,58 @@ interface UserOption {
     email: string;
 }
 
+interface VisitTypeItem {
+    id: number;
+    name: string;
+    code: string;
+    pricing_type: string;
+    percentage_value: number;
+    fixed_fee_cents: number;
+    is_default: boolean;
+}
+
 interface Props {
     doctors: DoctorData[];
     templates: TemplateData[];
     leaves: LeaveData[];
     eligibleUsers: UserOption[];
     specialties: string[];
+    feeSettings?: {
+        pricing_mode: 'split' | 'single';
+        default_doctor_fee_lkr: number;
+        default_clinic_fee_lkr: number;
+        default_total_fee_lkr: number;
+        default_payout_rule: {
+            type: string;
+            value: number;
+            min_patients?: number;
+        };
+    };
+    visitTypes?: VisitTypeItem[];
+}
+
+interface DoctorFormData {
+    title: string;
+    name: string;
+    specialty: string;
+    slmc_number: string;
+    phone: string;
+    email: string;
+    bio: string;
+    use_clinic_default_fees: boolean;
+    pricing_mode: string;
+    doctor_fee_lkr: number;
+    clinic_fee_lkr: number;
+    total_fee_lkr: number;
+    payout_rule: {
+        type: string;
+        value: number;
+        min_patients?: number;
+    };
+    visit_type_overrides: Record<string, any>;
+    avg_consultation_minutes: number;
+    is_active: boolean;
+    user_id: string | number;
 }
 
 export default function DoctorsIndex({
@@ -103,6 +161,8 @@ export default function DoctorsIndex({
     leaves,
     eligibleUsers,
     specialties,
+    feeSettings,
+    visitTypes = [],
 }: Props) {
     const [activeTab, setActiveTab] = useState<'doctors' | 'templates' | 'leaves'>('doctors');
     const [searchQuery, setSearchQuery] = useState('');
@@ -116,8 +176,13 @@ export default function DoctorsIndex({
     const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
 
+    const defaultMode = feeSettings?.pricing_mode || 'split';
+    const defDoc = feeSettings?.default_doctor_fee_lkr ?? 2000;
+    const defClinic = feeSettings?.default_clinic_fee_lkr ?? 800;
+    const defTotal = feeSettings?.default_total_fee_lkr ?? (defDoc + defClinic);
+
     // Doctor Form
-    const doctorForm = useForm({
+    const doctorForm = useForm<DoctorFormData>({
         title: 'Dr.',
         name: '',
         specialty: specialties[0] || 'General Physician',
@@ -125,8 +190,17 @@ export default function DoctorsIndex({
         phone: '',
         email: '',
         bio: '',
-        doctor_fee_lkr: 2000,
-        clinic_fee_lkr: 800,
+        use_clinic_default_fees: true,
+        pricing_mode: defaultMode,
+        doctor_fee_lkr: defDoc,
+        clinic_fee_lkr: defClinic,
+        total_fee_lkr: defTotal,
+        payout_rule: {
+            type: 'use_clinic_default',
+            value: 0,
+            min_patients: 0,
+        },
+        visit_type_overrides: {} as Record<string, any>,
         avg_consultation_minutes: 10,
         is_active: true,
         user_id: '' as string | number,
@@ -142,6 +216,9 @@ export default function DoctorsIndex({
         max_patients: 25,
         room_number: 'Consultation Suite 1',
         mode: 'token',
+        fee_override_type: 'inherit' as 'inherit' | 'custom',
+        custom_doctor_fee_lkr: '',
+        custom_clinic_fee_lkr: '',
     });
 
     // One-Off Session Form
@@ -153,6 +230,9 @@ export default function DoctorsIndex({
         max_tokens: 20,
         room_number: 'Consultation Suite 1',
         notes: '',
+        fee_override_type: 'inherit' as 'inherit' | 'custom',
+        custom_doctor_fee_lkr: '',
+        custom_clinic_fee_lkr: '',
     });
 
     // Leave Form
@@ -174,8 +254,17 @@ export default function DoctorsIndex({
             phone: '',
             email: '',
             bio: '',
-            doctor_fee_lkr: 2000,
-            clinic_fee_lkr: 800,
+            use_clinic_default_fees: true,
+            pricing_mode: defaultMode,
+            doctor_fee_lkr: defDoc,
+            clinic_fee_lkr: defClinic,
+            total_fee_lkr: defTotal,
+            payout_rule: {
+                type: 'use_clinic_default',
+                value: 0,
+                min_patients: 0,
+            },
+            visit_type_overrides: {},
             avg_consultation_minutes: 10,
             is_active: true,
             user_id: '',
@@ -193,8 +282,17 @@ export default function DoctorsIndex({
             phone: doc.phone || '',
             email: doc.email || '',
             bio: doc.bio || '',
-            doctor_fee_lkr: doc.doctor_fee_lkr,
-            clinic_fee_lkr: doc.clinic_fee_lkr,
+            use_clinic_default_fees: doc.use_clinic_default_fees ?? true,
+            pricing_mode: (doc.pricing_mode as any) || defaultMode,
+            doctor_fee_lkr: doc.doctor_fee_lkr ?? defDoc,
+            clinic_fee_lkr: doc.clinic_fee_lkr ?? defClinic,
+            total_fee_lkr: doc.total_fee_lkr ?? ((doc.doctor_fee_lkr ?? defDoc) + (doc.clinic_fee_lkr ?? defClinic)),
+            payout_rule: doc.payout_rule ? {
+                type: doc.payout_rule.type || 'use_clinic_default',
+                value: doc.payout_rule.value || 0,
+                min_patients: doc.payout_rule.min_patients ?? 0,
+            } : { type: 'use_clinic_default', value: 0, min_patients: 0 },
+            visit_type_overrides: (doc.visit_type_overrides as any) || {},
             avg_consultation_minutes: doc.avg_consultation_minutes,
             is_active: doc.is_active,
             user_id: doc.user_id ? String(doc.user_id) : '',
@@ -459,8 +557,11 @@ export default function DoctorsIndex({
                                             {/* Details */}
                                             <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-slate-100 dark:border-white/5 text-xs">
                                                 <div className="p-2.5 rounded-xl bg-slate-50/70 dark:bg-white/5">
-                                                    <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                                                        Channeling Fee
+                                                    <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center justify-between">
+                                                        <span>Consultation Fee</span>
+                                                        <span className="text-[9px] font-normal lowercase text-primary">
+                                                            {doc.use_clinic_default_fees ? '· from clinic' : '· doctor override'}
+                                                        </span>
                                                     </span>
                                                     <span className="font-bold text-slate-900 dark:text-white">
                                                         {doc.total_fee_formatted}
@@ -801,65 +902,267 @@ export default function DoctorsIndex({
                         </div>
                     </div>
 
-                    {/* Fees & Time */}
-                    <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 space-y-3">
-                        <h4 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                            <DollarSign className="w-3.5 h-3.5 text-primary" />
-                            Consultation Fees & Time Allocation
-                        </h4>
+                    {/* Fees & Payout */}
+                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <h4 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                <DollarSign className="w-4 h-4 text-primary" />
+                                Fees & Doctor Payout
+                            </h4>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-primary/10 text-primary border border-primary/20 capitalize">
+                                Clinic Pricing: {defaultMode}
+                            </span>
+                        </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {/* Toggle Clinic Default */}
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200/60 dark:border-white/5">
                             <div>
-                                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                                    Doctor Fee (LKR) *
+                                <label htmlFor="use_default_fees_toggle" className="text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer">
+                                    Use clinic default fees
                                 </label>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    step="50"
-                                    required
-                                    value={doctorForm.data.doctor_fee_lkr}
-                                    onChange={(e) => doctorForm.setData('doctor_fee_lkr', parseFloat(e.target.value) || 0)}
-                                    className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-1.5 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
-                                />
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                    Inherit clinic-wide default consultation prices ({defaultMode === 'split' ? `Doctor Rs. ${defDoc.toLocaleString()} + Clinic Rs. ${defClinic.toLocaleString()}` : `Total Rs. ${defTotal.toLocaleString()}`})
+                                </p>
                             </div>
+                            <input
+                                type="checkbox"
+                                id="use_default_fees_toggle"
+                                checked={doctorForm.data.use_clinic_default_fees}
+                                onChange={(e) => doctorForm.setData('use_clinic_default_fees', e.target.checked)}
+                                className="w-4 h-4 rounded text-primary border-slate-300 focus:ring-primary cursor-pointer"
+                            />
+                        </div>
 
-                            <div>
-                                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                                    Clinic Fee (LKR) *
-                                </label>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    step="50"
-                                    required
-                                    value={doctorForm.data.clinic_fee_lkr}
-                                    onChange={(e) => doctorForm.setData('clinic_fee_lkr', parseFloat(e.target.value) || 0)}
-                                    className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-1.5 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
-                                />
+                        {/* Doctor Specific Fee Fields (when toggle off) */}
+                        {!doctorForm.data.use_clinic_default_fees && (
+                            <div className="p-3.5 rounded-xl bg-primary/5 border border-primary/15 space-y-3">
+                                <span className="text-[11px] font-bold text-primary block">
+                                    Doctor-Specific Fee Overrides ({doctorForm.data.pricing_mode === 'split' ? 'Split Mode' : 'Single Price Mode'})
+                                </span>
+
+                                {doctorForm.data.pricing_mode === 'split' ? (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                                Doctor Fee (LKR) *
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="50"
+                                                required
+                                                value={doctorForm.data.doctor_fee_lkr}
+                                                onChange={(e) => doctorForm.setData('doctor_fee_lkr', parseFloat(e.target.value) || 0)}
+                                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-1.5 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                                Clinic Fee (LKR) *
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="50"
+                                                required
+                                                value={doctorForm.data.clinic_fee_lkr}
+                                                onChange={(e) => doctorForm.setData('clinic_fee_lkr', parseFloat(e.target.value) || 0)}
+                                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-1.5 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
+                                            />
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                            Total Patient Consultation Price (LKR) *
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="50"
+                                            required
+                                            value={doctorForm.data.total_fee_lkr}
+                                            onChange={(e) => doctorForm.setData('total_fee_lkr', parseFloat(e.target.value) || 0)}
+                                            className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-1.5 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
+                                        />
+                                    </div>
+                                )}
+
+                                {/* Per-Visit-Type Overrides */}
+                                {visitTypes && visitTypes.length > 0 && (
+                                    <div className="pt-2 border-t border-primary/10">
+                                        <span className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                                            Per-Visit-Type Custom Fees (Optional)
+                                        </span>
+                                        <div className="space-y-2">
+                                            {visitTypes.map((vt) => {
+                                                const currentOverride = doctorForm.data.visit_type_overrides[vt.code] || {};
+                                                return (
+                                                    <div key={vt.code} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white/70 dark:bg-slate-900/60 border border-slate-200/60 dark:border-white/5 text-xs">
+                                                        <div className="min-w-0 flex-1">
+                                                            <span className="font-semibold text-slate-800 dark:text-slate-200">{vt.name}</span>
+                                                            <span className="text-[10px] text-slate-400 block">
+                                                                Type: {vt.pricing_type} {vt.pricing_type === 'percentage' ? `(${vt.percentage_value}%)` : vt.pricing_type === 'fixed' ? `(Rs. ${(vt.fixed_fee_cents/100).toLocaleString()})` : '(Normal)'}
+                                                            </span>
+                                                        </div>
+                                                        <div className="w-36">
+                                                            <input
+                                                                type="number"
+                                                                step="50"
+                                                                placeholder="Inherit standard"
+                                                                value={currentOverride.custom_fee_lkr ?? ''}
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value === '' ? undefined : parseFloat(e.target.value);
+                                                                    const updated = { ...doctorForm.data.visit_type_overrides };
+                                                                    if (val === undefined) {
+                                                                        delete updated[vt.code];
+                                                                    } else {
+                                                                        updated[vt.code] = { custom_fee_lkr: val, doctor_fee_lkr: val };
+                                                                    }
+                                                                    doctorForm.setData('visit_type_overrides', updated);
+                                                                }}
+                                                                className="w-full text-[11px] py-1 px-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-right"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
+                        )}
 
-                            <div>
-                                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                                    Avg Consult (Mins) *
-                                </label>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    max="120"
-                                    required
-                                    value={doctorForm.data.avg_consultation_minutes}
-                                    onChange={(e) => doctorForm.setData('avg_consultation_minutes', parseInt(e.target.value) || 10)}
-                                    className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-1.5 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
-                                />
+                        {/* Doctor Payout Rule */}
+                        <div className="space-y-2">
+                            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                                Doctor Payout Rule
+                            </label>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <select
+                                    value={doctorForm.data.payout_rule.type}
+                                    onChange={(e) => {
+                                        const type = e.target.value;
+                                        doctorForm.setData('payout_rule', {
+                                            ...doctorForm.data.payout_rule,
+                                            type,
+                                            value: type === 'percentage_of_total' ? 70 : type === 'fixed_per_patient' ? 1500 : 0,
+                                        });
+                                    }}
+                                    className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
+                                >
+                                    <option value="use_clinic_default">Use Clinic Default Rule</option>
+                                    <option value="full_doctor_fee">Full Doctor Fee (Pass-through)</option>
+                                    <option value="fixed_per_patient">Fixed Amount Per Patient (LKR)</option>
+                                    <option value="percentage_of_total">Percentage of Patient Total (%)</option>
+                                    <option value="fixed_per_session">Fixed Fee Per Session (LKR)</option>
+                                    <option value="salaried">None (Salaried / Internal)</option>
+                                </select>
+
+                                {['fixed_per_patient', 'percentage_of_total', 'fixed_per_session'].includes(doctorForm.data.payout_rule.type) && (
+                                    <div className="flex items-center gap-1.5">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step={doctorForm.data.payout_rule.type === 'percentage_of_total' ? '1' : '50'}
+                                            placeholder={doctorForm.data.payout_rule.type === 'percentage_of_total' ? 'Percentage %' : 'Amount in LKR'}
+                                            value={doctorForm.data.payout_rule.value}
+                                            onChange={(e) => {
+                                                doctorForm.setData('payout_rule', {
+                                                    ...doctorForm.data.payout_rule,
+                                                    value: parseFloat(e.target.value) || 0,
+                                                });
+                                            }}
+                                            className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
+                                        />
+                                        <span className="text-xs font-bold text-slate-500 shrink-0">
+                                            {doctorForm.data.payout_rule.type === 'percentage_of_total' ? '%' : 'LKR'}
+                                        </span>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400 pt-1">
-                            Total Channeling Fee to Patient:{' '}
-                            <strong className="text-primary font-bold">
-                                Rs. {(Number(doctorForm.data.doctor_fee_lkr) + Number(doctorForm.data.clinic_fee_lkr)).toFixed(2)}
-                            </strong>
+                        {/* Live Preview Per Visit Type */}
+                        <div className="p-3 rounded-xl bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-white/5 space-y-2">
+                            <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider flex items-center gap-1">
+                                <Info className="w-3 h-3 text-primary" />
+                                Live Fee & Payout Preview
+                            </span>
+
+                            <div className="space-y-1.5">
+                                {(visitTypes && visitTypes.length > 0 ? visitTypes : [
+                                    { id: 1, name: 'Normal Consultation', code: 'standard', pricing_type: 'normal', percentage_value: 100, fixed_fee_cents: 0, is_default: true }
+                                ]).map((vt) => {
+                                    const useDef = doctorForm.data.use_clinic_default_fees;
+                                    const curDocFee = useDef ? defDoc : (doctorForm.data.doctor_fee_lkr || 0);
+                                    const curClinicFee = useDef ? defClinic : (doctorForm.data.clinic_fee_lkr || 0);
+                                    const curTotalFee = useDef ? defTotal : (doctorForm.data.pricing_mode === 'single' ? (doctorForm.data.total_fee_lkr || 0) : curDocFee + curClinicFee);
+
+                                    const vtOverride = doctorForm.data.visit_type_overrides[vt.code];
+                                    let patientPays = curTotalFee;
+                                    let docPortion = curDocFee;
+
+                                    if (vtOverride?.custom_fee_lkr !== undefined) {
+                                        patientPays = vtOverride.custom_fee_lkr;
+                                        docPortion = Math.min(patientPays, curDocFee);
+                                    } else if (vt.pricing_type === 'percentage') {
+                                        patientPays = Math.round(curTotalFee * (vt.percentage_value / 100));
+                                        docPortion = Math.round(curDocFee * (vt.percentage_value / 100));
+                                    } else if (vt.pricing_type === 'fixed') {
+                                        patientPays = Math.round((vt.fixed_fee_cents || 0) / 100);
+                                        docPortion = Math.min(patientPays, curDocFee);
+                                    }
+
+                                    // Payout rule calculation
+                                    const activeRule = doctorForm.data.payout_rule.type === 'use_clinic_default'
+                                        ? (feeSettings?.default_payout_rule || { type: 'full_doctor_fee', value: 0 })
+                                        : doctorForm.data.payout_rule;
+
+                                    let docReceives = 0;
+                                    let docReceivesNote = '';
+                                    if (activeRule.type === 'full_doctor_fee') {
+                                        docReceives = docPortion;
+                                    } else if (activeRule.type === 'fixed_per_patient') {
+                                        docReceives = activeRule.value || 0;
+                                    } else if (activeRule.type === 'percentage_of_total') {
+                                        docReceives = Math.round((patientPays * (activeRule.value || 0)) / 100);
+                                    } else if (activeRule.type === 'fixed_per_session') {
+                                        docReceivesNote = `Rs. ${(activeRule.value || 0).toLocaleString()} / session`;
+                                    } else if (activeRule.type === 'salaried') {
+                                        docReceives = 0;
+                                    }
+
+                                    const clinicKeeps = docReceivesNote ? 'Balance' : Math.max(0, patientPays - docReceives);
+
+                                    return (
+                                        <div key={vt.code} className="flex flex-wrap items-center justify-between text-[11px] py-1 border-b border-slate-200/50 dark:border-white/5 last:border-0">
+                                            <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                                {vt.name}:
+                                            </span>
+                                            <span className="text-slate-600 dark:text-slate-300">
+                                                Patient pays <strong className="text-primary font-bold">Rs. {patientPays.toLocaleString()}</strong> · Doctor receives <strong className="text-emerald-600 dark:text-emerald-400 font-bold">{docReceivesNote || `Rs. ${docReceives.toLocaleString()}`}</strong> · Clinic keeps <strong className="text-slate-900 dark:text-white font-bold">{typeof clinicKeeps === 'number' ? `Rs. ${clinicKeeps.toLocaleString()}` : clinicKeeps}</strong>
+                                            </span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Avg consult minutes */}
+                        <div className="pt-1">
+                            <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                                Avg Consultation Time (Mins) *
+                            </label>
+                            <input
+                                type="number"
+                                min="1"
+                                max="120"
+                                required
+                                value={doctorForm.data.avg_consultation_minutes}
+                                onChange={(e) => doctorForm.setData('avg_consultation_minutes', parseInt(e.target.value) || 10)}
+                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-1.5 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
+                            />
                         </div>
                     </div>
 
@@ -869,12 +1172,10 @@ export default function DoctorsIndex({
                             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                                 Contact Phone
                             </label>
-                            <input
-                                type="text"
-                                value={doctorForm.data.phone}
-                                onChange={(e) => doctorForm.setData('phone', e.target.value)}
-                                placeholder="+94 77 123 4567"
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
+                            <PhoneInput
+                                value={doctorForm.data.phone || ''}
+                                onChange={(val) => doctorForm.setData('phone', val)}
+                                error={doctorForm.errors.phone}
                             />
                         </div>
 
@@ -883,14 +1184,15 @@ export default function DoctorsIndex({
                                 Link to Clinic User Account
                             </label>
                             <GlassSelect
-                                value={doctorForm.data.user_id}
+                                value={doctorForm.data.user_id ? String(doctorForm.data.user_id) : ''}
                                 onChange={(e) => doctorForm.setData('user_id', e.target.value)}
                                 placeholder="-- No User Account Linked --"
                                 options={[
-                                    { value: '', label: '-- No User Account Linked --' },
+                                    { value: '', label: '-- No User Account Linked --', description: 'Doctor will not have an individual login' },
                                     ...eligibleUsers.map((u) => ({
-                                        value: u.id,
-                                        label: `${u.name} (${u.email})`,
+                                        value: String(u.id),
+                                        label: u.name,
+                                        description: u.email,
                                     })),
                                 ]}
                             />
@@ -1052,6 +1354,73 @@ export default function DoctorsIndex({
                         </div>
                     </div>
 
+                    {/* Session Fee Override */}
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 space-y-2">
+                        <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                Consultation Fee Hierarchy
+                            </label>
+                            <span className="text-[10px] text-slate-500">
+                                {templateForm.data.fee_override_type === 'inherit' ? '· from doctor / clinic' : '· template override'}
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <button
+                                type="button"
+                                onClick={() => templateForm.setData('fee_override_type', 'inherit')}
+                                className={`py-1.5 px-2.5 rounded-xl text-xs font-semibold border transition-all ${
+                                    templateForm.data.fee_override_type === 'inherit'
+                                        ? 'border-primary bg-primary/10 text-primary'
+                                        : 'border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400'
+                                }`}
+                            >
+                                Inherit from Doctor
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => templateForm.setData('fee_override_type', 'custom')}
+                                className={`py-1.5 px-2.5 rounded-xl text-xs font-semibold border transition-all ${
+                                    templateForm.data.fee_override_type === 'custom'
+                                        ? 'border-primary bg-primary/10 text-primary'
+                                        : 'border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400'
+                                }`}
+                            >
+                                Override for this Template
+                            </button>
+                        </div>
+
+                        {templateForm.data.fee_override_type === 'custom' && (
+                            <div className="grid grid-cols-2 gap-2 pt-1 animate-in fade-in-0 duration-150">
+                                <div>
+                                    <label className="block text-[10px] font-semibold text-slate-600 dark:text-slate-400 mb-0.5">
+                                        Doctor Fee Override (LKR)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        step="50"
+                                        placeholder="e.g. 2500"
+                                        value={templateForm.data.custom_doctor_fee_lkr}
+                                        onChange={(e) => templateForm.setData('custom_doctor_fee_lkr', e.target.value)}
+                                        className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 py-1.5 px-2.5 bg-white dark:bg-slate-900"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-semibold text-slate-600 dark:text-slate-400 mb-0.5">
+                                        Clinic Fee Override (LKR)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        step="50"
+                                        placeholder="e.g. 1000"
+                                        value={templateForm.data.custom_clinic_fee_lkr}
+                                        onChange={(e) => templateForm.setData('custom_clinic_fee_lkr', e.target.value)}
+                                        className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 py-1.5 px-2.5 bg-white dark:bg-slate-900"
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
                     <div className="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-white/10">
                         <button
                             type="button"
@@ -1180,6 +1549,73 @@ export default function DoctorsIndex({
                             placeholder="e.g. Special weekend clinic"
                             className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
                         />
+                    </div>
+
+                    {/* Session Fee Override */}
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 space-y-2">
+                        <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                Session Fee Hierarchy
+                            </label>
+                            <span className="text-[10px] text-slate-500">
+                                {oneOffForm.data.fee_override_type === 'inherit' ? '· from doctor / clinic' : '· session override'}
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <button
+                                type="button"
+                                onClick={() => oneOffForm.setData('fee_override_type', 'inherit')}
+                                className={`py-1.5 px-2.5 rounded-xl text-xs font-semibold border transition-all ${
+                                    oneOffForm.data.fee_override_type === 'inherit'
+                                        ? 'border-teal-500 bg-teal-500/10 text-teal-600 dark:text-teal-400'
+                                        : 'border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400'
+                                }`}
+                            >
+                                Inherit from Doctor
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => oneOffForm.setData('fee_override_type', 'custom')}
+                                className={`py-1.5 px-2.5 rounded-xl text-xs font-semibold border transition-all ${
+                                    oneOffForm.data.fee_override_type === 'custom'
+                                        ? 'border-teal-500 bg-teal-500/10 text-teal-600 dark:text-teal-400'
+                                        : 'border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400'
+                                }`}
+                            >
+                                Override for this Session
+                            </button>
+                        </div>
+
+                        {oneOffForm.data.fee_override_type === 'custom' && (
+                            <div className="grid grid-cols-2 gap-2 pt-1 animate-in fade-in-0 duration-150">
+                                <div>
+                                    <label className="block text-[10px] font-semibold text-slate-600 dark:text-slate-400 mb-0.5">
+                                        Doctor Fee Override (LKR)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        step="50"
+                                        placeholder="e.g. 2500"
+                                        value={oneOffForm.data.custom_doctor_fee_lkr}
+                                        onChange={(e) => oneOffForm.setData('custom_doctor_fee_lkr', e.target.value)}
+                                        className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 py-1.5 px-2.5 bg-white dark:bg-slate-900"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-semibold text-slate-600 dark:text-slate-400 mb-0.5">
+                                        Clinic Fee Override (LKR)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        step="50"
+                                        placeholder="e.g. 1000"
+                                        value={oneOffForm.data.custom_clinic_fee_lkr}
+                                        onChange={(e) => oneOffForm.setData('custom_clinic_fee_lkr', e.target.value)}
+                                        className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 py-1.5 px-2.5 bg-white dark:bg-slate-900"
+                                    />
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-white/10">

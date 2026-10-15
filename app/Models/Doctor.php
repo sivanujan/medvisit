@@ -27,6 +27,14 @@ class Doctor extends Model
         'bio',
         'doctor_fee',
         'clinic_fee',
+        'use_clinic_default_fees',
+        'pricing_mode',
+        'custom_doctor_fee',
+        'custom_clinic_fee',
+        'custom_total_fee',
+        'payout_rule',
+        'visit_type_overrides',
+        'component_overrides',
         'avg_consultation_minutes',
         'is_active',
     ];
@@ -36,6 +44,13 @@ class Doctor extends Model
         return [
             'doctor_fee' => 'integer',
             'clinic_fee' => 'integer',
+            'use_clinic_default_fees' => 'boolean',
+            'custom_doctor_fee' => 'integer',
+            'custom_clinic_fee' => 'integer',
+            'custom_total_fee' => 'integer',
+            'payout_rule' => 'array',
+            'visit_type_overrides' => 'array',
+            'component_overrides' => 'array',
             'avg_consultation_minutes' => 'integer',
             'is_active' => 'boolean',
         ];
@@ -59,6 +74,11 @@ class Doctor extends Model
     public function bills(): HasMany
     {
         return $this->hasMany(Bill::class);
+    }
+
+    public function settlements(): HasMany
+    {
+        return $this->hasMany(DoctorSettlement::class);
     }
 
     public function leaves(): HasMany

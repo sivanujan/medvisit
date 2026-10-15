@@ -48,6 +48,10 @@ interface BillItem {
     refund_reason: string | null;
     refunded_at: string | null;
     created_at_formatted: string;
+    receipt_lines?: Array<{ name: string; amount: number; recipient?: string }>;
+    doctor_payout_amount?: number;
+    visit_type_name?: string | null;
+    source_levels?: Record<string, string>;
 }
 
 interface DailyReport {
@@ -212,6 +216,14 @@ export default function BillingIndex({
                                     className="bg-transparent border-0 text-slate-800 dark:text-slate-200 text-xs p-0 focus:ring-0 cursor-pointer"
                                 />
                             </div>
+
+                            <Link
+                                href="/billing/payouts"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs"
+                            >
+                                <DollarSign className="w-3.5 h-3.5" />
+                                <span>Doctor Payouts</span>
+                            </Link>
 
                             <Link
                                 href="/bookings"
@@ -833,17 +845,36 @@ export default function BillingIndex({
                                         <span>Doctor:</span>
                                         <span>{activeReceipt.doctor_name}</span>
                                     </div>
-                                    <div className="flex justify-between pt-1 border-t border-slate-200">
-                                        <span>Doctor Fee:</span>
-                                        <span>Rs. {activeReceipt.doctor_fee_lkr.toFixed(2)}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span>Clinic Fee:</span>
-                                        <span>Rs. {activeReceipt.clinic_fee_lkr.toFixed(2)}</span>
-                                    </div>
+                                    {activeReceipt.visit_type_name && (
+                                        <div className="flex justify-between">
+                                            <span>Visit Type:</span>
+                                            <span className="font-semibold">{activeReceipt.visit_type_name}</span>
+                                        </div>
+                                    )}
+
+                                    {activeReceipt.receipt_lines && activeReceipt.receipt_lines.length > 0 ? (
+                                        activeReceipt.receipt_lines.map((line: any, idx: number) => (
+                                            <div key={idx} className="flex justify-between pt-1 border-t border-slate-100 first:border-t first:border-slate-200">
+                                                <span>{line.name} <span className="text-[10px] text-slate-400 font-normal">({line.recipient || 'clinic'})</span>:</span>
+                                                <span>Rs. {(line.amount / 100).toFixed(2)}</span>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <>
+                                            <div className="flex justify-between pt-1 border-t border-slate-200">
+                                                <span>Doctor Fee:</span>
+                                                <span>Rs. {activeReceipt.doctor_fee_lkr.toFixed(2)}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span>Clinic Fee:</span>
+                                                <span>Rs. {activeReceipt.clinic_fee_lkr.toFixed(2)}</span>
+                                            </div>
+                                        </>
+                                    )}
+
                                     {activeReceipt.discount_lkr > 0 && (
                                         <div className="flex justify-between text-rose-600">
-                                            <span>Discount:</span>
+                                            <span>Discount ({activeReceipt.discount_reason || 'Manual'}):</span>
                                             <span>- Rs. {activeReceipt.discount_lkr.toFixed(2)}</span>
                                         </div>
                                     )}
@@ -907,22 +938,37 @@ export default function BillingIndex({
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
-                                        <tr>
-                                            <td className="py-2.5">
-                                                Specialist Consultation Fee (Doctor Share)
-                                            </td>
-                                            <td className="py-2.5 text-right font-medium">
-                                                Rs. {activeReceipt.doctor_fee_lkr.toFixed(2)}
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td className="py-2.5">
-                                                Clinic Channeling & Suite Facility Charge
-                                            </td>
-                                            <td className="py-2.5 text-right font-medium">
-                                                Rs. {activeReceipt.clinic_fee_lkr.toFixed(2)}
-                                            </td>
-                                        </tr>
+                                        {activeReceipt.receipt_lines && activeReceipt.receipt_lines.length > 0 ? (
+                                            activeReceipt.receipt_lines.map((line: any, idx: number) => (
+                                                <tr key={idx}>
+                                                    <td className="py-2.5">
+                                                        {line.name} <span className="text-[10px] text-slate-400 uppercase font-semibold">({line.recipient || 'clinic'})</span>
+                                                    </td>
+                                                    <td className="py-2.5 text-right font-medium">
+                                                        Rs. {(line.amount / 100).toFixed(2)}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        ) : (
+                                            <>
+                                                <tr>
+                                                    <td className="py-2.5">
+                                                        Specialist Consultation Fee (Doctor Share)
+                                                    </td>
+                                                    <td className="py-2.5 text-right font-medium">
+                                                        Rs. {activeReceipt.doctor_fee_lkr.toFixed(2)}
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td className="py-2.5">
+                                                        Clinic Channeling & Suite Facility Charge
+                                                    </td>
+                                                    <td className="py-2.5 text-right font-medium">
+                                                        Rs. {activeReceipt.clinic_fee_lkr.toFixed(2)}
+                                                    </td>
+                                                </tr>
+                                            </>
+                                        )}
                                         {activeReceipt.discount_lkr > 0 && (
                                             <tr className="text-rose-600">
                                                 <td className="py-2.5">

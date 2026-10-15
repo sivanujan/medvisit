@@ -44,6 +44,10 @@ class BookingToken extends Model
         'cancellation_reason',
         'signed_cancel_token',
         'notes',
+        'visit_type_id',
+        'fee_snapshot',
+        'payout_status',
+        'doctor_settlement_id',
     ];
 
     protected function casts(): array
@@ -55,6 +59,7 @@ class BookingToken extends Model
             'called_at' => 'datetime',
             'completed_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            'fee_snapshot' => 'array',
         ];
     }
 
@@ -66,6 +71,16 @@ class BookingToken extends Model
     public function patient(): BelongsTo
     {
         return $this->belongsTo(Patient::class);
+    }
+
+    public function visitType(): BelongsTo
+    {
+        return $this->belongsTo(VisitType::class);
+    }
+
+    public function settlement(): BelongsTo
+    {
+        return $this->belongsTo(DoctorSettlement::class, 'doctor_settlement_id');
     }
 
     public function bill(): HasOne

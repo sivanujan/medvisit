@@ -28,6 +28,10 @@ class EnsureTenantIsActive
             return redirect()->route('tenant.suspended');
         }
 
+        if ($request->user() && $tenant && $request->user()->tenant_id !== $tenant->id && ! $request->user()->hasRole('super_admin')) {
+            abort(403, 'Unauthorized tenant access.');
+        }
+
         return $next($request);
     }
 }

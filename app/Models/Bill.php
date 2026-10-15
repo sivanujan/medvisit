@@ -42,6 +42,12 @@ class Bill extends Model
         'refunded_at',
         'refund_reason',
         'notes',
+        'visit_type_id',
+        'fee_snapshot',
+        'doctor_payout_amount',
+        'clinic_net_amount',
+        'third_party_amount',
+        'doctor_settlement_id',
     ];
 
     protected function casts(): array
@@ -52,6 +58,10 @@ class Bill extends Model
             'other_fee' => 'integer',
             'discount' => 'integer',
             'total_amount' => 'integer',
+            'doctor_payout_amount' => 'integer',
+            'clinic_net_amount' => 'integer',
+            'third_party_amount' => 'integer',
+            'fee_snapshot' => 'array',
             'refunded_at' => 'datetime',
         ];
     }
@@ -69,6 +79,16 @@ class Bill extends Model
     public function doctor(): BelongsTo
     {
         return $this->belongsTo(Doctor::class);
+    }
+
+    public function visitType(): BelongsTo
+    {
+        return $this->belongsTo(VisitType::class);
+    }
+
+    public function settlement(): BelongsTo
+    {
+        return $this->belongsTo(DoctorSettlement::class, 'doctor_settlement_id');
     }
 
     public function getFormattedTotalAttribute(): string

@@ -25,6 +25,11 @@ import {
     Building2,
     ShieldCheck,
     HelpCircle,
+    Tag,
+    Percent,
+    AlertCircle,
+    Info,
+    Check,
 } from 'lucide-react';
 
 interface SessionOption {
@@ -46,6 +51,8 @@ interface SessionOption {
     clinic_fee_lkr: number;
     total_fee_lkr: number;
     total_fee_formatted: string;
+    source_label?: string;
+    pricing_mode?: string;
 }
 
 interface RecentBooking {
@@ -59,6 +66,7 @@ interface RecentBooking {
     patient_name: string;
     patient_phone: string;
     patient_nic: string;
+    visit_type_name?: string;
     estimated_time: string;
     status: string;
     booked_via: string;
@@ -66,6 +74,39 @@ interface RecentBooking {
     total_fee_formatted: string;
     receipt_number: string | null;
     payment_status: string;
+    has_discount?: boolean;
+    discount_amount_formatted?: string | null;
+    source_label?: string;
+}
+
+interface VisitType {
+    id: number;
+    name: string;
+    code: string;
+    pricing_type: string;
+    percentage_value: number;
+    fixed_fee_cents: number;
+    is_default: boolean;
+}
+
+interface FeeComponentItem {
+    id: number;
+    name: string;
+    code: string;
+    amount_type: string;
+    amount_value: number;
+    recipient_type: string;
+    applies_to: string[];
+    is_mandatory: boolean;
+    is_active: boolean;
+}
+
+interface DiscountConfig {
+    is_admin: boolean;
+    can_discount: boolean;
+    max_type: 'percent' | 'fixed';
+    max_value: number;
+    max_display: string;
 }
 
 interface ClinicInfo {
@@ -79,6 +120,9 @@ interface Props {
     sessions: SessionOption[];
     recentBookings: RecentBooking[];
     clinicInfo: ClinicInfo;
+    visitTypes?: VisitType[];
+    feeComponents?: FeeComponentItem[];
+    discountConfig?: DiscountConfig;
 }
 
 function maskPhoneNumber(phone: string): string {
@@ -92,7 +136,14 @@ function maskPhoneNumber(phone: string): string {
     return phone;
 }
 
-export default function BookingsIndex({ sessions, recentBookings, clinicInfo }: Props) {
+export default function BookingsIndex({
+    sessions,
+    recentBookings,
+    clinicInfo,
+    visitTypes = [],
+    feeComponents = [],
+    discountConfig = { is_admin: true, can_discount: true, max_type: 'percent', max_value: 100, max_display: 'Unlimited' },
+}: Props) {
     const [selectedSessionId, setSelectedSessionId] = useState<number | null>(sessions[0]?.id || null);
 
     // Patient lookup
@@ -106,6 +157,8 @@ export default function BookingsIndex({ sessions, recentBookings, clinicInfo }: 
     const [slipModalOpen, setSlipModalOpen] = useState(false);
     const [activeSlip, setActiveSlip] = useState<any | null>(null);
 
+    const defaultVisitTypeId = visitTypes?.find((v) => v.is_default)?.id || visitTypes?.[0]?.id || '';
+
     // Form
     const { data, setData, post, processing, errors, reset } = useForm({
         doctor_session_id: sessions[0]?.id ? String(sessions[0].id) : '',
@@ -114,12 +167,22 @@ export default function BookingsIndex({ sessions, recentBookings, clinicInfo }: 
         new_patient_phone: '',
         new_patient_nic: '',
         new_patient_gender: 'male',
+        visit_type_id: defaultVisitTypeId ? String(defaultVisitTypeId) : '',
+        optional_component_ids: [] as number[],
+        discount_type: 'none' as 'none' | 'percent' | 'fixed' | 'waiver',
+        discount_value: 0,
+        discount_reason: '',
         notes: '',
     });
 
     const activeSession = useMemo(
         () => sessions.find((s) => s.id === selectedSessionId) || null,
         [sessions, selectedSessionId]
+    );
+
+    const selectedVisitType = useMemo(
+        () => visitTypes.find((v) => String(v.id) === String(data.visit_type_id)) || visitTypes[0] || null,
+        [visitTypes, data.visit_type_id]
     );
 
     useEffect(() => {
@@ -176,6 +239,66 @@ export default function BookingsIndex({ sessions, recentBookings, clinicInfo }: 
         return `${activeSession.start_time} (Token #${tokenNumber})`;
     }, [activeSession]);
 
+    // Live Fee Breakdown Calculation
+    const liveFeeCalculation = useMemo(() => {
+        if (!activeSession) {
+            return {
+                patientTotal: 0,
+                consultFee: 0,
+                optionalTotal: 0,
+                grossTotal: 0,
+                discountAmount: 0,
+                sourceLabel: 'from clinic',
+            };
+        }
+
+        const baseSessionFee = activeSession.total_fee_lkr || 0;
+        let consultFee = baseSessionFee;
+
+        if (selectedVisitType) {
+            if (selectedVisitType.pricing_type === 'percentage') {
+                consultFee = Math.round((baseSessionFee * (selectedVisitType.percentage_value || 100)) / 100);
+            } else if (selectedVisitType.pricing_type === 'fixed') {
+                consultFee = Math.round((selectedVisitType.fixed_fee_cents || 0) / 100);
+            }
+        }
+
+        // Optional components sum
+        const selectedComponents = feeComponents.filter((c) => data.optional_component_ids.includes(c.id));
+        let optionalTotal = 0;
+        selectedComponents.forEach((c) => {
+            if (c.amount_type === 'fixed') {
+                optionalTotal += (c.amount_value || 0) / 100;
+            } else if (c.amount_type === 'percentage') {
+                optionalTotal += (consultFee * (c.amount_value || 0)) / 100;
+            }
+        });
+
+        const grossTotal = consultFee + optionalTotal;
+        let discountAmount = 0;
+
+        if (data.discount_type === 'percent') {
+            const pct = Math.min(100, Math.max(0, Number(data.discount_value) || 0));
+            discountAmount = Math.round((grossTotal * pct) / 100);
+        } else if (data.discount_type === 'fixed') {
+            discountAmount = Math.min(grossTotal, Math.max(0, Number(data.discount_value) || 0));
+        } else if (data.discount_type === 'waiver') {
+            discountAmount = grossTotal;
+        }
+
+        const netTotal = Math.max(0, grossTotal - discountAmount);
+
+        return {
+            baseTotal: baseSessionFee,
+            consultFee,
+            optionalTotal,
+            grossTotal,
+            discountAmount,
+            patientTotal: netTotal,
+            sourceLabel: activeSession.source_label || 'from clinic',
+        };
+    }, [activeSession, selectedVisitType, feeComponents, data.optional_component_ids, data.discount_type, data.discount_value]);
+
     // Validation reason for disabled issue button
     const issueDisabledReason = useMemo(() => {
         if (processing) return 'Issuing token...';
@@ -185,8 +308,22 @@ export default function BookingsIndex({ sessions, recentBookings, clinicInfo }: 
             if (!data.new_patient_name.trim()) return 'Enter patient full name';
             if (!data.new_patient_phone.trim()) return 'Enter patient mobile number';
         }
+        if (data.discount_type !== 'none') {
+            if (!data.discount_reason.trim()) return 'Enter reason for discount / waiver';
+            if (!discountConfig.is_admin) {
+                if (data.discount_type === 'percent' && discountConfig.max_type === 'percent' && Number(data.discount_value) > discountConfig.max_value) {
+                    return `Discount exceeds receptionist limit (${discountConfig.max_display})`;
+                }
+                if (data.discount_type === 'fixed' && discountConfig.max_type === 'fixed' && Number(data.discount_value) > (discountConfig.max_value / 100)) {
+                    return `Discount exceeds receptionist limit (${discountConfig.max_display})`;
+                }
+                if (data.discount_type === 'waiver' && discountConfig.max_value < 100) {
+                    return 'Full waiver requires clinic admin authorization';
+                }
+            }
+        }
         return null;
-    }, [processing, activeSession, selectedPatient, data.new_patient_name, data.new_patient_phone]);
+    }, [processing, activeSession, selectedPatient, data.new_patient_name, data.new_patient_phone, data.discount_type, data.discount_reason, data.discount_value, discountConfig]);
 
     const handleIssueToken = (e: React.FormEvent) => {
         e.preventDefault();
@@ -204,11 +341,16 @@ export default function BookingsIndex({ sessions, recentBookings, clinicInfo }: 
                     approx_time: approximateTime,
                     patient_name: selectedPatient ? selectedPatient.name : data.new_patient_name,
                     patient_phone: selectedPatient ? selectedPatient.phone : data.new_patient_phone,
-                    fee_formatted: activeSession?.total_fee_formatted,
+                    fee_formatted: `Rs. ${liveFeeCalculation.patientTotal.toLocaleString()}`,
+                    visit_type_name: selectedVisitType?.name,
+                    discount_amount: liveFeeCalculation.discountAmount,
+                    discount_reason: data.discount_reason,
                 });
                 setSlipModalOpen(true);
                 clearSelectedPatient();
-                reset('new_patient_name', 'new_patient_nic', 'new_patient_phone', 'notes');
+                reset('new_patient_name', 'new_patient_nic', 'new_patient_phone', 'notes', 'discount_reason', 'discount_value');
+                setData('discount_type', 'none');
+                setData('optional_component_ids', []);
                 setIsCreatingNewPatient(false);
             },
         });
@@ -680,16 +822,142 @@ export default function BookingsIndex({ sessions, recentBookings, clinicInfo }: 
                                 </div>
                             </div>
 
-                            {/* Fee Breakdown */}
-                            <div className="p-3.5 rounded-xl bg-slate-100/70 dark:bg-white/[0.04] border border-slate-200/70 dark:border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                <div className="text-xs text-slate-600 dark:text-slate-300 space-y-0.5">
-                                    <div className="flex items-center gap-3 text-[11px]">
-                                        <span>Doctor Fee: Rs. {activeSession?.doctor_fee_lkr?.toFixed(2) || '0.00'}</span>
-                                        <span>•</span>
-                                        <span>Clinic Fee: Rs. {activeSession?.clinic_fee_lkr?.toFixed(2) || '0.00'}</span>
+                            {/* Visit Type & Optional Charges */}
+                            <div className="p-3.5 rounded-xl bg-slate-50/90 dark:bg-white/[0.03] border border-slate-200/70 dark:border-white/5 space-y-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                            Visit Type *
+                                        </label>
+                                        <select
+                                            value={data.visit_type_id}
+                                            onChange={(e) => setData('visit_type_id', e.target.value)}
+                                            className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-1.5 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
+                                        >
+                                            {visitTypes.map((vt) => (
+                                                <option key={vt.id} value={vt.id}>
+                                                    {vt.name} {vt.pricing_type === 'percentage' ? `(${vt.percentage_value}%)` : vt.pricing_type === 'fixed' ? `(Rs. ${(vt.fixed_fee_cents/100).toLocaleString()})` : '(Standard)'}
+                                                </option>
+                                            ))}
+                                        </select>
                                     </div>
-                                    <div className="text-sm font-extrabold text-slate-900 dark:text-white">
-                                        Total: {activeSession?.total_fee_formatted || 'Rs. 0.00'}
+
+                                    {/* Receptionist Limit & Discount Selector */}
+                                    <div>
+                                        <div className="flex items-center justify-between mb-1">
+                                            <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                                                Discount / Waiver
+                                            </label>
+                                            <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-primary/10 text-primary">
+                                                {discountConfig.is_admin ? 'Admin: Unlimited' : `Limit: ${discountConfig.max_display}`}
+                                            </span>
+                                        </div>
+                                        <select
+                                            value={data.discount_type}
+                                            onChange={(e) => setData('discount_type', e.target.value as any)}
+                                            className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-1.5 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
+                                        >
+                                            <option value="none">No Discount (Standard Fee)</option>
+                                            <option value="percent">Percentage Discount (%)</option>
+                                            <option value="fixed">Fixed Amount Off (Rs.)</option>
+                                            <option value="waiver">Full Waiver (100% Free)</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {/* Discount Value & Reason Inputs if discount selected */}
+                                {data.discount_type !== 'none' && (
+                                    <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-2 animate-in fade-in-0 duration-150">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                            {data.discount_type !== 'waiver' && (
+                                                <div>
+                                                    <label className="block text-[10px] font-bold text-amber-900 dark:text-amber-200 mb-1">
+                                                        {data.discount_type === 'percent' ? 'Discount Percentage (%) *' : 'Discount Amount (LKR) *'}
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        max={data.discount_type === 'percent' ? 100 : liveFeeCalculation.grossTotal}
+                                                        value={data.discount_value || ''}
+                                                        onChange={(e) => setData('discount_value', parseFloat(e.target.value) || 0)}
+                                                        placeholder={data.discount_type === 'percent' ? 'e.g. 20' : 'e.g. 500'}
+                                                        className="w-full text-xs rounded-xl border border-amber-300 dark:border-amber-500/30 bg-white dark:bg-slate-900 py-1.5 px-3"
+                                                    />
+                                                </div>
+                                            )}
+                                            <div className={data.discount_type === 'waiver' ? 'sm:col-span-2' : ''}>
+                                                <label className="block text-[10px] font-bold text-amber-900 dark:text-amber-200 mb-1">
+                                                    Discount / Waiver Reason (Required) *
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    value={data.discount_reason}
+                                                    onChange={(e) => setData('discount_reason', e.target.value)}
+                                                    placeholder="e.g. Senior citizen / Staff courtesy / Follow-up review"
+                                                    className="w-full text-xs rounded-xl border border-amber-300 dark:border-amber-500/30 bg-white dark:bg-slate-900 py-1.5 px-3"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Optional Fee Components */}
+                                {feeComponents.filter((c) => !c.is_mandatory && c.is_active && c.applies_to?.includes('walk_in')).length > 0 && (
+                                    <div className="pt-2 border-t border-slate-200/60 dark:border-white/5">
+                                        <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                                            Optional Add-on Charges (Optional)
+                                        </span>
+                                        <div className="flex flex-wrap gap-2">
+                                            {feeComponents.filter((c) => !c.is_mandatory && c.is_active && c.applies_to?.includes('walk_in')).map((c) => {
+                                                const checked = data.optional_component_ids.includes(c.id);
+                                                return (
+                                                    <button
+                                                        key={c.id}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const exists = data.optional_component_ids.includes(c.id);
+                                                            setData('optional_component_ids', exists
+                                                                ? data.optional_component_ids.filter((id) => id !== c.id)
+                                                                : [...data.optional_component_ids, c.id]);
+                                                        }}
+                                                        className={`text-xs px-2.5 py-1 rounded-lg border flex items-center gap-1.5 transition-all ${
+                                                            checked
+                                                                ? 'border-primary bg-primary text-white font-bold'
+                                                                : 'border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300'
+                                                        }`}
+                                                    >
+                                                        <span>{c.name} (+Rs. {(c.amount_value / 100).toLocaleString()})</span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Fee Breakdown & Issue Action */}
+                            <div className="p-4 rounded-xl bg-slate-100/70 dark:bg-white/[0.04] border border-slate-200/70 dark:border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1">
+                                    <div className="flex items-center gap-2 text-[11px]">
+                                        <span>Consultation: Rs. {liveFeeCalculation.consultFee.toLocaleString()}</span>
+                                        <span className="text-[10px] text-primary font-semibold">({liveFeeCalculation.sourceLabel})</span>
+                                        {liveFeeCalculation.optionalTotal > 0 && (
+                                            <>
+                                                <span>•</span>
+                                                <span>Add-ons: +Rs. {liveFeeCalculation.optionalTotal.toLocaleString()}</span>
+                                            </>
+                                        )}
+                                        {liveFeeCalculation.discountAmount > 0 && (
+                                            <>
+                                                <span>•</span>
+                                                <span className="text-emerald-600 font-bold">Discount: -Rs. {liveFeeCalculation.discountAmount.toLocaleString()}</span>
+                                            </>
+                                        )}
+                                    </div>
+                                    <div className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                                        <span>Patient Total:</span>
+                                        <span className="text-primary text-lg">Rs. {liveFeeCalculation.patientTotal.toLocaleString()}</span>
                                     </div>
                                 </div>
 
@@ -792,9 +1060,21 @@ export default function BookingsIndex({ sessions, recentBookings, clinicInfo }: 
                                                     <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate">
                                                         {b.doctor_name} • {b.estimated_time || 'Queue'}
                                                     </span>
-                                                    <span className="text-[10px] text-slate-400">
-                                                        {b.created_at_time} • {b.total_fee_formatted}
-                                                    </span>
+                                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                                        <span className="text-[10px] text-slate-400">
+                                                            {b.created_at_time} • {b.total_fee_formatted}
+                                                        </span>
+                                                        {b.visit_type_name && (
+                                                            <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold bg-slate-200/60 dark:bg-white/10 text-slate-700 dark:text-slate-300">
+                                                                {b.visit_type_name}
+                                                            </span>
+                                                        )}
+                                                        {b.has_discount && (
+                                                            <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300">
+                                                                Discounted
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
 
@@ -890,6 +1170,18 @@ export default function BookingsIndex({ sessions, recentBookings, clinicInfo }: 
                                     <span className="text-slate-500">Patient:</span>
                                     <span className="font-bold">{activeSlip.patient_name}</span>
                                 </div>
+                                {activeSlip.visit_type_name && (
+                                    <div className="flex justify-between">
+                                        <span className="text-slate-500">Visit Type:</span>
+                                        <span className="font-semibold">{activeSlip.visit_type_name}</span>
+                                    </div>
+                                )}
+                                {Boolean(activeSlip.discount_amount) && (
+                                    <div className="flex justify-between text-emerald-700 font-semibold">
+                                        <span>Discount:</span>
+                                        <span>-Rs. {Number(activeSlip.discount_amount).toLocaleString()}</span>
+                                    </div>
+                                )}
                                 <div className="flex justify-between pt-1 border-t border-slate-200">
                                     <span className="font-bold">Total Fee:</span>
                                     <span className="font-bold text-sm">{activeSlip.fee_formatted}</span>

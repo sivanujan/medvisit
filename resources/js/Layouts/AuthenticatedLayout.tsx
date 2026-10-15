@@ -19,6 +19,8 @@ import {
     Search,
     Building2,
     Shield,
+    DollarSign,
+    Sliders,
 } from 'lucide-react';
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import ThemeToggle from '@/Components/Common/ThemeToggle';
@@ -178,11 +180,23 @@ export default function AuthenticatedLayout({
                     icon: Receipt,
                     visible: isClinicAdmin || isReceptionist,
                 },
+                {
+                    name: 'Doctor Payouts',
+                    href: '/billing/payouts',
+                    icon: DollarSign,
+                    visible: isClinicAdmin || isDoctor,
+                },
             ],
         },
         {
             title: 'ADMINISTRATION',
             items: [
+                {
+                    name: 'Fees & Payouts',
+                    href: '/settings/fees',
+                    icon: Sliders,
+                    visible: isClinicAdmin,
+                },
                 {
                     name: 'Clinic Website',
                     href: '/website',

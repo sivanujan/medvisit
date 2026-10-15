@@ -170,6 +170,7 @@ class BillingController extends Controller
         $doc = $b->doctor ?? $b->token?->session?->doctor;
         $docName = $doc ? trim(($doc->title ?? 'Dr.').' '.$doc->name) : 'Specialist';
         $specialty = $doc?->specialty ?? 'General';
+        $snapshot = $b->fee_snapshot ?? $b->token?->fee_snapshot;
 
         return [
             'id' => $b->id,
@@ -181,6 +182,7 @@ class BillingController extends Controller
             'patient_phone' => $b->patient?->phone ?? '—',
             'doctor_name' => $docName,
             'doctor_specialty' => $specialty,
+            'visit_type_name' => $b->visitType?->name ?? ($snapshot['visit_type']['name'] ?? 'Consultation'),
             'session_date' => $b->token?->session?->session_date?->format('M d, Y') ?? '—',
             'room_number' => $b->token?->session?->room_number ?? 'Suite 1',
             'doctor_fee_lkr' => round($b->doctor_fee / 100, 2),
@@ -190,11 +192,15 @@ class BillingController extends Controller
             'discount_reason' => $b->discount_reason,
             'total_amount_lkr' => round($b->total_amount / 100, 2),
             'total_amount_formatted' => 'Rs. '.number_format($b->total_amount / 100, 2),
+            'doctor_payout_amount_lkr' => round(($b->doctor_payout_amount ?: ($snapshot['doctor_payout_amount'] ?? 0)) / 100, 2),
+            'clinic_net_amount_lkr' => round(($b->clinic_net_amount ?: ($snapshot['clinic_net_amount'] ?? 0)) / 100, 2),
             'payment_method' => $b->payment_method,
             'payment_status' => $b->payment_status,
             'refund_reason' => $b->refund_reason,
             'refunded_at' => $b->refunded_at?->format('M d, Y h:i A'),
             'created_at_formatted' => $b->created_at->format('M d, Y h:i A'),
+            'fee_snapshot' => $snapshot,
+            'receipt_lines' => $snapshot['lines'] ?? [],
         ];
     }
 }
