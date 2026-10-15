@@ -101,6 +101,20 @@ Route::middleware([
 
         Route::get('/sessions/today', [TodayQueueController::class, 'index'])
             ->name('tenant.sessions.today');
+        Route::post('/sessions/today/{session}/call-next', [TodayQueueController::class, 'callNext'])
+            ->name('tenant.sessions.today.call_next');
+        Route::post('/sessions/today/{session}/recall', [TodayQueueController::class, 'recall'])
+            ->name('tenant.sessions.today.recall');
+        Route::post('/sessions/today/{session}/start', [TodayQueueController::class, 'startConsultation'])
+            ->name('tenant.sessions.today.start');
+        Route::post('/sessions/today/{session}/complete', [TodayQueueController::class, 'completeConsultation'])
+            ->name('tenant.sessions.today.complete');
+        Route::post('/sessions/today/{session}/complete-and-next', [TodayQueueController::class, 'completeAndNext'])
+            ->name('tenant.sessions.today.complete_and_next');
+        Route::post('/sessions/today/{token}/check-in', [TodayQueueController::class, 'checkIn'])
+            ->name('tenant.sessions.today.check_in');
+        Route::post('/sessions/today/{token}/no-show', [TodayQueueController::class, 'noShow'])
+            ->name('tenant.sessions.today.no_show');
 
         Route::get('/calendar', [ChannelingCalendarController::class, 'index'])
             ->name('tenant.calendar');
@@ -116,17 +130,25 @@ Route::middleware([
 
         Route::get('/queue/tv', [LiveQueueTvController::class, 'index'])
             ->name('tenant.queue.tv');
+        Route::get('/queue/tv/data', [LiveQueueTvController::class, 'data'])
+            ->name('tenant.queue.tv.data');
 
         // Global Search & Notification APIs
         Route::get('/api/search', [WorkspaceSearchController::class, 'search'])
             ->name('tenant.api.search');
         Route::get('/api/notifications', [WorkspaceNotificationController::class, 'index'])
             ->name('tenant.api.notifications');
+        Route::get('/api/patients/search', [BookingTokenController::class, 'searchPatients'])
+            ->name('tenant.api.patients.search');
 
         // Operations routes: Receptionist & Clinic Admin (Doctor role restricted -> 403)
         Route::middleware(['role:clinic_admin|receptionist|super_admin'])->group(function () {
             Route::get('/bookings', [BookingTokenController::class, 'index'])
                 ->name('tenant.bookings');
+            Route::post('/bookings', [BookingTokenController::class, 'store'])
+                ->name('tenant.bookings.store');
+            Route::post('/bookings/{token}/cancel', [BookingTokenController::class, 'cancel'])
+                ->name('tenant.bookings.cancel');
 
             Route::get('/doctors', [DoctorController::class, 'index'])
                 ->name('tenant.doctors');
