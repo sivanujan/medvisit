@@ -91,6 +91,12 @@ Route::middleware([
 
         Route::post('/reset-password', [TenantNewPasswordController::class, 'store'])
             ->name('tenant.password.store');
+
+        Route::get('/invitation/accept/{token}', [StaffController::class, 'showAcceptInvite'])
+            ->name('tenant.invitation.accept');
+
+        Route::post('/invitation/accept/{token}', [StaffController::class, 'acceptInvite'])
+            ->name('tenant.invitation.store');
     });
 
     // 4. Authenticated & Active Tenant Routes
@@ -196,6 +202,18 @@ Route::middleware([
 
             Route::get('/staff', [StaffController::class, 'index'])
                 ->name('tenant.staff');
+            Route::post('/staff/invite', [StaffController::class, 'invite'])
+                ->name('tenant.staff.invite');
+            Route::post('/staff/invitations/{invitation}/resend', [StaffController::class, 'resendInvite'])
+                ->name('tenant.staff.invitations.resend');
+            Route::delete('/staff/invitations/{invitation}', [StaffController::class, 'revokeInvite'])
+                ->name('tenant.staff.invitations.revoke');
+            Route::patch('/staff/{user}/toggle', [StaffController::class, 'toggleStatus'])
+                ->name('tenant.staff.toggle');
+            Route::put('/staff/{user}/role', [StaffController::class, 'updateRole'])
+                ->name('tenant.staff.role');
+            Route::post('/staff/{user}/link-doctor', [StaffController::class, 'linkDoctor'])
+                ->name('tenant.staff.link_doctor');
 
             Route::get('/settings', [ClinicSettingsController::class, 'index'])
                 ->name('tenant.settings');
