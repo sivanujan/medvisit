@@ -4,6 +4,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { GlassCard } from '@/Components/UI/GlassCard';
 import { GlassModal } from '@/Components/UI/GlassModal';
 import { StatusBadge } from '@/Components/UI/StatusBadge';
+import GlassSelect from '@/Components/UI/GlassSelect';
 import {
     Users,
     Search,
@@ -234,18 +235,18 @@ export default function PatientsIndex({ patients, filters, districts }: Props) {
                         />
                     </div>
 
-                    <select
-                        value={selectedDistrict}
-                        onChange={(e) => handleDistrictChange(e.target.value)}
-                        className="w-full sm:w-60 py-2 px-3 text-xs rounded-xl border border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary"
-                    >
-                        <option value="">All Sri Lankan Districts ({districts.length})</option>
-                        {districts.map((d) => (
-                            <option key={d} value={d}>
-                                {d} District
-                            </option>
-                        ))}
-                    </select>
+                    <div className="w-full sm:w-60">
+                        <GlassSelect
+                            value={selectedDistrict}
+                            onChange={(e) => handleDistrictChange(e.target.value)}
+                            placeholder={`All Sri Lankan Districts (${districts.length})`}
+                            searchable={true}
+                            options={[
+                                { value: '', label: `All Sri Lankan Districts (${districts.length})` },
+                                ...districts.map((d) => ({ value: d, label: `${d} District` })),
+                            ]}
+                        />
+                    </div>
 
                     <button
                         type="submit"
@@ -415,15 +416,15 @@ export default function PatientsIndex({ patients, filters, districts }: Props) {
                             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                                 Gender
                             </label>
-                            <select
+                            <GlassSelect
                                 value={form.data.gender}
                                 onChange={(e) => form.setData('gender', e.target.value)}
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
-                            >
-                                <option value="male">Male</option>
-                                <option value="female">Female</option>
-                                <option value="other">Other</option>
-                            </select>
+                                options={[
+                                    { value: 'male', label: 'Male' },
+                                    { value: 'female', label: 'Female' },
+                                    { value: 'other', label: 'Other' },
+                                ]}
+                            />
                         </div>
 
                         <div>
@@ -444,17 +445,13 @@ export default function PatientsIndex({ patients, filters, districts }: Props) {
                             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                                 Sri Lankan District
                             </label>
-                            <select
+                            <GlassSelect
                                 value={form.data.district}
                                 onChange={(e) => form.setData('district', e.target.value)}
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
-                            >
-                                {districts.map((d) => (
-                                    <option key={d} value={d}>
-                                        {d}
-                                    </option>
-                                ))}
-                            </select>
+                                placeholder="Select District (25)"
+                                searchable={true}
+                                options={districts.map((d) => ({ value: d, label: d }))}
+                            />
                         </div>
 
                         <div>

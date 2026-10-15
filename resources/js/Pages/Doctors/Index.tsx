@@ -5,6 +5,7 @@ import { GlassCard } from '@/Components/UI/GlassCard';
 import { GlassModal } from '@/Components/UI/GlassModal';
 import { Tabs } from '@/Components/UI/Tabs';
 import { StatusBadge } from '@/Components/UI/StatusBadge';
+import GlassSelect from '@/Components/UI/GlassSelect';
 import {
     Stethoscope,
     Calendar,
@@ -377,18 +378,18 @@ export default function DoctorsIndex({
                                 />
                             </div>
 
-                            <select
-                                value={specialtyFilter}
-                                onChange={(e) => setSpecialtyFilter(e.target.value)}
-                                className="w-full sm:w-60 py-2 px-3 text-xs rounded-xl border border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary"
-                            >
-                                <option value="">All Specialties ({specialties.length})</option>
-                                {specialties.map((s) => (
-                                    <option key={s} value={s}>
-                                        {s}
-                                    </option>
-                                ))}
-                            </select>
+                            <div className="w-full sm:w-60">
+                                <GlassSelect
+                                    value={specialtyFilter}
+                                    onChange={(e) => setSpecialtyFilter(e.target.value)}
+                                    placeholder={`All Specialties (${specialties.length})`}
+                                    searchable={true}
+                                    options={[
+                                        { value: '', label: `All Specialties (${specialties.length})` },
+                                        ...specialties.map((s) => ({ value: s, label: s })),
+                                    ]}
+                                />
+                            </div>
                         </div>
 
                         {filteredDoctors.length === 0 ? (
@@ -711,16 +712,16 @@ export default function DoctorsIndex({
                             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                                 Title
                             </label>
-                            <select
+                            <GlassSelect
                                 value={doctorForm.data.title}
                                 onChange={(e) => doctorForm.setData('title', e.target.value)}
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
-                            >
-                                <option value="Dr.">Dr.</option>
-                                <option value="Prof.">Prof.</option>
-                                <option value="Dr. (Mrs)">Dr. (Mrs)</option>
-                                <option value="Dr. (Miss)">Dr. (Miss)</option>
-                            </select>
+                                options={[
+                                    { value: 'Dr.', label: 'Dr.' },
+                                    { value: 'Prof.', label: 'Prof.' },
+                                    { value: 'Dr. (Mrs)', label: 'Dr. (Mrs)' },
+                                    { value: 'Dr. (Miss)', label: 'Dr. (Miss)' },
+                                ]}
+                            />
                         </div>
 
                         <div className="sm:col-span-3">
@@ -860,18 +861,18 @@ export default function DoctorsIndex({
                             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                                 Link to Clinic User Account
                             </label>
-                            <select
+                            <GlassSelect
                                 value={doctorForm.data.user_id}
                                 onChange={(e) => doctorForm.setData('user_id', e.target.value)}
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
-                            >
-                                <option value="">-- No User Account Linked --</option>
-                                {eligibleUsers.map((u) => (
-                                    <option key={u.id} value={u.id}>
-                                        {u.name} ({u.email})
-                                    </option>
-                                ))}
-                            </select>
+                                placeholder="-- No User Account Linked --"
+                                options={[
+                                    { value: '', label: '-- No User Account Linked --' },
+                                    ...eligibleUsers.map((u) => ({
+                                        value: u.id,
+                                        label: `${u.name} (${u.email})`,
+                                    })),
+                                ]}
+                            />
                         </div>
                     </div>
 
@@ -933,18 +934,15 @@ export default function DoctorsIndex({
                         <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                             Select Doctor *
                         </label>
-                        <select
-                            required
+                        <GlassSelect
                             value={templateForm.data.doctor_id}
                             onChange={(e) => templateForm.setData('doctor_id', e.target.value)}
-                            className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
-                        >
-                            {doctors.map((d) => (
-                                <option key={d.id} value={d.id}>
-                                    {d.full_title} ({d.specialty})
-                                </option>
-                            ))}
-                        </select>
+                            placeholder="Select Doctor"
+                            options={doctors.map((d) => ({
+                                value: d.id,
+                                label: `${d.full_title} (${d.specialty})`,
+                            }))}
+                        />
                     </div>
 
                     <div>
@@ -966,17 +964,14 @@ export default function DoctorsIndex({
                             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                                 Day of Week *
                             </label>
-                            <select
+                            <GlassSelect
                                 value={templateForm.data.day_of_week}
                                 onChange={(e) => templateForm.setData('day_of_week', parseInt(e.target.value))}
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
-                            >
-                                {dayNames.map((day, idx) => (
-                                    <option key={day} value={idx}>
-                                        {day}
-                                    </option>
-                                ))}
-                            </select>
+                                options={dayNames.map((day, idx) => ({
+                                    value: idx,
+                                    label: day,
+                                }))}
+                            />
                         </div>
 
                         <div>
@@ -1068,18 +1063,15 @@ export default function DoctorsIndex({
                         <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                             Doctor *
                         </label>
-                        <select
-                            required
+                        <GlassSelect
                             value={oneOffForm.data.doctor_id}
                             onChange={(e) => oneOffForm.setData('doctor_id', e.target.value)}
-                            className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
-                        >
-                            {doctors.map((d) => (
-                                <option key={d.id} value={d.id}>
-                                    {d.full_title} ({d.specialty})
-                                </option>
-                            ))}
-                        </select>
+                            placeholder="Select Doctor"
+                            options={doctors.map((d) => ({
+                                value: d.id,
+                                label: `${d.full_title} (${d.specialty})`,
+                            }))}
+                        />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1201,18 +1193,15 @@ export default function DoctorsIndex({
                         <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                             Doctor *
                         </label>
-                        <select
-                            required
+                        <GlassSelect
                             value={leaveForm.data.doctor_id}
                             onChange={(e) => leaveForm.setData('doctor_id', e.target.value)}
-                            className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
-                        >
-                            {doctors.map((d) => (
-                                <option key={d.id} value={d.id}>
-                                    {d.full_title} ({d.specialty})
-                                </option>
-                            ))}
-                        </select>
+                            placeholder="Select Doctor"
+                            options={doctors.map((d) => ({
+                                value: d.id,
+                                label: `${d.full_title} (${d.specialty})`,
+                            }))}
+                        />
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">

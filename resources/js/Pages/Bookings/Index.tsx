@@ -4,6 +4,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { GlassCard } from '@/Components/UI/GlassCard';
 import { GlassModal } from '@/Components/UI/GlassModal';
 import { StatusBadge } from '@/Components/UI/StatusBadge';
+import GlassSelect from '@/Components/UI/GlassSelect';
 import {
     Ticket,
     Search,
@@ -432,15 +433,15 @@ export default function BookingsIndex({ sessions, recentBookings, clinicInfo }: 
                                                 <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
                                                     Gender
                                                 </label>
-                                                <select
+                                                <GlassSelect
                                                     value={data.new_patient_gender}
                                                     onChange={(e) => setData('new_patient_gender', e.target.value)}
-                                                    className="w-full text-xs rounded-xl border border-slate-200/80 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-1.5 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
-                                                >
-                                                    <option value="male">Male</option>
-                                                    <option value="female">Female</option>
-                                                    <option value="other">Other</option>
-                                                </select>
+                                                    options={[
+                                                        { value: 'male', label: 'Male' },
+                                                        { value: 'female', label: 'Female' },
+                                                        { value: 'other', label: 'Other' },
+                                                    ]}
+                                                />
                                             </div>
                                         </div>
                                     </div>

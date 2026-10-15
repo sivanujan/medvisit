@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Head, router, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import GlassSelect from '@/Components/UI/GlassSelect';
 import {
     Settings,
     Building2,
@@ -723,20 +724,17 @@ export default function SettingsIndex({
                             </div>
 
                             <div className="w-full sm:w-48">
-                                <select
+                                <GlassSelect
                                     value={auditFilters.action}
                                     onChange={(e) =>
                                         setAuditFilters({ ...auditFilters, action: e.target.value })
                                     }
-                                    className="w-full text-xs py-2 px-3 rounded-xl border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                                >
-                                    <option value="">All Actions</option>
-                                    {availableActions.map((act) => (
-                                        <option key={act} value={act}>
-                                            {act}
-                                        </option>
-                                    ))}
-                                </select>
+                                    placeholder="All Actions"
+                                    options={[
+                                        { value: '', label: 'All Actions' },
+                                        ...availableActions.map((act) => ({ value: act, label: act })),
+                                    ]}
+                                />
                             </div>
 
                             <div className="w-full sm:w-40">

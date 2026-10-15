@@ -43,7 +43,9 @@ export function ThemeProvider({
         setResolved(nextResolved);
 
         if (typeof document !== 'undefined') {
-            document.documentElement.classList.toggle('dark', nextResolved === 'dark');
+            const isDark = nextResolved === 'dark';
+            document.documentElement.classList.toggle('dark', isDark);
+            document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
         }
 
         if (preference !== 'system') return undefined;
@@ -53,7 +55,9 @@ export function ThemeProvider({
             const sysResolved = resolveTheme('system');
             setResolved(sysResolved);
             if (typeof document !== 'undefined') {
-                document.documentElement.classList.toggle('dark', sysResolved === 'dark');
+                const isDark = sysResolved === 'dark';
+                document.documentElement.classList.toggle('dark', isDark);
+                document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
             }
         };
 

@@ -4,6 +4,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { GlassCard } from '@/Components/UI/GlassCard';
 import { GlassModal } from '@/Components/UI/GlassModal';
 import { Tabs } from '@/Components/UI/Tabs';
+import GlassSelect from '@/Components/UI/GlassSelect';
 import {
     Users,
     UserPlus,
@@ -481,15 +482,15 @@ export default function StaffIndex({
                         <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                             Assigned Workspace Role *
                         </label>
-                        <select
+                        <GlassSelect
                             value={inviteForm.data.role}
                             onChange={(e) => inviteForm.setData('role', e.target.value)}
-                            className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
-                        >
-                            <option value="receptionist">Receptionist (Bookings, Queue, Patients, Billing)</option>
-                            <option value="doctor">Doctor (Channeling Queue, Calendar, Patient Files)</option>
-                            <option value="clinic_admin">Clinic Administrator (Full Access + Settings & Team)</option>
-                        </select>
+                            options={[
+                                { value: 'receptionist', label: 'Receptionist (Bookings, Queue, Patients, Billing)' },
+                                { value: 'doctor', label: 'Doctor (Channeling Queue, Calendar, Patient Files)' },
+                                { value: 'clinic_admin', label: 'Clinic Administrator (Full Access + Settings & Team)' },
+                            ]}
+                        />
                     </div>
 
                     {inviteForm.data.role === 'doctor' && (
@@ -497,18 +498,18 @@ export default function StaffIndex({
                             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                                 Link to Doctor Profile (Optional)
                             </label>
-                            <select
+                            <GlassSelect
                                 value={inviteForm.data.doctor_id}
                                 onChange={(e) => inviteForm.setData('doctor_id', e.target.value)}
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
-                            >
-                                <option value="">-- No Doctor Profile Linked Yet --</option>
-                                {doctors.map((d) => (
-                                    <option key={d.id} value={d.id}>
-                                        {d.name} ({d.specialty})
-                                    </option>
-                                ))}
-                            </select>
+                                placeholder="-- No Doctor Profile Linked Yet --"
+                                options={[
+                                    { value: '', label: '-- No Doctor Profile Linked Yet --' },
+                                    ...doctors.map((d) => ({
+                                        value: d.id,
+                                        label: `${d.name} (${d.specialty})`,
+                                    })),
+                                ]}
+                            />
                         </div>
                     )}
 
@@ -554,16 +555,16 @@ export default function StaffIndex({
                             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                                 Role
                             </label>
-                            <select
+                            <GlassSelect
                                 value={roleForm.data.role}
                                 onChange={(e) => roleForm.setData('role', e.target.value)}
                                 disabled={selectedUser.is_last_admin}
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary disabled:opacity-50"
-                            >
-                                <option value="receptionist">Receptionist</option>
-                                <option value="doctor">Doctor</option>
-                                <option value="clinic_admin">Clinic Administrator</option>
-                            </select>
+                                options={[
+                                    { value: 'receptionist', label: 'Receptionist' },
+                                    { value: 'doctor', label: 'Doctor' },
+                                    { value: 'clinic_admin', label: 'Clinic Administrator' },
+                                ]}
+                            />
                             {roleForm.errors.role && (
                                 <p className="text-[11px] text-rose-500 mt-0.5">{roleForm.errors.role}</p>
                             )}
@@ -574,18 +575,18 @@ export default function StaffIndex({
                                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                                     Linked Doctor Profile
                                 </label>
-                                <select
+                                <GlassSelect
                                     value={roleForm.data.doctor_id}
                                     onChange={(e) => roleForm.setData('doctor_id', e.target.value)}
-                                    className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
-                                >
-                                    <option value="">-- No Doctor Profile Linked --</option>
-                                    {doctors.map((d) => (
-                                        <option key={d.id} value={d.id}>
-                                            {d.name} ({d.specialty})
-                                        </option>
-                                    ))}
-                                </select>
+                                    placeholder="-- No Doctor Profile Linked --"
+                                    options={[
+                                        { value: '', label: '-- No Doctor Profile Linked --' },
+                                        ...doctors.map((d) => ({
+                                            value: d.id,
+                                            label: `${d.name} (${d.specialty})`,
+                                        })),
+                                    ]}
+                                />
                             </div>
                         )}
 
@@ -623,18 +624,18 @@ export default function StaffIndex({
                             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                                 Select Practitioner Profile
                             </label>
-                            <select
+                            <GlassSelect
                                 value={linkDoctorForm.data.doctor_id}
                                 onChange={(e) => linkDoctorForm.setData('doctor_id', e.target.value)}
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
-                            >
-                                <option value="">-- No Linked Doctor Profile --</option>
-                                {doctors.map((d) => (
-                                    <option key={d.id} value={d.id}>
-                                        {d.name} ({d.specialty})
-                                    </option>
-                                ))}
-                            </select>
+                                placeholder="-- No Linked Doctor Profile --"
+                                options={[
+                                    { value: '', label: '-- No Linked Doctor Profile --' },
+                                    ...doctors.map((d) => ({
+                                        value: d.id,
+                                        label: `${d.name} (${d.specialty})`,
+                                    })),
+                                ]}
+                            />
                         </div>
 
                         <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-white/10">

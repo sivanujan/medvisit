@@ -71,36 +71,8 @@ export const GlassInput = forwardRef<HTMLInputElement, GlassInputProps>(function
     );
 });
 
-export interface GlassSelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
-    error?: boolean | string;
-}
-
-export const GlassSelect = forwardRef<HTMLSelectElement, GlassSelectProps>(function GlassSelect(
-    { className = '', error, children, ...props },
-    ref
-) {
-    return (
-        <div className="relative w-full">
-            <select
-                ref={ref}
-                className={`w-full px-3.5 py-2.5 pr-10 rounded-xl text-sm transition-all duration-200 outline-none appearance-none
-                    bg-white/80 hover:bg-white focus:bg-white dark:bg-slate-900/80 dark:hover:bg-slate-900 dark:focus:bg-slate-900
-                    text-slate-900 dark:text-white
-                    backdrop-blur-md
-                    border ${
-                        error
-                            ? 'border-rose-400 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/15'
-                            : 'border-slate-200/90 dark:border-white/10 focus:border-primary focus:ring-4 focus:ring-primary/15'
-                    }
-                    shadow-xs ${className}`}
-                {...props}
-            >
-                {children}
-            </select>
-            <ChevronDown className="w-4 h-4 text-slate-400 pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2" />
-        </div>
-    );
-});
+export { default as GlassSelect } from './GlassSelect';
+export type { GlassSelectProps, GlassSelectOption } from './GlassSelect';
 
 export interface GlassTextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
     error?: boolean | string;

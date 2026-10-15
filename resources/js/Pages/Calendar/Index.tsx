@@ -4,6 +4,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { GlassCard } from '@/Components/UI/GlassCard';
 import { GlassModal } from '@/Components/UI/GlassModal';
 import { StatusBadge } from '@/Components/UI/StatusBadge';
+import GlassSelect from '@/Components/UI/GlassSelect';
 import {
     Calendar as CalendarIcon,
     ChevronLeft,
@@ -282,19 +283,20 @@ export default function CalendarIndex({
 
                     <div className="flex flex-wrap items-center gap-3">
                         {/* Doctor Filter */}
-                        <div className="relative min-w-[200px]">
-                            <select
+                        <div className="relative min-w-[220px]">
+                            <GlassSelect
                                 value={doctorIdFilter}
                                 onChange={(e) => handleDoctorFilterChange(e.target.value)}
-                                className="w-full text-xs rounded-xl border border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 text-slate-800 dark:text-slate-100 py-2 pl-3 pr-8 focus:ring-2 focus:ring-primary"
-                            >
-                                <option value="">All Doctors ({doctors.length})</option>
-                                {doctors.map((d) => (
-                                    <option key={d.id} value={d.id}>
-                                        {d.full_title} ({d.specialty})
-                                    </option>
-                                ))}
-                            </select>
+                                placeholder={`All Doctors (${doctors.length})`}
+                                searchable={true}
+                                options={[
+                                    { value: '', label: `All Doctors (${doctors.length})` },
+                                    ...doctors.map((d) => ({
+                                        value: d.id,
+                                        label: `${d.full_title} (${d.specialty})`,
+                                    })),
+                                ]}
+                            />
                         </div>
 
                         {/* View Switcher */}
