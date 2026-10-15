@@ -127,6 +127,12 @@ Route::middleware([
 
         Route::get('/patients', [PatientController::class, 'index'])
             ->name('tenant.patients');
+        Route::post('/patients', [PatientController::class, 'store'])
+            ->name('tenant.patients.store');
+        Route::put('/patients/{patient}', [PatientController::class, 'update'])
+            ->name('tenant.patients.update');
+        Route::get('/patients/{patient}/history', [PatientController::class, 'history'])
+            ->name('tenant.patients.history');
 
         Route::get('/queue/tv', [LiveQueueTvController::class, 'index'])
             ->name('tenant.queue.tv');
@@ -177,6 +183,10 @@ Route::middleware([
 
             Route::get('/billing', [BillingController::class, 'index'])
                 ->name('tenant.billing');
+            Route::post('/billing/{bill}/pay', [BillingController::class, 'pay'])
+                ->name('tenant.billing.pay');
+            Route::post('/billing/{bill}/refund', [BillingController::class, 'refund'])
+                ->name('tenant.billing.refund');
         });
 
         // Administration routes: Clinic Admin Only (Doctor & Receptionist restricted -> 403)
