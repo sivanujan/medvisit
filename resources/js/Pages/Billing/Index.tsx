@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { Head, useForm, router } from '@inertiajs/react';
+import { Head, useForm, router, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { PageHeader } from '@/Components/UI/PageHeader';
 import { GlassCard } from '@/Components/UI/GlassCard';
 import { GlassModal } from '@/Components/UI/GlassModal';
 import { Tabs } from '@/Components/UI/Tabs';
 import { StatusBadge } from '@/Components/UI/StatusBadge';
+import { EmptyState } from '@/Components/UI/EmptyState';
 import {
     DollarSign,
     CreditCard,
@@ -190,35 +192,36 @@ export default function BillingIndex({
         <AuthenticatedLayout>
             <Head title="Billing & Collections" />
 
-            <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div className="space-y-6">
                 {/* Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary-50 dark:bg-primary-950/60 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-800/40">
-                                Cash & Accounts Desk
-                            </span>
-                        </div>
-                        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white mt-1">
-                            Billing & Collections
-                        </h1>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                            Process patient payments, print 80mm thermal receipts or A4 tax invoices, manage discounts and doctor disbursements.
-                        </p>
-                    </div>
+                <PageHeader
+                    breadcrumbs={[
+                        { label: 'Clinic Workspace', href: '/dashboard' },
+                        { label: 'Billing & Collections' },
+                    ]}
+                    title="Billing & Collections"
+                    subtitle="Process patient payments, print 80mm thermal receipts or A4 tax invoices, and manage doctor disbursements."
+                    actions={
+                        <div className="flex items-center gap-2.5">
+                            <div className="flex items-center gap-2 bg-white/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-white/10 px-3 py-1.5 rounded-xl text-xs shadow-xs">
+                                <Calendar className="w-4 h-4 text-slate-400" />
+                                <input
+                                    type="date"
+                                    value={dateFilter}
+                                    onChange={(e) => handleDateChange(e.target.value)}
+                                    className="bg-transparent border-0 text-slate-800 dark:text-slate-200 text-xs p-0 focus:ring-0 cursor-pointer"
+                                />
+                            </div>
 
-                    <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-2 bg-white/70 dark:bg-slate-900/60 border border-slate-200/80 dark:border-white/10 px-3 py-1.5 rounded-xl text-xs">
-                            <Calendar className="w-4 h-4 text-slate-400" />
-                            <input
-                                type="date"
-                                value={dateFilter}
-                                onChange={(e) => handleDateChange(e.target.value)}
-                                className="bg-transparent border-0 text-slate-800 dark:text-slate-200 text-xs p-0 focus:ring-0"
-                            />
+                            <Link
+                                href="/bookings"
+                                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-primary text-white hover:bg-primary-600 shadow-xs"
+                            >
+                                <span>Issue Token</span>
+                            </Link>
                         </div>
-                    </div>
-                </div>
+                    }
+                />
 
                 {/* KPI Ribbon */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -296,14 +299,21 @@ export default function BillingIndex({
                 {activeTab === 'pending' && (
                     <div className="space-y-4">
                         {pendingBills.length === 0 ? (
-                            <GlassCard className="text-center py-16">
-                                <CheckCircle2 className="w-12 h-12 mx-auto text-emerald-500 mb-3" />
-                                <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">
-                                    All patient payments cleared
-                                </h3>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto mt-1">
-                                    No pending bills waiting for payment collection right now.
-                                </p>
+                            <GlassCard className="py-8">
+                                <EmptyState
+                                    icon={CheckCircle2}
+                                    title="All patient payments cleared"
+                                    description="No pending bills are waiting for payment collection right now. New tokens issued at the desk will appear here automatically."
+                                    action={
+                                        <Link
+                                            href="/bookings"
+                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-sm"
+                                        >
+                                            <Receipt className="w-3.5 h-3.5" />
+                                            <span>Issue New Token</span>
+                                        </Link>
+                                    }
+                                />
                             </GlassCard>
                         ) : (
                             <div className="overflow-x-auto rounded-2xl border border-slate-200/80 dark:border-white/10 bg-white/75 dark:bg-slate-900/60 backdrop-blur-xl">
@@ -375,14 +385,21 @@ export default function BillingIndex({
                 {activeTab === 'receipts' && (
                     <div className="space-y-4">
                         {recentReceipts.length === 0 ? (
-                            <GlassCard className="text-center py-16">
-                                <Receipt className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-                                <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">
-                                    No receipts processed on {report.date_formatted}
-                                </h3>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto mt-1">
-                                    Select another date or collect payment on pending tokens to view receipts.
-                                </p>
+                            <GlassCard className="py-8">
+                                <EmptyState
+                                    icon={Receipt}
+                                    title={`No receipts processed on ${report.date_formatted}`}
+                                    description="No patient payments have been collected for this date. Check pending tokens or select a different calendar date."
+                                    action={
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDateChange(new Date().toISOString().split('T')[0])}
+                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-800 border border-slate-200/80 dark:border-white/10 hover:bg-slate-50 shadow-xs"
+                                        >
+                                            <span>Go to today</span>
+                                        </button>
+                                    }
+                                />
                             </GlassCard>
                         ) : (
                             <div className="overflow-x-auto rounded-2xl border border-slate-200/80 dark:border-white/10 bg-white/75 dark:bg-slate-900/60 backdrop-blur-xl">

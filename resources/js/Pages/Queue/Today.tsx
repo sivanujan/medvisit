@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Head, router } from '@inertiajs/react';
+import { Head, router, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { PageHeader } from '@/Components/UI/PageHeader';
 import { GlassCard } from '@/Components/UI/GlassCard';
+import { EmptyState } from '@/Components/UI/EmptyState';
 import { StatusBadge } from '@/Components/UI/StatusBadge';
 import {
     Activity,
@@ -19,6 +21,8 @@ import {
     ChevronRight,
     Stethoscope,
     RefreshCw,
+    Calendar,
+    Ticket,
 } from 'lucide-react';
 
 interface SessionItem {
@@ -203,41 +207,26 @@ export default function TodayQueueIndex({
         <AuthenticatedLayout>
             <Head title="Today's Channeling Queue" />
 
-            <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                {/* Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40 flex items-center gap-1.5">
-                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                                Live Queue Desk
-                            </span>
-                            {isDoctor && (
-                                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary-50 dark:bg-primary-950/60 text-primary-600 dark:text-primary-400">
-                                    Doctor Workspace
-                                </span>
-                            )}
-                        </div>
-                        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white mt-1">
-                            Today's Channeling Queue
-                        </h1>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                            Control patient progression, call tokens to consultation rooms, and synchronize live with waiting-room TV.
-                        </p>
-                    </div>
-
-                    <div className="flex items-center gap-2">
+            <div className="space-y-6">
+                <PageHeader
+                    breadcrumbs={[
+                        { label: 'Queue Manager', href: '/dashboard' },
+                        { label: "Today's Queue" },
+                    ]}
+                    title="Today's Channeling Queue"
+                    subtitle="Control patient progression, call tokens to consultation rooms, and synchronize live with waiting-room TV."
+                    actions={
                         <a
                             href="/queue/tv"
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-white/10 hover:bg-slate-50 shadow-sm"
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 shadow-xs transition-colors"
                         >
                             <Tv className="w-4 h-4 text-primary" />
                             <span>Open TV Display ↗</span>
                         </a>
-                    </div>
-                </div>
+                    }
+                />
 
                 {/* Session Tabs (if multiple sessions running today) */}
                 {todaySessions.length > 1 && (
@@ -266,14 +255,55 @@ export default function TodayQueueIndex({
                 )}
 
                 {!activeSession ? (
-                    <GlassCard className="text-center py-16">
-                        <Clock className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-                        <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">
-                            No active channeling sessions today
-                        </h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto mt-1 mb-4">
-                            There are no doctor channeling sessions scheduled for today's date.
-                        </p>
+                    <GlassCard className="py-8">
+                        <EmptyState
+                            icon={Clock}
+                            title="No sessions today"
+                            description="There are no doctor channeling sessions scheduled for today. Add a doctor or create a session to open today's queue."
+                            action={
+                                <Link
+                                    href="/calendar"
+                                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-sm"
+                                >
+                                    <Calendar className="w-3.5 h-3.5" />
+                                    <span>Create a session</span>
+                                </Link>
+                            }
+                            secondaryAction={
+                                <div className="flex items-center gap-2.5">
+                                    <Link
+                                        href="/doctors"
+                                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 shadow-xs"
+                                    >
+                                        <Stethoscope className="w-3.5 h-3.5 text-primary" />
+                                        <span>Add a doctor</span>
+                                    </Link>
+                                    <Link
+                                        href="/calendar"
+                                        className="text-xs text-primary font-semibold hover:underline"
+                                    >
+                                        View calendar →
+                                    </Link>
+                                </div>
+                            }
+                            guide={[
+                                {
+                                    step: 1,
+                                    title: 'Add your doctors',
+                                    description: 'Register specialist profiles and consultation fees.',
+                                },
+                                {
+                                    step: 2,
+                                    title: 'Schedule sessions',
+                                    description: 'Set date, room, and token capacity on the calendar.',
+                                },
+                                {
+                                    step: 3,
+                                    title: 'Call & serve tokens',
+                                    description: 'Control patient progression and sync live with TV.',
+                                },
+                            ]}
+                        />
                     </GlassCard>
                 ) : (
                     <div className="space-y-6">
@@ -532,8 +562,21 @@ export default function TodayQueueIndex({
                                     <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                                         {filteredTokens.length === 0 ? (
                                             <tr>
-                                                <td colSpan={7} className="py-8 text-center text-slate-400 italic">
-                                                    No tokens found matching filter.
+                                                <td colSpan={7} className="py-12">
+                                                    <EmptyState
+                                                        icon={Users}
+                                                        title="No patients in queue"
+                                                        description="There are no patient tokens waiting or booked for this session yet."
+                                                        action={
+                                                            <Link
+                                                                href="/bookings"
+                                                                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-sm"
+                                                            >
+                                                                <Ticket className="w-3.5 h-3.5" />
+                                                                <span>Issue token</span>
+                                                            </Link>
+                                                        }
+                                                    />
                                                 </td>
                                             </tr>
                                         ) : (

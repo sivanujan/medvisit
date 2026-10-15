@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { Head, useForm, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { PageHeader } from '@/Components/UI/PageHeader';
 import { GlassCard } from '@/Components/UI/GlassCard';
 import { GlassModal } from '@/Components/UI/GlassModal';
 import { StatusBadge } from '@/Components/UI/StatusBadge';
+import { EmptyState } from '@/Components/UI/EmptyState';
+import { PhoneInput } from '@/Components/UI/PhoneInput';
 import GlassSelect from '@/Components/UI/GlassSelect';
 import {
     Users,
@@ -195,32 +198,26 @@ export default function PatientsIndex({ patients, filters, districts }: Props) {
         <AuthenticatedLayout>
             <Head title="Patient Directory" />
 
-            <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div className="space-y-6">
                 {/* Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary-50 dark:bg-primary-950/60 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-800/40">
-                                Phase 4 Clinical Records
-                            </span>
-                        </div>
-                        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white mt-1">
-                            Patient Directory & Histories
-                        </h1>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                            Search patients by national identity (NIC), phone, or district. Every view & modification is cryptographically audited.
-                        </p>
-                    </div>
-
-                    <button
-                        type="button"
-                        onClick={openCreateModal}
-                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-md shadow-primary/20 transition-all hover:-translate-y-0.5"
-                    >
-                        <UserPlus className="w-4 h-4" />
-                        <span>Register Patient</span>
-                    </button>
-                </div>
+                <PageHeader
+                    breadcrumbs={[
+                        { label: 'Clinic Workspace', href: '/dashboard' },
+                        { label: 'Patient Directory' },
+                    ]}
+                    title="Patient Directory"
+                    subtitle="Search patients by national identity (NIC), phone, or district to view clinical history and past appointments."
+                    actions={
+                        <button
+                            type="button"
+                            onClick={openCreateModal}
+                            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-sm transition-all"
+                        >
+                            <UserPlus className="w-4 h-4" />
+                            <span>Register Patient</span>
+                        </button>
+                    }
+                />
 
                 {/* Search & District Filter Bar */}
                 <form onSubmit={handleSearch} className="flex flex-col sm:flex-row items-center gap-3">
@@ -258,22 +255,39 @@ export default function PatientsIndex({ patients, filters, districts }: Props) {
 
                 {/* Patient Directory Grid */}
                 {patients.data.length === 0 ? (
-                    <GlassCard className="text-center py-16">
-                        <Users className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-                        <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">
-                            No patients found
-                        </h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto mt-1 mb-4">
-                            No patient records matched your search criteria. Try a different query or register a new patient.
-                        </p>
-                        <button
-                            type="button"
-                            onClick={openCreateModal}
-                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600"
-                        >
-                            <UserPlus className="w-4 h-4" />
-                            <span>Register First Patient</span>
-                        </button>
+                    <GlassCard className="py-8">
+                        <EmptyState
+                            icon={Users}
+                            title={searchQuery || selectedDistrict ? 'No matching patients found' : 'No patients registered yet'}
+                            description={searchQuery || selectedDistrict ? 'Try clearing your search query or district filter to view all patients.' : 'Register walk-in and channeling patients to maintain visit timelines, allergy alerts, and billing receipts.'}
+                            action={
+                                <button
+                                    type="button"
+                                    onClick={openCreateModal}
+                                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-sm"
+                                >
+                                    <UserPlus className="w-3.5 h-3.5" />
+                                    <span>Register Patient</span>
+                                </button>
+                            }
+                            guide={[
+                                {
+                                    step: 1,
+                                    title: 'Register Profile',
+                                    description: 'Enter patient name, mobile phone (+94), and optional NIC.',
+                                },
+                                {
+                                    step: 2,
+                                    title: 'Issue Tokens',
+                                    description: 'Assign doctor appointments and generate thermal slips.',
+                                },
+                                {
+                                    step: 3,
+                                    title: 'Track History',
+                                    description: 'Review complete timelines of past consultations and receipts.',
+                                },
+                            ]}
+                        />
                     </GlassCard>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -385,15 +399,13 @@ export default function PatientsIndex({ patients, filters, districts }: Props) {
 
                         <div>
                             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                Phone (+94 Mobile) *
+                                Mobile Phone (+94) *
                             </label>
-                            <input
-                                type="text"
-                                required
+                            <PhoneInput
                                 value={form.data.phone}
-                                onChange={(e) => form.setData('phone', e.target.value)}
-                                placeholder="+94 77 123 4567"
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
+                                onChange={(normalized) => form.setData('phone', normalized)}
+                                placeholder="7X XXX XXXX"
+                                required
                             />
                         </div>
                     </div>

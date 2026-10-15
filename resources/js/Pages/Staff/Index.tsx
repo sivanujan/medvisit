@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { Head, useForm, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { PageHeader } from '@/Components/UI/PageHeader';
 import { GlassCard } from '@/Components/UI/GlassCard';
 import { GlassModal } from '@/Components/UI/GlassModal';
 import { Tabs } from '@/Components/UI/Tabs';
+import { EmptyState } from '@/Components/UI/EmptyState';
 import GlassSelect from '@/Components/UI/GlassSelect';
 import {
     Users,
@@ -176,32 +178,26 @@ export default function StaffIndex({
         <AuthenticatedLayout>
             <Head title="Staff & Team" />
 
-            <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div className="space-y-6">
                 {/* Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary-50 dark:bg-primary-950/60 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-800/40">
-                                Team Management
-                            </span>
-                        </div>
-                        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white mt-1">
-                            Staff & Team Permissions
-                        </h1>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                            Manage clinical permissions, invite members via automated Resend emails, and link practitioners to consulting profiles.
-                        </p>
-                    </div>
-
-                    <button
-                        type="button"
-                        onClick={openInviteModal}
-                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-md shadow-primary/20 transition-all hover:-translate-y-0.5"
-                    >
-                        <UserPlus className="w-4 h-4" />
-                        <span>Invite Team Member</span>
-                    </button>
-                </div>
+                <PageHeader
+                    breadcrumbs={[
+                        { label: 'Clinic Workspace', href: '/dashboard' },
+                        { label: 'Staff & Team Access' },
+                    ]}
+                    title="Staff & Team Permissions"
+                    subtitle="Manage clinical permissions, invite members via automated emails, and link practitioners to consulting profiles."
+                    actions={
+                        <button
+                            type="button"
+                            onClick={openInviteModal}
+                            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-sm transition-all"
+                        >
+                            <UserPlus className="w-4 h-4" />
+                            <span>Invite Team Member</span>
+                        </button>
+                    }
+                />
 
                 {/* Tabs */}
                 <div className="border-b border-slate-200/80 dark:border-white/10 pb-4">
@@ -342,22 +338,22 @@ export default function StaffIndex({
                 {activeTab === 'invitations' && (
                     <div className="space-y-4">
                         {pendingInvitations.length === 0 ? (
-                            <GlassCard className="text-center py-16">
-                                <Mail className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-                                <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">
-                                    No pending invitations
-                                </h3>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto mt-1 mb-4">
-                                    Invite doctors, receptionists, or clinic administrators to join your workspace.
-                                </p>
-                                <button
-                                    type="button"
-                                    onClick={openInviteModal}
-                                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600"
-                                >
-                                    <UserPlus className="w-4 h-4" />
-                                    <span>Send First Invite</span>
-                                </button>
+                            <GlassCard className="py-8">
+                                <EmptyState
+                                    icon={Mail}
+                                    title="No pending invitations"
+                                    description="All invited team members have accepted and joined. Send invitations to onboard new doctors, receptionists, or clinic admins."
+                                    action={
+                                        <button
+                                            type="button"
+                                            onClick={openInviteModal}
+                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-sm"
+                                        >
+                                            <UserPlus className="w-3.5 h-3.5" />
+                                            <span>Invite Team Member</span>
+                                        </button>
+                                    }
+                                />
                             </GlassCard>
                         ) : (
                             <div className="overflow-x-auto rounded-2xl border border-slate-200/80 dark:border-white/10 bg-white/75 dark:bg-slate-900/60 backdrop-blur-xl">

@@ -50,6 +50,9 @@ class HandleInertiaRequests extends Middleware
                 'status' => $tenant->status,
                 'phone' => $tenant->phone,
                 'address' => $tenant->address,
+                'plan' => ucfirst((string) ($tenant->plan ?? 'Growth')),
+                'trial_days_left' => $tenant->trial_ends_at ? max(0, (int) now()->diffInDays($tenant->trial_ends_at, false)) : 14,
+                'is_trial' => $tenant->status === 'trialing' || ($tenant->trial_ends_at && now()->lt($tenant->trial_ends_at)),
                 'base_domain' => config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost')),
             ] : null,
             'flash' => [

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Head, router, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { PageHeader } from '@/Components/UI/PageHeader';
+import { PhoneInput } from '@/Components/UI/PhoneInput';
 import GlassSelect from '@/Components/UI/GlassSelect';
 import {
     Settings,
@@ -169,29 +171,23 @@ export default function SettingsIndex({
     };
 
     return (
-        <AuthenticatedLayout
-            header={
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div>
-                        <h1 className="text-xl font-bold text-slate-900 dark:text-white">
-                            Clinic Settings & System Audit
-                        </h1>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                            Configure clinic identity, channeling rules, cashier workflows, and review security audit logs.
-                        </p>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <span className="px-3 py-1 rounded-xl bg-primary-50 dark:bg-primary-950/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-900/40 font-mono text-xs font-bold">
-                            {profile.subdomain}.medvisit.lk
-                        </span>
-                    </div>
-                </div>
-            }
-        >
+        <AuthenticatedLayout>
             <Head title="Clinic Settings & Audit - MedVisit" />
 
             <div className="space-y-6">
+                <PageHeader
+                    breadcrumbs={[
+                        { label: 'Clinic Workspace', href: '/dashboard' },
+                        { label: 'Settings & Audit' },
+                    ]}
+                    title="Clinic Settings & System Audit"
+                    subtitle="Configure clinic identity, channeling rules, cashier workflows, and review security audit logs."
+                    actions={
+                        <span className="px-3 py-1.5 rounded-xl bg-primary-50 dark:bg-primary-950/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-900/40 font-mono text-xs font-bold shadow-xs">
+                            {profile.subdomain}.medvisit.lk
+                        </span>
+                    }
+                />
                 {/* Navigation Tabs */}
                 <div className="flex items-center gap-1.5 overflow-x-auto pb-2 border-b border-slate-200 dark:border-slate-800">
                     <button
@@ -291,12 +287,10 @@ export default function SettingsIndex({
                                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                                         Hotline Phone (+94)
                                     </label>
-                                    <input
-                                        type="tel"
+                                    <PhoneInput
                                         value={profileForm.data.phone}
-                                        onChange={(e) => profileForm.setData('phone', e.target.value)}
-                                        placeholder="+94 11 234 5678"
-                                        className="w-full text-xs rounded-xl border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                                        onChange={(val) => profileForm.setData('phone', val)}
+                                        placeholder="11 234 5678"
                                     />
                                 </div>
 

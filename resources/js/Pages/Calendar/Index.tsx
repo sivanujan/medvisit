@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Head, router } from '@inertiajs/react';
+import { Head, router, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { PageHeader } from '@/Components/UI/PageHeader';
 import { GlassCard } from '@/Components/UI/GlassCard';
 import { GlassModal } from '@/Components/UI/GlassModal';
 import { StatusBadge } from '@/Components/UI/StatusBadge';
+import { EmptyState } from '@/Components/UI/EmptyState';
 import GlassSelect from '@/Components/UI/GlassSelect';
 import {
     Calendar as CalendarIcon,
@@ -264,106 +266,100 @@ export default function CalendarIndex({
         <AuthenticatedLayout>
             <Head title="Channeling Calendar" />
 
-            <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div className="space-y-6">
                 {/* Header Controls */}
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary-50 dark:bg-primary-950/60 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-800/40">
-                                Channeling Schedule
-                            </span>
-                        </div>
-                        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white mt-1">
-                            {formatPeriodTitle()}
-                        </h1>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                            Click any channeling block to inspect patient roster, reschedule, or manage token quotas.
-                        </p>
-                    </div>
+                <PageHeader
+                    breadcrumbs={[
+                        { label: 'Schedule', href: '/dashboard' },
+                        { label: 'Calendar' },
+                    ]}
+                    title={formatPeriodTitle()}
+                    subtitle="Click any channeling block to inspect patient roster, reschedule, or manage token quotas."
+                    actions={
+                        <div className="flex flex-wrap items-center gap-2.5">
+                            {/* Doctor Filter */}
+                            <div className="relative min-w-[200px]">
+                                <GlassSelect
+                                    value={doctorIdFilter}
+                                    onChange={(e) => handleDoctorFilterChange(e.target.value)}
+                                    placeholder={`All Doctors (${doctors.length})`}
+                                    searchable={true}
+                                    options={[
+                                        { value: '', label: `All Doctors (${doctors.length})` },
+                                        ...doctors.map((d) => ({
+                                            value: d.id,
+                                            label: `${d.full_title} (${d.specialty})`,
+                                        })),
+                                    ]}
+                                />
+                            </div>
 
-                    <div className="flex flex-wrap items-center gap-3">
-                        {/* Doctor Filter */}
-                        <div className="relative min-w-[220px]">
-                            <GlassSelect
-                                value={doctorIdFilter}
-                                onChange={(e) => handleDoctorFilterChange(e.target.value)}
-                                placeholder={`All Doctors (${doctors.length})`}
-                                searchable={true}
-                                options={[
-                                    { value: '', label: `All Doctors (${doctors.length})` },
-                                    ...doctors.map((d) => ({
-                                        value: d.id,
-                                        label: `${d.full_title} (${d.specialty})`,
-                                    })),
-                                ]}
-                            />
-                        </div>
+                            {/* View Switcher */}
+                            <div className="inline-flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-white/10 text-xs">
+                                <button
+                                    type="button"
+                                    onClick={() => handleViewChange('month')}
+                                    className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
+                                        activeView === 'month'
+                                            ? 'bg-white dark:bg-slate-700 text-primary dark:text-white shadow-xs'
+                                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                                    }`}
+                                >
+                                    Month
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleViewChange('week')}
+                                    className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
+                                        activeView === 'week'
+                                            ? 'bg-white dark:bg-slate-700 text-primary dark:text-white shadow-xs'
+                                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                                    }`}
+                                >
+                                    Week
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleViewChange('day')}
+                                    className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
+                                        activeView === 'day'
+                                            ? 'bg-white dark:bg-slate-700 text-primary dark:text-white shadow-xs'
+                                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                                    }`}
+                                >
+                                    Day
+                                </button>
+                            </div>
 
-                        {/* View Switcher */}
-                        <div className="inline-flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-white/10 text-xs">
-                            <button
-                                type="button"
-                                onClick={() => handleViewChange('month')}
-                                className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
-                                    activeView === 'month'
-                                        ? 'bg-white dark:bg-slate-700 text-primary dark:text-white shadow-xs'
-                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                                }`}
-                            >
-                                Month
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => handleViewChange('week')}
-                                className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
-                                    activeView === 'week'
-                                        ? 'bg-white dark:bg-slate-700 text-primary dark:text-white shadow-xs'
-                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                                }`}
-                            >
-                                Week
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => handleViewChange('day')}
-                                className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
-                                    activeView === 'day'
-                                        ? 'bg-white dark:bg-slate-700 text-primary dark:text-white shadow-xs'
-                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                                }`}
-                            >
-                                Day
-                            </button>
+                            {/* Date Navigation */}
+                            <div className="inline-flex items-center gap-1">
+                                <button
+                                    type="button"
+                                    onClick={() => navigateDate('prev')}
+                                    className="p-2 rounded-xl bg-white/80 dark:bg-slate-800 border border-slate-200/80 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-50 transition-colors shadow-xs"
+                                    title="Previous"
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => navigateDate('today')}
+                                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/80 dark:bg-slate-800 border border-slate-200/80 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-50 transition-colors shadow-xs"
+                                >
+                                    Today
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => navigateDate('next')}
+                                    className="p-2 rounded-xl bg-white/80 dark:bg-slate-800 border border-slate-200/80 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-50 transition-colors shadow-xs"
+                                    title="Next"
+                                >
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
+                            </div>
                         </div>
-
-                        {/* Date Navigation */}
-                        <div className="inline-flex items-center gap-1">
-                            <button
-                                type="button"
-                                onClick={() => navigateDate('prev')}
-                                className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-50 transition-colors shadow-xs"
-                                title="Previous"
-                            >
-                                <ChevronLeft className="w-4 h-4" />
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => navigateDate('today')}
-                                className="px-3 py-2 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-50 transition-colors shadow-xs"
-                            >
-                                Today
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => navigateDate('next')}
-                                className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-50 transition-colors shadow-xs"
-                                title="Next"
-                            >
-                                <ChevronRight className="w-4 h-4" />
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                    }
+                />
 
                 {/* MONTH VIEW */}
                 {activeView === 'month' && (
@@ -514,14 +510,30 @@ export default function CalendarIndex({
                 {activeView === 'day' && (
                     <div className="space-y-3">
                         {(sessionsByDate[currentDateStr] || []).length === 0 ? (
-                            <GlassCard className="text-center py-12">
-                                <CalendarIcon className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-                                <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">
-                                    No sessions scheduled for this day
-                                </h3>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto mt-1">
-                                    Switch views or create a one-off session from the Doctors page.
-                                </p>
+                            <GlassCard className="py-10">
+                                <EmptyState
+                                    icon={CalendarIcon}
+                                    title="No sessions scheduled for this day"
+                                    description="There are no doctor channeling sessions on this date. You can select another day or manage recurring weekly schedules."
+                                    action={
+                                        <Link
+                                            href="/doctors"
+                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-sm"
+                                        >
+                                            <CalendarDays className="w-3.5 h-3.5" />
+                                            <span>Doctor schedules</span>
+                                        </Link>
+                                    }
+                                    secondaryAction={
+                                        <button
+                                            type="button"
+                                            onClick={() => navigateDate('today')}
+                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-800 border border-slate-200/80 dark:border-white/10 hover:bg-slate-50 shadow-xs"
+                                        >
+                                            <span>Go to today</span>
+                                        </button>
+                                    }
+                                />
                             </GlassCard>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

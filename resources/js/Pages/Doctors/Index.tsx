@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { Head, useForm, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { PageHeader } from '@/Components/UI/PageHeader';
 import { GlassCard } from '@/Components/UI/GlassCard';
 import { GlassModal } from '@/Components/UI/GlassModal';
 import { Tabs } from '@/Components/UI/Tabs';
 import { StatusBadge } from '@/Components/UI/StatusBadge';
+import { EmptyState } from '@/Components/UI/EmptyState';
 import GlassSelect from '@/Components/UI/GlassSelect';
 import {
     Stethoscope,
@@ -282,72 +284,66 @@ export default function DoctorsIndex({
         <AuthenticatedLayout>
             <Head title="Doctors & Schedules" />
 
-            <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div className="space-y-6">
                 {/* Header */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary-50 dark:bg-primary-950/60 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-800/40">
-                                Phase 2 Medical Roster
-                            </span>
+                <PageHeader
+                    breadcrumbs={[
+                        { label: 'Clinic Workspace', href: '/dashboard' },
+                        { label: 'Doctors & Schedules' },
+                    ]}
+                    title="Doctors & Channeling Schedules"
+                    subtitle="Manage medical practitioners, SLMC verification credentials, consultation fee splits, and weekly schedules."
+                    actions={
+                        <div className="flex flex-wrap items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={triggerGenerateSessions}
+                                disabled={isGenerating}
+                                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white/80 dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors border border-slate-200/80 dark:border-white/10 shadow-xs"
+                                title="Populate upcoming 30 days from active weekly templates"
+                            >
+                                <RefreshCw className={`w-3.5 h-3.5 ${isGenerating ? 'animate-spin' : ''}`} />
+                                <span>{isGenerating ? 'Generating...' : 'Generate 30 Days'}</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setIsLeaveModalOpen(true)}
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-300 transition-colors border border-amber-200/60 dark:border-amber-800/40 shadow-xs"
+                            >
+                                <CalendarX2 className="w-3.5 h-3.5" />
+                                <span>Log Leave</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setIsOneOffModalOpen(true)}
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/40 text-teal-700 dark:text-teal-300 transition-colors border border-teal-200/60 dark:border-teal-800/40 shadow-xs"
+                            >
+                                <CalendarPlus className="w-3.5 h-3.5" />
+                                <span>One-Off Session</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setIsTemplateModalOpen(true)}
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 transition-colors border border-indigo-200/60 dark:border-indigo-800/40 shadow-xs"
+                            >
+                                <Calendar className="w-3.5 h-3.5" />
+                                <span>Weekly Template</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={openAddDoctor}
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-sm transition-all"
+                            >
+                                <Plus className="w-4 h-4" />
+                                <span>Add Doctor</span>
+                            </button>
                         </div>
-                        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white mt-1">
-                            Doctors & Channeling Schedules
-                        </h1>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                            Manage medical practitioners, SLMC verification credentials, consultation fee splits, and weekly schedules.
-                        </p>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2.5">
-                        <button
-                            type="button"
-                            onClick={triggerGenerateSessions}
-                            disabled={isGenerating}
-                            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors border border-slate-200/80 dark:border-white/10"
-                            title="Populate upcoming 30 days from active weekly templates"
-                        >
-                            <RefreshCw className={`w-3.5 h-3.5 ${isGenerating ? 'animate-spin' : ''}`} />
-                            <span>{isGenerating ? 'Generating...' : 'Generate 30 Days'}</span>
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={() => setIsLeaveModalOpen(true)}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-300 transition-colors border border-amber-200/60 dark:border-amber-800/40"
-                        >
-                            <CalendarX2 className="w-3.5 h-3.5" />
-                            <span>Log Leave</span>
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={() => setIsOneOffModalOpen(true)}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/40 text-teal-700 dark:text-teal-300 transition-colors border border-teal-200/60 dark:border-teal-800/40"
-                        >
-                            <CalendarPlus className="w-3.5 h-3.5" />
-                            <span>One-Off Session</span>
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={() => setIsTemplateModalOpen(true)}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 transition-colors border border-indigo-200/60 dark:border-indigo-800/40"
-                        >
-                            <Calendar className="w-3.5 h-3.5" />
-                            <span>Weekly Template</span>
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={openAddDoctor}
-                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-md shadow-primary/20 transition-all hover:-translate-y-0.5"
-                        >
-                            <Plus className="w-4 h-4" />
-                            <span>Add Doctor</span>
-                        </button>
-                    </div>
-                </div>
+                    }
+                />
 
                 {/* Tabs */}
                 <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-white/10 pb-4">
@@ -393,22 +389,39 @@ export default function DoctorsIndex({
                         </div>
 
                         {filteredDoctors.length === 0 ? (
-                            <GlassCard className="text-center py-12">
-                                <Stethoscope className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-                                <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">
-                                    No doctors found
-                                </h3>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto mt-1 mb-4">
-                                    Get started by onboarding your first specialist or general physician with their SLMC number and consultation fees.
-                                </p>
-                                <button
-                                    type="button"
-                                    onClick={openAddDoctor}
-                                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-md"
-                                >
-                                    <Plus className="w-4 h-4" />
-                                    <span>Add Doctor Now</span>
-                                </button>
+                            <GlassCard className="py-8">
+                                <EmptyState
+                                    icon={Stethoscope}
+                                    title={searchQuery || specialtyFilter ? 'No matching doctors found' : 'No doctors registered yet'}
+                                    description={searchQuery || specialtyFilter ? 'Try clearing your search query or specialty filter to view all registered doctors.' : 'Get started by onboarding your first specialist or general physician with their SLMC number and consultation fees.'}
+                                    action={
+                                        <button
+                                            type="button"
+                                            onClick={openAddDoctor}
+                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-sm"
+                                        >
+                                            <Plus className="w-3.5 h-3.5" />
+                                            <span>Add Doctor</span>
+                                        </button>
+                                    }
+                                    guide={[
+                                        {
+                                            step: 1,
+                                            title: 'Register Profile',
+                                            description: 'Enter name, specialty, SLMC registration, and fee breakdown.',
+                                        },
+                                        {
+                                            step: 2,
+                                            title: 'Set Weekly Roster',
+                                            description: 'Define recurring channeling days, time slots, and room numbers.',
+                                        },
+                                        {
+                                            step: 3,
+                                            title: 'Generate Sessions',
+                                            description: 'Automatically populate upcoming channeling calendars for patients.',
+                                        },
+                                    ]}
+                                />
                             </GlassCard>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -541,22 +554,22 @@ export default function DoctorsIndex({
                         </div>
 
                         {templates.length === 0 ? (
-                            <GlassCard className="text-center py-12">
-                                <Calendar className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-                                <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">
-                                    No weekly templates configured
-                                </h3>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto mt-1 mb-4">
-                                    Define recurring day/time schedules for your doctors to automate monthly calendar booking blocks.
-                                </p>
-                                <button
-                                    type="button"
-                                    onClick={() => setIsTemplateModalOpen(true)}
-                                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600"
-                                >
-                                    <Plus className="w-4 h-4" />
-                                    <span>Create Template</span>
-                                </button>
+                            <GlassCard className="py-8">
+                                <EmptyState
+                                    icon={Calendar}
+                                    title="No weekly templates configured"
+                                    description="Define recurring day and time schedules for your doctors to automate calendar generation and token quotas."
+                                    action={
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsTemplateModalOpen(true)}
+                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-sm"
+                                        >
+                                            <Plus className="w-3.5 h-3.5" />
+                                            <span>Create Template</span>
+                                        </button>
+                                    }
+                                />
                             </GlassCard>
                         ) : (
                             <div className="overflow-x-auto rounded-2xl border border-slate-200/80 dark:border-white/10 bg-white/75 dark:bg-slate-900/60 backdrop-blur-xl">
@@ -637,14 +650,22 @@ export default function DoctorsIndex({
                         </div>
 
                         {leaves.length === 0 ? (
-                            <GlassCard className="text-center py-12">
-                                <CalendarX2 className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-                                <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">
-                                    No active doctor leave logged
-                                </h3>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto mt-1 mb-4">
-                                    All doctors are currently on active duty with standard weekly channeling availability.
-                                </p>
+                            <GlassCard className="py-8">
+                                <EmptyState
+                                    icon={CalendarX2}
+                                    title="No active doctor leave logged"
+                                    description="All doctors are currently on active duty with standard weekly channeling availability."
+                                    action={
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsLeaveModalOpen(true)}
+                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 shadow-sm"
+                                        >
+                                            <Plus className="w-3.5 h-3.5" />
+                                            <span>Record Leave</span>
+                                        </button>
+                                    }
+                                />
                             </GlassCard>
                         ) : (
                             <div className="overflow-x-auto rounded-2xl border border-slate-200/80 dark:border-white/10 bg-white/75 dark:bg-slate-900/60 backdrop-blur-xl">

@@ -55,6 +55,9 @@ export default function AuthenticatedLayout({
             address?: string;
             logo_url?: string;
             base_domain?: string;
+            plan?: string;
+            trial_days_left?: number;
+            is_trial?: boolean;
         } | null;
     }>().props;
 
@@ -278,16 +281,24 @@ export default function AuthenticatedLayout({
                     })}
                 </div>
 
-                {/* Sidebar Bottom Clinic Status */}
-                <div className="p-3 border-t border-slate-200/70 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.02]">
-                    <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-2">
-                        <span className="flex items-center gap-1.5 font-medium">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                            Live Channeling
-                        </span>
-                        <span className="text-[10px] font-mono font-bold bg-slate-200/70 dark:bg-slate-800 px-1.5 py-0.5 rounded">
-                            LKR (Rs.)
-                        </span>
+                {/* Sidebar Bottom Clinic Plan & Trial Status */}
+                <div className="p-3 border-t border-slate-200/70 dark:border-white/10 bg-slate-50/70 dark:bg-white/[0.02]">
+                    <div className="flex items-center justify-between text-xs px-1">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                            <Shield className="w-3.5 h-3.5 text-primary shrink-0" />
+                            <span className="font-bold text-slate-800 dark:text-slate-200 truncate text-[11px]">
+                                {tenant?.plan || 'Growth Plan'}
+                            </span>
+                        </div>
+                        {tenant?.is_trial ? (
+                            <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-full border border-amber-200/60 dark:border-amber-800/40 shrink-0">
+                                {tenant.trial_days_left}d left
+                            </span>
+                        ) : (
+                            <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-200/60 dark:border-emerald-800/40 shrink-0">
+                                Active
+                            </span>
+                        )}
                     </div>
                 </div>
             </aside>
@@ -504,13 +515,15 @@ export default function AuthenticatedLayout({
 
                 {/* Optional Page Header */}
                 {header && (
-                    <div className="border-b border-slate-200/70 dark:border-white/10 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md px-4 sm:px-6 py-4">
-                        {header}
+                    <div className="border-b border-slate-200/70 dark:border-white/10 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md px-6 sm:px-8 py-4">
+                        <div className="max-w-[1440px] w-full mx-auto">
+                            {header}
+                        </div>
                     </div>
                 )}
 
                 {/* Page Content Body */}
-                <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+                <main className="flex-1 px-6 sm:px-8 py-6 max-w-[1440px] w-full mx-auto">
                     {children}
                 </main>
             </div>

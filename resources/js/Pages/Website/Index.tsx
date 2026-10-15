@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Head, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { PageHeader } from '@/Components/UI/PageHeader';
 import {
     Globe,
     Eye,
@@ -159,16 +160,21 @@ export default function WebsiteIndex({
     };
 
     return (
-        <AuthenticatedLayout
-            header={
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <h1 className="text-xl font-bold text-slate-900 dark:text-white">
-                                Clinic Website & Public Booking
-                            </h1>
+        <AuthenticatedLayout>
+            <Head title="Clinic Website Builder - MedVisit" />
+
+            <div className="space-y-6">
+                <PageHeader
+                    breadcrumbs={[
+                        { label: 'Clinic Workspace', href: '/dashboard' },
+                        { label: 'Website & Public Booking' },
+                    ]}
+                    title="Clinic Website & Public Booking"
+                    subtitle="Customize your public patient landing portal, doctor channeling directory, and online token booking."
+                    actions={
+                        <div className="flex flex-wrap items-center gap-2">
                             <span
-                                className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
+                                className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
                                     initialPublished
                                         ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
                                         : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
@@ -176,51 +182,41 @@ export default function WebsiteIndex({
                             >
                                 {initialPublished ? 'Live & Published' : 'Draft Mode'}
                             </span>
+
+                            <a
+                                href="/"
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-slate-850 text-slate-700 dark:text-slate-200 hover:bg-slate-50 shadow-xs transition-colors"
+                            >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>Open Live Site</span>
+                            </a>
+
+                            {initialPublished ? (
+                                <button
+                                    type="button"
+                                    disabled={publishing}
+                                    onClick={() => handleTogglePublish(false)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-red-200/80 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-100 shadow-xs transition-colors"
+                                >
+                                    <XCircle className="w-3.5 h-3.5" />
+                                    <span>Unpublish</span>
+                                </button>
+                            ) : (
+                                <button
+                                    type="button"
+                                    disabled={publishing}
+                                    onClick={() => handleTogglePublish(true)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs transition-colors"
+                                >
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    <span>Publish Live</span>
+                                </button>
+                            )}
                         </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                            Customize your public patient landing portal, doctor channeling directory, and online token booking.
-                        </p>
-                    </div>
-
-                    <div className="flex items-center gap-2.5">
-                        <a
-                            href="/"
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm"
-                        >
-                            <Eye className="w-3.5 h-3.5" />
-                            Open Live Site
-                        </a>
-
-                        {initialPublished ? (
-                            <button
-                                type="button"
-                                disabled={publishing}
-                                onClick={() => handleTogglePublish(false)}
-                                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-100"
-                            >
-                                <XCircle className="w-3.5 h-3.5" />
-                                Unpublish (Set Draft)
-                            </button>
-                        ) : (
-                            <button
-                                type="button"
-                                disabled={publishing}
-                                onClick={() => handleTogglePublish(true)}
-                                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm shadow-emerald-600/30"
-                            >
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                Publish Live
-                            </button>
-                        )}
-                    </div>
-                </div>
-            }
-        >
-            <Head title="Clinic Website Builder - MedVisit" />
-
-            <div className="space-y-6">
+                    }
+                />
                 {/* Main 2-Column Grid: Builder on Left, Live Preview on Right */}
                 <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
                     {/* Left Column: Sections & Controls (5 Cols) */}
