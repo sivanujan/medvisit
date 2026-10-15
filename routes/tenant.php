@@ -208,6 +208,14 @@ Route::middleware([
 
             Route::get('/settings', [ClinicSettingsController::class, 'index'])
                 ->name('tenant.settings');
+            Route::put('/settings/profile', [ClinicSettingsController::class, 'updateProfile'])
+                ->name('tenant.settings.profile');
+            Route::put('/settings/session-defaults', [ClinicSettingsController::class, 'updateSessionDefaults'])
+                ->name('tenant.settings.session_defaults');
+            Route::put('/settings/billing', [ClinicSettingsController::class, 'updateBillingSettings'])
+                ->name('tenant.settings.billing');
+            Route::put('/settings/online-booking', [ClinicSettingsController::class, 'updateOnlineBooking'])
+                ->name('tenant.settings.online_booking');
         });
 
         // Legacy / shortcut redirects
