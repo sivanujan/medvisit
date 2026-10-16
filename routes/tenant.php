@@ -12,6 +12,7 @@ use App\Http\Controllers\Tenant\DoctorSettlementController;
 use App\Http\Controllers\Tenant\FeeSettingsController;
 use App\Http\Controllers\Tenant\LiveQueueTvController;
 use App\Http\Controllers\Tenant\PatientController;
+use App\Http\Controllers\Tenant\PublicBookingController;
 use App\Http\Controllers\Tenant\StaffController;
 use App\Http\Controllers\Tenant\TenantAuthenticatedSessionController;
 use App\Http\Controllers\Tenant\TenantDashboardController;
@@ -52,11 +53,30 @@ Route::middleware([
     Route::get('/preview', [ClinicWebsiteController::class, 'previewHome'])
         ->name('tenant.preview');
 
-    Route::get('/book', [ClinicWebsiteController::class, 'publicBooking'])
+    // 2. Tenant Public Landing & Calendly-Style Online Booking Flow
+    Route::get('/book', [PublicBookingController::class, 'index'])
         ->name('tenant.book');
 
-    Route::post('/book', [ClinicWebsiteController::class, 'storePublicBooking'])
-        ->middleware('throttle:10,1')
+    Route::get('/book/api/availability/{slug}', [PublicBookingController::class, 'doctorMonthAvailability'])
+        ->name('tenant.book.availability');
+
+    Route::get('/book/confirmed/{signedToken}', [PublicBookingController::class, 'confirmed'])
+        ->name('tenant.book.confirmed');
+
+    Route::get('/book/ics/{signedToken}', [PublicBookingController::class, 'downloadIcs'])
+        ->name('tenant.book.ics');
+
+    Route::post('/book/cancel/{signedToken}', [PublicBookingController::class, 'cancel'])
+        ->name('tenant.book.cancel');
+
+    Route::get('/book/{slug}', [PublicBookingController::class, 'showDoctor'])
+        ->name('tenant.book.doctor');
+
+    Route::get('/book/{slug}/{session}', [PublicBookingController::class, 'showSession'])
+        ->name('tenant.book.session');
+
+    Route::post('/book', [PublicBookingController::class, 'store'])
+        ->middleware('throttle:15,1')
         ->name('tenant.book.store');
 
     Route::get('/queue', [ClinicWebsiteController::class, 'publicQueue'])

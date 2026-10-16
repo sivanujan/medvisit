@@ -63,6 +63,18 @@ class SessionGeneratorService
                 continue;
             }
 
+            // Check if doctor already has an active overlapping session on this date
+            $overlap = DoctorSession::where('doctor_id', $template->doctor_id)
+                ->where('session_date', $dateString)
+                ->whereNotIn('status', ['cancelled'])
+                ->where('start_time', '<', $template->end_time)
+                ->where('end_time', '>', $template->start_time)
+                ->exists();
+
+            if ($overlap) {
+                continue;
+            }
+
             DoctorSession::create([
                 'tenant_id' => $tenantId,
                 'doctor_id' => $template->doctor_id,

@@ -110,4 +110,51 @@ class DoctorSession extends Model
     {
         return $this->available_tokens_count <= 0;
     }
+
+    /**
+     * Check if doctor already has an active overlapping session on the given date.
+     */
+    public static function findDoctorOverlap(
+        string $tenantId,
+        int $doctorId,
+        string $sessionDate,
+        string $startTime,
+        string $endTime,
+        ?int $excludeId = null
+    ): ?self {
+        return static::where('tenant_id', $tenantId)
+            ->where('doctor_id', $doctorId)
+            ->where('session_date', $sessionDate)
+            ->whereNotIn('status', ['cancelled'])
+            ->when($excludeId, fn ($q) => $q->where('id', '!=', $excludeId))
+            ->where('start_time', '<', $endTime)
+            ->where('end_time', '>', $startTime)
+            ->first();
+    }
+
+    /**
+     * Check if room is already booked on the given date at an overlapping time.
+     */
+    public static function findRoomConflict(
+        string $tenantId,
+        ?string $roomNumber,
+        string $sessionDate,
+        string $startTime,
+        string $endTime,
+        ?int $excludeId = null
+    ): ?self {
+        if (empty($roomNumber)) {
+            return null;
+        }
+
+        return static::with('doctor')
+            ->where('tenant_id', $tenantId)
+            ->where('room_number', $roomNumber)
+            ->where('session_date', $sessionDate)
+            ->whereNotIn('status', ['cancelled'])
+            ->when($excludeId, fn ($q) => $q->where('id', '!=', $excludeId))
+            ->where('start_time', '<', $endTime)
+            ->where('end_time', '>', $startTime)
+            ->first();
+    }
 }

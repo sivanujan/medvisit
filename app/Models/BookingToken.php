@@ -68,6 +68,11 @@ class BookingToken extends Model
         return $this->belongsTo(DoctorSession::class, 'doctor_session_id');
     }
 
+    public function doctorSession(): BelongsTo
+    {
+        return $this->belongsTo(DoctorSession::class, 'doctor_session_id');
+    }
+
     public function patient(): BelongsTo
     {
         return $this->belongsTo(Patient::class);

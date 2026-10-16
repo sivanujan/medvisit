@@ -39,7 +39,8 @@ return [
     'bootstrappers' => [
         // Disabled for single database multi-tenancy (tenant_id scoping)
         // Stancl\Tenancy\Bootstrappers\DatabaseTenancyBootstrapper::class,
-        CacheTenancyBootstrapper::class,
+        // CacheTenancyBootstrapper requires Redis/Memcached for tagging; disabled for database/file cache
+        // CacheTenancyBootstrapper::class,
         FilesystemTenancyBootstrapper::class,
         QueueTenancyBootstrapper::class,
         // Stancl\Tenancy\Bootstrappers\RedisTenancyBootstrapper::class, // Note: phpredis is needed

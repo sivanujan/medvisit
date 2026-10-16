@@ -9,7 +9,6 @@ use App\Models\Patient;
 use App\Models\SessionTemplate;
 use App\Models\Tenant;
 use App\Services\SessionGeneratorService;
-use Carbon\Carbon;
 use Illuminate\Console\Command;
 
 class SeedDemoDataCommand extends Command
@@ -65,9 +64,10 @@ class SeedDemoDataCommand extends Command
                 'avg_consultation_minutes' => 15,
                 'is_active' => true,
                 'templates' => [
-                    // Every Monday, Wednesday, Friday, Saturday
+                    // Monday, Wednesday, Friday, Saturday
                     ['title' => 'Morning Cardiac Clinic', 'day_of_week' => 1, 'start_time' => '09:00', 'end_time' => '12:00', 'max_patients' => 20, 'room_number' => 'Consulting Room 1'],
                     ['title' => 'Evening Cardiology Channeling', 'day_of_week' => 3, 'start_time' => '17:00', 'end_time' => '20:00', 'max_patients' => 25, 'room_number' => 'Consulting Room 1'],
+                    ['title' => 'Friday Cardiac Channeling', 'day_of_week' => 5, 'start_time' => '16:00', 'end_time' => '19:00', 'max_patients' => 20, 'room_number' => 'Consulting Room 1'],
                     ['title' => 'Weekend Special Clinic', 'day_of_week' => 6, 'start_time' => '10:00', 'end_time' => '13:00', 'max_patients' => 15, 'room_number' => 'Suite A'],
                 ],
             ],
@@ -88,9 +88,10 @@ class SeedDemoDataCommand extends Command
                 'avg_consultation_minutes' => 12,
                 'is_active' => true,
                 'templates' => [
-                    // Tuesday, Thursday, Sunday
+                    // Tuesday, Thursday, Saturday, Sunday
                     ['title' => 'Child Health & Immunization Clinic', 'day_of_week' => 2, 'start_time' => '16:00', 'end_time' => '19:00', 'max_patients' => 20, 'room_number' => 'Paediatric Suite'],
                     ['title' => 'Afternoon Paediatric Channeling', 'day_of_week' => 4, 'start_time' => '15:00', 'end_time' => '18:00', 'max_patients' => 20, 'room_number' => 'Paediatric Suite'],
+                    ['title' => 'Saturday Paediatric Consultation', 'day_of_week' => 6, 'start_time' => '15:00', 'end_time' => '18:00', 'max_patients' => 20, 'room_number' => 'Paediatric Suite'],
                     ['title' => 'Sunday Well-Baby Clinic', 'day_of_week' => 0, 'start_time' => '09:00', 'end_time' => '12:00', 'max_patients' => 15, 'room_number' => 'Paediatric Suite'],
                 ],
             ],
@@ -118,9 +119,6 @@ class SeedDemoDataCommand extends Command
             ],
         ];
 
-        $today = Carbon::today('Asia/Colombo');
-        $todayDayOfWeek = $today->dayOfWeek;
-
         foreach ($doctorsData as $dData) {
             $templatesData = $dData['templates'];
             unset($dData['templates']);
@@ -129,24 +127,6 @@ class SeedDemoDataCommand extends Command
                 ['tenant_id' => $tenant->id, 'slmc_number' => $dData['slmc_number']],
                 array_merge($dData, ['tenant_id' => $tenant->id])
             );
-
-            // Also ensure there is always a session template for TODAY and TOMORROW so there are sessions immediately visible!
-            $templatesData[] = [
-                'title' => "Today's {$doctor->specialty} Session",
-                'day_of_week' => $todayDayOfWeek,
-                'start_time' => '16:00',
-                'end_time' => '19:00',
-                'max_patients' => 25,
-                'room_number' => 'Room 1',
-            ];
-            $templatesData[] = [
-                'title' => "Tomorrow's {$doctor->specialty} Session",
-                'day_of_week' => ($todayDayOfWeek + 1) % 7,
-                'start_time' => '17:00',
-                'end_time' => '20:00',
-                'max_patients' => 25,
-                'room_number' => 'Room 1',
-            ];
 
             foreach ($templatesData as $t) {
                 SessionTemplate::firstOrCreate(

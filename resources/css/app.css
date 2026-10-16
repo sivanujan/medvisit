@@ -41,6 +41,19 @@ body {
     background-color: #0B1120;
 }
 
+/* Force pure clean light background for public booking flows */
+.public-booking-flow,
+[data-public-booking="true"] {
+    background-color: #F8FAFC !important;
+    color: #0F172A !important;
+}
+
+.dark .public-booking-flow,
+.dark [data-public-booking="true"] {
+    background-color: #F8FAFC !important;
+    color: #0F172A !important;
+}
+
 /* Glass Surface Utility */
 .glass-panel {
     background: var(--mv-surface-bg);

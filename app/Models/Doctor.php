@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 use Stancl\Tenancy\Database\Concerns\BelongsToTenant;
 
 class Doctor extends Model
@@ -17,6 +18,7 @@ class Doctor extends Model
     protected $fillable = [
         'tenant_id',
         'user_id',
+        'slug',
         'name',
         'title',
         'specialty',
@@ -38,6 +40,21 @@ class Doctor extends Model
         'avg_consultation_minutes',
         'is_active',
     ];
+
+    protected static function booted(): void
+    {
+        static::saving(function (Doctor $doctor) {
+            if (empty($doctor->slug) && ! empty($doctor->name)) {
+                $base = Str::slug(($doctor->title ? $doctor->title.' ' : '').$doctor->name);
+                $slug = $base;
+                $counter = 1;
+                while (static::where('tenant_id', $doctor->tenant_id)->where('slug', $slug)->where('id', '!=', $doctor->id ?? 0)->exists()) {
+                    $slug = "{$base}-".(++$counter);
+                }
+                $doctor->slug = $slug;
+            }
+        });
+    }
 
     protected function casts(): array
     {

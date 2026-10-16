@@ -30,6 +30,11 @@ import {
     Layers,
     Info,
     ChevronDown,
+    LayoutGrid,
+    List,
+    Building,
+    Copy,
+    Check,
 } from 'lucide-react';
 
 interface DoctorData {
@@ -39,6 +44,7 @@ interface DoctorData {
     full_title: string;
     specialty: string;
     slmc_number: string;
+    slug?: string;
     phone: string | null;
     email: string | null;
     photo_url: string | null;
@@ -175,6 +181,9 @@ export default function DoctorsIndex({
     const [isOneOffModalOpen, setIsOneOffModalOpen] = useState(false);
     const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [copiedDoctorId, setCopiedDoctorId] = useState<number | null>(null);
+    const [templateViewMode, setTemplateViewMode] = useState<'calendar' | 'table'>('calendar');
+    const [templateDoctorFilter, setTemplateDoctorFilter] = useState<string>('all');
 
     const defaultMode = feeSettings?.pricing_mode || 'split';
     const defDoc = feeSettings?.default_doctor_fee_lkr ?? 2000;
@@ -344,8 +353,49 @@ export default function DoctorsIndex({
         }
     };
 
-    const deleteTemplate = (id: number) => {
-        if (confirm('Delete this weekly session template?')) {
+    const openAddTemplate = () => {
+        templateForm.reset();
+        templateForm.setData({
+            doctor_id: templateDoctorFilter !== 'all' ? templateDoctorFilter : (doctors[0]?.id ? String(doctors[0].id) : ''),
+            title: 'Regular Channeling Session',
+            day_of_week: 1,
+            start_time: '17:00',
+            end_time: '20:00',
+            max_patients: 25,
+            room_number: 'Consultation Suite 1',
+            mode: 'token',
+            fee_override_type: 'inherit',
+            custom_doctor_fee_lkr: '',
+            custom_clinic_fee_lkr: '',
+        });
+        setIsTemplateModalOpen(true);
+    };
+
+    const openAddTemplateForDay = (dayOfWeek: number) => {
+        templateForm.reset();
+        templateForm.setData({
+            doctor_id: templateDoctorFilter !== 'all' ? templateDoctorFilter : (doctors[0]?.id ? String(doctors[0].id) : ''),
+            title: 'Regular Channeling Session',
+            day_of_week: dayOfWeek,
+            start_time: '17:00',
+            end_time: '20:00',
+            max_patients: 25,
+            room_number: 'Consultation Suite 1',
+            mode: 'token',
+            fee_override_type: 'inherit',
+            custom_doctor_fee_lkr: '',
+            custom_clinic_fee_lkr: '',
+        });
+        setIsTemplateModalOpen(true);
+    };
+
+    const deleteTemplate = (idOrTpl: number | TemplateData) => {
+        const id = typeof idOrTpl === 'number' ? idOrTpl : idOrTpl.id;
+        const promptMsg = typeof idOrTpl === 'object'
+            ? `Delete weekly template "${idOrTpl.title}" for ${idOrTpl.doctor_name} on ${idOrTpl.day_name} (${idOrTpl.start_time} - ${idOrTpl.end_time})?`
+            : 'Delete this weekly session template?';
+
+        if (confirm(promptMsg)) {
             router.delete(`/doctors/templates/${id}`, { preserveScroll: true });
         }
     };
@@ -354,6 +404,13 @@ export default function DoctorsIndex({
         if (confirm('Delete this doctor leave entry?')) {
             router.delete(`/doctors/leaves/${id}`, { preserveScroll: true });
         }
+    };
+
+    const copyDoctorBookingLink = (doc: DoctorData) => {
+        const url = `${window.location.origin}/book/${doc.slug || doc.id}`;
+        navigator.clipboard.writeText(url);
+        setCopiedDoctorId(doc.id);
+        setTimeout(() => setCopiedDoctorId(null), 2500);
     };
 
     const triggerGenerateSessions = () => {
@@ -424,7 +481,7 @@ export default function DoctorsIndex({
 
                             <button
                                 type="button"
-                                onClick={() => setIsTemplateModalOpen(true)}
+                                onClick={openAddTemplate}
                                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 transition-colors border border-indigo-200/60 dark:border-indigo-800/40 shadow-xs"
                             >
                                 <Calendar className="w-3.5 h-3.5" />
@@ -614,6 +671,28 @@ export default function DoctorsIndex({
                                             <div className="flex items-center gap-1">
                                                 <button
                                                     type="button"
+                                                    onClick={() => copyDoctorBookingLink(doc)}
+                                                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold transition-all ${
+                                                        copiedDoctorId === doc.id
+                                                            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300'
+                                                            : 'text-slate-500 hover:text-primary hover:bg-primary-50 dark:hover:bg-primary-950/40'
+                                                    }`}
+                                                    title={`Copy public booking link: /book/${doc.slug || doc.id}`}
+                                                >
+                                                    {copiedDoctorId === doc.id ? (
+                                                        <>
+                                                            <Check className="w-3.5 h-3.5 text-emerald-500" />
+                                                            <span>Copied!</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Copy className="w-3.5 h-3.5" />
+                                                            <span className="hidden sm:inline">Booking Link</span>
+                                                        </>
+                                                    )}
+                                                </button>
+                                                <button
+                                                    type="button"
                                                     onClick={() => openEditDoctor(doc)}
                                                     className="p-1.5 rounded-lg text-slate-500 hover:text-primary hover:bg-primary-50 dark:hover:bg-primary-950/40 transition-colors"
                                                     title="Edit Doctor"
@@ -637,101 +716,304 @@ export default function DoctorsIndex({
                     </div>
                 )}
 
-                {/* TAB 2: WEEKLY RECURRING TEMPLATES */}
-                {activeTab === 'templates' && (
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
-                                Weekly templates automatically materialize into dated sessions for the next 30 days via daily cron.
-                            </p>
-                            <button
-                                type="button"
-                                onClick={() => setIsTemplateModalOpen(true)}
-                                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-sm"
-                            >
-                                <Plus className="w-3.5 h-3.5" />
-                                <span>Add Template</span>
-                            </button>
-                        </div>
+                {/* TAB 2: WEEKLY RECURRING TEMPLATES (CALENDAR & TABLE VIEWS) */}
+                {activeTab === 'templates' && (() => {
+                    const displayedTemplates = templates.filter((tpl) => {
+                        if (templateDoctorFilter !== 'all' && String(tpl.doctor_id) !== templateDoctorFilter) {
+                            return false;
+                        }
+                        return true;
+                    });
 
-                        {templates.length === 0 ? (
-                            <GlassCard className="py-8">
-                                <EmptyState
-                                    icon={Calendar}
-                                    title="No weekly templates configured"
-                                    description="Define recurring day and time schedules for your doctors to automate calendar generation and token quotas."
-                                    action={
+                    const WEEK_DAYS = [
+                        { day: 1, name: 'Monday', short: 'Mon' },
+                        { day: 2, name: 'Tuesday', short: 'Tue' },
+                        { day: 3, name: 'Wednesday', short: 'Wed' },
+                        { day: 4, name: 'Thursday', short: 'Thu' },
+                        { day: 5, name: 'Friday', short: 'Fri' },
+                        { day: 6, name: 'Saturday', short: 'Sat' },
+                        { day: 0, name: 'Sunday', short: 'Sun' },
+                    ];
+
+                    return (
+                        <div className="space-y-4">
+                            {/* Controls Bar: View Toggle, Doctor Filter, and Add Button */}
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white/60 dark:bg-slate-900/40 backdrop-blur-md p-3 rounded-2xl border border-slate-200/80 dark:border-white/10">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    {/* View Toggle */}
+                                    <div className="inline-flex p-1 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200/70 dark:border-white/10">
                                         <button
                                             type="button"
-                                            onClick={() => setIsTemplateModalOpen(true)}
-                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-sm"
+                                            onClick={() => setTemplateViewMode('calendar')}
+                                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                                templateViewMode === 'calendar'
+                                                    ? 'bg-primary text-white shadow-xs'
+                                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                            }`}
                                         >
-                                            <Plus className="w-3.5 h-3.5" />
-                                            <span>Create Template</span>
+                                            <LayoutGrid className="w-3.5 h-3.5" />
+                                            <span>Weekly Calendar</span>
                                         </button>
-                                    }
-                                />
-                            </GlassCard>
-                        ) : (
-                            <div className="overflow-x-auto rounded-2xl border border-slate-200/80 dark:border-white/10 bg-white/75 dark:bg-slate-900/60 backdrop-blur-xl">
-                                <table className="w-full text-left text-xs">
-                                    <thead className="bg-slate-50/70 dark:bg-white/5 border-b border-slate-200/70 dark:border-white/10 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                                        <tr>
-                                            <th className="py-3 px-4">Doctor</th>
-                                            <th className="py-3 px-4">Template Title</th>
-                                            <th className="py-3 px-4">Day of Week</th>
-                                            <th className="py-3 px-4">Timing</th>
-                                            <th className="py-3 px-4">Max Patients</th>
-                                            <th className="py-3 px-4">Room</th>
-                                            <th className="py-3 px-4 text-right">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                                        {templates.map((tpl) => (
-                                            <tr key={tpl.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors">
-                                                <td className="py-3 px-4">
-                                                    <span className="font-bold text-slate-900 dark:text-white block">
-                                                        {tpl.doctor_name}
-                                                    </span>
-                                                    <span className="text-[11px] text-slate-400">
-                                                        {tpl.doctor_specialty}
-                                                    </span>
-                                                </td>
-                                                <td className="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200">
-                                                    {tpl.title}
-                                                </td>
-                                                <td className="py-3 px-4">
-                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-primary-50 dark:bg-primary-950/40 text-primary-700 dark:text-primary-300">
-                                                        {tpl.day_name}
-                                                    </span>
-                                                </td>
-                                                <td className="py-3 px-4 font-medium text-slate-700 dark:text-slate-300">
-                                                    {tpl.start_time} – {tpl.end_time}
-                                                </td>
-                                                <td className="py-3 px-4 font-semibold text-slate-700 dark:text-slate-300">
-                                                    {tpl.max_patients} tokens
-                                                </td>
-                                                <td className="py-3 px-4 text-slate-500 dark:text-slate-400">
-                                                    {tpl.room_number}
-                                                </td>
-                                                <td className="py-3 px-4 text-right">
+                                        <button
+                                            type="button"
+                                            onClick={() => setTemplateViewMode('table')}
+                                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                                templateViewMode === 'table'
+                                                    ? 'bg-primary text-white shadow-xs'
+                                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                            }`}
+                                        >
+                                            <List className="w-3.5 h-3.5" />
+                                            <span>Table List</span>
+                                        </button>
+                                    </div>
+
+                                    {/* Doctor Filter */}
+                                    <div className="w-56">
+                                        <GlassSelect
+                                            value={templateDoctorFilter}
+                                            onChange={(e) => setTemplateDoctorFilter(e.target.value)}
+                                            options={[
+                                                { value: 'all', label: `All Doctors (${doctors.length})` },
+                                                ...doctors.map((d) => ({
+                                                    value: String(d.id),
+                                                    label: `${d.full_title}`,
+                                                    description: d.specialty,
+                                                })),
+                                            ]}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={openAddTemplate}
+                                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-sm transition-all"
+                                    >
+                                        <Plus className="w-3.5 h-3.5" />
+                                        <span>Add Template</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* CALENDAR VIEW */}
+                            {templateViewMode === 'calendar' && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-3 items-start">
+                                    {WEEK_DAYS.map((day) => {
+                                        const dayTemplates = displayedTemplates
+                                            .filter((t) => t.day_of_week === day.day)
+                                            .sort((a, b) => (a.start_time_raw || a.start_time).localeCompare(b.start_time_raw || b.start_time));
+
+                                        return (
+                                            <div
+                                                key={day.day}
+                                                className="flex flex-col min-h-[380px] rounded-2xl border border-slate-200/80 dark:border-white/10 bg-white/75 dark:bg-slate-900/60 backdrop-blur-xl p-3 shadow-xs hover:border-slate-300 dark:hover:border-white/20 transition-colors"
+                                            >
+                                                {/* Day Header */}
+                                                <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-200/70 dark:border-white/10">
+                                                    <div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="font-extrabold text-xs text-slate-900 dark:text-white">
+                                                                {day.name}
+                                                            </span>
+                                                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-md bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400">
+                                                                {day.short}
+                                                            </span>
+                                                        </div>
+                                                        <span className="text-[10px] text-slate-400 font-medium">
+                                                            {dayTemplates.length} {dayTemplates.length === 1 ? 'session' : 'sessions'}
+                                                        </span>
+                                                    </div>
+
                                                     <button
                                                         type="button"
-                                                        onClick={() => deleteTemplate(tpl.id)}
-                                                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-                                                        title="Delete Template"
+                                                        onClick={() => openAddTemplateForDay(day.day)}
+                                                        className="w-6 h-6 rounded-lg bg-primary/10 hover:bg-primary text-primary hover:text-white flex items-center justify-center transition-all"
+                                                        title={`Schedule doctor for ${day.name}`}
                                                     >
-                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                        <Plus className="w-3.5 h-3.5" />
                                                     </button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </div>
-                )}
+                                                </div>
+
+                                                {/* Day Sessions List */}
+                                                <div className="space-y-2.5 flex-1 flex flex-col">
+                                                    {dayTemplates.length === 0 ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openAddTemplateForDay(day.day)}
+                                                            className="flex-1 min-h-[140px] flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border border-dashed border-slate-200 dark:border-white/10 hover:border-primary/50 hover:bg-primary/5 text-slate-400 hover:text-primary transition-all group"
+                                                        >
+                                                            <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-white/5 group-hover:bg-primary/10 flex items-center justify-center transition-colors">
+                                                                <Plus className="w-3.5 h-3.5 text-slate-400 group-hover:text-primary" />
+                                                            </div>
+                                                            <span className="text-[11px] font-bold">No sessions</span>
+                                                            <span className="text-[10px] text-slate-400 group-hover:text-primary/80">
+                                                                + Add for {day.short}
+                                                            </span>
+                                                        </button>
+                                                    ) : (
+                                                        <>
+                                                            {dayTemplates.map((tpl) => (
+                                                                <div
+                                                                    key={tpl.id}
+                                                                    className="group relative rounded-xl border border-slate-200/80 dark:border-white/10 bg-slate-50/80 dark:bg-slate-800/70 p-2.5 hover:border-primary/40 hover:shadow-md transition-all flex flex-col gap-2"
+                                                                >
+                                                                    {/* Doctor Info & Delete Action */}
+                                                                    <div className="flex items-start justify-between gap-1.5">
+                                                                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                                                                            <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-primary/20 to-teal-500/20 text-primary dark:text-primary-300 font-extrabold flex items-center justify-center text-xs border border-primary/20 shrink-0">
+                                                                                {tpl.doctor_name.charAt(0)}
+                                                                            </div>
+                                                                            <div className="min-w-0 flex-1">
+                                                                                <p className="font-bold text-xs text-slate-900 dark:text-white truncate" title={tpl.doctor_name}>
+                                                                                    {tpl.doctor_name}
+                                                                                </p>
+                                                                                <p className="text-[10px] text-slate-400 font-medium truncate" title={tpl.doctor_specialty}>
+                                                                                    {tpl.doctor_specialty}
+                                                                                </p>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => deleteTemplate(tpl)}
+                                                                            className="opacity-60 group-hover:opacity-100 p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                                                                            title={`Remove ${tpl.title} on ${day.name}`}
+                                                                        >
+                                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                    </div>
+
+                                                                    {/* Timing Badge */}
+                                                                    <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/40">
+                                                                        <Clock className="w-3 h-3 text-indigo-500 shrink-0" />
+                                                                        <span className="truncate">{tpl.start_time} – {tpl.end_time}</span>
+                                                                    </div>
+
+                                                                    {/* Room Badge */}
+                                                                    <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
+                                                                        <Building className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                                                        <span className="truncate">{tpl.room_number || 'Room unassigned'}</span>
+                                                                    </div>
+
+                                                                    {/* Capacity & Title */}
+                                                                    <div className="pt-1.5 border-t border-slate-200/60 dark:border-white/5 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
+                                                                        <span className="truncate pr-1 font-medium">{tpl.title}</span>
+                                                                        <span className="font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap shrink-0">
+                                                                            {tpl.max_patients} tokens
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => openAddTemplateForDay(day.day)}
+                                                                className="w-full py-1.5 rounded-lg border border-dashed border-slate-200 dark:border-white/10 hover:border-primary/50 text-[10px] font-semibold text-slate-500 hover:text-primary transition-colors flex items-center justify-center gap-1"
+                                                            >
+                                                                <Plus className="w-3 h-3" />
+                                                                <span>Add another</span>
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {/* TABLE VIEW */}
+                            {templateViewMode === 'table' && (
+                                <>
+                                    {displayedTemplates.length === 0 ? (
+                                        <GlassCard className="py-8">
+                                            <EmptyState
+                                                icon={Calendar}
+                                                title="No weekly templates match your filter"
+                                                description="Define recurring day and time schedules for your doctors to automate calendar generation and token quotas."
+                                                action={
+                                                    <button
+                                                        type="button"
+                                                        onClick={openAddTemplate}
+                                                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-sm"
+                                                    >
+                                                        <Plus className="w-3.5 h-3.5" />
+                                                        <span>Create Template</span>
+                                                    </button>
+                                                }
+                                            />
+                                        </GlassCard>
+                                    ) : (
+                                        <div className="overflow-x-auto rounded-2xl border border-slate-200/80 dark:border-white/10 bg-white/75 dark:bg-slate-900/60 backdrop-blur-xl">
+                                            <table className="w-full text-left text-xs">
+                                                <thead className="bg-slate-50/70 dark:bg-white/5 border-b border-slate-200/70 dark:border-white/10 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                                                    <tr>
+                                                        <th className="py-3 px-4">Doctor</th>
+                                                        <th className="py-3 px-4">Template Title</th>
+                                                        <th className="py-3 px-4">Day of Week</th>
+                                                        <th className="py-3 px-4">Timing</th>
+                                                        <th className="py-3 px-4">Max Patients</th>
+                                                        <th className="py-3 px-4">Room</th>
+                                                        <th className="py-3 px-4 text-right">Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                                                    {displayedTemplates.map((tpl) => (
+                                                        <tr key={tpl.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors">
+                                                            <td className="py-3 px-4">
+                                                                <span className="font-bold text-slate-900 dark:text-white block">
+                                                                    {tpl.doctor_name}
+                                                                </span>
+                                                                <span className="text-[11px] text-slate-400">
+                                                                    {tpl.doctor_specialty}
+                                                                </span>
+                                                            </td>
+                                                            <td className="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200">
+                                                                {tpl.title}
+                                                            </td>
+                                                            <td className="py-3 px-4">
+                                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-primary-50 dark:bg-primary-950/40 text-primary-700 dark:text-primary-300">
+                                                                    {tpl.day_name}
+                                                                </span>
+                                                            </td>
+                                                            <td className="py-3 px-4 font-medium text-slate-700 dark:text-slate-300">
+                                                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 font-semibold">
+                                                                    <Clock className="w-3 h-3 text-indigo-500" />
+                                                                    {tpl.start_time} – {tpl.end_time}
+                                                                </span>
+                                                            </td>
+                                                            <td className="py-3 px-4 font-semibold text-slate-700 dark:text-slate-300">
+                                                                {tpl.max_patients} tokens
+                                                            </td>
+                                                            <td className="py-3 px-4 text-slate-700 dark:text-slate-300 font-medium">
+                                                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 font-semibold">
+                                                                    <Building className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                                                    {tpl.room_number || 'Unassigned'}
+                                                                </span>
+                                                            </td>
+                                                            <td className="py-3 px-4 text-right">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => deleteTemplate(tpl)}
+                                                                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                                                                    title="Delete Template"
+                                                                >
+                                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    );
+                })()}
 
                 {/* TAB 3: DOCTOR LEAVES */}
                 {activeTab === 'leaves' && (

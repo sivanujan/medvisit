@@ -64,6 +64,7 @@ class DoctorController extends Controller
                     'full_title' => trim(($doc->title ?? 'Dr.').' '.$doc->name),
                     'specialty' => $doc->specialty,
                     'slmc_number' => $doc->slmc_number,
+                    'slug' => $doc->slug,
                     'phone' => $doc->phone,
                     'email' => $doc->email,
                     'photo_url' => $doc->photo_url,
@@ -352,6 +353,40 @@ class DoctorController extends Controller
         ]);
 
         $doctor = Doctor::findOrFail($validated['doctor_id']);
+
+        $dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        $dayName = $dayNames[$validated['day_of_week']] ?? 'this day';
+
+        // Check doctor overlap
+        $overlap = SessionTemplate::findDoctorOverlap(
+            tenant('id'),
+            $doctor->id,
+            (int) $validated['day_of_week'],
+            $validated['start_time'],
+            $validated['end_time']
+        );
+        if ($overlap) {
+            return redirect()->back()->withErrors([
+                'start_time' => "Dr. {$doctor->name} already has a scheduled session on {$dayName} from {$overlap->start_time} to {$overlap->end_time} ('{$overlap->title}'). Overlapping sessions are not allowed.",
+            ]);
+        }
+
+        // Check room conflict
+        if (! empty($validated['room_number'])) {
+            $roomConflict = SessionTemplate::findRoomConflict(
+                tenant('id'),
+                $validated['room_number'],
+                (int) $validated['day_of_week'],
+                $validated['start_time'],
+                $validated['end_time']
+            );
+            if ($roomConflict) {
+                return redirect()->back()->withErrors([
+                    'room_number' => "Room '{$validated['room_number']}' is already booked on {$dayName} by Dr. {$roomConflict->doctor?->name} ({$roomConflict->start_time} to {$roomConflict->end_time}).",
+                ]);
+            }
+        }
+
         $isCustom = ($validated['fee_override_type'] ?? 'inherit') === 'custom';
         $customDoc = $isCustom && isset($validated['custom_doctor_fee_lkr']) ? (int) round($validated['custom_doctor_fee_lkr'] * 100) : null;
         $customClinic = $isCustom && isset($validated['custom_clinic_fee_lkr']) ? (int) round($validated['custom_clinic_fee_lkr'] * 100) : null;
@@ -405,6 +440,41 @@ class DoctorController extends Controller
         ]);
 
         $doctor = $template->doctor;
+
+        $dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        $dayName = $dayNames[$validated['day_of_week']] ?? 'this day';
+
+        // Check doctor overlap
+        $overlap = SessionTemplate::findDoctorOverlap(
+            tenant('id'),
+            $doctor->id,
+            (int) $validated['day_of_week'],
+            $validated['start_time'],
+            $validated['end_time'],
+            $template->id
+        );
+        if ($overlap) {
+            return redirect()->back()->withErrors([
+                'start_time' => "Dr. {$doctor->name} already has a session on {$dayName} from {$overlap->start_time} to {$overlap->end_time} ('{$overlap->title}'). Overlapping sessions are not allowed.",
+            ]);
+        }
+
+        // Check room conflict
+        if (! empty($validated['room_number'])) {
+            $roomConflict = SessionTemplate::findRoomConflict(
+                tenant('id'),
+                $validated['room_number'],
+                (int) $validated['day_of_week'],
+                $validated['start_time'],
+                $validated['end_time'],
+                $template->id
+            );
+            if ($roomConflict) {
+                return redirect()->back()->withErrors([
+                    'room_number' => "Room '{$validated['room_number']}' is already booked on {$dayName} by Dr. {$roomConflict->doctor?->name} ({$roomConflict->start_time} to {$roomConflict->end_time}).",
+                ]);
+            }
+        }
         $isCustom = ($validated['fee_override_type'] ?? 'inherit') === 'custom';
         $customDoc = $isCustom && isset($validated['custom_doctor_fee_lkr']) ? (int) round($validated['custom_doctor_fee_lkr'] * 100) : null;
         $customClinic = $isCustom && isset($validated['custom_clinic_fee_lkr']) ? (int) round($validated['custom_clinic_fee_lkr'] * 100) : null;
@@ -476,6 +546,36 @@ class DoctorController extends Controller
             return redirect()->back()->withErrors([
                 'session_date' => "Doctor {$doctor->name} is marked on leave on {$validated['session_date']}.",
             ]);
+        }
+
+        // Check doctor overlap on this specific date
+        $overlap = DoctorSession::findDoctorOverlap(
+            tenant('id'),
+            $doctor->id,
+            $validated['session_date'],
+            $validated['start_time'],
+            $validated['end_time']
+        );
+        if ($overlap) {
+            return redirect()->back()->withErrors([
+                'start_time' => "Dr. {$doctor->name} already has a scheduled session on {$validated['session_date']} from {$overlap->start_time} to {$overlap->end_time}. Overlapping sessions are not allowed.",
+            ]);
+        }
+
+        // Check room conflict on this specific date
+        if (! empty($validated['room_number'])) {
+            $roomConflict = DoctorSession::findRoomConflict(
+                tenant('id'),
+                $validated['room_number'],
+                $validated['session_date'],
+                $validated['start_time'],
+                $validated['end_time']
+            );
+            if ($roomConflict) {
+                return redirect()->back()->withErrors([
+                    'room_number' => "Room '{$validated['room_number']}' is already booked on {$validated['session_date']} by Dr. {$roomConflict->doctor?->name} ({$roomConflict->start_time} to {$roomConflict->end_time}).",
+                ]);
+            }
         }
 
         $rawDocFee = $request->input('custom_doctor_fee_lkr') ?? $request->input('doctor_fee');

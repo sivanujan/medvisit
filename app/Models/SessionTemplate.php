@@ -60,4 +60,51 @@ class SessionTemplate extends Model
     {
         return $this->hasMany(DoctorSession::class);
     }
+
+    /**
+     * Check if doctor already has an active overlapping template on the given day.
+     */
+    public static function findDoctorOverlap(
+        string $tenantId,
+        int $doctorId,
+        int $dayOfWeek,
+        string $startTime,
+        string $endTime,
+        ?int $excludeId = null
+    ): ?self {
+        return static::where('tenant_id', $tenantId)
+            ->where('doctor_id', $doctorId)
+            ->where('day_of_week', $dayOfWeek)
+            ->where('is_active', true)
+            ->when($excludeId, fn ($q) => $q->where('id', '!=', $excludeId))
+            ->where('start_time', '<', $endTime)
+            ->where('end_time', '>', $startTime)
+            ->first();
+    }
+
+    /**
+     * Check if room is already booked by another doctor on the given day at an overlapping time.
+     */
+    public static function findRoomConflict(
+        string $tenantId,
+        ?string $roomNumber,
+        int $dayOfWeek,
+        string $startTime,
+        string $endTime,
+        ?int $excludeId = null
+    ): ?self {
+        if (empty($roomNumber)) {
+            return null;
+        }
+
+        return static::with('doctor')
+            ->where('tenant_id', $tenantId)
+            ->where('room_number', $roomNumber)
+            ->where('day_of_week', $dayOfWeek)
+            ->where('is_active', true)
+            ->when($excludeId, fn ($q) => $q->where('id', '!=', $excludeId))
+            ->where('start_time', '<', $endTime)
+            ->where('end_time', '>', $startTime)
+            ->first();
+    }
 }
