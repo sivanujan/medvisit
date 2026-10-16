@@ -182,6 +182,8 @@ Route::middleware([
 
             Route::post('/doctors/templates', [DoctorController::class, 'storeTemplate'])
                 ->name('tenant.doctors.templates.store');
+            Route::put('/doctors/templates/{template}', [DoctorController::class, 'updateTemplate'])
+                ->name('tenant.doctors.templates.update');
             Route::delete('/doctors/templates/{template}', [DoctorController::class, 'destroyTemplate'])
                 ->name('tenant.doctors.templates.destroy');
 

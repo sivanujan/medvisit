@@ -595,4 +595,48 @@ class FlexibleFeesAndPayoutsTest extends TestCase
 
         $response->assertForbidden();
     }
+
+    public function test_can_update_fee_component(): void
+    {
+        $component = FeeComponent::where('tenant_id', $this->tenant->id)->first();
+        if (! $component) {
+            $component = FeeComponent::create([
+                'tenant_id' => $this->tenant->id,
+                'name' => 'Doctor fee',
+                'code' => 'doctor_fee',
+                'amount_type' => 'fixed',
+                'amount_value' => 200000,
+                'recipient' => 'doctor',
+                'applies_to' => ['walk_in', 'phone', 'online'],
+                'is_mandatory' => true,
+                'is_separate_line' => true,
+                'is_active' => true,
+                'sort_order' => 1,
+            ]);
+        }
+
+        $payload = [
+            'name' => 'Doctor fee',
+            'amount_type' => 'fixed',
+            'target_component_id' => '',
+            'amount_lkr' => 3000,
+            'amount_percent' => 0,
+            'recipient' => 'doctor',
+            'recipient_name' => '',
+            'applies_to' => ['walk_in', 'phone', 'online'],
+            'is_mandatory' => true,
+            'is_separate_line' => true,
+            'is_active' => true,
+            'sort_order' => 1,
+        ];
+
+        $response = $this->actingAs($this->adminUser)
+            ->put("http://suwasetha.{$this->baseDomain}/settings/fees/components/{$component->id}", $payload);
+
+        $response->assertSessionHasNoErrors();
+        $response->assertRedirect();
+
+        $component->refresh();
+        $this->assertEquals(300000, $component->amount_value);
+    }
 }

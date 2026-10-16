@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Head, useForm, router, Link } from '@inertiajs/react';
+import { Head, useForm, router, Link, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { PageHeader } from '@/Components/UI/PageHeader';
 import { GlassCard } from '@/Components/UI/GlassCard';
 import { GlassModal } from '@/Components/UI/GlassModal';
-import { StatusBadge } from '@/Components/UI/StatusBadge';
 import { PhoneInput } from '@/Components/UI/PhoneInput';
 import GlassSelect from '@/Components/UI/GlassSelect';
 import { EmptyState } from '@/Components/UI/EmptyState';
@@ -17,26 +16,50 @@ import {
     Share2,
     Calendar,
     Clock,
-    DollarSign,
     CheckCircle2,
     XCircle,
-    Stethoscope,
     Plus,
     Building2,
     ShieldCheck,
-    HelpCircle,
     Tag,
-    Percent,
     AlertCircle,
-    Info,
-    Check,
+    Sparkles,
+    ArrowRight,
+    CreditCard,
+    ChevronRight,
+    Filter,
 } from 'lucide-react';
+
+interface DateStripItem {
+    date: string;
+    label: string;
+    day_name: string;
+    day_number: string;
+    month_name: string;
+    formatted: string;
+    session_count: number;
+    is_today: boolean;
+    is_tomorrow: boolean;
+}
+
+interface DoctorItem {
+    id: number;
+    name: string;
+    specialty: string;
+    avg_consultation_minutes: number;
+    doctor_fee_lkr: number;
+    clinic_fee_lkr: number;
+    total_fee_lkr: number;
+}
 
 interface SessionOption {
     id: number;
     doctor_id: number;
     doctor_name: string;
     doctor_specialty: string;
+    doctor_photo_url?: string;
+    doctor_initials: string;
+    doctor_avg_minutes: number;
     session_date: string;
     session_date_formatted: string;
     start_time: string;
@@ -47,10 +70,16 @@ interface SessionOption {
     booked_tokens_count: number;
     available_tokens_count: number;
     is_full: boolean;
+    is_selectable: boolean;
+    unselectable_reason?: string | null;
+    next_token_number: number;
+    next_approx_time: string;
     doctor_fee_lkr: number;
     clinic_fee_lkr: number;
     total_fee_lkr: number;
     total_fee_formatted: string;
+    doctor_payout_lkr?: number;
+    clinic_net_lkr?: number;
     source_label?: string;
     pricing_mode?: string;
 }
@@ -114,10 +143,14 @@ interface ClinicInfo {
     phone: string;
     address: string;
     subdomain: string;
+    collect_payment_at_issue?: boolean;
 }
 
 interface Props {
     sessions: SessionOption[];
+    dateStrip?: DateStripItem[];
+    selectedDate?: string;
+    doctors?: DoctorItem[];
     recentBookings: RecentBooking[];
     clinicInfo: ClinicInfo;
     visitTypes?: VisitType[];
@@ -137,14 +170,75 @@ function maskPhoneNumber(phone: string): string {
 }
 
 export default function BookingsIndex({
-    sessions,
-    recentBookings,
+    sessions = [],
+    dateStrip = [],
+    selectedDate: initialSelectedDate,
+    doctors = [],
+    recentBookings = [],
     clinicInfo,
     visitTypes = [],
     feeComponents = [],
     discountConfig = { is_admin: true, can_discount: true, max_type: 'percent', max_value: 100, max_display: 'Unlimited' },
 }: Props) {
-    const [selectedSessionId, setSelectedSessionId] = useState<number | null>(sessions[0]?.id || null);
+    const { flash } = usePage<any>().props;
+
+    // Date navigation state
+    const todayStr = useMemo(() => {
+        if (dateStrip.length > 0) return dateStrip[0].date;
+        const now = new Date();
+        return now.toISOString().split('T')[0];
+    }, [dateStrip]);
+
+    const [currentDate, setCurrentDate] = useState<string>(initialSelectedDate || todayStr);
+
+    // Filter & search state for Step 1
+    const [doctorFilter, setDoctorFilter] = useState<string>('all');
+    const [sessionSearch, setSessionSearch] = useState<string>('');
+
+    // Session selection
+    const sessionsForDate = useMemo(() => {
+        return sessions.filter((s) => s.session_date === currentDate);
+    }, [sessions, currentDate]);
+
+    const filteredSessions = useMemo(() => {
+        return sessionsForDate.filter((s) => {
+            const matchesDoc = doctorFilter === 'all' || String(s.doctor_id) === doctorFilter;
+            const q = sessionSearch.toLowerCase().trim();
+            const matchesSearch =
+                !q ||
+                s.doctor_name.toLowerCase().includes(q) ||
+                s.doctor_specialty.toLowerCase().includes(q) ||
+                s.room_number.toLowerCase().includes(q);
+            return matchesDoc && matchesSearch;
+        });
+    }, [sessionsForDate, doctorFilter, sessionSearch]);
+
+    // Initial session selection
+    const [selectedSessionId, setSelectedSessionId] = useState<number | null>(() => {
+        const firstSelectable = sessionsForDate.find((s) => s.is_selectable);
+        return firstSelectable ? firstSelectable.id : null;
+    });
+
+    // When date changes, auto-select first selectable session of that date if current is not in that date
+    useEffect(() => {
+        const currentSessionStillValid = sessionsForDate.find((s) => s.id === selectedSessionId);
+        if (!currentSessionStillValid) {
+            const firstSelectable = sessionsForDate.find((s) => s.is_selectable);
+            setSelectedSessionId(firstSelectable ? firstSelectable.id : null);
+        }
+    }, [currentDate, sessionsForDate]);
+
+    // Auto-select session created via inline modal
+    useEffect(() => {
+        if (flash?.createdSessionId) {
+            const newId = Number(flash.createdSessionId);
+            const found = sessions.find((s) => s.id === newId);
+            if (found) {
+                setCurrentDate(found.session_date);
+                setSelectedSessionId(newId);
+            }
+        }
+    }, [flash?.createdSessionId, sessions]);
 
     // Patient lookup
     const [patientQuery, setPatientQuery] = useState('');
@@ -153,15 +247,32 @@ export default function BookingsIndex({
     const [isSearching, setIsSearching] = useState(false);
     const [isCreatingNewPatient, setIsCreatingNewPatient] = useState(false);
 
-    // Slip Modal
+    // Success Panel & Slip Modal
     const [slipModalOpen, setSlipModalOpen] = useState(false);
     const [activeSlip, setActiveSlip] = useState<any | null>(null);
+
+    // Check if a newly issued token was flashed by backend
+    useEffect(() => {
+        if (flash?.issuedToken) {
+            setActiveSlip(flash.issuedToken);
+            setSlipModalOpen(true);
+        }
+    }, [flash?.issuedToken]);
+
+    // Quick create session modal
+    const [quickSessionModalOpen, setQuickSessionModalOpen] = useState(false);
+    const [quickDocId, setQuickDocId] = useState<string>(doctors[0]?.id ? String(doctors[0].id) : '');
+    const [quickStartTime, setQuickStartTime] = useState('17:00');
+    const [quickEndTime, setQuickEndTime] = useState('20:00');
+    const [quickMaxTokens, setQuickMaxTokens] = useState(25);
+    const [quickRoom, setQuickRoom] = useState('Consulting Room 1');
+    const [isSubmittingQuickSession, setIsSubmittingQuickSession] = useState(false);
 
     const defaultVisitTypeId = visitTypes?.find((v) => v.is_default)?.id || visitTypes?.[0]?.id || '';
 
     // Form
     const { data, setData, post, processing, errors, reset } = useForm({
-        doctor_session_id: sessions[0]?.id ? String(sessions[0].id) : '',
+        doctor_session_id: '',
         patient_id: '' as string | number,
         new_patient_name: '',
         new_patient_phone: '',
@@ -169,9 +280,11 @@ export default function BookingsIndex({
         new_patient_gender: 'male',
         visit_type_id: defaultVisitTypeId ? String(defaultVisitTypeId) : '',
         optional_component_ids: [] as number[],
-        discount_type: 'none' as 'none' | 'percent' | 'fixed' | 'waiver',
+        discount_type: 'none' as 'none' | 'percent' | 'amount' | 'waiver',
         discount_value: 0,
         discount_reason: '',
+        payment_collected: Boolean(clinicInfo.collect_payment_at_issue),
+        payment_method: 'cash' as 'cash' | 'card' | 'bank_transfer',
         notes: '',
     });
 
@@ -234,32 +347,36 @@ export default function BookingsIndex({
 
     // Calculate approximate consultation time
     const approximateTime = useMemo(() => {
-        if (!activeSession) return 'Check at counter';
-        const tokenNumber = activeSession.booked_tokens_count + 1;
-        return `${activeSession.start_time} (Token #${tokenNumber})`;
+        if (!activeSession) return null;
+        return activeSession.next_approx_time || `approx. ${activeSession.start_time}`;
+    }, [activeSession]);
+
+    // Next token number
+    const assignedTokenNumber = useMemo(() => {
+        if (!activeSession) return null;
+        return (activeSession.booked_tokens_count || 0) + 1;
     }, [activeSession]);
 
     // Live Fee Breakdown Calculation
     const liveFeeCalculation = useMemo(() => {
         if (!activeSession) {
-            return {
-                patientTotal: 0,
-                consultFee: 0,
-                optionalTotal: 0,
-                grossTotal: 0,
-                discountAmount: 0,
-                sourceLabel: 'from clinic',
-            };
+            return null;
         }
 
-        const baseSessionFee = activeSession.total_fee_lkr || 0;
+        const baseDoctorFee = activeSession.doctor_fee_lkr || 0;
+        const baseClinicFee = activeSession.clinic_fee_lkr || 0;
+        const baseSessionFee = activeSession.total_fee_lkr || (baseDoctorFee + baseClinicFee);
         let consultFee = baseSessionFee;
 
+        let visitTypeDiff = 0;
         if (selectedVisitType) {
             if (selectedVisitType.pricing_type === 'percentage') {
-                consultFee = Math.round((baseSessionFee * (selectedVisitType.percentage_value || 100)) / 100);
+                const pct = selectedVisitType.percentage_value || 100;
+                consultFee = Math.round((baseSessionFee * pct) / 100);
+                visitTypeDiff = consultFee - baseSessionFee;
             } else if (selectedVisitType.pricing_type === 'fixed') {
                 consultFee = Math.round((selectedVisitType.fixed_fee_cents || 0) / 100);
+                visitTypeDiff = consultFee - baseSessionFee;
             }
         }
 
@@ -280,21 +397,30 @@ export default function BookingsIndex({
         if (data.discount_type === 'percent') {
             const pct = Math.min(100, Math.max(0, Number(data.discount_value) || 0));
             discountAmount = Math.round((grossTotal * pct) / 100);
-        } else if (data.discount_type === 'fixed') {
+        } else if (data.discount_type === 'amount') {
             discountAmount = Math.min(grossTotal, Math.max(0, Number(data.discount_value) || 0));
         } else if (data.discount_type === 'waiver') {
             discountAmount = grossTotal;
         }
 
-        const netTotal = Math.max(0, grossTotal - discountAmount);
+        const patientTotal = Math.max(0, grossTotal - discountAmount);
+
+        // Doctor share vs clinic share approximation
+        const doctorShare = activeSession.doctor_payout_lkr ?? baseDoctorFee;
+        const clinicShare = Math.max(0, patientTotal - doctorShare);
 
         return {
+            baseDoctorFee,
+            baseClinicFee,
             baseTotal: baseSessionFee,
             consultFee,
+            visitTypeDiff,
             optionalTotal,
             grossTotal,
             discountAmount,
-            patientTotal: netTotal,
+            patientTotal,
+            doctorShare,
+            clinicShare,
             sourceLabel: activeSession.source_label || 'from clinic',
         };
     }, [activeSession, selectedVisitType, feeComponents, data.optional_component_ids, data.discount_type, data.discount_value]);
@@ -302,8 +428,8 @@ export default function BookingsIndex({
     // Validation reason for disabled issue button
     const issueDisabledReason = useMemo(() => {
         if (processing) return 'Issuing token...';
-        if (!activeSession) return 'Choose a session first';
-        if (activeSession.is_full) return 'Session is fully booked';
+        if (!activeSession) return 'Select a session first';
+        if (!activeSession.is_selectable) return activeSession.unselectable_reason || 'Selected session is unavailable';
         if (!selectedPatient) {
             if (!data.new_patient_name.trim()) return 'Enter patient full name';
             if (!data.new_patient_phone.trim()) return 'Enter patient mobile number';
@@ -312,10 +438,10 @@ export default function BookingsIndex({
             if (!data.discount_reason.trim()) return 'Enter reason for discount / waiver';
             if (!discountConfig.is_admin) {
                 if (data.discount_type === 'percent' && discountConfig.max_type === 'percent' && Number(data.discount_value) > discountConfig.max_value) {
-                    return `Discount exceeds receptionist limit (${discountConfig.max_display})`;
+                    return `Discount exceeds limit (${discountConfig.max_display})`;
                 }
-                if (data.discount_type === 'fixed' && discountConfig.max_type === 'fixed' && Number(data.discount_value) > (discountConfig.max_value / 100)) {
-                    return `Discount exceeds receptionist limit (${discountConfig.max_display})`;
+                if (data.discount_type === 'amount' && discountConfig.max_type === 'fixed' && Number(data.discount_value) > (discountConfig.max_value / 100)) {
+                    return `Discount exceeds limit (${discountConfig.max_display})`;
                 }
                 if (data.discount_type === 'waiver' && discountConfig.max_value < 100) {
                     return 'Full waiver requires clinic admin authorization';
@@ -331,72 +457,167 @@ export default function BookingsIndex({
 
         post('/bookings', {
             preserveScroll: true,
-            onSuccess: () => {
-                setActiveSlip({
-                    token_number: (activeSession?.booked_tokens_count || 0) + 1,
-                    doctor_name: activeSession?.doctor_name,
-                    doctor_specialty: activeSession?.doctor_specialty,
-                    room_number: activeSession?.room_number,
-                    session_date: activeSession?.session_date_formatted,
-                    approx_time: approximateTime,
-                    patient_name: selectedPatient ? selectedPatient.name : data.new_patient_name,
-                    patient_phone: selectedPatient ? selectedPatient.phone : data.new_patient_phone,
-                    fee_formatted: `Rs. ${liveFeeCalculation.patientTotal.toLocaleString()}`,
-                    visit_type_name: selectedVisitType?.name,
-                    discount_amount: liveFeeCalculation.discountAmount,
-                    discount_reason: data.discount_reason,
-                });
-                setSlipModalOpen(true);
+            onSuccess: (page: any) => {
+                const issued = page.props?.flash?.issuedToken;
+                if (issued) {
+                    setActiveSlip(issued);
+                    setSlipModalOpen(true);
+                } else {
+                    setActiveSlip({
+                        token_number: assignedTokenNumber,
+                        doctor_name: activeSession?.doctor_name,
+                        doctor_specialty: activeSession?.doctor_specialty,
+                        room_number: activeSession?.room_number,
+                        session_date: activeSession?.session_date_formatted,
+                        estimated_time: approximateTime,
+                        patient_name: selectedPatient ? selectedPatient.name : data.new_patient_name,
+                        patient_phone: selectedPatient ? selectedPatient.phone : data.new_patient_phone,
+                        patient_nic: selectedPatient ? selectedPatient.nic : data.new_patient_nic,
+                        total_fee_formatted: `Rs. ${liveFeeCalculation?.patientTotal.toLocaleString()}`,
+                        payment_status: data.payment_collected ? 'paid' : 'pending',
+                        payment_method: data.payment_method,
+                    });
+                    setSlipModalOpen(true);
+                }
+                // Clear patient inputs
                 clearSelectedPatient();
-                reset('new_patient_name', 'new_patient_nic', 'new_patient_phone', 'notes', 'discount_reason', 'discount_value');
-                setData('discount_type', 'none');
-                setData('optional_component_ids', []);
-                setIsCreatingNewPatient(false);
+                setData((prev) => ({
+                    ...prev,
+                    new_patient_name: '',
+                    new_patient_phone: '',
+                    new_patient_nic: '',
+                    discount_type: 'none',
+                    discount_value: 0,
+                    discount_reason: '',
+                    notes: '',
+                }));
             },
         });
     };
 
+    const handleCreateOneOffSession = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!quickDocId) return;
+
+        setIsSubmittingQuickSession(true);
+        router.post(
+            '/doctors/sessions/one-off',
+            {
+                doctor_id: Number(quickDocId),
+                session_date: currentDate,
+                start_time: quickStartTime,
+                end_time: quickEndTime,
+                max_tokens: quickMaxTokens,
+                room_number: quickRoom,
+            },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setIsSubmittingQuickSession(false);
+                    setQuickSessionModalOpen(false);
+                },
+                onError: () => {
+                    setIsSubmittingQuickSession(false);
+                },
+            }
+        );
+    };
+
+    const handleRecordPayment = (paymentMethod: 'cash' | 'card' | 'bank_transfer') => {
+        if (!activeSlip?.bill_id) return;
+        router.post(
+            `/billing/${activeSlip.bill_id}/pay`,
+            { payment_method: paymentMethod },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setActiveSlip((prev: any) => ({
+                        ...prev,
+                        payment_status: 'paid',
+                        payment_method: paymentMethod,
+                    }));
+                },
+            }
+        );
+    };
+
+    const generateWhatsAppUrl = (slip: any) => {
+        if (!slip?.patient_phone) return '#';
+        const cleanPhone = slip.patient_phone.replace(/\D/g, '');
+        const recipient = cleanPhone.startsWith('94')
+            ? cleanPhone
+            : cleanPhone.startsWith('0')
+            ? `94${cleanPhone.slice(1)}`
+            : `94${cleanPhone}`;
+
+        const msg = `*${clinicInfo.name}* - Appointment Confirmation
+Token: *#${slip.token_number}*
+Doctor: ${slip.doctor_name} (${slip.doctor_specialty})
+Date: ${slip.session_date}
+Time: ${slip.estimated_time || slip.approx_time || 'Queue'}
+Room: ${slip.room_number || 'Consulting Room'}
+Patient: ${slip.patient_name}
+Total: ${slip.total_fee_formatted || slip.fee_formatted}
+Status: ${slip.payment_status === 'paid' ? 'PAID' : 'PAYMENT DUE'}
+Live Queue: https://${clinicInfo.subdomain}.medvisit.lk/queue/tv`;
+
+        return `https://wa.me/${recipient}?text=${encodeURIComponent(msg)}`;
+    };
+
     const openSlipForRecent = (b: RecentBooking) => {
         setActiveSlip({
+            id: b.id,
             token_number: b.token_number,
             doctor_name: b.doctor_name,
             doctor_specialty: b.doctor_specialty,
             room_number: b.room_number,
             session_date: b.session_date,
-            approx_time: b.estimated_time || 'Check at counter',
+            estimated_time: b.estimated_time,
             patient_name: b.patient_name,
             patient_phone: b.patient_phone,
-            fee_formatted: b.total_fee_formatted,
+            patient_nic: b.patient_nic,
+            total_fee_formatted: b.total_fee_formatted,
+            receipt_number: b.receipt_number,
+            payment_status: b.payment_status,
         });
         setSlipModalOpen(true);
     };
 
-    const cancelBooking = (b: RecentBooking) => {
-        if (confirm(`Cancel Token #${b.token_number} for ${b.patient_name}?`)) {
-            router.post(`/bookings/${b.id}/cancel`, {}, { preserveScroll: true });
+    const cancelBooking = (booking: RecentBooking) => {
+        if (confirm(`Cancel Token #${booking.token_number} for ${booking.patient_name}?`)) {
+            router.post(`/bookings/${booking.id}/cancel`, {}, { preserveScroll: true });
         }
-    };
-
-    const generateWhatsAppUrl = (slip: any) => {
-        const cleanPhone = (slip?.patient_phone || '').replace(/[^0-9]/g, '');
-        const text =
-            `🏥 *${clinicInfo.name}* - Channeling Token Slip\n\n` +
-            `*Token No:* #${slip?.token_number}\n` +
-            `*Doctor:* ${slip?.doctor_name} (${slip?.doctor_specialty})\n` +
-            `*Date:* ${slip?.session_date}\n` +
-            `*Approx Time:* ${slip?.approx_time}\n` +
-            `*Room:* ${slip?.room_number}\n` +
-            `*Patient:* ${slip?.patient_name}\n` +
-            `*Total Fee:* ${slip?.fee_formatted}\n\n` +
-            `Please arrive 15 minutes before your estimated time. Live queue status: https://${clinicInfo.subdomain}.medvisit.lk/queue/tv`;
-        return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
     };
 
     return (
         <AuthenticatedLayout>
-            <Head title="Issue Token" />
+            <Head title="Issue Token | Reception Desk" />
 
-            <div className="space-y-6">
+            {/* Print Slip Styling */}
+            <style>{`
+                @media print {
+                    body * {
+                        visibility: hidden !important;
+                    }
+                    #printable-token-slip, #printable-token-slip * {
+                        visibility: visible !important;
+                    }
+                    #printable-token-slip {
+                        position: fixed !important;
+                        left: 0 !important;
+                        top: 0 !important;
+                        width: 80mm !important;
+                        margin: 0 !important;
+                        padding: 12px !important;
+                        border: none !important;
+                        box-shadow: none !important;
+                        background: white !important;
+                        color: black !important;
+                    }
+                }
+            `}</style>
+
+            <div className="max-w-7xl mx-auto space-y-6">
                 <PageHeader
                     breadcrumbs={[
                         { label: 'Reception Desk', href: '/dashboard' },
@@ -405,13 +626,23 @@ export default function BookingsIndex({
                     title="Issue Token"
                     subtitle="Fast 3-step token desk: select doctor session, look up patient, and confirm issuance."
                     actions={
-                        <Link
-                            href="/calendar"
-                            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 transition-all shadow-xs"
-                        >
-                            <Calendar className="w-3.5 h-3.5 text-primary" />
-                            <span>View Calendar</span>
-                        </Link>
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setQuickSessionModalOpen(true)}
+                                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-primary text-white hover:bg-primary-600 transition-all shadow-xs"
+                            >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>+ Create Session</span>
+                            </button>
+                            <Link
+                                href="/calendar"
+                                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 transition-all shadow-xs"
+                            >
+                                <Calendar className="w-3.5 h-3.5 text-primary" />
+                                <span>Calendar</span>
+                            </Link>
+                        </div>
                     }
                 />
 
@@ -420,6 +651,7 @@ export default function BookingsIndex({
                     <div className="lg:col-span-7 space-y-5">
                         {/* STEP 1: CHOOSE SESSION */}
                         <GlassCard className="p-5 space-y-4">
+                            {/* Step Header */}
                             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/5">
                                 <div className="flex items-center gap-2.5">
                                     <span className="w-6 h-6 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center shadow-xs">
@@ -430,59 +662,159 @@ export default function BookingsIndex({
                                             Choose session
                                         </h3>
                                         <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                                            Select an active doctor channeling session
+                                            Select a date and doctor channeling session
                                         </p>
                                     </div>
                                 </div>
-                                <span className="text-[11px] font-medium text-slate-500 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded-full">
-                                    {sessions.length} available
+                                <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 px-2.5 py-1 rounded-full">
+                                    {sessionsForDate.length} {sessionsForDate.length === 1 ? 'session' : 'sessions'} on selected date
                                 </span>
                             </div>
 
-                            {sessions.length === 0 ? (
+                            {/* 14-DAY DATE STRIP + CALENDAR PICKER */}
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-400">
+                                    <span>Select Date</span>
+                                    <label className="relative inline-flex items-center gap-1.5 text-primary cursor-pointer hover:underline text-[11px] font-bold">
+                                        <Calendar className="w-3.5 h-3.5" />
+                                        <span>Pick any date</span>
+                                        <input
+                                            type="date"
+                                            value={currentDate}
+                                            onChange={(e) => {
+                                                if (e.target.value) setCurrentDate(e.target.value);
+                                            }}
+                                            className="absolute opacity-0 inset-0 cursor-pointer w-full h-full"
+                                        />
+                                    </label>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 overflow-x-auto pb-2 pt-1 no-scrollbar scroll-smooth">
+                                    {dateStrip.map((item) => {
+                                        const isSelected = item.date === currentDate;
+                                        const hasSessions = item.session_count > 0;
+
+                                        return (
+                                            <button
+                                                key={item.date}
+                                                type="button"
+                                                onClick={() => setCurrentDate(item.date)}
+                                                className={`flex flex-col items-center justify-center min-w-[70px] py-2 px-2.5 rounded-2xl border text-center transition-all shrink-0 ${
+                                                    isSelected
+                                                        ? 'border-primary bg-primary text-white shadow-md shadow-primary/20 ring-2 ring-primary/20 scale-[1.02]'
+                                                        : hasSessions
+                                                        ? 'border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/50 text-slate-700 dark:text-slate-300 hover:border-primary/50'
+                                                        : 'border-slate-200/40 dark:border-white/5 bg-slate-50/50 dark:bg-slate-900/20 text-slate-400 opacity-60 hover:opacity-100'
+                                                }`}
+                                            >
+                                                <span
+                                                    className={`text-[10px] font-bold uppercase tracking-wider block ${
+                                                        isSelected ? 'text-white/90' : 'text-slate-400'
+                                                    }`}
+                                                >
+                                                    {item.label}
+                                                </span>
+                                                <span className="text-base font-extrabold my-0.5 block leading-none">
+                                                    {item.day_number}
+                                                </span>
+                                                <span
+                                                    className={`text-[9px] font-semibold px-1.5 py-0.2 rounded-full inline-block ${
+                                                        isSelected
+                                                            ? 'bg-white/20 text-white'
+                                                            : hasSessions
+                                                            ? 'bg-primary/10 text-primary'
+                                                            : 'bg-slate-100 dark:bg-white/5 text-slate-400'
+                                                    }`}
+                                                >
+                                                    {item.session_count > 0 ? `${item.session_count} sess` : 'No sess'}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* FILTERS & SEARCH FOR CHOSEN DATE */}
+                            <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
+                                <div className="relative flex-1 w-full">
+                                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                    <input
+                                        type="text"
+                                        value={sessionSearch}
+                                        onChange={(e) => setSessionSearch(e.target.value)}
+                                        placeholder="Search doctor, specialty, room..."
+                                        className="w-full text-xs rounded-xl border border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 pl-8 pr-3 py-1.5 text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                                    />
+                                </div>
+                                <select
+                                    value={doctorFilter}
+                                    onChange={(e) => setDoctorFilter(e.target.value)}
+                                    className="w-full sm:w-44 text-xs rounded-xl border border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 py-1.5 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
+                                >
+                                    <option value="all">All Doctors</option>
+                                    {doctors.map((d) => (
+                                        <option key={d.id} value={d.id}>
+                                            {d.name} ({d.specialty})
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* SESSIONS LIST FOR CHOSEN DATE */}
+                            {filteredSessions.length === 0 ? (
                                 <EmptyState
                                     icon={Calendar}
-                                    title="No scheduled sessions"
-                                    description="There are no active doctor sessions scheduled for today or upcoming dates. Create a session to start issuing tokens."
+                                    title={`No sessions on ${currentDate}`}
+                                    description="There are no doctor channeling sessions scheduled for this date. You can create a one-off session right now."
                                     action={
-                                        <Link
-                                            href="/calendar"
-                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-sm"
+                                        <button
+                                            type="button"
+                                            onClick={() => setQuickSessionModalOpen(true)}
+                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-sm transition-all"
                                         >
                                             <Plus className="w-3.5 h-3.5" />
-                                            <span>Create session</span>
-                                        </Link>
+                                            <span>Create session for this date</span>
+                                        </button>
                                     }
                                     className="py-6 border border-dashed border-slate-200 dark:border-white/10 rounded-2xl bg-slate-50/50 dark:bg-white/[0.02]"
                                 />
                             ) : (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-72 overflow-y-auto pr-1">
-                                    {sessions.map((s) => {
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-1">
+                                    {filteredSessions.map((s) => {
                                         const isSelected = selectedSessionId === s.id;
                                         const progressPercent = Math.min(
                                             100,
                                             Math.round((s.booked_tokens_count / (s.max_tokens || 1)) * 100)
                                         );
+                                        const isSelectable = s.is_selectable;
 
                                         return (
                                             <button
                                                 key={s.id}
                                                 type="button"
+                                                disabled={!isSelectable}
                                                 onClick={() => setSelectedSessionId(s.id)}
                                                 className={`text-left p-3.5 rounded-2xl border transition-all text-xs relative flex flex-col justify-between ${
                                                     isSelected
-                                                        ? 'border-primary ring-2 ring-primary/20 bg-primary-50/60 dark:bg-primary-950/40 shadow-sm'
-                                                        : 'border-slate-200/80 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 bg-white/50 dark:bg-slate-900/40'
+                                                        ? 'border-primary ring-2 ring-primary/20 bg-primary-50/70 dark:bg-primary-950/40 shadow-sm'
+                                                        : isSelectable
+                                                        ? 'border-slate-200/80 dark:border-white/10 hover:border-primary/40 bg-white/60 dark:bg-slate-900/40'
+                                                        : 'border-slate-200/40 dark:border-white/5 bg-slate-100/40 dark:bg-slate-900/20 opacity-60 cursor-not-allowed'
                                                 }`}
                                             >
-                                                <div>
+                                                <div className="w-full">
                                                     <div className="flex items-start justify-between gap-2">
-                                                        <div className="flex items-center gap-2 min-w-0">
-                                                            <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary font-bold flex items-center justify-center text-xs shrink-0">
-                                                                {s.doctor_name
-                                                                    .replace('Dr.', '')
-                                                                    .trim()
-                                                                    .charAt(0) || 'D'}
+                                                        <div className="flex items-center gap-2.5 min-w-0">
+                                                            <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary font-bold flex items-center justify-center text-xs shrink-0 ring-1 ring-primary/20">
+                                                                {s.doctor_photo_url ? (
+                                                                    <img
+                                                                        src={s.doctor_photo_url}
+                                                                        alt={s.doctor_name}
+                                                                        className="w-full h-full object-cover rounded-xl"
+                                                                    />
+                                                                ) : (
+                                                                    <span>{s.doctor_initials}</span>
+                                                                )}
                                                             </div>
                                                             <div className="min-w-0">
                                                                 <span className="font-bold text-slate-900 dark:text-white truncate block">
@@ -494,45 +826,57 @@ export default function BookingsIndex({
                                                             </div>
                                                         </div>
 
-                                                        <span
-                                                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
-                                                                s.is_full
-                                                                    ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300'
-                                                                    : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
-                                                            }`}
-                                                        >
-                                                            {s.is_full ? 'Full' : `${s.available_tokens_count} left`}
-                                                        </span>
+                                                        {isSelectable ? (
+                                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300">
+                                                                Open
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300">
+                                                                {s.unselectable_reason || 'Unavailable'}
+                                                            </span>
+                                                        )}
                                                     </div>
 
-                                                    <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-white/5 text-[11px] text-slate-500 dark:text-slate-400 space-y-1">
-                                                        <div className="flex items-center justify-between">
-                                                            <span>{s.session_date_formatted}</span>
-                                                            <span className="font-medium text-slate-700 dark:text-slate-300">
-                                                                {s.start_time} • {s.room_number}
-                                                            </span>
+                                                    <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-white/5 space-y-1.5">
+                                                        <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400">
+                                                            <div className="flex items-center gap-1">
+                                                                <Clock className="w-3 h-3 text-slate-400" />
+                                                                <span>{s.start_time} – {s.end_time}</span>
+                                                            </div>
+                                                            <span className="font-medium text-slate-500">{s.room_number}</span>
                                                         </div>
-                                                        <div className="flex items-center justify-between font-bold text-slate-800 dark:text-slate-200 pt-0.5">
-                                                            <span>Fee: {s.total_fee_formatted}</span>
-                                                            <span className="text-[10px] text-slate-400 font-normal">
-                                                                {s.booked_tokens_count} / {s.max_tokens} booked
-                                                            </span>
+
+                                                        {/* Token Progress Bar */}
+                                                        <div>
+                                                            <div className="flex justify-between items-center text-[10px] text-slate-500 mb-1">
+                                                                <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                                                    {s.booked_tokens_count} / {s.max_tokens} booked
+                                                                </span>
+                                                                <span className="font-bold text-primary">
+                                                                    Next: #{s.next_token_number}
+                                                                </span>
+                                                            </div>
+                                                            <div className="w-full h-1.5 rounded-full bg-slate-200/80 dark:bg-white/10 overflow-hidden">
+                                                                <div
+                                                                    className={`h-full transition-all ${
+                                                                        progressPercent >= 100
+                                                                            ? 'bg-rose-500'
+                                                                            : progressPercent >= 80
+                                                                            ? 'bg-amber-500'
+                                                                            : 'bg-primary'
+                                                                    }`}
+                                                                    style={{ width: `${progressPercent}%` }}
+                                                                />
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
 
-                                                {/* Mini capacity progress bar */}
-                                                <div className="mt-2.5 w-full bg-slate-100 dark:bg-white/10 rounded-full h-1.5 overflow-hidden">
-                                                    <div
-                                                        className={`h-full rounded-full transition-all duration-300 ${
-                                                            s.is_full
-                                                                ? 'bg-rose-500'
-                                                                : progressPercent > 80
-                                                                ? 'bg-amber-500'
-                                                                : 'bg-primary'
-                                                        }`}
-                                                        style={{ width: `${progressPercent}%` }}
-                                                    />
+                                                <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
+                                                    <span className="text-[10px] text-slate-400 font-medium">Patient Total</span>
+                                                    <span className="font-extrabold text-xs text-slate-900 dark:text-white">
+                                                        Rs. {s.total_fee_lkr.toLocaleString()}
+                                                    </span>
                                                 </div>
                                             </button>
                                         );
@@ -541,7 +885,7 @@ export default function BookingsIndex({
                             )}
                         </GlassCard>
 
-                        {/* STEP 2: PATIENT */}
+                        {/* STEP 2: PATIENT LOOKUP */}
                         <GlassCard className="p-5 space-y-4">
                             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/5">
                                 <div className="flex items-center gap-2.5">
@@ -550,106 +894,86 @@ export default function BookingsIndex({
                                     </span>
                                     <div>
                                         <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                                            Patient
+                                            Patient details
                                         </h3>
                                         <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                                            Search registered patient or enter walk-in details
+                                            Search registered patient by mobile/NIC or enter a new walk-in
                                         </p>
                                     </div>
                                 </div>
-
                                 {selectedPatient && (
                                     <button
                                         type="button"
                                         onClick={clearSelectedPatient}
-                                        className="text-xs font-semibold text-rose-500 hover:text-rose-600 transition-colors"
+                                        className="text-xs text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-1"
                                     >
-                                        Change patient
+                                        <XCircle className="w-3.5 h-3.5" />
+                                        <span>Change</span>
                                     </button>
                                 )}
                             </div>
 
                             {selectedPatient ? (
-                                <div className="p-4 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/40 flex items-center justify-between">
+                                <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white font-bold flex items-center justify-center text-sm shadow-xs">
+                                        <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold flex items-center justify-center">
                                             <UserCheck className="w-5 h-5" />
                                         </div>
                                         <div>
-                                            <div className="flex items-center gap-2">
-                                                <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                                                    {selectedPatient.name}
-                                                </h4>
-                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300">
-                                                    Existing patient
+                                            <span className="font-bold text-slate-900 dark:text-white text-sm block">
+                                                {selectedPatient.name}
+                                            </span>
+                                            <span className="text-xs text-slate-600 dark:text-slate-300 block">
+                                                {selectedPatient.phone} {selectedPatient.nic ? `• NIC: ${selectedPatient.nic}` : ''}
+                                            </span>
+                                            {selectedPatient.city && (
+                                                <span className="text-[11px] text-slate-400">
+                                                    {selectedPatient.city}
                                                 </span>
-                                            </div>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                                {maskPhoneNumber(selectedPatient.phone)}{' '}
-                                                {selectedPatient.nic ? `• NIC: ${selectedPatient.nic}` : ''}{' '}
-                                                {selectedPatient.city ? `• ${selectedPatient.city}` : ''}
-                                            </p>
+                                            )}
                                         </div>
                                     </div>
+                                    <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/60 px-2.5 py-1 rounded-full">
+                                        Existing Patient
+                                    </span>
                                 </div>
                             ) : (
                                 <div className="space-y-3">
-                                    {/* Search by phone, NIC, or name */}
                                     <div className="relative">
                                         <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                                         <input
                                             type="text"
                                             value={patientQuery}
-                                            onChange={(e) => {
-                                                setPatientQuery(e.target.value);
-                                                if (e.target.value.trim().length > 0) {
-                                                    setIsCreatingNewPatient(false);
-                                                }
-                                            }}
-                                            placeholder="Search by patient name, mobile (+94), or NIC..."
-                                            className="w-full pl-10 pr-24 py-2.5 text-xs rounded-xl border border-slate-200/80 dark:border-white/10 bg-slate-50/60 dark:bg-white/5 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-primary focus:bg-white dark:focus:bg-slate-900"
+                                            onChange={(e) => setPatientQuery(e.target.value)}
+                                            placeholder="Search by Sri Lankan mobile (+94), NIC, or Name..."
+                                            className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 pl-9 pr-4 py-2.5 text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:ring-2 focus:ring-primary focus:border-transparent transition-all shadow-xs"
                                         />
-                                        {isSearching ? (
-                                            <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 animate-pulse font-medium">
+                                        {isSearching && (
+                                            <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-slate-400">
                                                 Searching...
-                                            </span>
-                                        ) : (
-                                            patientQuery && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setPatientQuery('');
-                                                        setPatientSearchResults([]);
-                                                    }}
-                                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400 hover:text-slate-600"
-                                                >
-                                                    Clear
-                                                </button>
-                                            )
+                                            </div>
                                         )}
                                     </div>
 
-                                    {/* Search Results Dropdown */}
+                                    {/* Patient search suggestions dropdown */}
                                     {patientSearchResults.length > 0 && (
-                                        <div className="border border-slate-200/80 dark:border-white/10 rounded-2xl divide-y divide-slate-100 dark:divide-white/5 bg-white dark:bg-slate-900 shadow-xl max-h-56 overflow-y-auto">
+                                        <div className="p-1 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 shadow-lg space-y-1 max-h-48 overflow-y-auto">
                                             {patientSearchResults.map((p) => (
                                                 <button
                                                     key={p.id}
                                                     type="button"
                                                     onClick={() => selectPatient(p)}
-                                                    className="w-full text-left p-3 hover:bg-slate-50 dark:hover:bg-white/5 flex items-center justify-between text-xs transition-colors"
+                                                    className="w-full text-left p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-white/5 transition-colors flex items-center justify-between text-xs"
                                                 >
                                                     <div>
                                                         <span className="font-bold text-slate-900 dark:text-white block">
                                                             {p.name}
                                                         </span>
-                                                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                                                            {maskPhoneNumber(p.phone)}{' '}
-                                                            {p.nic ? `• NIC: ${p.nic}` : ''}{' '}
-                                                            {p.city ? `• ${p.city}` : ''}
+                                                        <span className="text-[11px] text-slate-500">
+                                                            {p.phone} {p.nic ? `• ${p.nic}` : ''} {p.city ? `• ${p.city}` : ''}
                                                         </span>
                                                     </div>
-                                                    <span className="text-primary font-bold text-xs bg-primary-50 dark:bg-primary-950/60 px-2.5 py-1 rounded-lg">
+                                                    <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
                                                         Select
                                                     </span>
                                                 </button>
@@ -657,95 +981,77 @@ export default function BookingsIndex({
                                         </div>
                                     )}
 
-                                    {patientQuery.trim().length >= 2 && !isSearching && patientSearchResults.length === 0 && (
-                                        <div className="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40 text-xs flex items-center justify-between text-amber-800 dark:text-amber-300">
-                                            <span>No matching patient found for "{patientQuery}"</span>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setIsCreatingNewPatient(true);
-                                                    if (/^\+?\d+$/.test(patientQuery.trim())) {
-                                                        setData('new_patient_phone', patientQuery.trim());
-                                                    } else {
-                                                        setData('new_patient_name', patientQuery.trim());
-                                                    }
-                                                }}
-                                                className="font-bold underline text-xs ml-2"
-                                            >
-                                                Register now
-                                            </button>
-                                        </div>
-                                    )}
-
-                                    {/* Quick Register Toggle */}
+                                    {/* Toggle or Show New Patient Form */}
                                     <div className="pt-2">
                                         {!isCreatingNewPatient ? (
                                             <button
                                                 type="button"
                                                 onClick={() => setIsCreatingNewPatient(true)}
-                                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+                                                className="inline-flex items-center gap-1.5 text-xs text-primary font-bold hover:underline"
                                             >
-                                                <Plus className="w-3.5 h-3.5" />
-                                                <span>Register new walk-in patient</span>
+                                                <UserPlus className="w-3.5 h-3.5" />
+                                                <span>+ Register new walk-in patient</span>
                                             </button>
                                         ) : (
-                                            <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-white/[0.02] border border-slate-200/70 dark:border-white/10 space-y-3">
+                                            <div className="p-4 rounded-2xl border border-slate-200/80 dark:border-white/10 bg-slate-50/70 dark:bg-white/[0.02] space-y-3">
                                                 <div className="flex items-center justify-between pb-2 border-b border-slate-200/60 dark:border-white/5">
                                                     <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                                                         <UserPlus className="w-3.5 h-3.5 text-primary" />
-                                                        New Patient Information
+                                                        <span>New Walk-in Patient</span>
                                                     </span>
                                                     <button
                                                         type="button"
                                                         onClick={() => setIsCreatingNewPatient(false)}
-                                                        className="text-[11px] text-slate-400 hover:text-slate-600"
+                                                        className="text-[11px] text-slate-500 hover:text-slate-700"
                                                     >
-                                                        Collapse
+                                                        Cancel
                                                     </button>
                                                 </div>
 
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                                                     <div>
-                                                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                                        <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
                                                             Full Name *
                                                         </label>
                                                         <input
                                                             type="text"
+                                                            required
                                                             value={data.new_patient_name}
                                                             onChange={(e) => setData('new_patient_name', e.target.value)}
-                                                            placeholder="e.g. Priyantha Dissanayake"
-                                                            className="w-full text-xs rounded-xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-slate-900 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
+                                                            placeholder="e.g. Sunil Perera"
+                                                            className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-2 px-3 text-slate-800 dark:text-slate-200"
                                                         />
                                                     </div>
 
                                                     <div>
-                                                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                                            Mobile Phone (+94) *
+                                                        <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                                            Mobile Number (+94) *
                                                         </label>
-                                                        <PhoneInput
+                                                        <input
+                                                            type="text"
+                                                            required
                                                             value={data.new_patient_phone}
-                                                            onChange={(normalized) => setData('new_patient_phone', normalized)}
-                                                            placeholder="7X XXX XXXX"
+                                                            onChange={(e) => setData('new_patient_phone', e.target.value)}
+                                                            placeholder="077 123 4567"
+                                                            className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-2 px-3 text-slate-800 dark:text-slate-200"
                                                         />
                                                     </div>
-                                                </div>
 
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                     <div>
-                                                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                                            NIC Number (Optional)
+                                                        <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                                            National ID / NIC (Optional)
                                                         </label>
                                                         <input
                                                             type="text"
                                                             value={data.new_patient_nic}
                                                             onChange={(e) => setData('new_patient_nic', e.target.value)}
-                                                            placeholder="e.g. 199012345678 or 901234567V"
-                                                            className="w-full text-xs rounded-xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-slate-900 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
+                                                            placeholder="e.g. 198512345678"
+                                                            className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-2 px-3 text-slate-800 dark:text-slate-200"
                                                         />
                                                     </div>
 
                                                     <div>
-                                                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                                        <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
                                                             Gender
                                                         </label>
                                                         <GlassSelect
@@ -767,7 +1073,7 @@ export default function BookingsIndex({
                         </GlassCard>
 
                         {/* STEP 3: CONFIRM & ISSUE SUMMARY CARD */}
-                        <GlassCard className="p-5 space-y-4 border-primary/30 bg-gradient-to-br from-white/90 via-primary-50/20 to-white/90 dark:from-slate-900/90 dark:via-primary-950/10 dark:to-slate-900/90">
+                        <GlassCard className="p-5 space-y-4 border-primary/30 bg-gradient-to-br from-white/95 via-primary-50/20 to-white/95 dark:from-slate-900/95 dark:via-primary-950/20 dark:to-slate-900/95">
                             <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100 dark:border-white/5">
                                 <span className="w-6 h-6 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center shadow-xs">
                                     3
@@ -777,38 +1083,40 @@ export default function BookingsIndex({
                                         Confirm & issue
                                     </h3>
                                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                                        Review token assignment and fee breakdown
+                                        Review assigned token and fee breakdown
                                     </p>
                                 </div>
                             </div>
 
                             {/* Summary Details */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                                <div className="p-3 rounded-xl bg-slate-50/80 dark:bg-white/[0.02] border border-slate-200/60 dark:border-white/5 space-y-1">
+                                <div className="p-3.5 rounded-xl bg-slate-50/90 dark:bg-white/[0.03] border border-slate-200/70 dark:border-white/5 space-y-1">
                                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                         Doctor & Session
                                     </span>
                                     <p className="font-bold text-slate-900 dark:text-white text-xs">
                                         {activeSession?.doctor_name || 'No session selected'}
                                     </p>
-                                    <p className="text-[11px] text-primary dark:text-primary-400">
+                                    <p className="text-[11px] text-primary dark:text-primary-400 font-semibold">
                                         {activeSession?.doctor_specialty || '—'}
                                     </p>
                                     <p className="text-[11px] text-slate-500">
-                                        {activeSession ? `${activeSession.session_date_formatted} • ${activeSession.start_time} (${activeSession.room_number})` : '—'}
+                                        {activeSession
+                                            ? `${activeSession.session_date_formatted} • ${activeSession.start_time} (${activeSession.room_number})`
+                                            : 'Choose a session in Step 1'}
                                     </p>
                                 </div>
 
-                                <div className="p-3 rounded-xl bg-slate-50/80 dark:bg-white/[0.02] border border-slate-200/60 dark:border-white/5 space-y-1">
+                                <div className="p-3.5 rounded-xl bg-slate-50/90 dark:bg-white/[0.03] border border-slate-200/70 dark:border-white/5 space-y-1">
                                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                         Assigned Token & Time
                                     </span>
                                     <div className="flex items-baseline gap-2">
-                                        <span className="text-xl font-extrabold text-primary">
-                                            {activeSession ? `#${activeSession.booked_tokens_count + 1}` : '—'}
+                                        <span className="text-2xl font-extrabold text-primary">
+                                            {assignedTokenNumber ? `#${assignedTokenNumber}` : '—'}
                                         </span>
-                                        <span className="text-[11px] text-slate-500">
-                                            Approx: {approximateTime}
+                                        <span className="text-[11px] text-slate-600 dark:text-slate-300 font-medium">
+                                            {approximateTime || '—'}
                                         </span>
                                     </div>
                                     <p className="text-[11px] text-slate-500 truncate">
@@ -822,7 +1130,7 @@ export default function BookingsIndex({
                                 </div>
                             </div>
 
-                            {/* Visit Type & Optional Charges */}
+                            {/* Visit Type & Discount Controls */}
                             <div className="p-3.5 rounded-xl bg-slate-50/90 dark:bg-white/[0.03] border border-slate-200/70 dark:border-white/5 space-y-3">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
@@ -836,13 +1144,17 @@ export default function BookingsIndex({
                                         >
                                             {visitTypes.map((vt) => (
                                                 <option key={vt.id} value={vt.id}>
-                                                    {vt.name} {vt.pricing_type === 'percentage' ? `(${vt.percentage_value}%)` : vt.pricing_type === 'fixed' ? `(Rs. ${(vt.fixed_fee_cents/100).toLocaleString()})` : '(Standard)'}
+                                                    {vt.name}{' '}
+                                                    {vt.pricing_type === 'percentage'
+                                                        ? `(${vt.percentage_value}%)`
+                                                        : vt.pricing_type === 'fixed'
+                                                        ? `(Rs. ${(vt.fixed_fee_cents / 100).toLocaleString()})`
+                                                        : '(Standard)'}
                                                 </option>
                                             ))}
                                         </select>
                                     </div>
 
-                                    {/* Receptionist Limit & Discount Selector */}
                                     <div>
                                         <div className="flex items-center justify-between mb-1">
                                             <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
@@ -857,27 +1169,29 @@ export default function BookingsIndex({
                                             onChange={(e) => setData('discount_type', e.target.value as any)}
                                             className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-1.5 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
                                         >
-                                            <option value="none">No Discount (Standard Fee)</option>
-                                            <option value="percent">Percentage Discount (%)</option>
-                                            <option value="fixed">Fixed Amount Off (Rs.)</option>
-                                            <option value="waiver">Full Waiver (100% Free)</option>
+                                            <option value="none">No discount</option>
+                                            <option value="percent">Percentage discount (%)</option>
+                                            <option value="amount">Fixed amount (Rs.)</option>
+                                            <option value="waiver">Full waiver (100% Free)</option>
                                         </select>
                                     </div>
                                 </div>
 
-                                {/* Discount Value & Reason Inputs if discount selected */}
+                                {/* Discount Value & Reason Inputs (only shown when discount != 'none') */}
                                 {data.discount_type !== 'none' && (
                                     <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-2 animate-in fade-in-0 duration-150">
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                             {data.discount_type !== 'waiver' && (
                                                 <div>
                                                     <label className="block text-[10px] font-bold text-amber-900 dark:text-amber-200 mb-1">
-                                                        {data.discount_type === 'percent' ? 'Discount Percentage (%) *' : 'Discount Amount (LKR) *'}
+                                                        {data.discount_type === 'percent'
+                                                            ? 'Discount percentage (%) *'
+                                                            : 'Discount amount (LKR) *'}
                                                     </label>
                                                     <input
                                                         type="number"
                                                         min="1"
-                                                        max={data.discount_type === 'percent' ? 100 : liveFeeCalculation.grossTotal}
+                                                        max={data.discount_type === 'percent' ? 100 : liveFeeCalculation?.grossTotal || 50000}
                                                         value={data.discount_value || ''}
                                                         onChange={(e) => setData('discount_value', parseFloat(e.target.value) || 0)}
                                                         placeholder={data.discount_type === 'percent' ? 'e.g. 20' : 'e.g. 500'}
@@ -887,14 +1201,14 @@ export default function BookingsIndex({
                                             )}
                                             <div className={data.discount_type === 'waiver' ? 'sm:col-span-2' : ''}>
                                                 <label className="block text-[10px] font-bold text-amber-900 dark:text-amber-200 mb-1">
-                                                    Discount / Waiver Reason (Required) *
+                                                    Discount reason (Required) *
                                                 </label>
                                                 <input
                                                     type="text"
                                                     required
                                                     value={data.discount_reason}
                                                     onChange={(e) => setData('discount_reason', e.target.value)}
-                                                    placeholder="e.g. Senior citizen / Staff courtesy / Follow-up review"
+                                                    placeholder="e.g. Senior citizen courtesy, staff review, waiver"
                                                     className="w-full text-xs rounded-xl border border-amber-300 dark:border-amber-500/30 bg-white dark:bg-slate-900 py-1.5 px-3"
                                                 />
                                             </div>
@@ -902,64 +1216,84 @@ export default function BookingsIndex({
                                     </div>
                                 )}
 
-                                {/* Optional Fee Components */}
-                                {feeComponents.filter((c) => !c.is_mandatory && c.is_active && c.applies_to?.includes('walk_in')).length > 0 && (
-                                    <div className="pt-2 border-t border-slate-200/60 dark:border-white/5">
-                                        <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                                            Optional Add-on Charges (Optional)
-                                        </span>
-                                        <div className="flex flex-wrap gap-2">
-                                            {feeComponents.filter((c) => !c.is_mandatory && c.is_active && c.applies_to?.includes('walk_in')).map((c) => {
-                                                const checked = data.optional_component_ids.includes(c.id);
-                                                return (
-                                                    <button
-                                                        key={c.id}
-                                                        type="button"
-                                                        onClick={() => {
-                                                            const exists = data.optional_component_ids.includes(c.id);
-                                                            setData('optional_component_ids', exists
-                                                                ? data.optional_component_ids.filter((id) => id !== c.id)
-                                                                : [...data.optional_component_ids, c.id]);
-                                                        }}
-                                                        className={`text-xs px-2.5 py-1 rounded-lg border flex items-center gap-1.5 transition-all ${
-                                                            checked
-                                                                ? 'border-primary bg-primary text-white font-bold'
-                                                                : 'border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300'
-                                                        }`}
-                                                    >
-                                                        <span>{c.name} (+Rs. {(c.amount_value / 100).toLocaleString()})</span>
-                                                    </button>
-                                                );
-                                            })}
+                                {/* Payment at Issue Toggle & Method */}
+                                <div className="pt-2 border-t border-slate-200/60 dark:border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                    <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                        <input
+                                            type="checkbox"
+                                            checked={data.payment_collected}
+                                            onChange={(e) => setData('payment_collected', e.target.checked)}
+                                            className="rounded border-slate-300 text-primary focus:ring-primary w-4 h-4"
+                                        />
+                                        <span>Collect payment now at token issue</span>
+                                    </label>
+
+                                    {data.payment_collected && (
+                                        <div className="flex items-center gap-1.5">
+                                            {(['cash', 'card', 'bank_transfer'] as const).map((method) => (
+                                                <button
+                                                    key={method}
+                                                    type="button"
+                                                    onClick={() => setData('payment_method', method)}
+                                                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold capitalize border transition-all ${
+                                                        data.payment_method === method
+                                                            ? 'bg-primary text-white border-primary'
+                                                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-white/10'
+                                                    }`}
+                                                >
+                                                    {method.replace('_', ' ')}
+                                                </button>
+                                            ))}
                                         </div>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                             </div>
 
-                            {/* Fee Breakdown & Issue Action */}
-                            <div className="p-4 rounded-xl bg-slate-100/70 dark:bg-white/[0.04] border border-slate-200/70 dark:border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1">
-                                    <div className="flex items-center gap-2 text-[11px]">
-                                        <span>Consultation: Rs. {liveFeeCalculation.consultFee.toLocaleString()}</span>
-                                        <span className="text-[10px] text-primary font-semibold">({liveFeeCalculation.sourceLabel})</span>
-                                        {liveFeeCalculation.optionalTotal > 0 && (
-                                            <>
-                                                <span>•</span>
-                                                <span>Add-ons: +Rs. {liveFeeCalculation.optionalTotal.toLocaleString()}</span>
-                                            </>
-                                        )}
-                                        {liveFeeCalculation.discountAmount > 0 && (
-                                            <>
-                                                <span>•</span>
-                                                <span className="text-emerald-600 font-bold">Discount: -Rs. {liveFeeCalculation.discountAmount.toLocaleString()}</span>
-                                            </>
+                            {/* LIVE FEE BREAKDOWN & ISSUE ACTION */}
+                            <div className="p-4 rounded-xl bg-slate-100/80 dark:bg-white/[0.04] border border-slate-200/70 dark:border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                {liveFeeCalculation ? (
+                                    <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1">
+                                        <div className="flex items-center gap-2 text-[11px] flex-wrap">
+                                            <span>
+                                                Consultation: Rs. {liveFeeCalculation.consultFee.toLocaleString()}
+                                            </span>
+                                            <span className="text-[10px] text-primary font-semibold">
+                                                ({liveFeeCalculation.sourceLabel})
+                                            </span>
+                                            {liveFeeCalculation.visitTypeDiff !== 0 && (
+                                                <span className="text-[10px] text-slate-500">
+                                                    (Visit Type: {liveFeeCalculation.visitTypeDiff > 0 ? '+' : ''}Rs. {liveFeeCalculation.visitTypeDiff.toLocaleString()})
+                                                </span>
+                                            )}
+                                            {liveFeeCalculation.discountAmount > 0 && (
+                                                <>
+                                                    <span>•</span>
+                                                    <span className="text-emerald-600 font-bold">
+                                                        Discount: -Rs. {liveFeeCalculation.discountAmount.toLocaleString()}
+                                                    </span>
+                                                </>
+                                            )}
+                                        </div>
+
+                                        <div className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                                            <span>Patient Total:</span>
+                                            <span className="text-primary text-xl">
+                                                Rs. {liveFeeCalculation.patientTotal.toLocaleString()}
+                                            </span>
+                                        </div>
+
+                                        {/* Admin Share Breakdown */}
+                                        {discountConfig.is_admin && (
+                                            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium pt-0.5">
+                                                Admin View: Doctor share: Rs. {liveFeeCalculation.doctorShare.toLocaleString()} • Clinic share: Rs. {liveFeeCalculation.clinicShare.toLocaleString()}
+                                            </div>
                                         )}
                                     </div>
-                                    <div className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
-                                        <span>Patient Total:</span>
-                                        <span className="text-primary text-lg">Rs. {liveFeeCalculation.patientTotal.toLocaleString()}</span>
+                                ) : (
+                                    <div className="text-xs text-slate-500 italic py-1">
+                                        Select a session to see fees
                                     </div>
-                                </div>
+                                )}
 
                                 <div className="flex flex-col items-end gap-1">
                                     <button
@@ -981,7 +1315,7 @@ export default function BookingsIndex({
                         </GlassCard>
                     </div>
 
-                    {/* RIGHT COLUMN: LIVE RECENT TOKENS & TODAY'S SESSIONS (5 COLS) */}
+                    {/* RIGHT COLUMN: LIVE RECENT TOKENS (5 COLS) */}
                     <div className="lg:col-span-5 space-y-5">
                         <GlassCard className="p-5 space-y-4">
                             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/5">
@@ -1008,38 +1342,9 @@ export default function BookingsIndex({
                                             Issued tokens will appear here live with instant print slips and WhatsApp confirmations.
                                         </p>
                                     </div>
-
-                                    {/* Today's Scheduled Sessions Summary */}
-                                    <div className="space-y-2">
-                                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-                                            Today's Scheduled Sessions
-                                        </span>
-                                        {sessions.length === 0 ? (
-                                            <p className="text-xs text-slate-400 italic">No scheduled sessions</p>
-                                        ) : (
-                                            sessions.slice(0, 3).map((s) => (
-                                                <div
-                                                    key={s.id}
-                                                    className="p-3 rounded-xl border border-slate-100 dark:border-white/5 bg-white/60 dark:bg-slate-900/40 flex items-center justify-between text-xs"
-                                                >
-                                                    <div>
-                                                        <span className="font-bold text-slate-900 dark:text-white block">
-                                                            {s.doctor_name}
-                                                        </span>
-                                                        <span className="text-[11px] text-slate-400">
-                                                            {s.start_time} • {s.room_number}
-                                                        </span>
-                                                    </div>
-                                                    <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
-                                                        {s.booked_tokens_count}/{s.max_tokens} booked
-                                                    </span>
-                                                </div>
-                                            ))
-                                        )}
-                                    </div>
                                 </div>
                             ) : (
-                                <div className="space-y-2.5 max-h-[540px] overflow-y-auto pr-1">
+                                <div className="space-y-2.5 max-h-[580px] overflow-y-auto pr-1">
                                     {recentBookings.map((b) => (
                                         <div
                                             key={b.id}
@@ -1064,16 +1369,15 @@ export default function BookingsIndex({
                                                         <span className="text-[10px] text-slate-400">
                                                             {b.created_at_time} • {b.total_fee_formatted}
                                                         </span>
-                                                        {b.visit_type_name && (
-                                                            <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold bg-slate-200/60 dark:bg-white/10 text-slate-700 dark:text-slate-300">
-                                                                {b.visit_type_name}
-                                                            </span>
-                                                        )}
-                                                        {b.has_discount && (
-                                                            <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300">
-                                                                Discounted
-                                                            </span>
-                                                        )}
+                                                        <span
+                                                            className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase ${
+                                                                b.payment_status === 'paid'
+                                                                    ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
+                                                                    : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300'
+                                                            }`}
+                                                        >
+                                                            {b.payment_status}
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -1118,12 +1422,12 @@ export default function BookingsIndex({
                 </div>
             </div>
 
-            {/* MODAL: 80MM THERMAL TOKEN SLIP & WHATSAPP SHARE */}
+            {/* MODAL: SUCCESS PANEL & 80MM THERMAL TOKEN SLIP */}
             <GlassModal
                 isOpen={slipModalOpen}
                 onClose={() => setSlipModalOpen(false)}
-                title="Token Booking Slip"
-                subtitle="Print 80mm thermal receipt slip or send via WhatsApp"
+                title="Token Issued Successfully"
+                subtitle="Fast token slip, thermal printing, and WhatsApp share"
                 maxWidth="max-w-md"
             >
                 {activeSlip && (
@@ -1145,11 +1449,11 @@ export default function BookingsIndex({
                                 <span className="text-[11px] uppercase tracking-widest text-slate-500 block">
                                     Channeling Token
                                 </span>
-                                <span className="text-4xl font-extrabold text-slate-900 block my-1">
+                                <span className="text-5xl font-black text-slate-900 block my-1">
                                     #{activeSlip.token_number}
                                 </span>
-                                <span className="text-xs font-semibold text-slate-700 block">
-                                    Approx. Time: {activeSlip.approx_time}
+                                <span className="text-xs font-bold text-primary block">
+                                    {activeSlip.estimated_time || activeSlip.approx_time || 'Queue'}
                                 </span>
                             </div>
 
@@ -1164,27 +1468,33 @@ export default function BookingsIndex({
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-slate-500">Room:</span>
-                                    <span className="font-semibold">{activeSlip.room_number}</span>
+                                    <span className="font-semibold">{activeSlip.room_number || 'Room 1'}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-slate-500">Date:</span>
+                                    <span className="font-semibold">{activeSlip.session_date}</span>
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-slate-500">Patient:</span>
                                     <span className="font-bold">{activeSlip.patient_name}</span>
                                 </div>
-                                {activeSlip.visit_type_name && (
+                                {activeSlip.patient_phone && (
                                     <div className="flex justify-between">
-                                        <span className="text-slate-500">Visit Type:</span>
-                                        <span className="font-semibold">{activeSlip.visit_type_name}</span>
+                                        <span className="text-slate-500">Phone:</span>
+                                        <span>{activeSlip.patient_phone}</span>
                                     </div>
                                 )}
-                                {Boolean(activeSlip.discount_amount) && (
-                                    <div className="flex justify-between text-emerald-700 font-semibold">
-                                        <span>Discount:</span>
-                                        <span>-Rs. {Number(activeSlip.discount_amount).toLocaleString()}</span>
-                                    </div>
-                                )}
-                                <div className="flex justify-between pt-1 border-t border-slate-200">
-                                    <span className="font-bold">Total Fee:</span>
-                                    <span className="font-bold text-sm">{activeSlip.fee_formatted}</span>
+                                <div className="flex justify-between pt-1 border-t border-slate-200 font-bold">
+                                    <span>Total Amount:</span>
+                                    <span className="text-sm">
+                                        {activeSlip.total_fee_formatted || activeSlip.fee_formatted}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between text-[11px]">
+                                    <span className="text-slate-500">Payment Status:</span>
+                                    <span className={`font-bold uppercase ${activeSlip.payment_status === 'paid' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                                        {activeSlip.payment_status === 'paid' ? 'PAID' : 'PAYMENT DUE'}
+                                    </span>
                                 </div>
                             </div>
 
@@ -1194,29 +1504,182 @@ export default function BookingsIndex({
                             </div>
                         </div>
 
-                        {/* Modal Action Buttons */}
-                        <div className="flex items-center gap-2 pt-2">
+                        {/* Payment step if pending */}
+                        {activeSlip.payment_status !== 'paid' && activeSlip.bill_id && (
+                            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-2">
+                                <span className="text-xs font-bold text-amber-900 dark:text-amber-200 block">
+                                    Payment Pending: {activeSlip.total_fee_formatted}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleRecordPayment('cash')}
+                                        className="flex-1 py-1.5 px-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+                                    >
+                                        Collect Cash
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleRecordPayment('card')}
+                                        className="flex-1 py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs"
+                                    >
+                                        Card
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleRecordPayment('bank_transfer')}
+                                        className="flex-1 py-1.5 px-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs"
+                                    >
+                                        Bank
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Action Buttons */}
+                        <div className="grid grid-cols-2 gap-2 pt-1">
                             <button
                                 type="button"
                                 onClick={() => window.print()}
-                                className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 shadow-md"
+                                className="inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 shadow-md transition-all"
                             >
                                 <Printer className="w-3.5 h-3.5" />
-                                <span>Print 80mm Slip</span>
+                                <span>Print slip (80mm)</span>
                             </button>
 
                             <a
                                 href={generateWhatsAppUrl(activeSlip)}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md"
+                                className="inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md transition-all"
                             >
                                 <Share2 className="w-3.5 h-3.5" />
-                                <span>WhatsApp Slip</span>
+                                <span>Share WhatsApp</span>
                             </a>
+
+                            <button
+                                type="button"
+                                onClick={() => setSlipModalOpen(false)}
+                                className="inline-flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 transition-all"
+                            >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>Issue another</span>
+                            </button>
+
+                            <Link
+                                href="/sessions/today"
+                                className="inline-flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 transition-all"
+                            >
+                                <span>Go to queue</span>
+                                <ArrowRight className="w-3.5 h-3.5" />
+                            </Link>
                         </div>
                     </div>
                 )}
+            </GlassModal>
+
+            {/* MODAL: INLINE CREATE SESSION FOR THIS DATE */}
+            <GlassModal
+                isOpen={quickSessionModalOpen}
+                onClose={() => setQuickSessionModalOpen(false)}
+                title={`Create Session for ${currentDate}`}
+                subtitle="Add a doctor channeling session on this date and auto-select it."
+                maxWidth="max-w-md"
+            >
+                <form onSubmit={handleCreateOneOffSession} className="space-y-3.5 text-xs">
+                    <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                            Doctor *
+                        </label>
+                        <select
+                            required
+                            value={quickDocId}
+                            onChange={(e) => setQuickDocId(e.target.value)}
+                            className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
+                        >
+                            {doctors.map((d) => (
+                                <option key={d.id} value={d.id}>
+                                    {d.name} ({d.specialty}) • Fee: Rs. {d.total_fee_lkr.toLocaleString()}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                Start Time *
+                            </label>
+                            <input
+                                type="time"
+                                required
+                                value={quickStartTime}
+                                onChange={(e) => setQuickStartTime(e.target.value)}
+                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-2 px-3 text-slate-800 dark:text-slate-200"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                End Time *
+                            </label>
+                            <input
+                                type="time"
+                                required
+                                value={quickEndTime}
+                                onChange={(e) => setQuickEndTime(e.target.value)}
+                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-2 px-3 text-slate-800 dark:text-slate-200"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                Maximum Tokens *
+                            </label>
+                            <input
+                                type="number"
+                                required
+                                min="1"
+                                max="200"
+                                value={quickMaxTokens}
+                                onChange={(e) => setQuickMaxTokens(parseInt(e.target.value) || 25)}
+                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-2 px-3 text-slate-800 dark:text-slate-200"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                Room / Suite
+                            </label>
+                            <input
+                                type="text"
+                                value={quickRoom}
+                                onChange={(e) => setQuickRoom(e.target.value)}
+                                placeholder="Consulting Room 1"
+                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-2 px-3 text-slate-800 dark:text-slate-200"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200/60 dark:border-white/5">
+                        <button
+                            type="button"
+                            onClick={() => setQuickSessionModalOpen(false)}
+                            className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:hover:bg-white/5"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={isSubmittingQuickSession}
+                            className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-md shadow-primary/20 disabled:opacity-50"
+                        >
+                            {isSubmittingQuickSession ? 'Creating...' : 'Save & Select Session'}
+                        </button>
+                    </div>
+                </form>
             </GlassModal>
         </AuthenticatedLayout>
     );

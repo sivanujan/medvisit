@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AuditEvent;
 use App\Models\Bill;
 use App\Models\BookingToken;
+use App\Models\Doctor;
 use App\Models\DoctorSession;
 use App\Models\FeeComponent;
 use App\Models\Patient;
@@ -35,7 +36,9 @@ class BookingTokenController extends Controller
     {
         $tenant = tenant();
         $tenantId = $tenant->id;
-        $today = Carbon::today('Asia/Colombo')->toDateString();
+        $today = Carbon::today('Asia/Colombo');
+        $todayString = $today->toDateString();
+        $selectedDate = $request->query('date', $todayString);
         $user = $request->user();
         $isAdmin = $user->hasRole('clinic_admin') || $user->hasRole('super_admin');
         $feeSettings = $this->feeService->getTenantSettings($tenant);
@@ -64,9 +67,52 @@ class BookingTokenController extends Controller
                 'is_separate_line' => (bool) $c->is_separate_line,
             ]);
 
-        // 1. Fetch upcoming active sessions (from today onwards, scheduled or in_progress)
+        // Build 14-day date strip: Today, Tomorrow, next 12 days
+        $countsQuery = DoctorSession::where('tenant_id', $tenantId)
+            ->where('session_date', '>=', $todayString)
+            ->where('session_date', '<=', (clone $today)->addDays(14)->toDateString())
+            ->whereNotIn('status', ['cancelled'])
+            ->groupBy('session_date')
+            ->selectRaw('session_date, count(*) as count')
+            ->pluck('count', 'session_date');
+
+        $dateStrip = [];
+        for ($i = 0; $i < 14; $i++) {
+            $d = (clone $today)->addDays($i);
+            $dStr = $d->toDateString();
+            $label = $i === 0 ? 'Today' : ($i === 1 ? 'Tomorrow' : $d->format('D'));
+            $dateStrip[] = [
+                'date' => $dStr,
+                'label' => $label,
+                'day_name' => $d->format('D'),
+                'day_number' => $d->format('d'),
+                'month_name' => $d->format('M'),
+                'formatted' => $d->format('M d, Y (D)'),
+                'session_count' => (int) ($countsQuery[$dStr] ?? 0),
+                'is_today' => $i === 0,
+                'is_tomorrow' => $i === 1,
+            ];
+        }
+
+        // Active Doctors for inline Quick Create Session modal
+        $doctors = Doctor::where('tenant_id', $tenantId)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'title', 'name', 'specialty', 'doctor_fee', 'clinic_fee', 'avg_consultation_minutes'])
+            ->map(fn ($d) => [
+                'id' => $d->id,
+                'name' => trim(($d->title ?? 'Dr.').' '.$d->name),
+                'specialty' => $d->specialty,
+                'avg_consultation_minutes' => $d->avg_consultation_minutes,
+                'doctor_fee_lkr' => round($d->doctor_fee / 100, 2),
+                'clinic_fee_lkr' => round($d->clinic_fee / 100, 2),
+                'total_fee_lkr' => round(($d->doctor_fee + $d->clinic_fee) / 100, 2),
+            ]);
+
+        // 1. Fetch upcoming active sessions (for the next 30 days)
         $sessions = DoctorSession::with(['doctor'])
-            ->where('session_date', '>=', $today)
+            ->where('tenant_id', $tenantId)
+            ->where('session_date', '>=', $todayString)
             ->whereNotIn('status', ['cancelled'])
             ->orderBy('session_date')
             ->orderBy('start_time')
@@ -74,6 +120,34 @@ class BookingTokenController extends Controller
             ->map(function ($s) {
                 $bookedCount = $s->tokens()->whereNotIn('status', ['cancelled'])->count();
                 $available = max(0, $s->max_tokens - $bookedCount);
+                $isFull = $available <= 0;
+                $isEnded = in_array($s->status, ['cancelled', 'closed', 'completed'], true);
+
+                $isSelectable = ! $isFull && ! $isEnded;
+                $unselectableReason = null;
+                if ($isFull) {
+                    $unselectableReason = "Session is full ({$s->max_tokens}/{$s->max_tokens} tokens booked)";
+                } elseif ($s->status === 'cancelled') {
+                    $unselectableReason = 'Session cancelled';
+                } elseif (in_array($s->status, ['closed', 'completed'], true)) {
+                    $unselectableReason = 'Session ended';
+                }
+
+                $avgMins = $s->doctor?->avg_consultation_minutes ?? 15;
+                $nextToken = $bookedCount + 1;
+                $sessionStart = Carbon::parse($s->session_date->format('Y-m-d').' '.$s->start_time);
+                $approxTime = (clone $sessionStart)->addMinutes($bookedCount * $avgMins);
+
+                // Doctor initials
+                $docName = $s->doctor?->name ?? 'Doctor';
+                $words = explode(' ', trim(str_replace(['Dr.', 'Dr', 'Prof.', 'Prof'], '', $docName)));
+                $initials = '';
+                foreach ($words as $w) {
+                    if (! empty($w)) {
+                        $initials .= strtoupper(substr($w, 0, 1));
+                    }
+                }
+                $initials = substr($initials, 0, 2) ?: 'DR';
 
                 // Resolve effective fee preview for default visit type
                 $resolved = $this->feeService->resolve(
@@ -87,6 +161,9 @@ class BookingTokenController extends Controller
                     'doctor_id' => $s->doctor_id,
                     'doctor_name' => trim(($s->doctor?->title ?? 'Dr.').' '.($s->doctor?->name ?? 'Doctor')),
                     'doctor_specialty' => $s->doctor?->specialty ?? 'General',
+                    'doctor_photo_url' => $s->doctor?->photo_url,
+                    'doctor_initials' => $initials,
+                    'doctor_avg_minutes' => $avgMins,
                     'session_date' => $s->session_date->format('Y-m-d'),
                     'session_date_formatted' => $s->session_date->format('M d, Y (D)'),
                     'start_time' => Carbon::parse($s->start_time)->format('h:i A'),
@@ -96,11 +173,17 @@ class BookingTokenController extends Controller
                     'max_tokens' => $s->max_tokens,
                     'booked_tokens_count' => $bookedCount,
                     'available_tokens_count' => $available,
-                    'is_full' => $available <= 0,
+                    'is_full' => $isFull,
+                    'is_selectable' => $isSelectable,
+                    'unselectable_reason' => $unselectableReason,
+                    'next_token_number' => $nextToken,
+                    'next_approx_time' => 'approx. '.$approxTime->format('g:i A'),
                     'doctor_fee_lkr' => round($resolved['doctor_fee_portion'] / 100, 2),
                     'clinic_fee_lkr' => round($resolved['clinic_portion'] / 100, 2),
                     'total_fee_lkr' => round($resolved['patient_total'] / 100, 2),
                     'total_fee_formatted' => $resolved['patient_total_formatted'],
+                    'doctor_payout_lkr' => round($resolved['doctor_payout_amount'] / 100, 2),
+                    'clinic_net_lkr' => round($resolved['clinic_net_amount'] / 100, 2),
                     'source_label' => $resolved['source_levels']['doctor_fee'] ?? 'from clinic',
                     'pricing_mode' => $resolved['pricing_mode'],
                 ];
@@ -108,7 +191,8 @@ class BookingTokenController extends Controller
 
         // 2. Fetch recent bookings issued today
         $recentBookings = BookingToken::with(['session.doctor', 'patient', 'bill', 'visitType'])
-            ->whereDate('created_at', $today)
+            ->where('tenant_id', $tenantId)
+            ->whereDate('created_at', $todayString)
             ->latest('id')
             ->limit(25)
             ->get()
@@ -141,12 +225,13 @@ class BookingTokenController extends Controller
                 ];
             });
 
-        // Clinic info for slip printing
+        // Clinic info for slip printing & payment settings
         $clinicInfo = [
             'name' => ucwords((string) ($tenant->name ?? 'MedVisit Clinic')),
             'phone' => $tenant->phone ?? '+94 11 234 5678',
             'address' => $tenant->address ?? 'Colombo, Sri Lanka',
             'subdomain' => $tenant->subdomain ?? 'clinic',
+            'collect_payment_at_issue' => (bool) ($feeSettings['collect_payment_at_issue'] ?? false),
         ];
 
         $discountConfig = [
@@ -161,6 +246,9 @@ class BookingTokenController extends Controller
 
         return Inertia::render('Bookings/Index', [
             'sessions' => $sessions,
+            'dateStrip' => $dateStrip,
+            'selectedDate' => $selectedDate,
+            'doctors' => $doctors,
             'recentBookings' => $recentBookings,
             'visitTypes' => $visitTypes,
             'feeComponents' => $feeComponents,
@@ -180,9 +268,12 @@ class BookingTokenController extends Controller
             return response()->json([]);
         }
 
-        $patients = Patient::where('phone', 'like', "%{$q}%")
-            ->orWhere('nic', 'like', "%{$q}%")
-            ->orWhere('name', 'ilike', "%{$q}%")
+        $patients = Patient::where('tenant_id', tenant('id'))
+            ->where(function ($query) use ($q) {
+                $query->where('phone', 'like', "%{$q}%")
+                    ->orWhere('nic', 'like', "%{$q}%")
+                    ->orWhere('name', 'ilike', "%{$q}%");
+            })
             ->limit(10)
             ->get(['id', 'name', 'phone', 'nic', 'city', 'allergies']);
 
@@ -204,23 +295,34 @@ class BookingTokenController extends Controller
             'visit_type_id' => ['nullable', 'exists:visit_types,id'],
             'optional_component_ids' => ['nullable', 'array'],
             'optional_component_ids.*' => ['integer', 'exists:fee_components,id'],
-            'discount_type' => ['nullable', 'string', 'in:amount,percent,waiver'],
+            'discount_type' => ['nullable', 'string', 'in:none,amount,percent,waiver'],
             'discount_value' => ['nullable', 'numeric', 'min:0'],
-            'discount_reason' => ['required_with:discount_value', 'nullable', 'string', 'max:255'],
+            'discount_reason' => ['nullable', 'string', 'max:255'],
+            'payment_collected' => ['nullable', 'boolean'],
+            'payment_method' => ['nullable', 'string', 'in:cash,card,bank_transfer'],
             'notes' => ['nullable', 'string', 'max:255'],
         ]);
+
+        // Validate discount reason if discount is chosen
+        if (! empty($validated['discount_type']) && $validated['discount_type'] !== 'none') {
+            if (empty(trim((string) ($validated['discount_reason'] ?? '')))) {
+                return redirect()->back()->withErrors([
+                    'discount_reason' => 'A valid reason is required when granting a discount or fee waiver.',
+                ]);
+            }
+        }
 
         $user = $request->user();
         $userRole = ($user->hasRole('clinic_admin') || $user->hasRole('super_admin')) ? 'clinic_admin' : 'receptionist';
 
         $manualDiscount = null;
-        if (! empty($validated['discount_reason']) && (! empty($validated['discount_value']) || $validated['discount_type'] === 'waiver')) {
+        if (! empty($validated['discount_type']) && $validated['discount_type'] !== 'none' && ! empty($validated['discount_reason'])) {
             $val = $validated['discount_type'] === 'amount'
-                ? (int) round(($validated['discount_value'] ?? 0) * 100)
+                ? (int) round(((float) ($validated['discount_value'] ?? 0)) * 100)
                 : (int) ($validated['discount_value'] ?? 0);
 
             $manualDiscount = [
-                'type' => $validated['discount_type'] ?? 'amount',
+                'type' => $validated['discount_type'],
                 'value' => $val,
                 'reason' => $validated['discount_reason'],
             ];
@@ -231,9 +333,11 @@ class BookingTokenController extends Controller
 
             // 1. Resolve or create patient
             if (! empty($validated['patient_id'])) {
-                $patient = Patient::findOrFail($validated['patient_id']);
+                $patient = Patient::where('tenant_id', $tenantId)->findOrFail($validated['patient_id']);
             } else {
-                $patient = Patient::where('phone', $validated['new_patient_phone'])->first();
+                $patient = Patient::where('tenant_id', $tenantId)
+                    ->where('phone', $validated['new_patient_phone'])
+                    ->first();
 
                 if (! $patient) {
                     $patient = Patient::create([
@@ -248,6 +352,7 @@ class BookingTokenController extends Controller
 
             // 2. Lock session for concurrency safety
             $session = DoctorSession::with('doctor')
+                ->where('tenant_id', $tenantId)
                 ->where('id', $validated['doctor_session_id'])
                 ->lockForUpdate()
                 ->firstOrFail();
@@ -295,8 +400,10 @@ class BookingTokenController extends Controller
                 'notes' => $validated['notes'] ?? null,
             ]);
 
-            // 6. Create initial Bill record (pending payment)
+            // 6. Create initial Bill record
             $receiptNumber = 'REC-'.strtoupper(Str::random(6)).'-'.date('dmy');
+            $paymentCollected = ! empty($validated['payment_collected']);
+            $paymentMethod = $validated['payment_method'] ?? 'cash';
 
             $bill = Bill::create([
                 'tenant_id' => $tenantId,
@@ -315,8 +422,8 @@ class BookingTokenController extends Controller
                 'doctor_payout_amount' => $snapshot['doctor_payout_amount'],
                 'clinic_net_amount' => $snapshot['clinic_net_amount'],
                 'third_party_amount' => $snapshot['third_party_portion'],
-                'payment_method' => 'cash',
-                'payment_status' => 'pending',
+                'payment_method' => $paymentMethod,
+                'payment_status' => $paymentCollected ? Bill::STATUS_PAID : Bill::STATUS_PENDING,
             ]);
 
             // 7. Audit log if discount was applied
@@ -350,8 +457,31 @@ class BookingTokenController extends Controller
 
         $tokenNo = $tokenResult['token']->token_number;
         $docName = $tokenResult['session']->doctor?->name ?? 'Doctor';
+        $formattedTime = $tokenResult['token']->estimated_time ? Carbon::parse($tokenResult['token']->estimated_time)->format('g:i A') : '';
 
-        return redirect()->back()->with('success', "Token #{$tokenNo} issued successfully for {$tokenResult['patient']->name} with Dr. {$docName}.");
+        return redirect()->back()
+            ->with('success', "Token #{$tokenNo} issued successfully for {$tokenResult['patient']->name} with Dr. {$docName}.")
+            ->with('issuedToken', [
+                'id' => $tokenResult['token']->id,
+                'token_number' => $tokenNo,
+                'patient_id' => $tokenResult['patient']->id,
+                'patient_name' => $tokenResult['patient']->name,
+                'patient_phone' => $tokenResult['patient']->phone,
+                'patient_nic' => $tokenResult['patient']->nic,
+                'doctor_name' => trim(($tokenResult['session']->doctor?->title ?? 'Dr.').' '.($tokenResult['session']->doctor?->name ?? 'Doctor')),
+                'doctor_specialty' => $tokenResult['session']->doctor?->specialty ?? 'General',
+                'room_number' => $tokenResult['session']->room_number ?? 'Suite 1',
+                'session_date' => $tokenResult['session']->session_date->format('M d, Y (D)'),
+                'estimated_time' => $formattedTime ? "approx. {$formattedTime}" : '',
+                'receipt_number' => $tokenResult['bill']->receipt_number,
+                'bill_id' => $tokenResult['bill']->id,
+                'total_fee_formatted' => 'Rs. '.number_format($tokenResult['bill']->total_amount / 100, 2),
+                'total_fee_lkr' => round($tokenResult['bill']->total_amount / 100, 2),
+                'payment_status' => $tokenResult['bill']->payment_status,
+                'payment_method' => $tokenResult['bill']->payment_method,
+                'doctor_share_formatted' => 'Rs. '.number_format($tokenResult['bill']->doctor_payout_amount / 100, 2),
+                'clinic_share_formatted' => 'Rs. '.number_format($tokenResult['bill']->clinic_net_amount / 100, 2),
+            ]);
     }
 
     /**

@@ -187,6 +187,7 @@ export default function FeesAndPayouts({ settings, components, visitTypes }: Pro
 
     const openCreateComponent = () => {
         setEditingComponent(null);
+        componentForm.clearErrors();
         componentForm.reset();
         componentForm.setData({
             name: '',
@@ -207,15 +208,16 @@ export default function FeesAndPayouts({ settings, components, visitTypes }: Pro
 
     const openEditComponent = (c: FeeComponentData) => {
         setEditingComponent(c);
+        componentForm.clearErrors();
         componentForm.setData({
             name: c.name,
             amount_type: c.amount_type,
             target_component_id: c.target_component_id || '',
-            amount_lkr: c.amount_lkr,
-            amount_percent: c.amount_value,
+            amount_lkr: c.amount_type === 'fixed' ? c.amount_lkr : 1000,
+            amount_percent: c.amount_type !== 'fixed' ? c.amount_value : 10,
             recipient: c.recipient,
             recipient_name: c.recipient_name || '',
-            applies_to: c.applies_to,
+            applies_to: c.applies_to || ['walk_in', 'phone', 'online'],
             is_mandatory: c.is_mandatory,
             is_separate_line: c.is_separate_line,
             is_active: c.is_active,
@@ -226,13 +228,25 @@ export default function FeesAndPayouts({ settings, components, visitTypes }: Pro
 
     const handleComponentSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        componentForm.transform((data) => ({
+            ...data,
+            target_component_id: data.amount_type === 'percent_component' ? data.target_component_id : '',
+            amount_percent: data.amount_type === 'fixed' ? 0 : data.amount_percent,
+        }));
+
         if (editingComponent) {
             componentForm.put(`/settings/fees/components/${editingComponent.id}`, {
-                onSuccess: () => setIsComponentModalOpen(false),
+                onSuccess: () => {
+                    setIsComponentModalOpen(false);
+                    componentForm.reset();
+                },
             });
         } else {
             componentForm.post('/settings/fees/components', {
-                onSuccess: () => setIsComponentModalOpen(false),
+                onSuccess: () => {
+                    setIsComponentModalOpen(false);
+                    componentForm.reset();
+                },
             });
         }
     };
@@ -245,6 +259,7 @@ export default function FeesAndPayouts({ settings, components, visitTypes }: Pro
 
     const openCreateVisitType = () => {
         setEditingVisitType(null);
+        visitTypeForm.clearErrors();
         visitTypeForm.reset();
         visitTypeForm.setData({
             name: '',
@@ -261,11 +276,12 @@ export default function FeesAndPayouts({ settings, components, visitTypes }: Pro
 
     const openEditVisitType = (v: VisitTypeData) => {
         setEditingVisitType(v);
+        visitTypeForm.clearErrors();
         visitTypeForm.setData({
             name: v.name,
             pricing_type: v.pricing_type,
-            percentage_value: v.percentage_value,
-            fixed_fee_lkr: v.fixed_fee_lkr,
+            percentage_value: v.pricing_type === 'percentage' ? v.percentage_value : 100,
+            fixed_fee_lkr: v.pricing_type === 'fixed' ? v.fixed_fee_lkr : 1500,
             is_default: v.is_default,
             is_active: v.is_active,
             allow_online: v.allow_online,
@@ -276,13 +292,25 @@ export default function FeesAndPayouts({ settings, components, visitTypes }: Pro
 
     const handleVisitTypeSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        visitTypeForm.transform((data) => ({
+            ...data,
+            percentage_value: data.pricing_type === 'percentage' ? data.percentage_value : 0,
+            fixed_fee_lkr: data.pricing_type === 'fixed' ? data.fixed_fee_lkr : 0,
+        }));
+
         if (editingVisitType) {
             visitTypeForm.put(`/settings/fees/visit-types/${editingVisitType.id}`, {
-                onSuccess: () => setIsVisitTypeModalOpen(false),
+                onSuccess: () => {
+                    setIsVisitTypeModalOpen(false);
+                    visitTypeForm.reset();
+                },
             });
         } else {
             visitTypeForm.post('/settings/fees/visit-types', {
-                onSuccess: () => setIsVisitTypeModalOpen(false),
+                onSuccess: () => {
+                    setIsVisitTypeModalOpen(false);
+                    visitTypeForm.reset();
+                },
             });
         }
     };
@@ -1136,6 +1164,17 @@ export default function FeesAndPayouts({ settings, components, visitTypes }: Pro
                 maxWidth="max-w-xl"
             >
                 <form onSubmit={handleComponentSubmit} className="space-y-4">
+                    {Object.keys(componentForm.errors).length > 0 && (
+                        <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 dark:text-red-400 text-xs space-y-1">
+                            {Object.entries(componentForm.errors).map(([field, err]) => (
+                                <div key={field} className="flex items-center gap-1.5">
+                                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                                    <span>{err}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
                     <div>
                         <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                             Component Name *
@@ -1148,6 +1187,9 @@ export default function FeesAndPayouts({ settings, components, visitTypes }: Pro
                             placeholder="e.g. Doctor Fee, Channeling Fee, Lab Fee, Hospital Charge"
                             className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200"
                         />
+                        {componentForm.errors.name && (
+                            <p className="text-red-500 text-[11px] mt-1">{componentForm.errors.name}</p>
+                        )}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1164,6 +1206,9 @@ export default function FeesAndPayouts({ settings, components, visitTypes }: Pro
                                     { value: 'percent_subtotal', label: '% of running subtotal' },
                                 ]}
                             />
+                            {componentForm.errors.amount_type && (
+                                <p className="text-red-500 text-[11px] mt-1">{componentForm.errors.amount_type}</p>
+                            )}
                         </div>
 
                         <div>
@@ -1191,6 +1236,12 @@ export default function FeesAndPayouts({ settings, components, visitTypes }: Pro
                                     className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200"
                                 />
                             )}
+                            {componentForm.errors.amount_lkr && (
+                                <p className="text-red-500 text-[11px] mt-1">{componentForm.errors.amount_lkr}</p>
+                            )}
+                            {componentForm.errors.amount_percent && (
+                                <p className="text-red-500 text-[11px] mt-1">{componentForm.errors.amount_percent}</p>
+                            )}
                         </div>
                     </div>
 
@@ -1212,6 +1263,9 @@ export default function FeesAndPayouts({ settings, components, visitTypes }: Pro
                                         })),
                                 ]}
                             />
+                            {componentForm.errors.target_component_id && (
+                                <p className="text-red-500 text-[11px] mt-1">{componentForm.errors.target_component_id}</p>
+                            )}
                         </div>
                     )}
 
@@ -1229,6 +1283,9 @@ export default function FeesAndPayouts({ settings, components, visitTypes }: Pro
                                     { value: 'third_party', label: 'Third Party (e.g. Lab, Diagnostics)' },
                                 ]}
                             />
+                            {componentForm.errors.recipient && (
+                                <p className="text-red-500 text-[11px] mt-1">{componentForm.errors.recipient}</p>
+                            )}
                         </div>
 
                         {componentForm.data.recipient === 'third_party' && (
@@ -1244,6 +1301,9 @@ export default function FeesAndPayouts({ settings, components, visitTypes }: Pro
                                     placeholder="e.g. Asiri Labs, MediScan"
                                     className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200"
                                 />
+                                {componentForm.errors.recipient_name && (
+                                    <p className="text-red-500 text-[11px] mt-1">{componentForm.errors.recipient_name}</p>
+                                )}
                             </div>
                         )}
                     </div>
@@ -1300,6 +1360,17 @@ export default function FeesAndPayouts({ settings, components, visitTypes }: Pro
                 maxWidth="max-w-lg"
             >
                 <form onSubmit={handleVisitTypeSubmit} className="space-y-4">
+                    {Object.keys(visitTypeForm.errors).length > 0 && (
+                        <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 dark:text-red-400 text-xs space-y-1">
+                            {Object.entries(visitTypeForm.errors).map(([field, err]) => (
+                                <div key={field} className="flex items-center gap-1.5">
+                                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                                    <span>{err}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
                     <div>
                         <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                             Visit Type Name *
@@ -1312,6 +1383,9 @@ export default function FeesAndPayouts({ settings, components, visitTypes }: Pro
                             placeholder="e.g. New consultation, Follow-up, Report checking, Minor procedure"
                             className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200"
                         />
+                        {visitTypeForm.errors.name && (
+                            <p className="text-red-500 text-[11px] mt-1">{visitTypeForm.errors.name}</p>
+                        )}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1327,6 +1401,9 @@ export default function FeesAndPayouts({ settings, components, visitTypes }: Pro
                                     { value: 'fixed', label: 'Fixed Consultation Price' },
                                 ]}
                             />
+                            {visitTypeForm.errors.pricing_type && (
+                                <p className="text-red-500 text-[11px] mt-1">{visitTypeForm.errors.pricing_type}</p>
+                            )}
                         </div>
 
                         <div>
@@ -1353,6 +1430,12 @@ export default function FeesAndPayouts({ settings, components, visitTypes }: Pro
                                     onChange={(e) => visitTypeForm.setData('fixed_fee_lkr', parseFloat(e.target.value) || 0)}
                                     className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200"
                                 />
+                            )}
+                            {visitTypeForm.errors.percentage_value && (
+                                <p className="text-red-500 text-[11px] mt-1">{visitTypeForm.errors.percentage_value}</p>
+                            )}
+                            {visitTypeForm.errors.fixed_fee_lkr && (
+                                <p className="text-red-500 text-[11px] mt-1">{visitTypeForm.errors.fixed_fee_lkr}</p>
                             )}
                         </div>
                     </div>

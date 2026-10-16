@@ -65,6 +65,8 @@ class HandleInertiaRequests extends Middleware
                 'status' => session('status'),
                 'success' => session('success'),
                 'error' => session('error'),
+                'issuedToken' => session('issuedToken'),
+                'createdSessionId' => session('createdSessionId'),
             ],
         ];
     }

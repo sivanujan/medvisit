@@ -406,9 +406,9 @@ class FeeSettingsController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:100'],
             'amount_type' => ['required', 'string', 'in:fixed,percent_component,percent_subtotal'],
-            'target_component_id' => ['nullable', 'exists:fee_components,id'],
+            'target_component_id' => ['exclude_unless:amount_type,percent_component', 'nullable', 'exists:fee_components,id'],
             'amount_lkr' => ['nullable', 'numeric', 'min:0'],
-            'amount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'amount_percent' => ['exclude_if:amount_type,fixed', 'nullable', 'numeric', 'min:0', 'max:100'],
             'recipient' => ['required', 'string', 'in:doctor,clinic,third_party'],
             'recipient_name' => ['nullable', 'string', 'max:100'],
             'applies_to' => ['required', 'array', 'min:1'],
@@ -464,9 +464,9 @@ class FeeSettingsController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:100'],
             'amount_type' => ['required', 'string', 'in:fixed,percent_component,percent_subtotal'],
-            'target_component_id' => ['nullable', 'exists:fee_components,id'],
+            'target_component_id' => ['exclude_unless:amount_type,percent_component', 'nullable', 'exists:fee_components,id'],
             'amount_lkr' => ['nullable', 'numeric', 'min:0'],
-            'amount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'amount_percent' => ['exclude_if:amount_type,fixed', 'nullable', 'numeric', 'min:0', 'max:100'],
             'recipient' => ['required', 'string', 'in:doctor,clinic,third_party'],
             'recipient_name' => ['nullable', 'string', 'max:100'],
             'applies_to' => ['required', 'array', 'min:1'],
