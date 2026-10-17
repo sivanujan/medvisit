@@ -27,6 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'register/send-code',
             'register/verify-code',
             'register/resend-code',
+            'webhooks/*',
         ]);
 
         $middleware->alias([

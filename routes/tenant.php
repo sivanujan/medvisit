@@ -69,6 +69,19 @@ Route::middleware([
     Route::post('/book/cancel/{signedToken}', [PublicBookingController::class, 'cancel'])
         ->name('tenant.book.cancel');
 
+    // Phone verification endpoints for online public booking
+    Route::post('/book/verify/start', [PublicBookingController::class, 'startPhoneVerification'])
+        ->middleware('throttle:15,1')
+        ->name('tenant.book.verify.start');
+
+    Route::get('/book/verify/status', [PublicBookingController::class, 'checkPhoneVerificationStatus'])
+        ->middleware('throttle:60,1')
+        ->name('tenant.book.verify.status');
+
+    Route::post('/book/verify/check-code', [PublicBookingController::class, 'verifyPhoneCode'])
+        ->middleware('throttle:20,1')
+        ->name('tenant.book.verify.check_code');
+
     Route::get('/book/{slug}', [PublicBookingController::class, 'showDoctor'])
         ->name('tenant.book.doctor');
 

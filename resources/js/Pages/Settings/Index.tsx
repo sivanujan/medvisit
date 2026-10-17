@@ -66,6 +66,9 @@ interface Props {
         online_booking_enabled: boolean;
         max_active_tokens_per_phone: number;
         require_staff_approval: boolean;
+        require_phone_verification: boolean;
+        phone_verification_methods: string[];
+        platform_available_channels: string[];
     };
     auditLogs: AuditLog[];
     availableActions: string[];
@@ -123,7 +126,17 @@ export default function SettingsIndex({
         online_booking_enabled: onlineBookingSettings.online_booking_enabled,
         max_active_tokens_per_phone: onlineBookingSettings.max_active_tokens_per_phone,
         require_staff_approval: onlineBookingSettings.require_staff_approval,
+        require_phone_verification: onlineBookingSettings.require_phone_verification ?? true,
+        phone_verification_methods: onlineBookingSettings.phone_verification_methods ?? ['whatsapp', 'textlk'],
     });
+
+    const toggleVerificationMethod = (channel: string) => {
+        const current = onlineForm.data.phone_verification_methods || [];
+        const exists = current.includes(channel);
+        if (exists && current.length === 1) return; // Keep at least 1 method
+        const next = exists ? current.filter((m) => m !== channel) : [...current, channel];
+        onlineForm.setData('phone_verification_methods', next);
+    };
 
     // Audit Filters State
     const [auditFilters, setAuditFilters] = useState(filters);
@@ -680,6 +693,80 @@ export default function SettingsIndex({
                                     }
                                     className="w-5 h-5 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                                 />
+                            </div>
+
+                            {/* Phone Number Verification for Online Bookings */}
+                            <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-850 space-y-3">
+                                <div className="flex items-center justify-between gap-4">
+                                    <div>
+                                        <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                                            Require Phone Verification for Online Bookings
+                                        </span>
+                                        <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                                            Requires patients to verify their Sri Lankan mobile number before issuing an online channeling token.
+                                        </span>
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        checked={onlineForm.data.require_phone_verification}
+                                        onChange={(e) =>
+                                            onlineForm.setData('require_phone_verification', e.target.checked)
+                                        }
+                                        className="w-5 h-5 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                                    />
+                                </div>
+
+                                {onlineForm.data.require_phone_verification && (
+                                    <div className="pt-3 border-t border-slate-200/60 dark:border-slate-800 space-y-2">
+                                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                                            Verification Methods to Offer Patients
+                                        </label>
+                                        <div className="flex flex-wrap gap-2.5">
+                                            {(onlineBookingSettings.platform_available_channels || ['whatsapp', 'textlk']).includes('whatsapp') && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => toggleVerificationMethod('whatsapp')}
+                                                    className={`px-3 py-2 rounded-xl text-xs font-semibold border flex items-center gap-2 transition-all ${
+                                                        onlineForm.data.phone_verification_methods.includes('whatsapp')
+                                                            ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-200'
+                                                            : 'border-slate-200 dark:border-slate-800 text-slate-500 opacity-60'
+                                                    }`}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={onlineForm.data.phone_verification_methods.includes('whatsapp')}
+                                                        onChange={() => {}}
+                                                        className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                                    />
+                                                    <span>WhatsApp (Reverse Verification)</span>
+                                                </button>
+                                            )}
+
+                                            {(onlineBookingSettings.platform_available_channels || ['whatsapp', 'textlk']).includes('textlk') && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => toggleVerificationMethod('textlk')}
+                                                    className={`px-3 py-2 rounded-xl text-xs font-semibold border flex items-center gap-2 transition-all ${
+                                                        onlineForm.data.phone_verification_methods.includes('textlk')
+                                                            ? 'border-teal-500 bg-teal-50 dark:bg-teal-950/30 text-teal-900 dark:text-teal-200'
+                                                            : 'border-slate-200 dark:border-slate-800 text-slate-500 opacity-60'
+                                                    }`}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={onlineForm.data.phone_verification_methods.includes('textlk')}
+                                                        onChange={() => {}}
+                                                        className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                                                    />
+                                                    <span>SMS (via Text.lk)</span>
+                                                </button>
+                                            )}
+                                        </div>
+                                        <span className="text-[10px] text-slate-400 block">
+                                            If only one method is selected, patients will directly use that channel without being asked.
+                                        </span>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">

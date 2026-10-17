@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SuperAdmin\OtpAnalyticsController;
+use App\Http\Controllers\Webhooks\WhatsAppWebhookController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -55,7 +57,16 @@ Route::domain('{central_domain}')
             Route::get('/doctor', function () {
                 return Inertia::render('Dashboard', ['view' => 'doctor']);
             })->name('doctor.index');
+
+            Route::get('/super-admin/otp-usage', [OtpAnalyticsController::class, 'index'])
+                ->name('super_admin.otp_usage');
         });
 
         require __DIR__.'/auth.php';
     });
+
+// WhatsApp Cloud API Webhook (Central domain & Cloudflare quick tunnels, no CSRF, no tenancy identification)
+Route::get('/webhooks/whatsapp', [WhatsAppWebhookController::class, 'verify'])
+    ->name('webhooks.whatsapp.verify');
+Route::post('/webhooks/whatsapp', [WhatsAppWebhookController::class, 'handle'])
+    ->name('webhooks.whatsapp.handle');

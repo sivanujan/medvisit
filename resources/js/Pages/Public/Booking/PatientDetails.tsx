@@ -22,6 +22,7 @@ import {
 import PublicSiteHeader, { HeaderConfig } from '@/Components/Public/PublicSiteHeader';
 import PublicSiteFooter, { FooterConfig } from '@/Components/Public/PublicSiteFooter';
 import { PhoneInput } from '@/Components/UI/PhoneInput';
+import PhoneVerificationSection from '@/Components/Booking/PhoneVerificationSection';
 
 interface VisitTypeItem {
     id: number;
@@ -47,6 +48,9 @@ interface Props {
     headerConfig?: HeaderConfig;
     footerConfig?: FooterConfig;
     theme?: string;
+    requirePhoneVerification?: boolean;
+    verificationChannels?: string[];
+    initialVerifiedPhone?: string | null;
     doctor: {
         id: number;
         name: string;
@@ -90,8 +94,14 @@ export default function PatientDetails({
     feeBreakdown,
     visitTypes = [],
     arrivalNote,
+    requirePhoneVerification = true,
+    verificationChannels = ['whatsapp', 'textlk'],
+    initialVerifiedPhone = null,
 }: Props) {
     const defaultVisitType = visitTypes.find((v) => v.is_default) || (visitTypes.length > 0 ? visitTypes[0] : null);
+
+    const [draftSessionId] = useState<string>(() => 'draft_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now());
+    const [isPhoneVerified, setIsPhoneVerified] = useState<boolean>(!requirePhoneVerification);
 
     const { data, setData, post, processing, errors } = useForm({
         doctor_session_id: session.id,
@@ -106,6 +116,7 @@ export default function PatientDetails({
         other_patient_name: '',
         consent: false,
         website_hp: '', // Honeypot field
+        verification_session_id: draftSessionId,
     });
 
     useEffect(() => {
@@ -362,6 +373,18 @@ export default function PatientDetails({
                                 {errors.phone && (
                                     <p className="text-xs text-rose-600 font-medium">{errors.phone}</p>
                                 )}
+
+                                {/* Phone Verification Component (Reverse WhatsApp + Text.lk SMS) */}
+                                <PhoneVerificationSection
+                                    phone={data.phone}
+                                    sessionId={draftSessionId}
+                                    isVerified={isPhoneVerified}
+                                    setIsVerified={setIsPhoneVerified}
+                                    requireVerification={requirePhoneVerification}
+                                    allowedChannels={verificationChannels}
+                                    initialVerifiedPhone={initialVerifiedPhone}
+                                    onChangeNumber={() => setData('phone', '')}
+                                />
                             </div>
 
                             {/* NIC and Email in 2 columns */}
@@ -468,7 +491,7 @@ export default function PatientDetails({
                             <div className="pt-4">
                                 <button
                                     type="submit"
-                                    disabled={processing || !data.consent}
+                                    disabled={processing || !data.consent || (requirePhoneVerification && !isPhoneVerified)}
                                     className="w-full py-4 px-6 rounded-2xl bg-teal-600 hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-extrabold text-base flex items-center justify-center gap-2 shadow-lg shadow-teal-600/30 transition-all hover:scale-[1.005] active:scale-[0.995]"
                                 >
                                     {processing ? (
@@ -483,6 +506,14 @@ export default function PatientDetails({
                                         </>
                                     )}
                                 </button>
+
+                                {requirePhoneVerification && !isPhoneVerified && (
+                                    <div className="flex items-center justify-center gap-1.5 text-xs font-semibold text-amber-800 bg-amber-50/90 py-2.5 px-3 rounded-xl border border-amber-200 mt-2.5">
+                                        <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+                                        <span>Please verify your mobile phone number above to enable booking confirmation.</span>
+                                    </div>
+                                )}
+
                                 <p className="text-center text-[11px] text-slate-400 mt-2">
                                     No payment required now. Pay cash or card at the clinic reception upon arrival.
                                 </p>

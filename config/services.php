@@ -35,4 +35,23 @@ return [
         ],
     ],
 
+    'textlk' => [
+        'mode' => env('TEXTLK_MODE', 'oauth'),
+        'api_token' => env('TEXTLK_API_TOKEN'),
+        'sender_id' => env('TEXTLK_SENDER_ID', 'MedVisit'),
+        'api_url' => env('TEXTLK_API_URL', 'https://app.text.lk/api/v3'),
+        'http_url' => env('TEXTLK_HTTP_URL', 'https://app.text.lk/api/http'),
+    ],
+
+    'whatsapp' => [
+        'api_version' => env('WHATSAPP_API_VERSION', 'v25.0'),
+        'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),
+        'business_account_id' => env('WHATSAPP_BUSINESS_ACCOUNT_ID'),
+        'access_token' => env('WHATSAPP_ACCESS_TOKEN'),
+        'app_secret' => env('WHATSAPP_APP_SECRET'),
+        'verify_token' => env('WHATSAPP_VERIFY_TOKEN'),
+        'business_number' => env('WHATSAPP_BUSINESS_NUMBER'),
+        'send_confirmation' => filter_var(env('WHATSAPP_SEND_CONFIRMATION', false), FILTER_VALIDATE_BOOLEAN),
+    ],
+
 ];

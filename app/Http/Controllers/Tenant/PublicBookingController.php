@@ -11,10 +11,13 @@ use App\Models\BookingToken;
 use App\Models\Doctor;
 use App\Models\DoctorSession;
 use App\Models\Patient;
+use App\Models\PhoneVerification;
 use App\Models\Tenant;
 use App\Models\VisitType;
 use App\Services\FeeResolutionService;
+use App\Services\PhoneVerification\PhoneVerificationService;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
@@ -29,7 +32,8 @@ use Inertia\Response;
 class PublicBookingController extends Controller
 {
     public function __construct(
-        protected FeeResolutionService $feeService
+        protected FeeResolutionService $feeService,
+        protected PhoneVerificationService $verificationService
     ) {}
 
     /**
@@ -228,11 +232,19 @@ class PublicBookingController extends Controller
 
         $sDate = $session->session_date instanceof Carbon ? $session->session_date : Carbon::parse($session->session_date);
 
+        $requireVerification = (bool) ($tenant->require_phone_verification ?? true);
+        $allowedChannels = $requireVerification ? $this->verificationService->getAvailableChannels($tenant) : [];
+        $verifiedCookie = $request->cookie('medvisit_verified_phone');
+        $initialVerifiedPhone = $this->verificationService->verifyCookiePayload($verifiedCookie);
+
         return Inertia::render('Public/Booking/PatientDetails', [
             'clinic' => $this->getClinicPayload($tenant),
             'headerConfig' => $tenant->website_header,
             'footerConfig' => $tenant->website_footer,
             'theme' => $tenant->website_theme ?? 'medvisit-teal',
+            'requirePhoneVerification' => $requireVerification,
+            'verificationChannels' => $allowedChannels,
+            'initialVerifiedPhone' => $initialVerifiedPhone,
             'doctor' => [
                 'id' => $doctor->id,
                 'name' => $doctor->name,
@@ -306,6 +318,121 @@ class PublicBookingController extends Controller
     }
 
     /**
+     * Start phone verification for public booking.
+     */
+    public function startPhoneVerification(Request $request): JsonResponse
+    {
+        if (! empty($request->input('website_hp'))) {
+            return response()->json(['message' => 'Spam verification failed.'], 422);
+        }
+
+        $validated = $request->validate([
+            'phone' => ['required', 'string', 'max:30'],
+            'channel' => ['required', 'string', 'in:whatsapp,textlk,log'],
+            'session_id' => ['required', 'string', 'max:100'],
+        ]);
+
+        $tenant = tenant();
+        $normalized = $this->verificationService->normalizePhone($validated['phone']);
+
+        $cookieToken = $request->cookie('medvisit_verified_phone');
+        if ($this->verificationService->isPhoneVerified($normalized, $tenant, $cookieToken)) {
+            return response()->json([
+                'success' => true,
+                'already_verified' => true,
+                'phone' => $normalized,
+                'message' => 'Number is already verified.',
+            ]);
+        }
+
+        $result = $this->verificationService->startVerification(
+            rawPhone: $validated['phone'],
+            channel: $validated['channel'],
+            sessionId: $validated['session_id'],
+            tenant: $tenant
+        );
+
+        if (! $result['success']) {
+            return response()->json([
+                'success' => false,
+                'error' => $result['error'] ?? 'Could not start verification.',
+            ], 422);
+        }
+
+        return response()->json($result);
+    }
+
+    /**
+     * Check verification status (polled every 2s during WhatsApp reverse verification).
+     */
+    public function checkPhoneVerificationStatus(Request $request): JsonResponse
+    {
+        $verificationId = $request->input('verification_id');
+        $sessionId = $request->input('session_id');
+
+        if (empty($verificationId)) {
+            return response()->json(['found' => false, 'is_verified' => false], 400);
+        }
+
+        $status = $this->verificationService->checkStatus($verificationId, $sessionId);
+
+        $response = response()->json($status);
+
+        if (! empty($status['is_verified']) && ! empty($status['phone'])) {
+            $cookiePayload = $this->verificationService->createCookiePayload($status['phone']);
+            $response->withCookie(cookie(
+                name: 'medvisit_verified_phone',
+                value: $cookiePayload,
+                minutes: 60 * 24 * 180,
+                path: '/',
+                domain: null,
+                secure: false,
+                httpOnly: false
+            ));
+        }
+
+        return $response;
+    }
+
+    /**
+     * Submit and verify 6-digit SMS code.
+     */
+    public function verifyPhoneCode(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'verification_id' => ['required', 'integer'],
+            'code' => ['required', 'string', 'size:6'],
+        ]);
+
+        $tenant = tenant();
+        $result = $this->verificationService->verifyCode(
+            verificationId: $validated['verification_id'],
+            code: $validated['code'],
+            tenant: $tenant
+        );
+
+        if (! $result['success']) {
+            return response()->json($result, 422);
+        }
+
+        $response = response()->json($result);
+
+        if (! empty($result['cookie'])) {
+            $response->withCookie(cookie(
+                name: 'medvisit_verified_phone',
+                value: $result['cookie'],
+                minutes: 60 * 24 * 180,
+                path: '/',
+                domain: null,
+                secure: false,
+                httpOnly: false
+            ));
+        }
+
+        return $response;
+    }
+
+    /**
      * Step 4 Submit: Atomic Booking Submission (POST /book)
      */
     public function store(Request $request): RedirectResponse
@@ -331,8 +458,31 @@ class PublicBookingController extends Controller
             'consent' => ['required', 'accepted'],
         ]);
 
-        $tenantId = tenant('id');
+        $tenant = tenant();
+        $tenantId = $tenant?->id ?? tenant('id');
         $cleanPhone = preg_replace('/[^0-9+]/', '', $validated['phone']);
+        $normalizedPhone = $this->verificationService->normalizePhone($cleanPhone);
+
+        // Phone Verification Enforcement for Public Online Booking
+        $requireVerification = $tenant ? (bool) ($tenant->require_phone_verification ?? true) : true;
+        if ($requireVerification) {
+            $cookieToken = $request->cookie('medvisit_verified_phone');
+            $isVerified = $this->verificationService->isPhoneVerified($normalizedPhone, $tenant, $cookieToken);
+
+            if (! $isVerified) {
+                $bookingSessionId = $request->input('verification_session_id');
+                $sessionVerified = PhoneVerification::where('phone', $normalizedPhone)
+                    ->where('session_id', $bookingSessionId)
+                    ->where('status', PhoneVerification::STATUS_VERIFIED)
+                    ->exists();
+
+                if (! $sessionVerified) {
+                    return redirect()->back()->withErrors([
+                        'phone' => 'Please verify your mobile phone number before confirming your booking.',
+                    ]);
+                }
+            }
+        }
         $patientDisplayName = (! empty($validated['is_booking_for_other']) && ! empty($validated['other_patient_name']))
             ? $validated['other_patient_name']
             : $validated['name'];
@@ -484,7 +634,18 @@ class PublicBookingController extends Controller
             }
         }
 
-        return redirect("/book/confirmed/{$token->signed_cancel_token}");
+        $response = redirect("/book/confirmed/{$token->signed_cancel_token}");
+        $cookiePayload = $this->verificationService->createCookiePayload($normalizedPhone);
+
+        return $response->withCookie(cookie(
+            name: 'medvisit_verified_phone',
+            value: $cookiePayload,
+            minutes: 60 * 24 * 180,
+            path: '/',
+            domain: null,
+            secure: false,
+            httpOnly: false
+        ));
     }
 
     /**

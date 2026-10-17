@@ -23,6 +23,8 @@ class Tenant extends BaseTenant
         'trial_ending_reminder_sent_at',
         'trial_ended_reminder_sent_at',
         'fee_settings',
+        'require_phone_verification',
+        'phone_verification_methods',
     ];
 
     protected $casts = [
@@ -30,6 +32,8 @@ class Tenant extends BaseTenant
         'trial_ending_reminder_sent_at' => 'datetime',
         'trial_ended_reminder_sent_at' => 'datetime',
         'fee_settings' => 'array',
+        'require_phone_verification' => 'boolean',
+        'phone_verification_methods' => 'array',
     ];
 
     public static function getCustomColumns(): array
