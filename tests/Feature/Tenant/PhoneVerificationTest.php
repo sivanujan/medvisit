@@ -19,6 +19,7 @@ use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 class PhoneVerificationTest extends TestCase
@@ -73,6 +74,17 @@ class PhoneVerificationTest extends TestCase
 
         $response->assertStatus(200);
         $this->assertSame('challenge_code_98765', $response->getContent());
+    }
+
+    public function test_whatsapp_webhook_handshake_with_literal_dots_in_query_keys(): void
+    {
+        Config::set('services.whatsapp.verify_token', 'medvisit-verify-2026');
+
+        $response = $this->get('/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=medvisit-verify-2026&hub.challenge=12345');
+
+        $response->assertStatus(200);
+        $this->assertSame('12345', $response->getContent());
+        $this->assertStringContainsString('text/plain', (string) $response->headers->get('Content-Type'));
     }
 
     public function test_whatsapp_webhook_handshake_rejected_with_invalid_token(): void
@@ -300,6 +312,65 @@ class PhoneVerificationTest extends TestCase
 
         $secondResponse->assertStatus(200);
         $this->assertSame(1, WhatsAppWebhookEvent::where('message_id', 'wamid.DUPLICATE_TEST_ID')->count());
+    }
+
+    public function test_whatsapp_webhook_logs_delivery_trace_without_secrets(): void
+    {
+        Log::spy();
+
+        $phone = '+94771234567';
+        $plainCode = '482913';
+
+        PhoneVerification::create([
+            'tenant_id' => $this->tenant->id,
+            'session_id' => 'draft_test_session_log',
+            'phone' => $phone,
+            'channel' => 'whatsapp',
+            'code_hash' => hash('sha256', $plainCode),
+            'status' => PhoneVerification::STATUS_PENDING,
+            'attempts' => 0,
+            'expires_at' => Carbon::now()->addMinutes(10),
+        ]);
+
+        $payload = json_encode([
+            'entry' => [
+                [
+                    'changes' => [
+                        [
+                            'field' => 'messages',
+                            'value' => [
+                                'messages' => [
+                                    [
+                                        'id' => 'wamid.TEST_TRACE_LOG',
+                                        'from' => '94771234567',
+                                        'type' => 'text',
+                                        'text' => [
+                                            'body' => "VERIFY {$plainCode}",
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $signature = 'sha256='.hash_hmac('sha256', (string) $payload, 'test_app_secret_key_12345');
+
+        $this->call(
+            'POST',
+            '/webhooks/whatsapp',
+            [],
+            [],
+            [],
+            ['HTTP_X-Hub-Signature-256' => $signature, 'CONTENT_TYPE' => 'application/json'],
+            $payload
+        );
+
+        Log::shouldHaveReceived('info')
+            ->with('[WhatsApp Webhook] Delivery: field=messages, type=text, sender=+9477****567, result=verified')
+            ->once();
     }
 
     public function test_sms_code_verification_wrong_and_expired_code(): void

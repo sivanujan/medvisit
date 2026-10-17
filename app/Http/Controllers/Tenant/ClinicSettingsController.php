@@ -243,7 +243,7 @@ class ClinicSettingsController extends Controller
             'online_booking_enabled' => ['required', 'boolean'],
             'max_active_tokens_per_phone' => ['required', 'integer', 'min:1', 'max:10'],
             'require_staff_approval' => ['required', 'boolean'],
-            'require_phone_verification' => ['required', 'boolean'],
+            'require_phone_verification' => ['sometimes', 'boolean'],
             'phone_verification_methods' => ['nullable', 'array'],
             'phone_verification_methods.*' => ['string', 'in:'.implode(',', $platformChannels)],
         ]);
@@ -252,10 +252,14 @@ class ClinicSettingsController extends Controller
         $tenant->online_booking_enabled = $validated['online_booking_enabled'];
         $tenant->max_active_tokens_per_phone = $validated['max_active_tokens_per_phone'];
         $tenant->require_staff_approval = $validated['require_staff_approval'];
-        $tenant->require_phone_verification = (bool) $validated['require_phone_verification'];
+        if (isset($validated['require_phone_verification'])) {
+            $tenant->require_phone_verification = (bool) $validated['require_phone_verification'];
+        }
         // Filter methods to only allowed platform channels
-        $selectedMethods = $validated['phone_verification_methods'] ?? $platformChannels;
-        $tenant->phone_verification_methods = array_values(array_intersect($platformChannels, $selectedMethods));
+        if (isset($validated['phone_verification_methods'])) {
+            $selectedMethods = $validated['phone_verification_methods'];
+            $tenant->phone_verification_methods = array_values(array_intersect($platformChannels, $selectedMethods));
+        }
         $tenant->save();
 
         AuditEvent::create([

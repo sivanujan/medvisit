@@ -232,7 +232,7 @@ class PublicBookingController extends Controller
 
         $sDate = $session->session_date instanceof Carbon ? $session->session_date : Carbon::parse($session->session_date);
 
-        $requireVerification = (bool) ($tenant->require_phone_verification ?? true);
+        $requireVerification = (bool) ($tenant->require_phone_verification ?? false);
         $allowedChannels = $requireVerification ? $this->verificationService->getAvailableChannels($tenant) : [];
         $verifiedCookie = $request->cookie('medvisit_verified_phone');
         $initialVerifiedPhone = $this->verificationService->verifyCookiePayload($verifiedCookie);
@@ -455,7 +455,7 @@ class PublicBookingController extends Controller
             'notes' => ['nullable', 'string', 'max:500'],
             'is_booking_for_other' => ['nullable', 'boolean'],
             'other_patient_name' => ['nullable', 'string', 'max:255'],
-            'consent' => ['required', 'accepted'],
+            'consent' => ['sometimes', 'accepted'],
         ]);
 
         $tenant = tenant();
@@ -464,7 +464,7 @@ class PublicBookingController extends Controller
         $normalizedPhone = $this->verificationService->normalizePhone($cleanPhone);
 
         // Phone Verification Enforcement for Public Online Booking
-        $requireVerification = $tenant ? (bool) ($tenant->require_phone_verification ?? true) : true;
+        $requireVerification = $tenant ? (bool) ($tenant->require_phone_verification ?? false) : false;
         if ($requireVerification) {
             $cookieToken = $request->cookie('medvisit_verified_phone');
             $isVerified = $this->verificationService->isPhoneVerified($normalizedPhone, $tenant, $cookieToken);

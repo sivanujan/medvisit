@@ -24,13 +24,48 @@ class WhatsAppWebhookController extends Controller
      */
     public function verify(Request $request): Response
     {
-        $mode = $request->query('hub_mode', $request->query('hub.mode'));
-        $token = $request->query('hub_verify_token', $request->query('hub.verify_token'));
-        $challenge = $request->query('hub_challenge', $request->query('hub.challenge'));
+        $getParameter = static function (string $paramName) use ($request): ?string {
+            $underscoreName = str_replace('.', '_', $paramName);
 
-        $expectedToken = config('services.whatsapp.verify_token');
+            // 1. Direct query bag access via Symfony InputBag (avoids data_get interpreting dot as nested array)
+            if ($request->query->has($paramName)) {
+                return (string) $request->query->get($paramName);
+            }
+            if ($request->query->has($underscoreName)) {
+                return (string) $request->query->get($underscoreName);
+            }
 
-        if ($mode === 'subscribe' && ! empty($expectedToken) && $token === $expectedToken) {
+            // 2. Request input / attributes fallback
+            if ($request->has($paramName)) {
+                return (string) $request->get($paramName);
+            }
+            if ($request->has($underscoreName)) {
+                return (string) $request->get($underscoreName);
+            }
+
+            // 3. Raw QUERY_STRING manual parse fallback
+            $rawQuery = (string) $request->server('QUERY_STRING', '');
+            if ($rawQuery !== '') {
+                foreach (explode('&', $rawQuery) as $pair) {
+                    $parts = explode('=', $pair, 2);
+                    $key = urldecode($parts[0]);
+                    $val = isset($parts[1]) ? urldecode($parts[1]) : '';
+                    if ($key === $paramName || $key === $underscoreName) {
+                        return $val;
+                    }
+                }
+            }
+
+            return null;
+        };
+
+        $mode = $getParameter('hub.mode');
+        $token = $getParameter('hub.verify_token');
+        $challenge = $getParameter('hub.challenge');
+
+        $expectedToken = (string) (config('services.whatsapp.verify_token') ?: env('WHATSAPP_VERIFY_TOKEN'));
+
+        if ($mode === 'subscribe' && $expectedToken !== '' && $token !== null && hash_equals(trim($expectedToken), trim($token))) {
             Log::info('[WhatsApp Webhook] Handshake verified successfully.');
 
             return response((string) $challenge, 200, [
@@ -38,12 +73,11 @@ class WhatsAppWebhookController extends Controller
             ]);
         }
 
-        Log::warning('[WhatsApp Webhook] Handshake verification rejected: token or mode mismatch.', [
-            'mode' => $mode,
-            'received_token' => $token,
-        ]);
+        Log::warning('[WhatsApp Webhook] Handshake verification failed.');
 
-        return response('Forbidden', 403);
+        return response('Forbidden', 403, [
+            'Content-Type' => 'text/plain',
+        ]);
     }
 
     /**
@@ -58,7 +92,7 @@ class WhatsAppWebhookController extends Controller
             $signatureHeader = $request->header('X-Hub-Signature-256');
 
             if (empty($signatureHeader)) {
-                Log::warning('[WhatsApp Webhook] Missing X-Hub-Signature-256 header.');
+                $this->logDelivery('messages', 'unknown', 'none', 'invalid_signature');
 
                 return response()->json(['error' => 'Missing signature'], 401);
             }
@@ -67,7 +101,7 @@ class WhatsAppWebhookController extends Controller
             $expectedSignature = 'sha256='.hash_hmac('sha256', $rawBody, $appSecret);
 
             if (! hash_equals($expectedSignature, $signatureHeader)) {
-                Log::warning('[WhatsApp Webhook] Invalid X-Hub-Signature-256 signature.');
+                $this->logDelivery('messages', 'unknown', 'none', 'invalid_signature');
 
                 return response()->json(['error' => 'Invalid signature'], 401);
             }
@@ -77,16 +111,27 @@ class WhatsAppWebhookController extends Controller
 
         // Process incoming entries
         $entries = $payload['entry'] ?? [];
+        $processedCount = 0;
+
         foreach ($entries as $entry) {
             $changes = $entry['changes'] ?? [];
             foreach ($changes as $change) {
+                $field = (string) ($change['field'] ?? 'messages');
                 $value = $change['value'] ?? [];
                 $messages = $value['messages'] ?? [];
 
-                foreach ($messages as $message) {
-                    $this->processMessage($message, $service);
+                if (is_array($messages) && ! empty($messages)) {
+                    foreach ($messages as $message) {
+                        $this->processMessage($field, $message, $service);
+                        $processedCount++;
+                    }
                 }
             }
+        }
+
+        if ($processedCount === 0) {
+            $firstField = (string) ($payload['entry'][0]['changes'][0]['field'] ?? 'messages');
+            $this->logDelivery($firstField, 'none', 'none', 'ignored_not_verify');
         }
 
         return response()->json(['status' => 'success'], 200);
@@ -95,97 +140,185 @@ class WhatsAppWebhookController extends Controller
     /**
      * Process an individual incoming WhatsApp message.
      */
-    protected function processMessage(array $message, PhoneVerificationService $service): void
+    protected function processMessage(string $field, array $message, PhoneVerificationService $service): void
     {
+        $type = (string) ($message['type'] ?? 'unknown');
+        $senderRaw = (string) ($message['from'] ?? '');
+        $senderPhone = $senderRaw !== '' ? $service->normalizePhone($senderRaw) : '';
+        $maskedSender = $senderPhone !== '' ? $this->maskSender($senderPhone) : 'none';
+
         // 1. Filter: handle only text messages
-        if (($message['type'] ?? '') !== 'text') {
+        if ($type !== 'text') {
+            $this->logDelivery($field, $type, $maskedSender, 'ignored_not_verify');
+
             return;
         }
 
-        $messageId = $message['id'] ?? null;
-        if (empty($messageId)) {
+        $messageId = (string) ($message['id'] ?? '');
+        if ($messageId === '') {
+            $this->logDelivery($field, $type, $maskedSender, 'ignored_not_verify');
+
             return;
         }
 
         // 2. Idempotency: skip already processed messages
         if (WhatsAppWebhookEvent::where('message_id', $messageId)->exists()) {
-            Log::info("[WhatsApp Webhook] Duplicate message {$messageId} ignored.");
+            $this->logDelivery($field, $type, $maskedSender, 'duplicate');
 
             return;
         }
 
-        $senderRaw = $message['from'] ?? '';
-        $senderPhone = $service->normalizePhone((string) $senderRaw);
         $body = trim((string) ($message['text']['body'] ?? ''));
 
         // 3. Parse regex /^VERIFY\s+(\d{6})$/i (tolerate extra spaces)
-        if (preg_match('/^VERIFY\s+(\d{6})$/i', $body, $matches)) {
-            $plainCode = $matches[1];
-            $codeHash = hash('sha256', $plainCode);
+        if (! preg_match('/^VERIFY\s+(\d{6})$/i', $body, $matches)) {
+            WhatsAppWebhookEvent::create([
+                'message_id' => $messageId,
+                'sender_wa_id' => $senderRaw,
+                'payload' => $message,
+            ]);
 
-            // 4. Find open pending verification attempt matching code_hash
-            $verification = PhoneVerification::where('code_hash', $codeHash)
-                ->where('status', PhoneVerification::STATUS_PENDING)
-                ->where('expires_at', '>', Carbon::now())
-                ->latest()
-                ->first();
+            $this->logDelivery($field, $type, $maskedSender, 'ignored_not_verify');
 
-            if ($verification) {
-                $tenant = $verification->tenant_id
-                    ? Tenant::find($verification->tenant_id)
-                    : null;
-
-                // 5. Match sender number with attempt's entered phone
-                if ($senderPhone === $verification->phone) {
-                    $verification->update([
-                        'status' => PhoneVerification::STATUS_VERIFIED,
-                        'verified_at' => Carbon::now(),
-                        'mismatch_phone' => null,
-                    ]);
-
-                    $service->markVerified($verification->phone, 'whatsapp', $tenant);
-
-                    OtpLog::create([
-                        'tenant_id' => $verification->tenant_id,
-                        'channel' => 'whatsapp',
-                        'phone_masked' => $service->maskPhone($verification->phone),
-                        'status' => 'verified',
-                        'provider_message_id' => $messageId,
-                    ]);
-
-                    Log::info("[WhatsApp Webhook] Phone {$verification->phone} verified successfully via WhatsApp.");
-
-                    // 6. Optional chat confirmation
-                    if (config('services.whatsapp.send_confirmation')) {
-                        $clinicName = $tenant ? $tenant->name : 'MedVisit';
-                        $this->sendReplyConfirmation($senderRaw, $clinicName);
-                    }
-                } else {
-                    // Sender mismatch: record mismatch and reject verification
-                    $verification->update([
-                        'mismatch_phone' => $senderPhone,
-                    ]);
-
-                    OtpLog::create([
-                        'tenant_id' => $verification->tenant_id,
-                        'channel' => 'whatsapp',
-                        'phone_masked' => $service->maskPhone($verification->phone),
-                        'status' => 'failed',
-                        'provider_message_id' => $messageId,
-                        'error' => "Sender mismatch: received from {$senderPhone}, expected {$verification->phone}",
-                    ]);
-
-                    Log::warning("[WhatsApp Webhook] Mismatch: Code for {$verification->phone} received from {$senderPhone}.");
-                }
-            }
+            return;
         }
 
-        // Record message as processed
+        $plainCode = $matches[1];
+        $codeHash = hash('sha256', $plainCode);
+
+        // 4. Find verification attempt matching code_hash
+        $verification = PhoneVerification::where('code_hash', $codeHash)
+            ->latest()
+            ->first();
+
+        if (! $verification) {
+            WhatsAppWebhookEvent::create([
+                'message_id' => $messageId,
+                'sender_wa_id' => $senderRaw,
+                'payload' => $message,
+            ]);
+
+            $this->logDelivery($field, $type, $maskedSender, 'ignored_not_verify');
+
+            return;
+        }
+
+        // 5. Check if expired
+        if ($verification->expires_at <= Carbon::now() || $verification->status === PhoneVerification::STATUS_EXPIRED) {
+            WhatsAppWebhookEvent::create([
+                'message_id' => $messageId,
+                'sender_wa_id' => $senderRaw,
+                'payload' => $message,
+            ]);
+
+            $this->logDelivery($field, $type, $maskedSender, 'expired');
+
+            return;
+        }
+
+        if ($verification->status !== PhoneVerification::STATUS_PENDING) {
+            WhatsAppWebhookEvent::create([
+                'message_id' => $messageId,
+                'sender_wa_id' => $senderRaw,
+                'payload' => $message,
+            ]);
+
+            $this->logDelivery($field, $type, $maskedSender, 'ignored_not_verify');
+
+            return;
+        }
+
+        $tenant = $verification->tenant_id
+            ? Tenant::find($verification->tenant_id)
+            : null;
+
+        // 6. Match sender number with attempt's entered phone
+        if ($senderPhone === $verification->phone) {
+            $verification->update([
+                'status' => PhoneVerification::STATUS_VERIFIED,
+                'verified_at' => Carbon::now(),
+                'mismatch_phone' => null,
+            ]);
+
+            $service->markVerified($verification->phone, 'whatsapp', $tenant);
+
+            OtpLog::create([
+                'tenant_id' => $verification->tenant_id,
+                'channel' => 'whatsapp',
+                'phone_masked' => $this->maskSender($verification->phone),
+                'status' => 'verified',
+                'provider_message_id' => $messageId,
+            ]);
+
+            if (config('services.whatsapp.send_confirmation')) {
+                $clinicName = $tenant ? $tenant->name : 'MedVisit';
+                $this->sendReplyConfirmation($senderRaw, $clinicName);
+            }
+
+            WhatsAppWebhookEvent::create([
+                'message_id' => $messageId,
+                'sender_wa_id' => $senderRaw,
+                'payload' => $message,
+            ]);
+
+            $this->logDelivery($field, $type, $maskedSender, 'verified');
+
+            return;
+        }
+
+        // Sender mismatch: record mismatch and reject verification
+        $verification->update([
+            'mismatch_phone' => $senderPhone,
+        ]);
+
+        OtpLog::create([
+            'tenant_id' => $verification->tenant_id,
+            'channel' => 'whatsapp',
+            'phone_masked' => $this->maskSender($verification->phone),
+            'status' => 'failed',
+            'provider_message_id' => $messageId,
+            'error' => "Sender mismatch: received from {$maskedSender}",
+        ]);
+
         WhatsAppWebhookEvent::create([
             'message_id' => $messageId,
             'sender_wa_id' => $senderRaw,
             'payload' => $message,
         ]);
+
+        $this->logDelivery($field, $type, $maskedSender, 'mismatch');
+    }
+
+    /**
+     * Log delivery trace line for every incoming delivery event.
+     */
+    protected function logDelivery(string $field, string $type, string $maskedSender, string $result): void
+    {
+        Log::info("[WhatsApp Webhook] Delivery: field={$field}, type={$type}, sender={$maskedSender}, result={$result}");
+    }
+
+    /**
+     * Mask phone number for logging trace (e.g. +9477****567).
+     */
+    protected function maskSender(string $phone): string
+    {
+        $clean = trim($phone);
+        if ($clean === '') {
+            return 'none';
+        }
+
+        $hasPlus = str_starts_with($clean, '+');
+        $digits = (string) preg_replace('/[^\d]/', '', $clean);
+
+        if (strlen($digits) < 6) {
+            return ($hasPlus ? '+' : '').$digits;
+        }
+
+        $prefixLen = $hasPlus ? 5 : 4;
+        $prefix = substr($clean, 0, $prefixLen);
+        $suffix = substr($clean, -3);
+
+        return "{$prefix}****{$suffix}";
     }
 
     /**
@@ -216,7 +349,7 @@ class WhatsAppWebhookController extends Controller
                     ],
                 ]);
         } catch (\Throwable $e) {
-            Log::warning("[WhatsApp Webhook] Failed to send reply confirmation: {$e->getMessage()}");
+            Log::warning('[WhatsApp Webhook] Failed to send reply confirmation.');
         }
     }
 }
