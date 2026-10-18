@@ -49,3 +49,8 @@ export function cssWithCustomBlock(editor: any): string {
     const css: string = editor.getCss();
     return block ? `${css}\n${block}` : css;
 }
+
+// CSS fed into the editor on load: saved page CSS minus the marked custom-CSS block.
+export function buildInitialEditorCss(baseCss: string, pageCss: string | null | undefined): string {
+    return baseCss + (pageCss ? '\n' + stripCustomCssBlock(pageCss) : '');
+}

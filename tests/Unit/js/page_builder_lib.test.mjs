@@ -115,3 +115,12 @@ test('custom css block builds, strips idempotently and round-trips', async () =>
   assert.equal(stripCustomCssBlock(stripCustomCssBlock(saved)), base);
   assert.equal(stripCustomCssBlock(base), base);
 });
+
+test('buildInitialEditorCss never feeds the custom css block to the editor', async () => {
+  const { buildInitialEditorCss, buildCustomCssBlock } = await import('../../../resources/js/Components/PageBuilder/lib/customCss.ts');
+  const block = buildCustomCssBlock([{ id: 'a', css: 'selector{color:red}' }]);
+  const out = buildInitialEditorCss('body{x:y}', `#a{margin:0}\n${block}`);
+  assert.equal(out, 'body{x:y}\n#a{margin:0}');
+  assert.ok(!out.includes('mv-custom-css') && !out.includes('color:red'));
+  assert.equal(buildInitialEditorCss('b{}', null), 'b{}');
+});

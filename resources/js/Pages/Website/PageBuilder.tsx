@@ -17,7 +17,7 @@ import {
     PanelBottom,
 } from 'lucide-react';
 import { kitToCss } from '@/Components/PageBuilder/lib/kit';
-import { cssWithCustomBlock, stripCustomCssBlock, syncCustomCssStyle } from '@/Components/PageBuilder/lib/customCss';
+import { buildInitialEditorCss, cssWithCustomBlock, stripCustomCssBlock, syncCustomCssStyle } from '@/Components/PageBuilder/lib/customCss';
 import { animationCss, canvasEditorCss } from '@/Components/PageBuilder/lib/animations';
 import { googleFontsUrl, usedFontFamilies } from '@/Components/PageBuilder/lib/fonts';
 import MediaLibraryModal from '@/Components/PageBuilder/MediaLibraryModal';
@@ -221,7 +221,7 @@ function PageBuilderInner({
             page.html && page.html.trim().length > 0
                 ? page.html
                 : getTemplateHtml('modern-clinic', tenant);
-        const initialCss = cssBase + (page.css ? '\n' + page.css : '');
+        const initialCss = buildInitialEditorCss(cssBase, page.css);
 
         const editor = grapesjs.init({
             container: editorRef.current,
