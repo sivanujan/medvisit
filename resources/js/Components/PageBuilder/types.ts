@@ -1,3 +1,4 @@
+import type { SiteKit } from './lib/kit';
 import type { MediaAsset } from '@/Components/PageBuilder/MediaLibraryModal';
 import type { HeaderConfig, HeaderMenuItem } from '@/Components/Public/PublicSiteHeader';
 import type { FooterConfig } from '@/Components/Public/PublicSiteFooter';
@@ -89,4 +90,5 @@ export interface BuilderPageProps {
     upcomingSessions: SessionItem[];
     headerConfig?: HeaderConfig | null;
     footerConfig?: FooterConfig | null;
+    siteKit?: SiteKit | null;
 }

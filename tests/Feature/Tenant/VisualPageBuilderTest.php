@@ -397,7 +397,7 @@ class VisualPageBuilderTest extends TestCase
                 ->where('page.is_homepage', true)
                 ->where('page.public_url', '/')
                 ->has('pages', 2)
-                ->where('siteKit', null)
+                ->has('siteKit.colors', 4)
             );
     }
 

@@ -16,6 +16,8 @@ import {
     PanelTop,
     PanelBottom,
 } from 'lucide-react';
+import { kitToCss } from '@/Components/PageBuilder/lib/kit';
+import { googleFontsUrl, usedFontFamilies } from '@/Components/PageBuilder/lib/fonts';
 import MediaLibraryModal from '@/Components/PageBuilder/MediaLibraryModal';
 import TopBar from '@/Components/PageBuilder/TopBar';
 import WidgetsTab from '@/Components/PageBuilder/LeftPanel/WidgetsTab';
@@ -47,6 +49,7 @@ export default function PageBuilder({
     upcomingSessions,
     headerConfig: initialHeaderConfig,
     footerConfig: initialFooterConfig,
+    siteKit,
 }: BuilderPageProps) {
     const editorRef = useRef<HTMLDivElement>(null);
     const editorInstance = useRef<Editor | null>(null);
@@ -282,6 +285,21 @@ export default function PageBuilder({
                 editor.setComponents(initialHtml);
             }
             editor.setStyle(initialCss);
+            const canvasDoc = editor.Canvas.getDocument();
+            if (siteKit && canvasDoc) {
+                const kitStyle = canvasDoc.createElement('style');
+                kitStyle.id = 'mv-kit';
+                kitStyle.textContent = kitToCss(siteKit);
+                canvasDoc.head.appendChild(kitStyle);
+                const fontsUrl = googleFontsUrl(usedFontFamilies(siteKit, initialCss));
+                if (fontsUrl) {
+                    const fontLink = canvasDoc.createElement('link');
+                    fontLink.id = 'mv-fonts';
+                    fontLink.rel = 'stylesheet';
+                    fontLink.href = fontsUrl;
+                    canvasDoc.head.appendChild(fontLink);
+                }
+            }
             editor.refresh();
         });
 

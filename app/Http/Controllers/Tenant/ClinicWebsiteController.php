@@ -17,6 +17,7 @@ use App\Models\Tenant;
 use App\Models\VisitType;
 use App\Services\FeeResolutionService;
 use App\Support\HtmlSanitizer;
+use App\Support\SiteKit;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -290,7 +291,7 @@ class ClinicWebsiteController extends Controller
                 ->get()
                 ->map(fn (ClinicPage $p) => $p->toSummaryArray())
                 ->values(),
-            'siteKit' => null,
+            'siteKit' => SiteKit::resolveFor($tenant),
             'revisions' => $revisions,
             'mediaAssets' => $mediaAssets,
             'doctors' => $doctors,
@@ -839,6 +840,7 @@ class ClinicWebsiteController extends Controller
                 'title' => $page?->seo_title ?? ($tenant->seo_title ?? ($tenant->name.' - Doctor Channeling')),
                 'description' => $page?->seo_description ?? ($tenant->seo_description ?? ('Book doctor appointments online at '.$tenant->name.'.')),
             ],
+            'siteKit' => SiteKit::resolveFor($tenant),
             'customPage' => $customHtml ? [
                 'html' => $customHtml,
                 'css' => $customCss,

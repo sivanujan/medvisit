@@ -18,6 +18,7 @@ use App\Http\Controllers\Tenant\Pharmacy\StockImportController;
 use App\Http\Controllers\Tenant\Pharmacy\StockReceiptController;
 use App\Http\Controllers\Tenant\Pharmacy\SupplierController;
 use App\Http\Controllers\Tenant\PublicBookingController;
+use App\Http\Controllers\Tenant\SiteKitController;
 use App\Http\Controllers\Tenant\StaffController;
 use App\Http\Controllers\Tenant\TenantAuthenticatedSessionController;
 use App\Http\Controllers\Tenant\TenantDashboardController;
@@ -291,6 +292,10 @@ Route::middleware([
                 ->name('tenant.website.publish');
             Route::put('/website/theme', [ClinicWebsiteController::class, 'updateTheme'])
                 ->name('tenant.website.theme');
+            Route::get('/website/kit', [SiteKitController::class, 'show'])
+                ->name('tenant.website.kit');
+            Route::put('/website/kit', [SiteKitController::class, 'update'])
+                ->name('tenant.website.kit.update');
 
             // Visual Page Builder & Media Library
             Route::get('/website/builder/media', [ClinicWebsiteController::class, 'listMedia'])

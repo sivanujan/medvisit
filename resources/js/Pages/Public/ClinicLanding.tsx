@@ -19,6 +19,8 @@ import {
 
 import PublicSiteHeader, { HeaderConfig } from '@/Components/Public/PublicSiteHeader';
 import PublicSiteFooter, { FooterConfig } from '@/Components/Public/PublicSiteFooter';
+import { kitToCss, type SiteKit } from '@/Components/PageBuilder/lib/kit';
+import { googleFontsUrl, usedFontFamilies } from '@/Components/PageBuilder/lib/fonts';
 
 interface DoctorItem {
     id: number;
@@ -76,6 +78,7 @@ interface Props {
         title: string;
         description: string;
     };
+    siteKit?: SiteKit | null;
     customPage?: {
         html: string;
         css: string;
@@ -93,6 +96,7 @@ export default function ClinicLanding({
     doctors,
     upcomingSessions,
     seo,
+    siteKit,
     customPage,
 }: Props) {
     const enabledSections = sections.filter((s) => s.enabled);
@@ -102,6 +106,8 @@ export default function ClinicLanding({
     const hoursSection = sections.find((s) => s.id === 'hours' && s.enabled);
     const contactSection = sections.find((s) => s.id === 'contact' && s.enabled);
     const footerSection = sections.find((s) => s.id === 'footer' && s.enabled);
+
+    const fontsUrl = siteKit ? googleFontsUrl(usedFontFamilies(siteKit, customPage?.css ?? '')) : null;
 
     if (customPage?.html) {
         return (
@@ -115,6 +121,7 @@ export default function ClinicLanding({
                             `Book specialist doctor channeling appointments online at ${clinic.name}. Verified SLMC consultants.`
                         }
                     />
+                    {fontsUrl && <link rel="stylesheet" href={fontsUrl} />}
                 </Head>
 
                 {customPage.isPreview && (
@@ -138,6 +145,8 @@ export default function ClinicLanding({
                     headerConfig={headerConfig}
                     themePreset={theme}
                 />
+
+                {siteKit && <style dangerouslySetInnerHTML={{ __html: kitToCss(siteKit) }} />}
 
                 <style
                     dangerouslySetInnerHTML={{
