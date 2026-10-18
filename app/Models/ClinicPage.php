@@ -73,6 +73,9 @@ class ClinicPage extends Model
     public function makeHomepage(): void
     {
         DB::transaction(function () {
+            // Serialize concurrent homepage switches for this tenant.
+            DB::select('select pg_advisory_xact_lock(hashtext(?))', ['clinic_pages_homepage:'.$this->tenant_id]);
+
             static::forTenant($this->tenant_id)
                 ->where('id', '!=', $this->id)
                 ->where('is_homepage', true)

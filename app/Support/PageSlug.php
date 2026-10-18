@@ -11,6 +11,8 @@ class PageSlug
 {
     public const PATTERN = '/^[a-z0-9]+(?:-[a-z0-9]+)*$/';
 
+    public const MAX_LENGTH = 60;
+
     /**
      * Validation rules for a page slug. Uniqueness deliberately counts
      * soft-deleted rows so a restore can never collide.
@@ -25,7 +27,7 @@ class PageSlug
             $unique->ignore($ignoreId);
         }
 
-        return ['required', 'string', 'max:100', 'regex:'.self::PATTERN, $unique];
+        return ['required', 'string', 'max:'.self::MAX_LENGTH, 'regex:'.self::PATTERN, $unique];
     }
 
     /**
@@ -38,10 +40,16 @@ class PageSlug
             ->where('slug', $slug)
             ->exists();
 
-        $candidate = "{$base}-copy";
+        $build = function (string $suffix) use ($base): string {
+            $trimmed = rtrim(substr($base, 0, self::MAX_LENGTH - strlen($suffix)), '-');
+
+            return $trimmed.$suffix;
+        };
+
+        $candidate = $build('-copy');
         $n = 2;
         while ($taken($candidate)) {
-            $candidate = "{$base}-copy-{$n}";
+            $candidate = $build("-copy-{$n}");
             $n++;
         }
 

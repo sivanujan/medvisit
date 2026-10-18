@@ -7,6 +7,8 @@ namespace Tests\Feature\Tenant;
 use App\Models\ClinicPage;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\PageSlug;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -247,5 +249,37 @@ class ClinicPagesTest extends TestCase
 
         $this->assertSame('home', ClinicPage::homepageFor($this->tenantA->id)->slug);
         $this->assertSame(1, ClinicPage::where('is_homepage', true)->count());
+    }
+
+    public function test_slug_longer_than_60_chars_is_rejected(): void
+    {
+        $this->actingAs($this->adminA)
+            ->postJson($this->urlA('/website/pages'), ['title' => 'X', 'slug' => str_repeat('a', 61), 'source' => 'blank'])
+            ->assertStatus(422)->assertJsonValidationErrors('slug');
+
+        $this->actingAs($this->adminA)
+            ->postJson($this->urlA('/website/pages'), ['title' => 'X', 'slug' => str_repeat('a', 60), 'source' => 'blank'])
+            ->assertCreated();
+    }
+
+    public function test_duplicating_max_length_slug_stays_within_limit(): void
+    {
+        $page = $this->makePage(str_repeat('a', 59).'-b');
+
+        for ($i = 0; $i < 2; $i++) {
+            $slug = $this->actingAs($this->adminA)->postJson($this->urlA("/website/pages/{$page->id}/duplicate"))
+                ->assertCreated()->json('slug');
+
+            $this->assertLessThanOrEqual(60, strlen($slug));
+            $this->assertMatchesRegularExpression(PageSlug::PATTERN, $slug);
+        }
+    }
+
+    public function test_database_rejects_second_homepage_for_same_tenant(): void
+    {
+        $this->makePage('home', ['is_homepage' => true]);
+
+        $this->expectException(QueryException::class);
+        $this->makePage('other', ['is_homepage' => true]);
     }
 }
