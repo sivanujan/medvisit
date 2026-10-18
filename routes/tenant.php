@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Tenant\BillingController;
 use App\Http\Controllers\Tenant\BookingTokenController;
 use App\Http\Controllers\Tenant\ChannelingCalendarController;
+use App\Http\Controllers\Tenant\ClinicPageController;
 use App\Http\Controllers\Tenant\ClinicSettingsController;
 use App\Http\Controllers\Tenant\ClinicWebsiteController;
 use App\Http\Controllers\Tenant\DoctorController;
@@ -302,6 +303,24 @@ Route::middleware([
                 ->name('tenant.website.builder.media.delete');
             Route::patch('/website/builder/media/{asset}', [ClinicWebsiteController::class, 'updateMedia'])
                 ->name('tenant.website.builder.media.update');
+
+            // Multi-page management (JSON API)
+            Route::get('/website/pages', [ClinicPageController::class, 'index'])
+                ->name('tenant.website.pages.index');
+            Route::get('/website/pages/trash', [ClinicPageController::class, 'trash'])
+                ->name('tenant.website.pages.trash');
+            Route::post('/website/pages', [ClinicPageController::class, 'store'])
+                ->name('tenant.website.pages.store');
+            Route::post('/website/pages/{page}/duplicate', [ClinicPageController::class, 'duplicate'])
+                ->name('tenant.website.pages.duplicate');
+            Route::patch('/website/pages/{page}', [ClinicPageController::class, 'update'])
+                ->name('tenant.website.pages.update');
+            Route::delete('/website/pages/{page}', [ClinicPageController::class, 'destroy'])
+                ->name('tenant.website.pages.destroy');
+            Route::post('/website/pages/{pageId}/restore', [ClinicPageController::class, 'restore'])
+                ->name('tenant.website.pages.restore');
+            Route::post('/website/pages/{page}/homepage', [ClinicPageController::class, 'homepage'])
+                ->name('tenant.website.pages.homepage');
 
             Route::get('/staff', [StaffController::class, 'index'])
                 ->name('tenant.staff');
