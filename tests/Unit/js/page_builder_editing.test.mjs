@@ -67,3 +67,33 @@ test('widget labels are the user-facing names', () => {
     assert.equal(WIDGET_LABELS.map, 'Google Map');
     assert.equal(WIDGET_LABELS.generic, 'Element');
 });
+
+import { buttonSizePreset, retagPlan } from '../../../resources/js/Components/PageBuilder/lib/contentHelpers.ts';
+
+test('button size presets set padding and font size', () => {
+    assert.deepEqual(buttonSizePreset('sm'), { padding: '8px 16px', 'font-size': '13px' });
+    assert.deepEqual(buttonSizePreset('md'), { padding: '12px 24px', 'font-size': '15px' });
+    assert.deepEqual(buttonSizePreset('lg'), { padding: '16px 32px', 'font-size': '17px' });
+    assert.deepEqual(buttonSizePreset('xl'), { padding: '20px 40px', 'font-size': '19px' });
+});
+
+test('retagPlan only allows listed tags', () => {
+    assert.equal(retagPlan('H3', ['h1', 'h2', 'h3']), 'h3');
+    assert.equal(retagPlan('script', ['h1', 'h2', 'h3']), null);
+    assert.equal(retagPlan('', ['div']), null);
+});
+
+import { escapeHtml, linkAttributes } from '../../../resources/js/Components/PageBuilder/lib/contentHelpers.ts';
+
+test('escapeHtml neutralises markup in typed text', () => {
+    assert.equal(escapeHtml('Tom & <b>"Jerry"</b>'), 'Tom &amp; &lt;b&gt;&quot;Jerry&quot;&lt;/b&gt;');
+});
+
+test('linkAttributes adds target and rel only for new tab', () => {
+    assert.deepEqual(linkAttributes('/book', false), { href: '/book' });
+    assert.deepEqual(linkAttributes('https://x.lk', true), { href: 'https://x.lk', target: '_blank', rel: 'noopener' });
+});
+
+test('linkAttributes refuses javascript: urls', () => {
+    assert.deepEqual(linkAttributes(' JavaScript:alert(1)', false), { href: '#' });
+});
