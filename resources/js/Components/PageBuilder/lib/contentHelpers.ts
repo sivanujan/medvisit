@@ -31,3 +31,34 @@ export function linkAttributes(href: string, newTab: boolean): Record<string, st
     const safeHref = /^\s*javascript:/i.test(href || '') ? '#' : (href || '').trim();
     return newTab ? { href: safeHref, target: '_blank', rel: 'noopener' } : { href: safeHref };
 }
+
+export type VideoOptions = { autoplay: boolean; mute: boolean; loop: boolean; controls: boolean };
+
+function youtubeId(url: string): string | null {
+    const m =
+        url.match(/youtu\.be\/([\w-]+)/) ||
+        url.match(/youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/)([\w-]+)/);
+    return m ? m[1] : null;
+}
+
+// YouTube or Vimeo page link → embeddable player URL; null for anything else.
+export function toVideoEmbedUrl(url: string, o: VideoOptions): string | null {
+    const flag = (on: boolean) => (on ? '1' : '0');
+    const yt = youtubeId(url || '');
+    if (yt) {
+        const params = [`autoplay=${flag(o.autoplay)}`, `mute=${flag(o.mute)}`, `loop=${flag(o.loop)}`, `controls=${flag(o.controls)}`];
+        if (o.loop) params.push(`playlist=${yt}`);
+        return `https://www.youtube.com/embed/${yt}?${params.join('&')}`;
+    }
+    const vimeo = (url || '').match(/vimeo\.com\/(?:video\/)?(\d+)/);
+    if (vimeo) {
+        const params = [`autoplay=${flag(o.autoplay)}`, `muted=${flag(o.mute)}`, `loop=${flag(o.loop)}`, `controls=${flag(o.controls)}`];
+        return `https://player.vimeo.com/video/${vimeo[1]}?${params.join('&')}`;
+    }
+    return null;
+}
+
+export function toMapEmbedUrl(query: string, zoom: number): string {
+    const z = Math.min(20, Math.max(1, Math.round(zoom || 1)));
+    return `https://www.google.com/maps?q=${encodeURIComponent((query || '').trim())}&z=${z}&output=embed`;
+}

@@ -192,6 +192,7 @@ export default function Inspector({
                             inspectorTab={inspectorTab}
                             selectedTagName={selectedTagName}
                             onOpenMedia={onOpenMedia}
+                            onOpenStyle={() => setInspectorTab('style')}
                         />
 
                         <StyleTab

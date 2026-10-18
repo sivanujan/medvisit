@@ -97,3 +97,23 @@ test('linkAttributes adds target and rel only for new tab', () => {
 test('linkAttributes refuses javascript: urls', () => {
     assert.deepEqual(linkAttributes(' JavaScript:alert(1)', false), { href: '#' });
 });
+
+import { toVideoEmbedUrl, toMapEmbedUrl } from '../../../resources/js/Components/PageBuilder/lib/contentHelpers.ts';
+
+test('toVideoEmbedUrl converts YouTube links with options', () => {
+    const url = toVideoEmbedUrl('https://youtu.be/abc123', { autoplay: true, mute: true, loop: true, controls: false });
+    assert.match(url, /^https:\/\/www\.youtube\.com\/embed\/abc123\?/);
+    for (const part of ['autoplay=1', 'mute=1', 'loop=1', 'playlist=abc123', 'controls=0']) assert.ok(url.includes(part), part);
+    assert.match(toVideoEmbedUrl('https://www.youtube.com/watch?v=XyZ_9', { autoplay: false, mute: false, loop: false, controls: true }), /\/embed\/XyZ_9/);
+    assert.match(toVideoEmbedUrl('https://www.youtube.com/shorts/s1', { autoplay: false, mute: false, loop: false, controls: true }), /\/embed\/s1/);
+});
+
+test('toVideoEmbedUrl converts Vimeo and rejects other sites', () => {
+    assert.match(toVideoEmbedUrl('https://vimeo.com/76979871', { autoplay: false, mute: false, loop: false, controls: true }), /^https:\/\/player\.vimeo\.com\/video\/76979871/);
+    assert.equal(toVideoEmbedUrl('https://example.com/v', { autoplay: false, mute: false, loop: false, controls: true }), null);
+});
+
+test('toMapEmbedUrl encodes the place and clamps zoom', () => {
+    assert.equal(toMapEmbedUrl('Colombo 07', 25), 'https://www.google.com/maps?q=Colombo%2007&z=20&output=embed');
+    assert.equal(toMapEmbedUrl('Kandy', 0), 'https://www.google.com/maps?q=Kandy&z=1&output=embed');
+});
