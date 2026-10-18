@@ -55,8 +55,9 @@ Route::middleware([
     Route::get('/', [ClinicWebsiteController::class, 'publicHome'])
         ->name('tenant.home');
 
-    Route::get('/preview', [ClinicWebsiteController::class, 'previewHome'])
-        ->name('tenant.preview');
+    Route::get('/p/{slug}', [ClinicWebsiteController::class, 'publicPage'])
+        ->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*')
+        ->name('tenant.page');
 
     // 2. Tenant Public Landing & Calendly-Style Online Booking Flow
     Route::get('/book', [PublicBookingController::class, 'index'])
@@ -248,6 +249,13 @@ Route::middleware([
 
         // Administration routes: Clinic Admin Only (Doctor & Receptionist restricted -> 403)
         Route::middleware(['role:clinic_admin|super_admin'])->group(function () {
+            // Staff-only draft previews of public pages
+            Route::get('/preview', [ClinicWebsiteController::class, 'previewHome'])
+                ->name('tenant.preview');
+            Route::get('/preview/p/{slug}', [ClinicWebsiteController::class, 'previewPage'])
+                ->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*')
+                ->name('tenant.preview.page');
+
             Route::post('/billing/payouts', [DoctorSettlementController::class, 'store'])
                 ->name('tenant.settlements.store');
             Route::post('/billing/payouts/disburse', [DoctorSettlementController::class, 'disburse'])

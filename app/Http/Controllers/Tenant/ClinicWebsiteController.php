@@ -21,6 +21,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -657,11 +658,21 @@ class ClinicWebsiteController extends Controller
     }
 
     /**
-     * Preview homepage (draft mode).
+     * Preview homepage (draft mode, staff only).
      */
     public function previewHome(Request $request): Response|RedirectResponse
     {
-        return $this->renderPublicHome(isPreview: true);
+        return $this->renderPage(ClinicPage::homepageFor((string) tenant('id')), isPreview: true);
+    }
+
+    /**
+     * Preview any page (draft mode, staff only). Trashed pages 404.
+     */
+    public function previewPage(Request $request, string $slug): Response|RedirectResponse
+    {
+        $page = ClinicPage::forTenant((string) tenant('id'))->where('slug', $slug)->firstOrFail();
+
+        return $this->renderPage($page, isPreview: true);
     }
 
     /**
@@ -669,13 +680,91 @@ class ClinicWebsiteController extends Controller
      */
     public function publicHome(): Response|RedirectResponse
     {
-        return $this->renderPublicHome(isPreview: false);
+        return $this->renderPage(ClinicPage::homepageFor((string) tenant('id')), isPreview: false);
     }
 
     /**
-     * Unified renderer for public homepage & draft preview.
+     * Public page (GET /p/{slug}). Only published pages are served; the homepage lives at /.
      */
-    protected function renderPublicHome(bool $isPreview = false): Response|RedirectResponse
+    public function publicPage(string $slug): Response|RedirectResponse
+    {
+        $page = ClinicPage::forTenant((string) tenant('id'))->where('slug', $slug)->firstOrFail();
+
+        abort_unless($page->is_published, 404);
+
+        if ($page->is_homepage) {
+            return redirect('/', 301);
+        }
+
+        return $this->renderPage($page, isPreview: false);
+    }
+
+    /**
+     * Resolve header/footer configs so page-linked menu items carry real URLs.
+     *
+     * @return array{0: mixed, 1: mixed}
+     */
+    protected function resolvedChromeConfigs(Tenant $tenant, bool $isPreview = false): array
+    {
+        $header = $tenant->website_header;
+        $footer = $tenant->website_footer;
+
+        $hasPageLinks = fn ($config): bool => is_array($config)
+            && str_contains((string) json_encode($config), '"page_id"');
+
+        if (! $hasPageLinks($header) && ! $hasPageLinks($footer)) {
+            return [$header, $footer];
+        }
+
+        $pages = ClinicPage::forTenant((string) $tenant->id)->get()->keyBy('id');
+
+        if (is_array($header) && isset($header['menu_items']) && is_array($header['menu_items'])) {
+            $header['menu_items'] = $this->resolveMenuItems($header['menu_items'], $pages, $isPreview);
+        }
+        if (is_array($footer) && isset($footer['quick_links']) && is_array($footer['quick_links'])) {
+            $footer['quick_links'] = $this->resolveMenuItems($footer['quick_links'], $pages, $isPreview);
+        }
+
+        return [$header, $footer];
+    }
+
+    /**
+     * Map page-linked menu items to page URLs; drop links to missing pages and,
+     * outside preview, to unpublished pages. Items without page_id pass through.
+     *
+     * @param  array<int, mixed>  $items
+     * @param  Collection<int, ClinicPage>  $pages  keyed by page id
+     * @return array<int, mixed>
+     */
+    protected function resolveMenuItems(array $items, Collection $pages, bool $isPreview = false): array
+    {
+        $resolved = [];
+
+        foreach ($items as $item) {
+            if (is_array($item) && isset($item['children']) && is_array($item['children'])) {
+                $item['children'] = $this->resolveMenuItems($item['children'], $pages, $isPreview);
+            }
+
+            if (is_array($item) && isset($item['page_id']) && $item['page_id'] !== '') {
+                $linked = $pages->get((int) $item['page_id']);
+
+                if ($linked === null || (! $linked->is_published && ! $isPreview)) {
+                    continue;
+                }
+
+                $item['url'] = $linked->publicUrl();
+            }
+
+            $resolved[] = $item;
+        }
+
+        return $resolved;
+    }
+
+    /**
+     * Unified renderer for public pages & draft preview.
+     */
+    protected function renderPage(?ClinicPage $page, bool $isPreview = false): Response|RedirectResponse
     {
         $tenant = tenant();
 
@@ -683,7 +772,7 @@ class ClinicWebsiteController extends Controller
             return redirect()->route('tenant.suspended');
         }
 
-        $page = ClinicPage::where('tenant_id', $tenant->id)->where('slug', 'home')->first();
+        [$headerConfig, $footerConfig] = $this->resolvedChromeConfigs($tenant, $isPreview);
 
         $sections = $tenant->website_sections ?? $this->defaultSections;
         $theme = $page?->theme_preset ?? ($tenant->website_theme ?? 'medvisit-teal');
@@ -739,8 +828,8 @@ class ClinicWebsiteController extends Controller
                 'whatsapp_number' => $tenant->whatsapp_number,
                 'opening_hours' => $tenant->opening_hours,
             ],
-            'headerConfig' => $tenant->website_header,
-            'footerConfig' => $tenant->website_footer,
+            'headerConfig' => $headerConfig,
+            'footerConfig' => $footerConfig,
             'sections' => $sections,
             'theme' => $theme,
             'isPublished' => $isPublished,
@@ -825,8 +914,8 @@ class ClinicWebsiteController extends Controller
                 'whatsapp_number' => $tenant->whatsapp_number,
                 'opening_hours' => $tenant->opening_hours,
             ],
-            'headerConfig' => $tenant->website_header,
-            'footerConfig' => $tenant->website_footer,
+            'headerConfig' => $this->resolvedChromeConfigs($tenant)[0],
+            'footerConfig' => $this->resolvedChromeConfigs($tenant)[1],
             'theme' => $tenant->website_theme ?? 'medvisit-teal',
             'sessions' => $sessions,
             'visitTypes' => $onlineVisitTypes,
@@ -1020,8 +1109,8 @@ class ClinicWebsiteController extends Controller
                 'whatsapp_number' => $tenant->whatsapp_number,
                 'opening_hours' => $tenant->opening_hours,
             ],
-            'headerConfig' => $tenant->website_header,
-            'footerConfig' => $tenant->website_footer,
+            'headerConfig' => $this->resolvedChromeConfigs($tenant)[0],
+            'footerConfig' => $this->resolvedChromeConfigs($tenant)[1],
             'theme' => $tenant->website_theme ?? 'medvisit-teal',
             'activeSessions' => $activeSessions,
         ]);
@@ -1062,8 +1151,8 @@ class ClinicWebsiteController extends Controller
                 'whatsapp_number' => $tenant->whatsapp_number,
                 'opening_hours' => $tenant->opening_hours,
             ],
-            'headerConfig' => $tenant->website_header,
-            'footerConfig' => $tenant->website_footer,
+            'headerConfig' => $this->resolvedChromeConfigs($tenant)[0],
+            'footerConfig' => $this->resolvedChromeConfigs($tenant)[1],
             'theme' => $tenant->website_theme ?? 'medvisit-teal',
             'token' => $tokenData,
         ]);
