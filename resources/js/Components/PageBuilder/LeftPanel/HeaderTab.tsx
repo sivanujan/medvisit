@@ -1,6 +1,7 @@
 import React from 'react';
 import { Trash2, Plus, Image as ImageIcon } from 'lucide-react';
-import type { HeaderConfig, TabBaseProps } from '../types';
+import type { HeaderConfig, PageSummary, TabBaseProps } from '../types';
+import MenuLinkField from './MenuLinkField';
 
 interface HeaderTabProps extends TabBaseProps {
     isActive: boolean;
@@ -8,9 +9,10 @@ interface HeaderTabProps extends TabBaseProps {
     setHeaderConfig: React.Dispatch<React.SetStateAction<HeaderConfig>>;
     setIsDirty: (dirty: boolean) => void;
     onOpenMedia: (currentValue: string) => void;
+    pages: PageSummary[];
 }
 
-export default function HeaderTab({ isActive, headerConfig, setHeaderConfig, setIsDirty, onOpenMedia }: HeaderTabProps) {
+export default function HeaderTab({ isActive, headerConfig, setHeaderConfig, setIsDirty, onOpenMedia, pages }: HeaderTabProps) {
     return (
         <div className={`flex-1 overflow-y-auto p-4 space-y-4 text-xs ${isActive ? '' : 'hidden'}`}>
             <div>
@@ -239,17 +241,16 @@ export default function HeaderTab({ isActive, headerConfig, setHeaderConfig, set
                                     <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                             </div>
-                            <input
-                                type="text"
-                                value={item.url}
-                                onChange={(e) => {
+                            <MenuLinkField
+                                item={item}
+                                pages={pages}
+                                onChange={(next) => {
                                     const newItems = [...(headerConfig.menu_items || [])];
-                                    newItems[idx] = { ...newItems[idx], url: e.target.value };
+                                    newItems[idx] = { ...newItems[idx], ...next };
+                                    if (next.page_id === undefined) delete newItems[idx].page_id;
                                     setHeaderConfig((prev) => ({ ...prev, menu_items: newItems }));
                                     setIsDirty(true);
                                 }}
-                                placeholder="URL (e.g. /doctors)"
-                                className="w-full text-[11px] rounded-lg bg-slate-950 border border-white/10 text-slate-300 px-2 py-1 focus:border-teal-500"
                             />
                         </div>
                     ))}

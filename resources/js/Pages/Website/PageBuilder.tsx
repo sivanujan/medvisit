@@ -25,6 +25,7 @@ import LayersTab from '@/Components/PageBuilder/LeftPanel/LayersTab';
 import HeaderTab from '@/Components/PageBuilder/LeftPanel/HeaderTab';
 import FooterTab from '@/Components/PageBuilder/LeftPanel/FooterTab';
 import Inspector from '@/Components/PageBuilder/Inspector/Inspector';
+import PageSettings from '@/Components/PageBuilder/Inspector/PageSettings';
 import { registerBlocks } from '@/Components/PageBuilder/blocks/registerBlocks';
 import type {
     BuilderPageProps,
@@ -35,14 +36,22 @@ import type {
     HeaderConfig,
     InspectorTabName,
     LeftPanelTabName,
+    MenuLink,
+    PageSummary,
     Revision,
     SaveState,
 } from '@/Components/PageBuilder/types';
 import { getTemplateHtml } from '@/Components/PageBuilder/templates';
 
-export default function PageBuilder({
+// Remount the builder per page: GrapesJS is initialised once from the page's content.
+export default function PageBuilder(props: BuilderPageProps) {
+    return <PageBuilderInner key={props.page.id} {...props} />;
+}
+
+function PageBuilderInner({
     tenant,
-    page,
+    page: initialPage,
+    pages: initialPages,
     revisions: initialRevisions,
     mediaAssets,
     doctors,
@@ -54,6 +63,13 @@ export default function PageBuilder({
     const editorRef = useRef<HTMLDivElement>(null);
     const editorInstance = useRef<Editor | null>(null);
     const [editor, setEditor] = useState<Editor | null>(null);
+
+    // Current page + page list (kept in sync with page-settings changes)
+    const [page, setPage] = useState(initialPage);
+    const [pagesList, setPagesList] = useState<PageSummary[]>(initialPages ?? []);
+    const [pageSettingsOpen, setPageSettingsOpen] = useState(false);
+    const [notice, setNotice] = useState<string | null>(null);
+    const allowUnloadRef = useRef(false);
 
     const [saving, setSaving] = useState(false);
     const [saveState, setSaveState] = useState<SaveState>(null);
@@ -314,6 +330,62 @@ export default function PageBuilder({
         };
     }, []);
 
+    // Warn before closing/reloading the tab while there are unsaved changes
+    useEffect(() => {
+        if (!isDirty) return;
+        const guard = (e: BeforeUnloadEvent) => {
+            if (allowUnloadRef.current) return;
+            e.preventDefault();
+            e.returnValue = '';
+        };
+        window.addEventListener('beforeunload', guard);
+        return () => window.removeEventListener('beforeunload', guard);
+    }, [isDirty]);
+
+    // Intentional navigation: step the guard aside first
+    const willNavigate = () => {
+        allowUnloadRef.current = true;
+    };
+
+    const showNotice = (message: string) => {
+        setNotice(message);
+        setTimeout(() => setNotice(null), 4000);
+    };
+
+    // The page was deleted elsewhere (404 on save/publish)
+    const handlePageDeleted = () => {
+        showNotice('This page was deleted');
+        setIsDirty(false);
+        willNavigate();
+        setTimeout(() => router.visit('/website#pages'), 1200);
+    };
+
+    // Page settings changed (title/slug/SEO/homepage): refresh local state from the server response
+    const handlePageSaved = (summary: PageSummary) => {
+        setPage((prev) => ({
+            ...prev,
+            title: summary.title,
+            slug: summary.slug,
+            is_homepage: summary.is_homepage,
+            seo_title: summary.seo_title,
+            seo_description: summary.seo_description,
+            public_url: summary.url,
+        }));
+        setPagesList((prev) =>
+            prev.map((p) =>
+                p.id === summary.id ? summary : summary.is_homepage ? { ...p, is_homepage: false } : p
+            )
+        );
+        setSeoTitle(summary.seo_title || `${tenant.name} - Specialist Channeling`);
+        setSeoDescription(summary.seo_description || `Book doctor channeling sessions online at ${tenant.name}.`);
+
+        // Keep stored fallback URLs of menu links to this page current
+        const refresh = <T extends MenuLink>(links: T[] | undefined) =>
+            links?.map((l) => (l.page_id === summary.id ? { ...l, url: summary.url } : l));
+        setHeaderConfig((prev) => ({ ...prev, menu_items: refresh(prev.menu_items) }));
+        setFooterConfig((prev) => ({ ...prev, quick_links: refresh(prev.quick_links) }));
+    };
+
     // Load Ready-Made Templates
     const loadTemplate = (templateId: string, editorInstanceParam?: any) => {
         const editor = editorInstanceParam || editorInstance.current;
@@ -327,8 +399,8 @@ export default function PageBuilder({
     };
 
     // Save Page Draft (Manual or Autosave)
-    const handleSave = async (isPublish = false) => {
-        if (!editorInstance.current) return;
+    const handleSave = async (isPublish = false): Promise<boolean> => {
+        if (!editorInstance.current) return false;
         setSaving(true);
         setSaveState(null);
 
@@ -362,6 +434,11 @@ export default function PageBuilder({
                 }),
             });
 
+            if (res.status === 404) {
+                handlePageDeleted();
+                return false;
+            }
+
             const data = await res.json();
             if (res.ok && data.ok) {
                 setSaveState('ok');
@@ -372,14 +449,16 @@ export default function PageBuilder({
                 // Refresh revisions list
                 fetchRevisions();
                 setTimeout(() => setSaveState(null), 3000);
-            } else {
-                setSaveState('error');
-                setTimeout(() => setSaveState(null), 4000);
+                return true;
             }
+            setSaveState('error');
+            setTimeout(() => setSaveState(null), 4000);
+            return false;
         } catch (err) {
             console.error('Save error:', err);
             setSaveState('error');
             setTimeout(() => setSaveState(null), 4000);
+            return false;
         } finally {
             setSaving(false);
         }
@@ -452,6 +531,7 @@ export default function PageBuilder({
         if (isDirty) {
             setExitModalOpen(true);
         } else {
+            willNavigate();
             router.visit('/website');
         }
     };
@@ -603,6 +683,12 @@ export default function PageBuilder({
                     setRevisionsModalOpen(true);
                 }}
                 onSave={handleSave}
+                pages={pagesList}
+                page={page}
+                previewHref={page.is_homepage ? '/preview' : `/preview/p/${page.slug}`}
+                onSaveDraft={() => handleSave(false)}
+                onWillNavigate={willNavigate}
+                clinic={tenant}
             />
 
             {/* 3-PANEL WORKSPACE */}
@@ -773,6 +859,7 @@ export default function PageBuilder({
                         setHeaderConfig={setHeaderConfig}
                         setIsDirty={setIsDirty}
                         onOpenMedia={openMediaLibrary}
+                        pages={pagesList}
                     />
 
                     <FooterTab
@@ -782,6 +869,7 @@ export default function PageBuilder({
                         footerConfig={footerConfig}
                         setFooterConfig={setFooterConfig}
                         setIsDirty={setIsDirty}
+                        pages={pagesList}
                     />
                 </aside>
 
@@ -803,6 +891,22 @@ export default function PageBuilder({
                             )}
                         </div>
                     )}
+
+                    {/* Page label: opens page settings in the right panel */}
+                    <div className="h-8 bg-slate-900 border-b border-white/10 px-3 flex items-center flex-shrink-0">
+                        <button
+                            type="button"
+                            onClick={() => setPageSettingsOpen((o) => !o)}
+                            className={`inline-flex items-center gap-1.5 text-[11px] font-bold transition-colors ${
+                                pageSettingsOpen ? 'text-teal-400' : 'text-slate-400 hover:text-white'
+                            }`}
+                            title="Page settings"
+                        >
+                            <Settings className="w-3.5 h-3.5" />
+                            <span>Page</span>
+                            <span className="font-normal text-slate-500 truncate max-w-[240px]">{page.title}</span>
+                        </button>
+                    </div>
 
                     {/* Canvas Frame Container */}
                     <div className="flex-1 relative w-full h-full min-h-0 overflow-hidden flex justify-center items-stretch p-3 bg-slate-950">
@@ -829,6 +933,27 @@ export default function PageBuilder({
                 </main>
 
                 {/* 3. RIGHT PANEL: Component Properties Inspector (w-72) */}
+                {pageSettingsOpen ? (
+                    <PageSettings
+                        page={
+                            pagesList.find((p) => p.id === page.id) ?? {
+                                id: page.id,
+                                title: page.title,
+                                slug: page.slug,
+                                url: page.public_url ?? '',
+                                is_homepage: !!page.is_homepage,
+                                is_published: page.is_published,
+                                has_unpublished_changes: false,
+                                updated_at: null,
+                                sort_order: 0,
+                                seo_title: page.seo_title ?? null,
+                                seo_description: page.seo_description ?? null,
+                            }
+                        }
+                        onClose={() => setPageSettingsOpen(false)}
+                        onSaved={handlePageSaved}
+                    />
+                ) : (
                 <Inspector
                     editor={editor}
                     selectedComponent={selectedComponent}
@@ -840,6 +965,7 @@ export default function PageBuilder({
                     setIsDirty={setIsDirty}
                     onOpenMedia={openMediaLibrary}
                 />
+                )}
             </div>
 
             {/* MODALS */}
@@ -1015,6 +1141,13 @@ export default function PageBuilder({
                 </div>
             )}
 
+            {/* Notice toast */}
+            {notice && (
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] px-4 py-2 rounded-xl bg-slate-800 border border-white/15 text-xs font-bold text-white shadow-2xl">
+                    {notice}
+                </div>
+            )}
+
             {/* 4. Unsaved Changes Exit Prompt */}
             {exitModalOpen && (
                 <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4">
@@ -1031,7 +1164,10 @@ export default function PageBuilder({
                         <div className="flex gap-2 pt-2">
                             <button
                                 type="button"
-                                onClick={() => router.visit('/website')}
+                                onClick={() => {
+                                    willNavigate();
+                                    router.visit('/website');
+                                }}
                                 className="flex-1 py-2 rounded-xl text-xs font-bold border border-white/10 text-slate-300 hover:bg-white/5"
                             >
                                 Discard &amp; Exit
@@ -1039,8 +1175,10 @@ export default function PageBuilder({
                             <button
                                 type="button"
                                 onClick={async () => {
-                                    await handleSave(false);
-                                    router.visit('/website');
+                                    if (await handleSave(false)) {
+                                        willNavigate();
+                                        router.visit('/website');
+                                    }
                                 }}
                                 className="flex-1 py-2 rounded-xl text-xs font-bold bg-teal-600 hover:bg-teal-500 text-white"
                             >

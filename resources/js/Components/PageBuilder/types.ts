@@ -5,6 +5,7 @@ import type { FooterConfig } from '@/Components/Public/PublicSiteFooter';
 
 export type { HeaderConfig, FooterConfig };
 export type MenuItem = HeaderMenuItem;
+export type MenuLink = { label: string; url: string; page_id?: number };
 
 // GrapesJS is declared as `any` in resources/js/types/grapesjs.d.ts
 export type Editor = any;
@@ -84,6 +85,7 @@ export interface BuilderPageProps {
         is_homepage?: boolean;
         public_url?: string;
     };
+    pages: PageSummary[];
     revisions: Revision[];
     mediaAssets: MediaAsset[];
     doctors: DoctorItem[];

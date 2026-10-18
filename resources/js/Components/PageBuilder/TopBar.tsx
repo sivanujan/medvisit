@@ -1,6 +1,8 @@
 import React from 'react';
 import { Save, Eye, ExternalLink, Undo, Redo, Smartphone, Tablet, Monitor, Check, AlertCircle, Sparkles, ArrowLeft, History, RefreshCw } from 'lucide-react';
-import type { Editor, DeviceName, SaveState } from './types';
+import PageSwitcher from './PageSwitcher';
+import type { TemplateTenant } from './templates';
+import type { Editor, DeviceName, SaveState, PageSummary } from './types';
 
 interface TopBarProps {
     editor: Editor | null;
@@ -15,6 +17,12 @@ interface TopBarProps {
     onOpenTemplates: () => void;
     onOpenRevisions: () => void;
     onSave: (isPublish: boolean) => void;
+    pages: PageSummary[];
+    page: { id: number; title: string };
+    previewHref: string;
+    onSaveDraft: () => Promise<boolean>;
+    onWillNavigate: () => void;
+    clinic: TemplateTenant;
 }
 
 export default function TopBar({
@@ -30,6 +38,12 @@ export default function TopBar({
     onOpenTemplates,
     onOpenRevisions,
     onSave,
+    pages,
+    page,
+    previewHref,
+    onSaveDraft,
+    onWillNavigate,
+    clinic,
 }: TopBarProps) {
     return (
         <header className="h-14 bg-slate-950 border-b border-white/10 px-4 flex items-center justify-between z-30 flex-shrink-0">
@@ -63,6 +77,15 @@ export default function TopBar({
                         {tenant.name}
                     </span>
                 </div>
+
+                <PageSwitcher
+                    pages={pages}
+                    current={page}
+                    isDirty={isDirty}
+                    onSaveDraft={onSaveDraft}
+                    onWillNavigate={onWillNavigate}
+                    clinic={clinic}
+                />
 
                 {isDirty ? (
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
@@ -162,7 +185,7 @@ export default function TopBar({
 
                 {/* Preview Page */}
                 <a
-                    href="/preview"
+                    href={previewHref}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
