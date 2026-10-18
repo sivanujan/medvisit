@@ -149,6 +149,12 @@ class ClinicWebsiteController extends Controller
             ],
             'doctors' => $doctors,
             'upcomingSessions' => $upcomingSessions,
+            'pages' => ClinicPage::forTenant((string) $tenant->id)
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->get()
+                ->map(fn (ClinicPage $p) => $p->toSummaryArray())
+                ->values(),
         ]);
     }
 
@@ -209,7 +215,7 @@ class ClinicWebsiteController extends Controller
     }
 
     /**
-     * Show Visual Page Builder (Elementor-Style 3-panel editor).
+     * Show MedVisit Page Builder (3-panel editor).
      */
     public function showBuilder(Request $request, ?ClinicPage $page = null): Response
     {

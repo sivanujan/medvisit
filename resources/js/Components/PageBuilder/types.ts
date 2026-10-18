@@ -92,3 +92,15 @@ export interface BuilderPageProps {
     footerConfig?: FooterConfig | null;
     siteKit?: SiteKit | null;
 }
+
+export interface PageSummary {
+    id: number;
+    title: string;
+    slug: string;
+    url: string;
+    is_homepage: boolean;
+    is_published: boolean;
+    has_unpublished_changes: boolean;
+    updated_at: string | null;
+    sort_order: number;
+}
