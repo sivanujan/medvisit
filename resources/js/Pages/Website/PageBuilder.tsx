@@ -22,6 +22,7 @@ import { KitContext } from '@/Components/PageBuilder/controls/KitContext';
 import SiteSettingsTab from '@/Components/PageBuilder/LeftPanel/SiteSettingsTab';
 import { buildInitialEditorCss, cssWithCustomBlock, stripCustomCssBlock, syncCustomCssStyle } from '@/Components/PageBuilder/lib/customCss';
 import { animationCss, canvasEditorCss } from '@/Components/PageBuilder/lib/animations';
+import { createLoadGuard } from '@/Components/PageBuilder/lib/loadGuard';
 import MediaLibraryModal from '@/Components/PageBuilder/MediaLibraryModal';
 import TopBar from '@/Components/PageBuilder/TopBar';
 import WidgetsTab from '@/Components/PageBuilder/LeftPanel/WidgetsTab';
@@ -85,6 +86,8 @@ function PageBuilderInner({
     const [saving, setSaving] = useState(false);
     const [saveState, setSaveState] = useState<SaveState>(null);
     const [isDirty, setIsDirty] = useState(false);
+    // Events fired while content is loaded programmatically are not user edits.
+    const loadGuardRef = useRef(createLoadGuard(true));
     const [lastSavedTime, setLastSavedTime] = useState<string | null>(
         page.published_at ? new Date(page.published_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null
     );
@@ -297,6 +300,7 @@ function PageBuilderInner({
 
         // Change tracking for unsaved indicator
         const markDirty = () => {
+            if (loadGuardRef.current.isLoading()) return;
             setIsDirty(true);
         };
         editor.on('component:update', markDirty);
@@ -328,14 +332,22 @@ function PageBuilderInner({
 
         // Ensure canvas renders on load
         editor.on('load', () => {
-            if (!editor.getHtml() || editor.getHtml().trim() === '<body></body>') {
-                editor.setComponents(initialHtml);
-            }
-            editor.setStyle(initialCss);
-            if (kitRef.current) applyKitToDocument(editor.Canvas.getDocument(), kitRef.current, initialCss);
-            syncCanvasStyles();
-            syncCustomCssStyle(editor);
-            editor.refresh();
+            loadGuardRef.current.run(() => {
+                if (!editor.getHtml() || editor.getHtml().trim() === '<body></body>') {
+                    editor.setComponents(initialHtml);
+                }
+                editor.setStyle(initialCss);
+                if (kitRef.current) applyKitToDocument(editor.Canvas.getDocument(), kitRef.current, initialCss);
+                syncCanvasStyles();
+                syncCustomCssStyle(editor);
+                editor.refresh();
+            });
+            // Let GrapesJS's deferred (0ms) events from the load settle before edits count.
+            setTimeout(() => {
+                editor.UndoManager?.clear?.();
+                loadGuardRef.current.release();
+                setIsDirty(false);
+            }, 0);
         });
 
         setTimeout(() => {
@@ -522,13 +534,16 @@ function PageBuilderInner({
 
             const data = await res.json();
             if (res.ok && data.ok) {
-                if (data.html) {
-                    editorInstance.current.setComponents(data.html);
-                }
-                if (data.css) {
-                    editorInstance.current.setStyle(stripCustomCssBlock(data.css));
-                    syncCustomCssStyle(editorInstance.current);
-                }
+                // The server already saved the restored revision as the draft, so this is not an unsaved edit.
+                loadGuardRef.current.run(() => {
+                    if (data.html) {
+                        editorInstance.current.setComponents(data.html);
+                    }
+                    if (data.css) {
+                        editorInstance.current.setStyle(stripCustomCssBlock(data.css));
+                        syncCustomCssStyle(editorInstance.current);
+                    }
+                });
                 setIsDirty(false);
                 setRevisionsModalOpen(false);
                 fetchRevisions();
@@ -724,10 +739,10 @@ function PageBuilderInner({
             {/* 3-PANEL WORKSPACE */}
             <div className="flex-1 flex overflow-hidden">
                 {/* 1. LEFT PANEL: Widget Library & Structure Navigator (w-80) */}
-                <aside className="w-80 bg-slate-950 border-r border-white/10 flex flex-col flex-shrink-0 z-20">
-                    {/* Header Tabs */}
-                    <div className="h-11 border-b border-white/10 bg-slate-900/50 px-2 flex items-center justify-between flex-shrink-0">
-                        <div className="flex items-center gap-1">
+                <aside className="w-80 bg-slate-950 border-r border-white/10 flex flex-col flex-shrink-0 z-20 overflow-hidden">
+                    {/* Header Tabs: wrap instead of overflowing into the canvas */}
+                    <div className="min-h-11 py-1 border-b border-white/10 bg-slate-900/50 px-2 flex items-center justify-between gap-1 flex-shrink-0 overflow-hidden">
+                        <div className="flex flex-wrap items-center gap-1 min-w-0">
                             <button
                                 type="button"
                                 onClick={() => setLeftPanelTab('elements')}
@@ -739,7 +754,7 @@ function PageBuilderInner({
                                 title="Widgets Library"
                             >
                                 <LayoutGrid className="w-3.5 h-3.5" />
-                                <span className="hidden xl:inline">Widgets</span>
+                                <span>Widgets</span>
                             </button>
                             <button
                                 type="button"
@@ -752,7 +767,7 @@ function PageBuilderInner({
                                 title="DOM Layers"
                             >
                                 <Layers className="w-3.5 h-3.5" />
-                                <span className="hidden xl:inline">Layers</span>
+                                <span>Layers</span>
                             </button>
                             <button
                                 type="button"
@@ -791,7 +806,7 @@ function PageBuilderInner({
                                 title="Clinic Theme & SEO"
                             >
                                 <Settings className="w-3.5 h-3.5" />
-                                <span className="hidden xl:inline">Page</span>
+                                <span>Theme</span>
                             </button>
                         </div>
 
@@ -905,7 +920,7 @@ function PageBuilderInner({
                     )}
 
                     {/* Page label: opens page settings in the right panel */}
-                    <div className="h-8 bg-slate-900 border-b border-white/10 px-3 flex items-center flex-shrink-0">
+                    <div className="relative z-10 h-8 bg-slate-900 border-b border-white/10 px-3 flex items-center flex-shrink-0">
                         <button
                             type="button"
                             onClick={() => setPageSettingsOpen((o) => !o)}
