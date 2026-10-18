@@ -17,6 +17,7 @@ import {
     PanelBottom,
 } from 'lucide-react';
 import { kitToCss } from '@/Components/PageBuilder/lib/kit';
+import { animationCss, canvasEditorCss } from '@/Components/PageBuilder/lib/animations';
 import { googleFontsUrl, usedFontFamilies } from '@/Components/PageBuilder/lib/fonts';
 import MediaLibraryModal from '@/Components/PageBuilder/MediaLibraryModal';
 import TopBar from '@/Components/PageBuilder/TopBar';
@@ -294,8 +295,24 @@ function PageBuilderInner({
         editor.on('style:update', markDirty);
         editor.on('component:styleUpdate', markDirty);
         // Keep page chrome in sync when the device is changed from anywhere (toolbar or Style tab icons)
+        // Editor-only canvas styles: animated elements stay visible and elements hidden on the active device are faded.
+        const syncCanvasStyles = () => {
+            const canvasDoc = editor.Canvas.getDocument();
+            if (!canvasDoc) return;
+            const existing = canvasDoc.getElementById('mv-editor-only') as HTMLStyleElement | null;
+            const el: HTMLStyleElement = existing ?? canvasDoc.createElement('style');
+            if (!existing) {
+                el.id = 'mv-editor-only';
+                canvasDoc.head.appendChild(el);
+            }
+            const name = String(editor.getDevice?.() || 'Desktop').toLowerCase();
+            const device = name === 'tablet' || name === 'mobile' ? name : 'desktop';
+            // Appended after the animation rules so the canvas override wins.
+            el.textContent = animationCss() + canvasEditorCss(device);
+        };
         editor.on('device:select', (device: any) => {
             setCurrentDevice((device?.get?.('name') || 'Desktop') as DeviceName);
+            syncCanvasStyles();
         });
 
         // Ensure canvas renders on load
@@ -319,6 +336,7 @@ function PageBuilderInner({
                     canvasDoc.head.appendChild(fontLink);
                 }
             }
+            syncCanvasStyles();
             editor.refresh();
         });
 

@@ -45,7 +45,7 @@ export function useStyleState(editor: Editor | null): string {
     return editor?.Selectors?.getState?.() || '';
 }
 
-function mediaOpts(editor: Editor, device: Device) {
+export function mediaOpts(editor: Editor, device: Device) {
     const dev = editor.Devices?.get?.(toDeviceName(device));
     const width: string | null = dev?.get?.('widthMedia') || FALLBACK_MEDIA[device];
     if (device === 'desktop' || !width) return undefined;

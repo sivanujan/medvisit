@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Head, Link } from '@inertiajs/react';
 import {
     Calendar,
@@ -20,6 +20,7 @@ import {
 import PublicSiteHeader, { HeaderConfig } from '@/Components/Public/PublicSiteHeader';
 import PublicSiteFooter, { FooterConfig } from '@/Components/Public/PublicSiteFooter';
 import { kitToCss, type SiteKit } from '@/Components/PageBuilder/lib/kit';
+import { animationCss, initEntranceAnimations } from '@/Components/PageBuilder/lib/animations';
 import { googleFontsUrl, usedFontFamilies } from '@/Components/PageBuilder/lib/fonts';
 
 interface DoctorItem {
@@ -99,6 +100,14 @@ export default function ClinicLanding({
     siteKit,
     customPage,
 }: Props) {
+    const customMainRef = useRef<HTMLElement>(null);
+    const customHtml = customPage?.html;
+    // Entrance animations run once the builder HTML is mounted; cleanup disconnects the observer.
+    useEffect(() => {
+        if (!customHtml || !customMainRef.current) return;
+        return initEntranceAnimations(customMainRef.current);
+    }, [customHtml]);
+
     const enabledSections = sections.filter((s) => s.enabled);
     const heroSection = sections.find((s) => s.id === 'hero' && s.enabled);
     const aboutSection = sections.find((s) => s.id === 'about' && s.enabled);
@@ -147,6 +156,7 @@ export default function ClinicLanding({
                 />
 
                 {siteKit && <style dangerouslySetInnerHTML={{ __html: kitToCss(siteKit) }} />}
+                <style dangerouslySetInnerHTML={{ __html: animationCss() }} />
 
                 <style
                     dangerouslySetInnerHTML={{
@@ -161,6 +171,7 @@ export default function ClinicLanding({
                 />
 
                 <main
+                    ref={customMainRef}
                     id="main-content"
                     className="flex-1 medvisit-custom-page-canvas"
                     dangerouslySetInnerHTML={{ __html: customPage.html }}

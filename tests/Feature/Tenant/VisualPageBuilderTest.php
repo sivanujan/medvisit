@@ -383,6 +383,45 @@ class VisualPageBuilderTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_sanitizer_preserves_mv_attributes_and_still_strips_event_handlers(): void
+    {
+        $html = '<div id="a1" data-mv-animation="slide-up" data-mv-duration="800" data-mv-delay="200" '
+            .'data-mv-custom-css="selector{border:2px solid red}" data-mv-hidden-desktop="1" '
+            .'data-mv-hidden-tablet="1" data-mv-hidden-mobile="1" data-x="keep" onclick="alert(1)">Hi</div>';
+
+        $clean = HtmlSanitizer::sanitize($html);
+
+        $this->assertStringContainsString('data-mv-animation="slide-up"', $clean);
+        $this->assertStringContainsString('data-mv-duration="800"', $clean);
+        $this->assertStringContainsString('data-mv-delay="200"', $clean);
+        $this->assertStringContainsString('data-mv-custom-css="selector{border:2px solid red}"', $clean);
+        $this->assertStringContainsString('data-mv-hidden-desktop="1"', $clean);
+        $this->assertStringContainsString('data-mv-hidden-tablet="1"', $clean);
+        $this->assertStringContainsString('data-mv-hidden-mobile="1"', $clean);
+        // Unchanged behaviour: other data-* attributes are kept, event handlers are stripped.
+        $this->assertStringContainsString('data-x="keep"', $clean);
+        $this->assertStringNotContainsString('onclick', $clean);
+    }
+
+    public function test_mv_attributes_survive_publish(): void
+    {
+        $page = $this->homepageA();
+        $html = '<section id="s1" data-mv-animation="fade-in" data-mv-duration="500" data-mv-hidden-mobile="1" onclick="x()">Hello</section>';
+
+        $this->actingAs($this->adminA)
+            ->postJson($this->builderUrl("/{$page->id}/publish"), [
+                'content_json' => ['v' => 1],
+                'html' => $html,
+                'css' => '#s1{display:none}',
+            ])->assertOk();
+
+        $published = (string) $page->fresh()->published_html;
+        $this->assertStringContainsString('data-mv-animation="fade-in"', $published);
+        $this->assertStringContainsString('data-mv-duration="500"', $published);
+        $this->assertStringContainsString('data-mv-hidden-mobile="1"', $published);
+        $this->assertStringNotContainsString('onclick', $published);
+    }
+
     public function test_builder_without_page_opens_homepage(): void
     {
         $home = $this->homepageA();

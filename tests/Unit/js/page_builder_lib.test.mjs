@@ -4,6 +4,7 @@ import { slugify, isValidSlug } from '../../../resources/js/Components/PageBuild
 import { resolveResponsive } from '../../../resources/js/Components/PageBuilder/lib/responsive.ts';
 import { kitToCss } from '../../../resources/js/Components/PageBuilder/lib/kit.ts';
 import { parseUnitValue, formatUnitValue, formatShadow, parseShadow, formatGradient, parseGradient, extractUrl, formatImageBackground, parseImageBackground, isLayoutContainer } from '../../../resources/js/Components/PageBuilder/lib/cssValues.ts';
+import { animationCss, expandSelectorKeyword, ANIMATIONS } from '../../../resources/js/Components/PageBuilder/lib/animations.ts';
 import { usedFontFamilies, googleFontsUrl } from '../../../resources/js/Components/PageBuilder/lib/fonts.ts';
 
 const preset = (d, m, weight = 400) => ({ size: { desktop: d, mobile: m }, weight, lineHeight: 1.4 });
@@ -83,4 +84,16 @@ test('isLayoutContainer', () => {
   assert.equal(isLayoutContainer('DIV', 2), true);
   assert.equal(isLayoutContainer('div', 0), false);
   assert.equal(isLayoutContainer('h1', 3), false);
+});
+
+test('expandSelectorKeyword replaces only the whole word selector', () => {
+  assert.equal(expandSelectorKeyword('selector:hover{color:red} .selectors{}', 'i3x'), '#i3x:hover{color:red} .selectors{}');
+  assert.equal(expandSelectorKeyword('selector .a, selector>b{}', 'z'), '#z .a, #z>b{}');
+});
+
+test('animationCss covers every animation and honours reduced motion', () => {
+  const css = animationCss();
+  assert.ok(css.includes('prefers-reduced-motion'));
+  for (const a of ANIMATIONS) assert.ok(css.includes(`@keyframes mv-${a}`));
+  assert.ok(css.includes('[data-mv-animation]{opacity:0}'));
 });
