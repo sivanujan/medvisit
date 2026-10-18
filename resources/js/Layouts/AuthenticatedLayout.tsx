@@ -21,6 +21,10 @@ import {
     Shield,
     DollarSign,
     Sliders,
+    Package,
+    Boxes,
+    Pill,
+    FileSpreadsheet,
 } from 'lucide-react';
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import ThemeToggle from '@/Components/Common/ThemeToggle';
@@ -60,11 +64,13 @@ export default function AuthenticatedLayout({
             plan?: string;
             trial_days_left?: number;
             is_trial?: boolean;
+            pharmacy_enabled?: boolean;
         } | null;
     }>().props;
 
     const user = auth.user;
-    const { isSuperAdmin, isClinicAdmin, isDoctor, isReceptionist } = usePermission();
+    const { isSuperAdmin, isClinicAdmin, isDoctor, isReceptionist, can } = usePermission();
+    const isPharmacyEnabled = !!tenant?.pharmacy_enabled;
     const [mobileOpen, setMobileOpen] = useState(false);
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -217,6 +223,66 @@ export default function AuthenticatedLayout({
                 },
             ],
         },
+        ...(isPharmacyEnabled && can('pharmacy.view')
+            ? [
+                  {
+                      title: 'PHARMACY & INVENTORY',
+                      items: [
+                          {
+                              name: 'Medicines & Stock',
+                              href: '/pharmacy/medicines',
+                              icon: Package,
+                              visible: can('pharmacy.view'),
+                          },
+                          {
+                              name: 'Receive Stock (GRN)',
+                              href: '/pharmacy/receipts/create',
+                              icon: Boxes,
+                              visible: can('pharmacy.receive_stock'),
+                          },
+                          {
+                              name: 'Stock Receipts',
+                              href: '/pharmacy/receipts',
+                              icon: Receipt,
+                              visible: can('pharmacy.view'),
+                          },
+                          {
+                              name: 'Suppliers',
+                              href: '/pharmacy/suppliers',
+                              icon: Building2,
+                              visible: can('pharmacy.manage_suppliers'),
+                          },
+                          {
+                              name: 'Import Stock (CSV)',
+                              href: '/pharmacy/import',
+                              icon: FileSpreadsheet,
+                              visible: can('pharmacy.import'),
+                          },
+                      ],
+                  },
+              ]
+            : []),
+        ...(isSuperAdmin
+            ? [
+                  {
+                      title: 'SUPER ADMIN',
+                      items: [
+                          {
+                              name: 'Medicine Catalog',
+                              href: '/super-admin/medicines',
+                              icon: Pill,
+                              visible: true,
+                          },
+                          {
+                              name: 'OTP Analytics',
+                              href: '/super-admin/otp-usage',
+                              icon: Shield,
+                              visible: true,
+                          },
+                      ],
+                  },
+              ]
+            : []),
     ];
 
     return (

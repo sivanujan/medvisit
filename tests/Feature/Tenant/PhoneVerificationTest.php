@@ -574,4 +574,107 @@ class PhoneVerificationTest extends TestCase
             'doctor_session_id' => $session->id,
         ]);
     }
+
+    public function test_booking_without_verification_returns_422_via_json(): void
+    {
+        $doctor = Doctor::factory()->create(['tenant_id' => $this->tenant->id]);
+        $session = DoctorSession::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'doctor_id' => $doctor->id,
+            'status' => 'scheduled',
+            'max_tokens' => 30,
+        ]);
+
+        $response = $this->postJson("http://sivacli.{$this->baseDomain}/book", [
+            'doctor_session_id' => $session->id,
+            'name' => 'Kumara Silva',
+            'phone' => '0775551234',
+            'consent' => true,
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['phone']);
+    }
+
+    public function test_booking_with_verified_attempt_returns_201_via_json(): void
+    {
+        $doctor = Doctor::factory()->create(['tenant_id' => $this->tenant->id]);
+        $session = DoctorSession::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'doctor_id' => $doctor->id,
+            'status' => 'scheduled',
+            'max_tokens' => 30,
+        ]);
+
+        $sessionId = 'valid_session_attempt_123';
+        $normalizedPhone = '+94775551234';
+
+        PhoneVerification::create([
+            'tenant_id' => $this->tenant->id,
+            'session_id' => $sessionId,
+            'phone' => $normalizedPhone,
+            'channel' => 'whatsapp',
+            'code_hash' => hash('sha256', '123456'),
+            'status' => PhoneVerification::STATUS_VERIFIED,
+            'verified_at' => Carbon::now(),
+            'expires_at' => Carbon::now()->addMinutes(10),
+            'attempts' => 1,
+        ]);
+
+        $response = $this->postJson("http://sivacli.{$this->baseDomain}/book", [
+            'doctor_session_id' => $session->id,
+            'name' => 'Kumara Silva',
+            'phone' => '0775551234',
+            'consent' => true,
+            'verification_session_id' => $sessionId,
+        ]);
+
+        $response->assertStatus(201);
+        $response->assertJsonPath('status', 'success');
+        $this->assertDatabaseHas('booking_tokens', [
+            'tenant_id' => $this->tenant->id,
+            'doctor_session_id' => $session->id,
+        ]);
+    }
+
+    public function test_booking_with_remembered_verified_phones_returns_201_via_json(): void
+    {
+        $doctor = Doctor::factory()->create(['tenant_id' => $this->tenant->id]);
+        $session = DoctorSession::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'doctor_id' => $doctor->id,
+            'status' => 'scheduled',
+            'max_tokens' => 30,
+        ]);
+
+        $normalizedPhone = '+94775551234';
+
+        VerifiedPhone::create([
+            'tenant_id' => $this->tenant->id,
+            'phone' => $normalizedPhone,
+            'verified_at' => Carbon::now(),
+            'channel' => 'whatsapp',
+            'expires_at' => Carbon::now()->addDays(30),
+        ]);
+
+        $response = $this->postJson("http://sivacli.{$this->baseDomain}/book", [
+            'doctor_session_id' => $session->id,
+            'name' => 'Kumara Silva',
+            'phone' => '0775551234',
+            'consent' => true,
+        ]);
+
+        $response->assertStatus(201);
+        $response->assertJsonPath('status', 'success');
+        $this->assertDatabaseHas('booking_tokens', [
+            'tenant_id' => $this->tenant->id,
+            'doctor_session_id' => $session->id,
+        ]);
+    }
+
+    public function test_tenants_have_require_phone_verification_false_by_default(): void
+    {
+        $tenant = Tenant::create(['id' => 'autotest', 'name' => 'Auto Test', 'subdomain' => 'autotest']);
+        $this->assertFalse($tenant->require_phone_verification);
+    }
 }

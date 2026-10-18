@@ -78,6 +78,34 @@ export default function PhoneVerificationSection({
         }
     }, [initialVerifiedPhone, phone, isPhoneValid]);
 
+    // Automatic remembered phone check when valid number entered
+    useEffect(() => {
+        if (!requireVerification || isVerified || !isPhoneValid) {
+            return;
+        }
+
+        let isCancelled = false;
+        const timer = setTimeout(async () => {
+            try {
+                const res = await fetch(`/book/verify/check-remembered?phone=${encodeURIComponent(phone)}`, {
+                    headers: { Accept: 'application/json' },
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!isCancelled && data.is_verified) {
+                    setIsVerified(true);
+                }
+            } catch (err) {
+                // Ignore network error
+            }
+        }, 250);
+
+        return () => {
+            isCancelled = true;
+            clearTimeout(timer);
+        };
+    }, [phone, isPhoneValid, isVerified, requireVerification]);
+
     // Pre-select channel from localStorage or single allowed channel
     useEffect(() => {
         if (!isVerified && isPhoneValid && selectedChannel === null) {
@@ -350,18 +378,18 @@ export default function PhoneVerificationSection({
         }
     };
 
-    // If verified, display celebratory green verification card
+    // If verified, display celebratory green verification chip
     if (isVerified) {
         return (
-            <div className="mt-2.5 p-3.5 bg-emerald-50/90 border border-emerald-200/80 rounded-2xl flex items-center justify-between text-xs text-emerald-900 shadow-sm animate-in fade-in zoom-in-95 duration-200">
+            <div className="mt-2.5 p-3.5 bg-emerald-50 border border-emerald-200/90 rounded-2xl flex items-center justify-between text-xs text-emerald-900 shadow-sm animate-in fade-in zoom-in-95 duration-200">
                 <div className="flex items-center gap-2.5">
                     <div className="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
                         <Check className="w-4 h-4 stroke-[3]" />
                     </div>
                     <div>
-                        <p className="font-bold text-emerald-950 text-sm">Number Verified</p>
+                        <p className="font-bold text-emerald-950 text-sm">✓ {phone} verified</p>
                         <p className="text-emerald-700 text-[11px]">
-                            {phone} is confirmed. You can proceed to confirm your booking.
+                            Mobile number confirmed. You can proceed to confirm your booking.
                         </p>
                     </div>
                 </div>
@@ -376,7 +404,7 @@ export default function PhoneVerificationSection({
                     }}
                     className="text-xs font-semibold text-emerald-800 hover:text-emerald-950 underline underline-offset-4 ml-3 shrink-0"
                 >
-                    Change
+                    Change number
                 </button>
             </div>
         );
@@ -400,9 +428,9 @@ export default function PhoneVerificationSection({
                 <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                         <Smartphone className="w-4 h-4 text-teal-600" />
-                        Do you use WhatsApp on this number?
+                        Verify your number
                     </span>
-                    <span className="text-[10px] font-medium text-slate-400">Step 1 of 2</span>
+                    <span className="text-[10px] font-medium text-slate-400">Do you use WhatsApp on this number?</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -562,7 +590,7 @@ export default function PhoneVerificationSection({
                             className="font-bold text-teal-700 hover:text-teal-800 flex items-center gap-1"
                         >
                             <MessageSquare className="w-3.5 h-3.5" />
-                            <span>Didn't work? Send me an SMS code instead</span>
+                            <span>Send me an SMS code instead</span>
                         </button>
                     ) : (
                         <span className="text-[11px] text-slate-400">

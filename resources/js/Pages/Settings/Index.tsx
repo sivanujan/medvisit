@@ -23,6 +23,7 @@ import {
     Hash,
     MapPin,
     Phone,
+    Pill,
 } from 'lucide-react';
 
 interface AuditLog {
@@ -70,6 +71,11 @@ interface Props {
         phone_verification_methods: string[];
         platform_available_channels: string[];
     };
+    pharmacySettings?: {
+        pharmacy_enabled: boolean;
+        default_reorder_level: number;
+        expiring_soon_threshold_days: number;
+    };
     auditLogs: AuditLog[];
     availableActions: string[];
     filters: {
@@ -88,12 +94,13 @@ export default function SettingsIndex({
     sessionDefaults,
     billingSettings,
     onlineBookingSettings,
+    pharmacySettings,
     auditLogs,
     availableActions,
     filters,
 }: Props) {
     const [activeTab, setActiveTab] = useState<
-        'profile' | 'sessions' | 'billing' | 'online' | 'audit'
+        'profile' | 'sessions' | 'billing' | 'online' | 'pharmacy' | 'audit'
     >('profile');
 
     // Profile Form
@@ -130,6 +137,13 @@ export default function SettingsIndex({
         phone_verification_methods: onlineBookingSettings.phone_verification_methods ?? ['whatsapp', 'textlk'],
     });
 
+    // Pharmacy Settings Form
+    const pharmacyForm = useForm({
+        pharmacy_enabled: pharmacySettings?.pharmacy_enabled ?? false,
+        default_reorder_level: pharmacySettings?.default_reorder_level ?? 10,
+        expiring_soon_threshold_days: pharmacySettings?.expiring_soon_threshold_days ?? 60,
+    });
+
     const toggleVerificationMethod = (channel: string) => {
         const current = onlineForm.data.phone_verification_methods || [];
         const exists = current.includes(channel);
@@ -159,6 +173,11 @@ export default function SettingsIndex({
     const handleOnlineSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         onlineForm.put('/settings/online-booking', { preserveScroll: true });
+    };
+
+    const handlePharmacySubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        pharmacyForm.put('/settings/pharmacy', { preserveScroll: true });
     };
 
     const handleAuditFilterSubmit = (e: React.FormEvent) => {
@@ -250,6 +269,18 @@ export default function SettingsIndex({
                     >
                         <Globe className="w-4 h-4" />
                         Online Booking
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('pharmacy')}
+                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
+                            activeTab === 'pharmacy'
+                                ? 'bg-primary-600 text-white shadow-sm shadow-primary-600/30'
+                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
+                    >
+                        <Pill className="w-4 h-4" />
+                        Pharmacy & Stock
                     </button>
                     <button
                         type="button"
@@ -777,6 +808,92 @@ export default function SettingsIndex({
                                 >
                                     <Save className="w-3.5 h-3.5" />
                                     {onlineForm.processing ? 'Saving...' : 'Save Online Booking Settings'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                )}
+
+                {/* Tab: Pharmacy & Stock Settings */}
+                {activeTab === 'pharmacy' && (
+                    <div className="max-w-3xl bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-white/10 p-6 shadow-sm space-y-6">
+                        <div>
+                            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                <Pill className="w-5 h-5 text-primary-600" />
+                                Pharmacy & Inventory Configuration
+                            </h2>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                Enable pharmacy management, reorder thresholds, and expiration tracking for this clinic
+                            </p>
+                        </div>
+
+                        <form onSubmit={handlePharmacySubmit} className="space-y-6">
+                            {/* Enable Pharmacy Toggle */}
+                            <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20 space-y-2">
+                                <label className="flex items-center gap-3 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={pharmacyForm.data.pharmacy_enabled}
+                                        onChange={(e) => pharmacyForm.setData('pharmacy_enabled', e.target.checked)}
+                                        className="w-4 h-4 rounded text-primary-600 focus:ring-primary-500 border-slate-300 dark:border-slate-700"
+                                    />
+                                    <span className="text-sm font-bold text-slate-900 dark:text-white">
+                                        Enable Pharmacy & Inventory Module
+                                    </span>
+                                </label>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 ml-7">
+                                    When enabled, authorized staff can view and manage clinic stock, receive vendor shipments (GRN), link barcodes, and search the global medicine catalog.
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {/* Default Reorder Level */}
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                        Default Low-Stock Reorder Level (Units)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        max="10000"
+                                        value={pharmacyForm.data.default_reorder_level}
+                                        onChange={(e) => pharmacyForm.setData('default_reorder_level', Number(e.target.value))}
+                                        className="w-full text-xs px-3 py-2 rounded-xl border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                                        required
+                                    />
+                                    <span className="text-[10px] text-slate-400 mt-1 block">
+                                        Stock items falling at or below this threshold are flagged in the Low Stock filter tab.
+                                    </span>
+                                </div>
+
+                                {/* Expiring Soon Threshold Days */}
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                        "Expiring Soon" Threshold (Days)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="7"
+                                        max="365"
+                                        value={pharmacyForm.data.expiring_soon_threshold_days}
+                                        onChange={(e) => pharmacyForm.setData('expiring_soon_threshold_days', Number(e.target.value))}
+                                        className="w-full text-xs px-3 py-2 rounded-xl border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                                        required
+                                    />
+                                    <span className="text-[10px] text-slate-400 mt-1 block">
+                                        Batches expiring within this number of days appear under the Expiring Soon filter.
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                                <button
+                                    type="submit"
+                                    disabled={pharmacyForm.processing}
+                                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary-600 hover:bg-primary-500 text-white font-semibold text-xs shadow-md shadow-primary-600/30"
+                                >
+                                    <Save className="w-3.5 h-3.5" />
+                                    {pharmacyForm.processing ? 'Saving...' : 'Save Pharmacy Settings'}
                                 </button>
                             </div>
                         </form>

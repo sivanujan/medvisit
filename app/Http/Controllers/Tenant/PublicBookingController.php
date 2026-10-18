@@ -26,6 +26,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -232,7 +233,7 @@ class PublicBookingController extends Controller
 
         $sDate = $session->session_date instanceof Carbon ? $session->session_date : Carbon::parse($session->session_date);
 
-        $requireVerification = (bool) ($tenant->require_phone_verification ?? false);
+        $requireVerification = (bool) $tenant->require_phone_verification;
         $allowedChannels = $requireVerification ? $this->verificationService->getAvailableChannels($tenant) : [];
         $verifiedCookie = $request->cookie('medvisit_verified_phone');
         $initialVerifiedPhone = $this->verificationService->verifyCookiePayload($verifiedCookie);
@@ -433,12 +434,34 @@ class PublicBookingController extends Controller
     }
 
     /**
+     * Check if a phone is remembered/verified (e.g. from 180-day retention or signed cookie).
+     */
+    public function checkRememberedPhone(Request $request): JsonResponse
+    {
+        $phone = (string) $request->input('phone', '');
+        $tenant = tenant();
+        $normalized = $this->verificationService->normalizePhone($phone);
+        $cookieToken = $request->cookie('medvisit_verified_phone');
+
+        $isVerified = $this->verificationService->isPhoneVerified($normalized, $tenant, $cookieToken);
+
+        return response()->json([
+            'is_verified' => $isVerified,
+            'phone' => $normalized,
+        ]);
+    }
+
+    /**
      * Step 4 Submit: Atomic Booking Submission (POST /book)
      */
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
         // 1. Honeypot check
         if (! empty($request->input('website_hp'))) {
+            if ($request->wantsJson()) {
+                return response()->json(['message' => 'Spam verification failed.'], 422);
+            }
+
             return redirect()->back()->withErrors([
                 'phone' => 'Spam verification failed. Please try again.',
             ]);
@@ -477,7 +500,7 @@ class PublicBookingController extends Controller
                     ->exists();
 
                 if (! $sessionVerified) {
-                    return redirect()->back()->withErrors([
+                    throw ValidationException::withMessages([
                         'phone' => 'Please verify your mobile phone number before confirming your booking.',
                     ]);
                 }
@@ -634,10 +657,8 @@ class PublicBookingController extends Controller
             }
         }
 
-        $response = redirect("/book/confirmed/{$token->signed_cancel_token}");
         $cookiePayload = $this->verificationService->createCookiePayload($normalizedPhone);
-
-        return $response->withCookie(cookie(
+        $cookie = cookie(
             name: 'medvisit_verified_phone',
             value: $cookiePayload,
             minutes: 60 * 24 * 180,
@@ -645,7 +666,17 @@ class PublicBookingController extends Controller
             domain: null,
             secure: false,
             httpOnly: false
-        ));
+        );
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'status' => 'success',
+                'token' => $token,
+                'redirect' => "/book/confirmed/{$token->signed_cancel_token}",
+            ], 201)->withCookie($cookie);
+        }
+
+        return redirect("/book/confirmed/{$token->signed_cancel_token}")->withCookie($cookie);
     }
 
     /**

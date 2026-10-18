@@ -12,6 +12,10 @@ use App\Http\Controllers\Tenant\DoctorSettlementController;
 use App\Http\Controllers\Tenant\FeeSettingsController;
 use App\Http\Controllers\Tenant\LiveQueueTvController;
 use App\Http\Controllers\Tenant\PatientController;
+use App\Http\Controllers\Tenant\Pharmacy\StockController;
+use App\Http\Controllers\Tenant\Pharmacy\StockImportController;
+use App\Http\Controllers\Tenant\Pharmacy\StockReceiptController;
+use App\Http\Controllers\Tenant\Pharmacy\SupplierController;
 use App\Http\Controllers\Tenant\PublicBookingController;
 use App\Http\Controllers\Tenant\StaffController;
 use App\Http\Controllers\Tenant\TenantAuthenticatedSessionController;
@@ -81,6 +85,10 @@ Route::middleware([
     Route::post('/book/verify/check-code', [PublicBookingController::class, 'verifyPhoneCode'])
         ->middleware('throttle:20,1')
         ->name('tenant.book.verify.check_code');
+
+    Route::get('/book/verify/check-remembered', [PublicBookingController::class, 'checkRememberedPhone'])
+        ->middleware('throttle:60,1')
+        ->name('tenant.book.verify.check_remembered');
 
     Route::get('/book/{slug}', [PublicBookingController::class, 'showDoctor'])
         ->name('tenant.book.doctor');
@@ -320,6 +328,93 @@ Route::middleware([
                 ->name('tenant.settings.billing');
             Route::put('/settings/online-booking', [ClinicSettingsController::class, 'updateOnlineBooking'])
                 ->name('tenant.settings.online_booking');
+            Route::put('/settings/pharmacy', [ClinicSettingsController::class, 'updatePharmacySettings'])
+                ->name('tenant.settings.pharmacy');
+        });
+
+        // 5. Pharmacy & Inventory Module (Requires pharmacy.enabled)
+        Route::middleware(['pharmacy.enabled'])->group(function () {
+            // View / Search Medicines & Receipts
+            Route::middleware(['permission:pharmacy.view'])->group(function () {
+                Route::get('/pharmacy/medicines', [StockController::class, 'index'])
+                    ->name('tenant.pharmacy.medicines');
+                Route::get('/pharmacy/medicines/{medicine}', [StockController::class, 'show'])
+                    ->name('tenant.pharmacy.medicines.show');
+                Route::get('/pharmacy/receipts', [StockReceiptController::class, 'index'])
+                    ->name('tenant.pharmacy.receipts');
+                Route::get('/pharmacy/receipts/{receipt}', [StockReceiptController::class, 'show'])
+                    ->whereNumber('receipt')
+                    ->name('tenant.pharmacy.receipts.show');
+                Route::get('/pharmacy/catalog/search', [StockController::class, 'searchCatalog'])
+                    ->name('tenant.pharmacy.catalog.search');
+                Route::get('/pharmacy/barcodes/{code}', [StockReceiptController::class, 'lookupBarcode'])
+                    ->name('tenant.pharmacy.barcodes.lookup');
+                Route::get('/pharmacy/variants/{variant}/brands', [StockReceiptController::class, 'getVariantBrands'])
+                    ->name('tenant.pharmacy.variants.brands');
+            });
+
+            // Stock Adjustments & Voiding
+            Route::middleware(['permission:pharmacy.adjust_stock'])->group(function () {
+                Route::post('/pharmacy/stock/adjust', [StockController::class, 'adjust'])
+                    ->name('tenant.pharmacy.stock.adjust');
+                Route::post('/pharmacy/batches/{batch}/void', [StockController::class, 'voidBatch'])
+                    ->name('tenant.pharmacy.batches.void');
+                Route::post('/pharmacy/receipts/{receipt}/void', [StockReceiptController::class, 'voidReceipt'])
+                    ->whereNumber('receipt')
+                    ->name('tenant.pharmacy.receipts.void');
+            });
+
+            // Manage Medicines in Stock & Link Barcodes
+            Route::post('/pharmacy/barcodes/link', [StockReceiptController::class, 'linkBarcode'])
+                ->middleware(['permission:pharmacy.manage_medicines|pharmacy.receive_stock'])
+                ->name('tenant.pharmacy.barcodes.link');
+
+            Route::middleware(['permission:pharmacy.manage_medicines'])->group(function () {
+                Route::post('/pharmacy/medicines', [StockController::class, 'store'])
+                    ->name('tenant.pharmacy.medicines.store');
+                Route::put('/pharmacy/medicines/{medicine}', [StockController::class, 'update'])
+                    ->name('tenant.pharmacy.medicines.update');
+                Route::delete('/pharmacy/medicines/{medicine}', [StockController::class, 'destroy'])
+                    ->name('tenant.pharmacy.medicines.destroy');
+                Route::put('/pharmacy/batches/{batch}', [StockController::class, 'updateBatch'])
+                    ->name('tenant.pharmacy.batches.update');
+                Route::post('/pharmacy/medicines/{medicine}/batches', [StockController::class, 'addBatches'])
+                    ->name('tenant.pharmacy.medicines.batches.store');
+                Route::patch('/pharmacy/medicines/{medicine}/toggle', [StockController::class, 'toggleActive'])
+                    ->name('tenant.pharmacy.medicines.toggle');
+            });
+
+            // Receive Stock (GRN)
+            Route::middleware(['permission:pharmacy.receive_stock'])->group(function () {
+                Route::get('/pharmacy/receipts/create', [StockReceiptController::class, 'create'])
+                    ->name('tenant.pharmacy.receipts.create');
+                Route::post('/pharmacy/receipts', [StockReceiptController::class, 'store'])
+                    ->name('tenant.pharmacy.receipts.store');
+            });
+
+            // Suppliers Management
+            Route::middleware(['permission:pharmacy.manage_suppliers'])->group(function () {
+                Route::get('/pharmacy/suppliers', [SupplierController::class, 'index'])
+                    ->name('tenant.pharmacy.suppliers');
+                Route::post('/pharmacy/suppliers', [SupplierController::class, 'store'])
+                    ->name('tenant.pharmacy.suppliers.store');
+                Route::put('/pharmacy/suppliers/{supplier}', [SupplierController::class, 'update'])
+                    ->name('tenant.pharmacy.suppliers.update');
+                Route::patch('/pharmacy/suppliers/{supplier}/toggle', [SupplierController::class, 'toggle'])
+                    ->name('tenant.pharmacy.suppliers.toggle');
+            });
+
+            // Bulk CSV Import
+            Route::middleware(['permission:pharmacy.import'])->group(function () {
+                Route::get('/pharmacy/import', [StockImportController::class, 'index'])
+                    ->name('tenant.pharmacy.import');
+                Route::get('/pharmacy/import/template', [StockImportController::class, 'downloadTemplate'])
+                    ->name('tenant.pharmacy.import.template');
+                Route::post('/pharmacy/import/preview', [StockImportController::class, 'preview'])
+                    ->name('tenant.pharmacy.import.preview');
+                Route::post('/pharmacy/import/confirm', [StockImportController::class, 'confirm'])
+                    ->name('tenant.pharmacy.import.confirm');
+            });
         });
 
         // Legacy / shortcut redirects

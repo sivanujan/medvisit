@@ -42,6 +42,30 @@ export function formatDate(
 }
 
 /**
+ * Format date strictly as DD/MM/YYYY (Sri Lanka standard format).
+ * Avoids timezone skew by parsing YYYY-MM-DD strings directly.
+ */
+export function formatDateDMY(date: string | Date | null | undefined): string {
+    if (!date) return '-';
+
+    if (typeof date === 'string') {
+        const trimmed = date.trim();
+        if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+            const [year, month, day] = trimmed.slice(0, 10).split('-');
+            return `${day}/${month}/${year}`;
+        }
+    }
+
+    const d = typeof date === 'string' ? new Date(date) : date;
+    if (isNaN(d.getTime())) return '-';
+
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+}
+
+/**
  * Format clock time only (e.g. "09:30 AM") in Asia/Colombo.
  */
 export function formatTime(date: string | Date | null | undefined): string {
@@ -57,3 +81,4 @@ export function formatTime(date: string | Date | null | undefined): string {
         timeZone: 'Asia/Colombo',
     }).format(d);
 }
+

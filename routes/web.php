@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SuperAdmin\MedicineCatalogController;
 use App\Http\Controllers\SuperAdmin\OtpAnalyticsController;
 use App\Http\Controllers\Webhooks\WhatsAppWebhookController;
 use Illuminate\Foundation\Application;
@@ -60,6 +61,24 @@ Route::domain('{central_domain}')
 
             Route::get('/super-admin/otp-usage', [OtpAnalyticsController::class, 'index'])
                 ->name('super_admin.otp_usage');
+
+            // Super Admin Global Medicine Catalog & Review Queue
+            Route::middleware(['role:super_admin'])->group(function () {
+                Route::get('/super-admin/medicines', [MedicineCatalogController::class, 'index'])
+                    ->name('super_admin.medicines');
+                Route::post('/super-admin/medicines/rxterms/search', [MedicineCatalogController::class, 'searchRxTerms'])
+                    ->name('super_admin.medicines.rxterms.search');
+                Route::post('/super-admin/medicines/rxterms/import', [MedicineCatalogController::class, 'importRxTerms'])
+                    ->name('super_admin.medicines.rxterms.import');
+                Route::post('/super-admin/medicines/review/{type}/{id}/approve', [MedicineCatalogController::class, 'approve'])
+                    ->name('super_admin.medicines.review.approve');
+                Route::post('/super-admin/medicines/review/{type}/{id}/reject', [MedicineCatalogController::class, 'reject'])
+                    ->name('super_admin.medicines.review.reject');
+                Route::post('/super-admin/medicines/review/merge', [MedicineCatalogController::class, 'merge'])
+                    ->name('super_admin.medicines.review.merge');
+                Route::delete('/super-admin/medicines/{medicine}', [MedicineCatalogController::class, 'destroy'])
+                    ->name('super_admin.medicines.destroy');
+            });
         });
 
         require __DIR__.'/auth.php';

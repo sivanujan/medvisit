@@ -101,12 +101,15 @@ export default function PatientDetails({
     const defaultVisitType = visitTypes.find((v) => v.is_default) || (visitTypes.length > 0 ? visitTypes[0] : null);
 
     const [draftSessionId] = useState<string>(() => 'draft_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now());
-    const [isPhoneVerified, setIsPhoneVerified] = useState<boolean>(!requirePhoneVerification);
+    const [isPhoneVerified, setIsPhoneVerified] = useState<boolean>(() => {
+        if (!requirePhoneVerification) return true;
+        return !!initialVerifiedPhone;
+    });
 
     const { data, setData, post, processing, errors } = useForm({
         doctor_session_id: session.id,
         name: '',
-        phone: '',
+        phone: initialVerifiedPhone || '',
         nic: '',
         email: '',
         city: '',
@@ -362,7 +365,12 @@ export default function PatientDetails({
                                 </label>
                                 <PhoneInput
                                     value={data.phone}
-                                    onChange={(val) => setData('phone', val)}
+                                    onChange={(val) => {
+                                        setData('phone', val);
+                                        if (requirePhoneVerification && isPhoneVerified) {
+                                            setIsPhoneVerified(false);
+                                        }
+                                    }}
                                     placeholder="077 123 4567"
                                     error={errors.phone}
                                     required
@@ -510,7 +518,7 @@ export default function PatientDetails({
                                 {requirePhoneVerification && !isPhoneVerified && (
                                     <div className="flex items-center justify-center gap-1.5 text-xs font-semibold text-amber-800 bg-amber-50/90 py-2.5 px-3 rounded-xl border border-amber-200 mt-2.5">
                                         <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
-                                        <span>Please verify your mobile phone number above to enable booking confirmation.</span>
+                                        <span>Verify your mobile number to continue</span>
                                     </div>
                                 )}
 

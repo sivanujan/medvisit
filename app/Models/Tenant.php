@@ -101,6 +101,20 @@ class Tenant extends BaseTenant
     }
 
     /**
+     * Determine if mobile phone verification is required for public bookings (default true).
+     */
+    public function getRequirePhoneVerificationAttribute(): bool
+    {
+        $val = $this->getAttributeFromArray('require_phone_verification');
+        if ($val === null && isset($this->attributes['data'])) {
+            $data = is_array($this->attributes['data']) ? $this->attributes['data'] : json_decode($this->attributes['data'], true);
+            $val = $data['require_phone_verification'] ?? null;
+        }
+
+        return $val !== null ? (bool) $val : false;
+    }
+
+    /**
      * Build an absolute URL scoped to this tenant's subdomain.
      */
     public function url(string $path = ''): string

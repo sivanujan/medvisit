@@ -60,7 +60,14 @@ class ClinicSettingsController extends Controller
             'platform_available_channels' => config('phone_verification.channels', ['whatsapp', 'textlk']),
         ];
 
-        // 5. Audit Log Viewer with Query Filters
+        // 5. Pharmacy Settings
+        $pharmacySettings = [
+            'pharmacy_enabled' => (bool) ($tenant->pharmacy_enabled ?? false),
+            'default_reorder_level' => (int) ($tenant->pharmacy_default_reorder_level ?? 10),
+            'expiring_soon_threshold_days' => (int) ($tenant->pharmacy_expiring_soon_days ?? 60),
+        ];
+
+        // 6. Audit Log Viewer with Query Filters
         $auditQuery = AuditEvent::with('user')
             ->where('tenant_id', $tenant->id)
             ->latest('created_at');
@@ -114,6 +121,7 @@ class ClinicSettingsController extends Controller
             'sessionDefaults' => $sessionDefaults,
             'billingSettings' => $billingSettings,
             'onlineBookingSettings' => $onlineBookingSettings,
+            'pharmacySettings' => $pharmacySettings,
             'auditLogs' => $auditLogs,
             'availableActions' => $availableActions,
             'filters' => [
@@ -275,5 +283,37 @@ class ClinicSettingsController extends Controller
         ]);
 
         return redirect()->back()->with('success', 'Public online booking settings updated.');
+    }
+
+    /**
+     * Update Pharmacy & Inventory Settings.
+     */
+    public function updatePharmacySettings(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'pharmacy_enabled' => ['required', 'boolean'],
+            'default_reorder_level' => ['required', 'integer', 'min:0', 'max:10000'],
+            'expiring_soon_threshold_days' => ['required', 'integer', 'min:7', 'max:365'],
+        ]);
+
+        $tenant = tenant();
+        $tenant->pharmacy_enabled = (bool) $validated['pharmacy_enabled'];
+        $tenant->pharmacy_default_reorder_level = (int) $validated['default_reorder_level'];
+        $tenant->pharmacy_expiring_soon_days = (int) $validated['expiring_soon_threshold_days'];
+        $tenant->save();
+
+        AuditEvent::create([
+            'tenant_id' => $tenant->id,
+            'user_id' => $request->user()->id,
+            'action' => 'settings.pharmacy_updated',
+            'resource_type' => 'tenant',
+            'resource_id' => $tenant->id,
+            'metadata' => $validated,
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'created_at' => Carbon::now('Asia/Colombo'),
+        ]);
+
+        return redirect()->back()->with('success', 'Pharmacy & inventory settings updated successfully.');
     }
 }

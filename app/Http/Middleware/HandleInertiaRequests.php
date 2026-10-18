@@ -41,6 +41,7 @@ class HandleInertiaRequests extends Middleware
                     'email_verified_at' => $request->user()->email_verified_at,
                     'tenant_id' => $request->user()->tenant_id,
                     'roles' => $request->user()->roles->pluck('name')->all(),
+                    'permissions' => $request->user()->getAllPermissions()->pluck('name')->all(),
                 ] : null,
             ],
             'tenant' => $tenant ? [
@@ -60,6 +61,9 @@ class HandleInertiaRequests extends Middleware
                 'logo_url' => $tenant->logo_url ?? null,
                 'whatsapp_number' => $tenant->whatsapp_number ?? null,
                 'opening_hours' => $tenant->opening_hours ?? null,
+                'pharmacy_enabled' => (bool) ($tenant->pharmacy_enabled ?? false),
+                'pharmacy_default_reorder_level' => (int) ($tenant->pharmacy_default_reorder_level ?? 10),
+                'pharmacy_expiring_soon_days' => (int) ($tenant->pharmacy_expiring_soon_days ?? 60),
             ] : null,
             'flash' => [
                 'status' => session('status'),

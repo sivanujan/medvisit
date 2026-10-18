@@ -1,0 +1,436 @@
+Paracetamol
+Amoxicillin
+Metformin
+Amlodipine
+Atorvastatin
+Losartan
+Omeprazole
+Salbutamol
+Cetirizine
+Ciprofloxacin
+Azithromycin
+Diclofenac
+Ibuprofen
+Mefenamic Acid
+Gliclazide
+Glimepiride
+Sitagliptin
+Vildagliptin
+Empagliflozin
+Dapagliflozin
+Insulin
+Enalapril
+Ramipril
+Telmisartan
+Candesartan
+Valsartan
+Hydrochlorothiazide
+Indapamide
+Furosemide
+Spironolactone
+Bisoprolol
+Carvedilol
+Atenolol
+Metoprolol
+Nebivolol
+Diltiazem
+Verapamil
+Clopidogrel
+Aspirin
+Rivaroxaban
+Warfarin
+Rosuvastatin
+Fenofibrate
+Gemfibrozil
+Pantoprazole
+Esomeprazole
+Rabeprazole
+Lansoprazole
+Famotidine
+Ranitidine
+Domperidone
+Metoclopramide
+Ondansetron
+Hyoscine
+Mebeverine
+Dicyclomine
+Loperamide
+Oral Rehydration Salts
+Lactulose
+Bisacodyl
+Senna
+Liquid Paraffin
+Amoxicillin and Clavulanate
+Cephalexin
+Cefuroxime
+Cefixime
+Ceftriaxone
+Cefotaxime
+Clarithromycin
+Erythromycin
+Doxycycline
+Levofloxacin
+Metronidazole
+Co-trimoxazole
+Nitrofurantoin
+Flucloxacillin
+Cloxacillin
+Gentamicin
+Amikacin
+Fluconazole
+Itraconazole
+Ketoconazole
+Griseofulvin
+Terbinafine
+Nystatin
+Acyclovir
+Valacyclovir
+Oseltamivir
+Albendazole
+Mebendazole
+Ivermectin
+Chloroquine
+Loratadine
+Fexofenadine
+Levocetirizine
+Chlorpheniramine
+Promethazine
+Desloratadine
+Montelukast
+Fluticasone
+Budesonide
+Beclomethasone
+Ipratropium
+Tiotropium
+Theophylline
+Aminophylline
+Salmeterol
+Formoterol
+Dextromethorphan
+Bromhexine
+Ambroxol
+Guaifenesin
+Codeine
+Tramadol
+Morphine
+Gabapentin
+Pregabalin
+Amitriptyline
+Fluoxetine
+Sertraline
+Escitalopram
+Venlafaxine
+Duloxetine
+Diazepam
+Lorazepam
+Alprazolam
+Clonazepam
+Zolpidem
+Carbamazepine
+Sodium Valproate
+Phenytoin
+Levetiracetam
+Lamotrigine
+Topiramate
+Haloperidol
+Risperidone
+Olanzapine
+Quetiapine
+Levodopa and Carbidopa
+Trihexyphenidyl
+Betahistine
+Cinnarizine
+Flunarizine
+Prochlorperazine
+Thyroxine
+Levothyroxine
+Carbimazole
+Propylthiouracil
+Prednisolone
+Dexamethasone
+Hydrocortisone
+Methylprednisolone
+Betamethasone
+Triamcinolone
+Mometasone
+Clobetasol
+Fusidic Acid
+Mupirocin
+Silver Sulfadiazine
+Clotrimazole
+Miconazole
+Permethrin
+Benzyl Benzoate
+Chlorhexidine
+Povidone Iodine
+Ferrous Sulfate
+Ferrous Fumarate
+Iron Polymaltose
+Folic Acid
+Vitamin B Complex
+Thiamine
+Pyridoxine
+Cyanocobalamin
+Ascorbic Acid
+Vitamin D3
+Cholecalciferol
+Calcium Carbonate
+Calcium Lactate
+Zinc Sulfate
+Potassium Chloride
+Magnesium Sulfate
+Allopurinol
+Febuxostat
+Colchicine
+Methotrexate
+Hydroxychloroquine
+Sulfasalazine
+Leflunomide
+Tamsulosin
+Alfuzosin
+Finasteride
+Dutasteride
+Sildenafil
+Tadalafil
+Tolterodine
+Oxybutynin
+Timolol
+Brimonidine
+Dorzolamide
+Latanoprost
+Travoprost
+Bimatoprost
+Ciprofloxacin Eye Drops
+Tobramycin
+Gentamicin Eye Drops
+Chloramphenicol Eye Drops
+Olopatadine
+Ketotifen
+Sodium Cromoglycate
+Artificial Tears
+Carboxymethylcellulose
+Hypromellose
+Xylometazoline
+Oxymetazoline
+Normal Saline Nasal Spray
+Triamcinolone Dental Paste
+Benzydamine
+Lidocaine
+Bupivacaine
+Silver Nitrate
+Potassium Permanganate
+Calamine
+Liquid Antacid
+Magnesium Hydroxide
+Aluminium Hydroxide
+Simethicone
+Sucralfate
+Ursodeoxycholic Acid
+Silymarin
+Spiramycin
+Tinidazole
+Secnidazole
+Artemether and Lumefantrine
+Primaquine
+Quinine
+Moxifloxacin
+Ofloxacin
+Norfloxacin
+Nalidixic Acid
+Cefpodoxime
+Cefdinir
+Lincomycin
+Clindamycin
+Vancomycin
+Teicoplanin
+Linezolid
+Meropenem
+Imipenem and Cilastatin
+Colistin
+Amphotericin B
+Caspofulvin
+Voriconazole
+Ribavirin
+Tenofovir
+Lamivudine
+Efavirenz
+Dolutegravir
+Sofosbuvir
+Daclatasvir
+Praziquantel
+Diethylcarbamazine
+Niclosamide
+Pyrimethamine
+Dapsone
+Rifampicin
+Isoniazid
+Pyrazinamide
+Ethambutol
+Streptomycin
+Acarbose
+Miglitol
+Pioglitazone
+Rosiglitazone
+Repaglinide
+Nateglinide
+Canagliflozin
+Semaglutide
+Liraglutide
+Dulaglutide
+Hydralazine
+Minoxidil
+Methyldopa
+Clonidine
+Moxonidine
+Prazosin
+Doxazosin
+Isosorbide Dinitrate
+Isosorbide Mononitrate
+Nitroglycerin
+Nicorandil
+Trimetazidine
+Ivabradine
+Ranolazine
+Digoxin
+Amiodarone
+Sotalol
+Flecainide
+Propafenone
+Adenosine
+Atropine
+Adrenaline
+Epinephrine
+Noradrenaline
+Norepinephrine
+Dopamine
+Dobutamine
+Milrinone
+Heparin
+Enoxaparin
+Dalteparin
+Fondaparinux
+Apixaban
+Dabigatran
+Tranexamic Acid
+Phytomenadione
+Protamine
+Streptokinase
+Alteplase
+Urokinase
+Simvastatin
+Pravastatin
+Fluvastatin
+Pitavastatin
+Ezetimibe
+Cholestyramine
+Bempedoic Acid
+Nicotinic Acid
+Fish Oil
+Omega-3 Acid Ethyl Esters
+Vitamin A
+Vitamin E
+Vitamin K
+Biotin
+Calcium Dobesilate
+Flavoxate
+Solifenacin
+Mirabegron
+Baclofen
+Tizanidine
+Cyclobenzaprine
+Chlorzoxazone
+Methocarbamol
+Dantrolene
+Orphenadrine
+Paroxetine
+Citalopram
+Fluvoxamine
+Mirtazapine
+Bupropion
+Trazodone
+Imipramine
+Clomipramine
+Dosulepin
+Nortriptyline
+Aripiprazole
+Ziprasidone
+Clozapine
+Amisulpride
+Paliperidone
+Fluphenazine
+Flupentixol
+Zuclopenthixol
+Lithium Carbonate
+Sodium Divalproex
+Gabapentin Enacarbil
+Vigabatrin
+Tiagabine
+Zonisamide
+Ethosuximide
+Primidone
+Piracetam
+Citicoline
+Donepezil
+Rivastigmine
+Galantamine
+Memantine
+Pramipexole
+Ropinirole
+Rotigotine
+Selegiline
+Rasagiline
+Entacapone
+Amantadine
+Sumatriptan
+Zolmitriptan
+Rizatriptan
+Eletriptan
+Ergotamine
+Flunarizine
+Propranolol
+Sodium Bicarbonate
+Sodium Citrate
+Potassium Citrate
+Dextrose
+Mannitol
+Human Albumin
+Hydrocolloid Dressing
+Polyvidone
+Paraffin Gauze
+Framycetin
+Neomycin
+Polymyxin B
+Gramicidin
+Centella Asiatica
+Collagenase
+Miconazole and Hydrocortisone
+Clotrimazole and Betamethasone
+Fusidic Acid and Betamethasone
+Betamethasone and Salicylic Acid
+Coal Tar
+Salicylic Acid
+Benzoyl Peroxide
+Adapalene
+Tretinoin
+Isotretinoin
+Azelaic Acid
+Calcipotriol
+Tacrolimus
+Pimecrolimus
+Minoxidil Topical
+Finasteride Topical
+Ketoconazole Shampoo
+Selenium Sulfide
+Zinc Pyrithione
+Dimethicone
+White Soft Paraffin
+Emulsifying Ointment
+Aqueous Cream
+Urea Cream
+Lactic Acid
+Ammonium Lactate
+Crotamiton
+Lindane
+Malathion
+Gamma Benzene Hexachloride
+Calamine Lotion

@@ -10,6 +10,7 @@ use App\Models\DoctorSession;
 use App\Models\SessionTemplate;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\VerifiedPhone;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
@@ -43,6 +44,13 @@ class PublicCalendlyBookingTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'name' => 'Admin Siva',
             'email' => 'admin@sivacli.lk',
+        ]);
+
+        VerifiedPhone::create([
+            'phone' => '+94771234567',
+            'channel' => 'whatsapp',
+            'verified_at' => now(),
+            'expires_at' => now()->addDays(180),
         ]);
     }
 

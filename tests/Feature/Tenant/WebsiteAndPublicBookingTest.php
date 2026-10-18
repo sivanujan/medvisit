@@ -8,6 +8,7 @@ use App\Models\Doctor;
 use App\Models\DoctorSession;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\VerifiedPhone;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -39,6 +40,13 @@ class WebsiteAndPublicBookingTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'name' => 'Admin User',
             'email' => 'admin@suwasetha.lk',
+        ]);
+
+        VerifiedPhone::create([
+            'phone' => '+94771234567',
+            'channel' => 'whatsapp',
+            'verified_at' => now(),
+            'expires_at' => now()->addDays(180),
         ]);
     }
 

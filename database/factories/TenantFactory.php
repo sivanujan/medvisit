@@ -27,6 +27,8 @@ class TenantFactory extends Factory
             'plan' => 'trial',
             'status' => 'trial',
             'trial_ends_at' => now()->addDays(14),
+            'require_phone_verification' => false,
+            'phone_verification_methods' => ['whatsapp', 'textlk'],
             'data' => [
                 'clinic_type' => 'medical centre',
                 'district' => 'Colombo',
