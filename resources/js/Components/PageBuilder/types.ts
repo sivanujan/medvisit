@@ -103,4 +103,6 @@ export interface PageSummary {
     has_unpublished_changes: boolean;
     updated_at: string | null;
     sort_order: number;
+    seo_title: string | null;
+    seo_description: string | null;
 }

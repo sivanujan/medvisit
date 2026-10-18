@@ -15,9 +15,8 @@ type Errors = Record<string, string[]>;
 export default function PageSettingsDialog({ page, onClose, onSaved }: Props) {
     const [title, setTitle] = useState(page.title);
     const [slug, setSlug] = useState(page.slug);
-    const [seoTitle, setSeoTitle] = useState('');
-    const [seoDescription, setSeoDescription] = useState('');
-    const [seoTouched, setSeoTouched] = useState({ title: false, description: false });
+    const [seoTitle, setSeoTitle] = useState(page.seo_title ?? '');
+    const [seoDescription, setSeoDescription] = useState(page.seo_description ?? '');
     const [saving, setSaving] = useState(false);
     const [errors, setErrors] = useState<Errors>({});
 
@@ -32,11 +31,12 @@ export default function PageSettingsDialog({ page, onClose, onSaved }: Props) {
         setSaving(true);
         setErrors({});
         try {
-            // SEO fields are not part of the page summary, so only send what the admin typed.
-            const payload: Record<string, string | null> = { title: title.trim(), slug };
-            if (seoTouched.title) payload.seo_title = seoTitle.trim() || null;
-            if (seoTouched.description) payload.seo_description = seoDescription.trim() || null;
-            const res = await axios.patch<PageSummary>(`/website/pages/${page.id}`, payload);
+            const res = await axios.patch<PageSummary>(`/website/pages/${page.id}`, {
+                title: title.trim(),
+                slug,
+                seo_title: seoTitle.trim() || null,
+                seo_description: seoDescription.trim() || null,
+            });
             onSaved(res.data);
         } catch (err: any) {
             if (err?.response?.status === 422) {
@@ -90,11 +90,7 @@ export default function PageSettingsDialog({ page, onClose, onSaved }: Props) {
                     <input
                         className={inputClass}
                         value={seoTitle}
-                        placeholder="Leave blank to keep the current value"
-                        onChange={(e) => {
-                            setSeoTitle(e.target.value);
-                            setSeoTouched((t) => ({ ...t, title: true }));
-                        }}
+                        onChange={(e) => setSeoTitle(e.target.value)}
                     />
                     {errors.seo_title && <p className="mt-1 text-xs text-red-600">{errors.seo_title[0]}</p>}
                 </div>
@@ -105,11 +101,7 @@ export default function PageSettingsDialog({ page, onClose, onSaved }: Props) {
                         className={inputClass}
                         rows={3}
                         value={seoDescription}
-                        placeholder="Leave blank to keep the current value"
-                        onChange={(e) => {
-                            setSeoDescription(e.target.value);
-                            setSeoTouched((t) => ({ ...t, description: true }));
-                        }}
+                        onChange={(e) => setSeoDescription(e.target.value)}
                     />
                     {errors.seo_description && (
                         <p className="mt-1 text-xs text-red-600">{errors.seo_description[0]}</p>

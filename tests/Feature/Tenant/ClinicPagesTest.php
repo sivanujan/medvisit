@@ -185,14 +185,16 @@ class ClinicPagesTest extends TestCase
 
     public function test_index_returns_list_shape(): void
     {
-        $this->makePage('home', ['is_homepage' => true, 'is_published' => true, 'published_at' => now()->subHour()]);
+        $this->makePage('home', ['is_homepage' => true, 'is_published' => true, 'published_at' => now()->subHour(), 'seo_title' => 'Home SEO', 'seo_description' => 'Home meta']);
 
         $this->actingAs($this->adminA)->getJson($this->urlA('/website/pages'))
             ->assertOk()
+            ->assertJsonPath('pages.0.seo_title', 'Home SEO')
+            ->assertJsonPath('pages.0.seo_description', 'Home meta')
             ->assertJsonPath('pages.0.slug', 'home')
             ->assertJsonPath('pages.0.url', '/')
             ->assertJsonPath('pages.0.has_unpublished_changes', true)
-            ->assertJsonStructure(['pages' => [['id', 'title', 'slug', 'url', 'is_homepage', 'is_published', 'has_unpublished_changes', 'updated_at', 'sort_order']]]);
+            ->assertJsonStructure(['pages' => [['id', 'title', 'slug', 'url', 'is_homepage', 'is_published', 'has_unpublished_changes', 'updated_at', 'sort_order', 'seo_title', 'seo_description']]]);
     }
 
     public function test_admin_can_update_page(): void
@@ -207,6 +209,19 @@ class ClinicPagesTest extends TestCase
         $this->actingAs($this->adminA)
             ->patchJson($this->urlA("/website/pages/{$about->id}"), ['slug' => 'taken'])
             ->assertStatus(422)->assertJsonValidationErrors('slug');
+    }
+
+    public function test_empty_seo_title_clears_it(): void
+    {
+        $about = $this->makePage('about', ['seo_title' => 'Old', 'seo_description' => 'Desc']);
+
+        $this->actingAs($this->adminA)
+            ->patchJson($this->urlA("/website/pages/{$about->id}"), ['seo_title' => null, 'seo_description' => null])
+            ->assertOk()->assertJsonPath('seo_title', null)->assertJsonPath('seo_description', null);
+
+        $this->actingAs($this->adminA)
+            ->patchJson($this->urlA("/website/pages/{$about->id}"), ['seo_title' => ''])
+            ->assertOk()->assertJsonPath('seo_title', null);
     }
 
     public function test_receptionist_cannot_manage_pages(): void

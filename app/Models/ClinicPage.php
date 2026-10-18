@@ -85,6 +85,8 @@ class ClinicPage extends Model
             'has_unpublished_changes' => $this->hasUnpublishedChanges(),
             'updated_at' => $this->updated_at?->toIso8601String(),
             'sort_order' => $this->sort_order,
+            'seo_title' => $this->seo_title,
+            'seo_description' => $this->seo_description,
         ];
     }
 
