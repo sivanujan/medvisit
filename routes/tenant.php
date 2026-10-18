@@ -7,11 +7,14 @@ use App\Http\Controllers\Tenant\BookingTokenController;
 use App\Http\Controllers\Tenant\ChannelingCalendarController;
 use App\Http\Controllers\Tenant\ClinicSettingsController;
 use App\Http\Controllers\Tenant\ClinicWebsiteController;
+use App\Http\Controllers\Tenant\Doctor\ConsultationController;
+use App\Http\Controllers\Tenant\Doctor\PrescriptionTemplateController;
 use App\Http\Controllers\Tenant\DoctorController;
 use App\Http\Controllers\Tenant\DoctorSettlementController;
 use App\Http\Controllers\Tenant\FeeSettingsController;
 use App\Http\Controllers\Tenant\LiveQueueTvController;
 use App\Http\Controllers\Tenant\PatientController;
+use App\Http\Controllers\Tenant\Pharmacy\DispenseController;
 use App\Http\Controllers\Tenant\Pharmacy\StockController;
 use App\Http\Controllers\Tenant\Pharmacy\StockImportController;
 use App\Http\Controllers\Tenant\Pharmacy\StockReceiptController;
@@ -179,6 +182,32 @@ Route::middleware([
             ->name('tenant.patients.update');
         Route::get('/patients/{patient}/history', [PatientController::class, 'history'])
             ->name('tenant.patients.history');
+
+        // Doctor Consultation & Prescriptions
+        Route::get('/doctor/consultation/{token}', [ConsultationController::class, 'show'])
+            ->name('tenant.doctor.consultation');
+        Route::post('/doctor/consultation/{token}/draft', [ConsultationController::class, 'saveDraft'])
+            ->name('tenant.doctor.consultation.draft');
+        Route::post('/doctor/consultation/{token}/finalize', [ConsultationController::class, 'finalize'])
+            ->name('tenant.doctor.consultation.finalize');
+        Route::post('/doctor/consultation/{token}/cancel', [ConsultationController::class, 'cancel'])
+            ->name('tenant.doctor.consultation.cancel');
+        Route::post('/doctor/consultation/{token}/addendum', [ConsultationController::class, 'addendum'])
+            ->name('tenant.doctor.consultation.addendum');
+        Route::post('/doctor/consultation/{token}/repeat-last', [ConsultationController::class, 'repeatLast'])
+            ->name('tenant.doctor.consultation.repeat_last');
+        Route::get('/doctor/prescriptions/{prescription}/print', [ConsultationController::class, 'print'])
+            ->name('tenant.doctor.prescriptions.print');
+        Route::get('/doctor/patients/{patient}/history', [ConsultationController::class, 'patientHistory'])
+            ->name('tenant.doctor.patients.history');
+
+        // Prescription Templates
+        Route::get('/doctor/templates', [PrescriptionTemplateController::class, 'index'])
+            ->name('tenant.doctor.templates');
+        Route::post('/doctor/templates', [PrescriptionTemplateController::class, 'store'])
+            ->name('tenant.doctor.templates.store');
+        Route::delete('/doctor/templates/{template}', [PrescriptionTemplateController::class, 'destroy'])
+            ->name('tenant.doctor.templates.destroy');
 
         Route::get('/queue/tv', [LiveQueueTvController::class, 'index'])
             ->name('tenant.queue.tv');
@@ -414,6 +443,23 @@ Route::middleware([
                     ->name('tenant.pharmacy.import.preview');
                 Route::post('/pharmacy/import/confirm', [StockImportController::class, 'confirm'])
                     ->name('tenant.pharmacy.import.confirm');
+            });
+
+            // Dispensing
+            Route::middleware(['permission:pharmacy.dispense|pharmacy.view'])->group(function () {
+                Route::get('/pharmacy/dispense', [DispenseController::class, 'index'])
+                    ->name('tenant.pharmacy.dispense');
+                Route::get('/pharmacy/dispense/history', [DispenseController::class, 'history'])
+                    ->name('tenant.pharmacy.dispense.history');
+                Route::get('/pharmacy/dispense/{prescription}', [DispenseController::class, 'show'])
+                    ->name('tenant.pharmacy.dispense.show');
+            });
+
+            Route::middleware(['permission:pharmacy.dispense'])->group(function () {
+                Route::post('/pharmacy/dispense/{prescription}/confirm', [DispenseController::class, 'confirm'])
+                    ->name('tenant.pharmacy.dispense.confirm');
+                Route::post('/pharmacy/dispense/{prescription}/undo', [DispenseController::class, 'undo'])
+                    ->name('tenant.pharmacy.dispense.undo');
             });
         });
 

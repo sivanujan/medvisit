@@ -48,7 +48,18 @@ interface BillItem {
     refund_reason: string | null;
     refunded_at: string | null;
     created_at_formatted: string;
-    receipt_lines?: Array<{ name: string; amount: number; recipient?: string }>;
+    receipt_lines?: Array<{
+        name: string;
+        type?: string;
+        quantity?: number | null;
+        unit_price_lkr?: number | null;
+        unit_price_formatted?: string | null;
+        amount?: number;
+        amount_lkr?: number;
+        amount_cents?: number;
+        amount_formatted?: string;
+        recipient?: string;
+    }>;
     doctor_payout_amount?: number;
     visit_type_name?: string | null;
     source_levels?: Record<string, string>;
@@ -856,7 +867,7 @@ export default function BillingIndex({
                                         activeReceipt.receipt_lines.map((line: any, idx: number) => (
                                             <div key={idx} className="flex justify-between pt-1 border-t border-slate-100 first:border-t first:border-slate-200">
                                                 <span>{line.name} <span className="text-[10px] text-slate-400 font-normal">({line.recipient || 'clinic'})</span>:</span>
-                                                <span>Rs. {(line.amount / 100).toFixed(2)}</span>
+                                                <span>{line.amount_formatted || `Rs. ${(line.amount_lkr ?? ((line.amount ?? 0) / 100)).toFixed(2)}`}</span>
                                             </div>
                                         ))
                                     ) : (
@@ -945,7 +956,7 @@ export default function BillingIndex({
                                                         {line.name} <span className="text-[10px] text-slate-400 uppercase font-semibold">({line.recipient || 'clinic'})</span>
                                                     </td>
                                                     <td className="py-2.5 text-right font-medium">
-                                                        Rs. {(line.amount / 100).toFixed(2)}
+                                                        {line.amount_formatted || `Rs. ${(line.amount_lkr ?? ((line.amount ?? 0) / 100)).toFixed(2)}`}
                                                     </td>
                                                 </tr>
                                             ))

@@ -46,4 +46,9 @@ class Patient extends Model
     {
         return $this->hasMany(Bill::class);
     }
+
+    public function prescriptions(): HasMany
+    {
+        return $this->hasMany(Prescription::class)->latest('id');
+    }
 }

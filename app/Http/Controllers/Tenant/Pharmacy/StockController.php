@@ -326,10 +326,13 @@ class StockController extends Controller
     public function searchCatalog(Request $request): JsonResponse
     {
         $tenantId = tenant('id');
-        $query = trim((string) $request->input('q', ''));
+        $query = trim((string) ($request->input('q') ?? $request->input('query') ?? ''));
 
         if ($query === '') {
-            return response()->json(['results' => []]);
+            return response()->json([
+                'results' => [],
+                'data' => [],
+            ]);
         }
 
         $term = '%'.strtolower($query).'%';
@@ -422,8 +425,11 @@ class StockController extends Controller
                 return $items;
             });
 
+        $combined = $clinicResults->concat($catalogResults)->take(25)->values();
+
         return response()->json([
-            'results' => $clinicResults->concat($catalogResults)->take(25)->values(),
+            'results' => $combined,
+            'data' => $combined,
         ]);
     }
 

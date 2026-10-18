@@ -24,6 +24,7 @@ import {
     MapPin,
     Phone,
     Pill,
+    AlertCircle,
 } from 'lucide-react';
 
 interface AuditLog {
@@ -75,6 +76,11 @@ interface Props {
         pharmacy_enabled: boolean;
         default_reorder_level: number;
         expiring_soon_threshold_days: number;
+        stock_reduction_mode?: 'dispense' | 'consultation';
+        prescription_print_enabled?: boolean;
+        prescription_print_language?: 'en' | 'ta' | 'si';
+        prescription_print_show_doctor_reg?: boolean;
+        prescription_print_show_diagnosis?: boolean;
     };
     auditLogs: AuditLog[];
     availableActions: string[];
@@ -137,12 +143,18 @@ export default function SettingsIndex({
         phone_verification_methods: onlineBookingSettings.phone_verification_methods ?? ['whatsapp', 'textlk'],
     });
 
-    // Pharmacy Settings Form
+    // Pharmacy & Prescription Settings Form
     const pharmacyForm = useForm({
         pharmacy_enabled: pharmacySettings?.pharmacy_enabled ?? false,
         default_reorder_level: pharmacySettings?.default_reorder_level ?? 10,
         expiring_soon_threshold_days: pharmacySettings?.expiring_soon_threshold_days ?? 60,
+        stock_reduction_mode: pharmacySettings?.stock_reduction_mode ?? 'dispense',
+        prescription_print_enabled: pharmacySettings?.prescription_print_enabled ?? false,
+        prescription_print_language: pharmacySettings?.prescription_print_language ?? 'en',
+        prescription_print_show_doctor_reg: pharmacySettings?.prescription_print_show_doctor_reg ?? true,
+        prescription_print_show_diagnosis: pharmacySettings?.prescription_print_show_diagnosis ?? false,
     });
+    const [showModeChangeModal, setShowModeChangeModal] = useState(false);
 
     const toggleVerificationMethod = (channel: string) => {
         const current = onlineForm.data.phone_verification_methods || [];
@@ -820,10 +832,10 @@ export default function SettingsIndex({
                         <div>
                             <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                                 <Pill className="w-5 h-5 text-primary-600" />
-                                Pharmacy & Inventory Configuration
+                                Pharmacy & Prescription Configuration
                             </h2>
                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                Enable pharmacy management, reorder thresholds, and expiration tracking for this clinic
+                                Configure stock reduction workflow, low-stock reorder thresholds, and prescription print settings.
                             </p>
                         </div>
 
@@ -842,8 +854,70 @@ export default function SettingsIndex({
                                     </span>
                                 </label>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 ml-7">
-                                    When enabled, authorized staff can view and manage clinic stock, receive vendor shipments (GRN), link barcodes, and search the global medicine catalog.
+                                    When enabled, authorized staff can view clinic stock, dispense prescriptions, receive vendor shipments (GRN), and link barcodes. When disabled, prescriptions still work but medicines are marked as "Buy outside".
                                 </p>
+                            </div>
+
+                            {/* Stock Reduction Workflow */}
+                            <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20 space-y-3">
+                                <div>
+                                    <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                                        When should medicine stock reduce?
+                                    </span>
+                                    <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                                        Choose how prescriptions deduct inventory and attach medicine charges to patient bills.
+                                    </span>
+                                </div>
+
+                                <div className="space-y-2 pt-1">
+                                    <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 cursor-pointer hover:border-primary-400 transition-colors">
+                                        <input
+                                            type="radio"
+                                            name="stock_reduction_mode"
+                                            value="dispense"
+                                            checked={pharmacyForm.data.stock_reduction_mode === 'dispense'}
+                                            onChange={() => {
+                                                if (pharmacyForm.data.stock_reduction_mode !== 'dispense') {
+                                                    setShowModeChangeModal(true);
+                                                }
+                                                pharmacyForm.setData('stock_reduction_mode', 'dispense');
+                                            }}
+                                            className="mt-0.5 text-primary-600 focus:ring-primary-500"
+                                        />
+                                        <div>
+                                            <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                                                When Pharmacy Dispenses (Recommended)
+                                            </span>
+                                            <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                                                Two-step flow: Doctor writes prescription &rarr; Patient visits Pharmacy &rarr; Dispenser confirms stock allocation &rarr; Inventory deducted and bill recalculated.
+                                            </span>
+                                        </div>
+                                    </label>
+
+                                    <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 cursor-pointer hover:border-primary-400 transition-colors">
+                                        <input
+                                            type="radio"
+                                            name="stock_reduction_mode"
+                                            value="consultation"
+                                            checked={pharmacyForm.data.stock_reduction_mode === 'consultation'}
+                                            onChange={() => {
+                                                if (pharmacyForm.data.stock_reduction_mode !== 'consultation') {
+                                                    setShowModeChangeModal(true);
+                                                }
+                                                pharmacyForm.setData('stock_reduction_mode', 'consultation');
+                                            }}
+                                            className="mt-0.5 text-primary-600 focus:ring-primary-500"
+                                        />
+                                        <div>
+                                            <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                                                Immediately When Doctor Finalizes (Single-step)
+                                            </span>
+                                            <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                                                For clinics where the doctor dispenses directly from consultation room. Stock deducted and bill lines added immediately upon finalization.
+                                            </span>
+                                        </div>
+                                    </label>
+                                </div>
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -886,6 +960,70 @@ export default function SettingsIndex({
                                 </div>
                             </div>
 
+                            {/* Prescription Printing Section */}
+                            <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-850 space-y-4">
+                                <div className="flex items-center justify-between gap-4">
+                                    <div>
+                                        <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                                            Enable Prescription Printing (A5 Format)
+                                        </span>
+                                        <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                                            Allows doctors and staff to print A5 prescription slips with clinic header, dosage timings, and doctor stamp box.
+                                        </span>
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        checked={pharmacyForm.data.prescription_print_enabled}
+                                        onChange={(e) => pharmacyForm.setData('prescription_print_enabled', e.target.checked)}
+                                        className="w-5 h-5 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                                    />
+                                </div>
+
+                                {pharmacyForm.data.prescription_print_enabled && (
+                                    <div className="pt-3 border-t border-slate-200/60 dark:border-slate-800 space-y-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                                Default Print Language
+                                            </label>
+                                            <select
+                                                value={pharmacyForm.data.prescription_print_language}
+                                                onChange={(e) => pharmacyForm.setData('prescription_print_language', e.target.value as any)}
+                                                className="w-full sm:w-64 text-xs px-3 py-2 rounded-xl border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                                            >
+                                                <option value="en">English</option>
+                                                <option value="ta">Tamil / தமிழ்</option>
+                                                <option value="si">Sinhala / සිංහල</option>
+                                            </select>
+                                            <span className="text-[10px] text-slate-400 mt-1 block">
+                                                Translates timings (e.g., After meals / சாப்பாட்டிற்குப் பின் / ආහාර ගැනීමෙන් පසු) and frequency labels.
+                                            </span>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="flex items-center gap-2.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={pharmacyForm.data.prescription_print_show_doctor_reg}
+                                                    onChange={(e) => pharmacyForm.setData('prescription_print_show_doctor_reg', e.target.checked)}
+                                                    className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                                                />
+                                                <span>Print Doctor SLMC Registration Number</span>
+                                            </label>
+
+                                            <label className="flex items-center gap-2.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={pharmacyForm.data.prescription_print_show_diagnosis}
+                                                    onChange={(e) => pharmacyForm.setData('prescription_print_show_diagnosis', e.target.checked)}
+                                                    className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                                                />
+                                                <span>Print Diagnosis & Chief Complaint on Slip</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
                             <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
                                 <button
                                     type="submit"
@@ -893,10 +1031,34 @@ export default function SettingsIndex({
                                     className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary-600 hover:bg-primary-500 text-white font-semibold text-xs shadow-md shadow-primary-600/30"
                                 >
                                     <Save className="w-3.5 h-3.5" />
-                                    {pharmacyForm.processing ? 'Saving...' : 'Save Pharmacy Settings'}
+                                    {pharmacyForm.processing ? 'Saving...' : 'Save Pharmacy & Prescription Settings'}
                                 </button>
                             </div>
                         </form>
+
+                        {/* Confirmation modal for mode change */}
+                        {showModeChangeModal && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+                                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-white/10 p-6 max-w-md w-full shadow-2xl space-y-4">
+                                    <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                        <AlertCircle className="w-5 h-5 text-amber-500" />
+                                        <span>Confirm Stock Reduction Workflow Change</span>
+                                    </h3>
+                                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                                        Switching between <strong>When Pharmacy Dispenses</strong> and <strong>When Doctor Finalizes</strong> applies only to prescriptions created from now on. Any existing pending prescriptions will remain on their original workflow to preserve batch accuracy.
+                                    </p>
+                                    <div className="flex justify-end gap-2 pt-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowModeChangeModal(false)}
+                                            className="px-4 py-2 rounded-xl text-xs font-semibold bg-primary-600 text-white hover:bg-primary-500"
+                                        >
+                                            I Understand
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 

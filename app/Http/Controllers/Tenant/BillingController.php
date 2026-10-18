@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Tenant;
 use App\Http\Controllers\Controller;
 use App\Models\Bill;
 use App\Models\Doctor;
+use App\Services\Billing\BillCalculator;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -200,7 +201,16 @@ class BillingController extends Controller
             'refunded_at' => $b->refunded_at?->format('M d, Y h:i A'),
             'created_at_formatted' => $b->created_at->format('M d, Y h:i A'),
             'fee_snapshot' => $snapshot,
-            'receipt_lines' => $snapshot['lines'] ?? [],
+            'receipt_lines' => app(BillCalculator::class)->formatCombinedReceiptLines($b),
+            'bill_items' => $b->items->map(fn ($item) => [
+                'id' => $item->id,
+                'description' => $item->description,
+                'quantity' => $item->quantity,
+                'unit_price_lkr' => round($item->unit_price_cents / 100, 2),
+                'total_price_lkr' => round($item->total_price_cents / 100, 2),
+                'unit_price_formatted' => $item->formatted_unit_price,
+                'total_price_formatted' => $item->formatted_total_price,
+            ]),
         ];
     }
 }

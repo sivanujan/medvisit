@@ -366,6 +366,14 @@ export default function TodayQueueIndex({
                                 <div className="mt-6 pt-4 border-t border-slate-200/70 dark:border-white/10 flex flex-wrap items-center gap-2">
                                     {nowServingToken?.status === 'in_consultation' ? (
                                         <>
+                                            <Link
+                                                href={`/doctor/consultation/${nowServingToken.id}`}
+                                                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-600/20 transition-all hover:-translate-y-0.5"
+                                            >
+                                                <Stethoscope className="w-4 h-4" />
+                                                <span>Consultation & Rx</span>
+                                            </Link>
+
                                             <button
                                                 type="button"
                                                 onClick={completeAndNext}
@@ -633,6 +641,14 @@ export default function TodayQueueIndex({
                                                     </td>
                                                     <td className="py-2.5 px-3 text-right">
                                                         <div className="flex items-center justify-end gap-1.5">
+                                                            <Link
+                                                                href={`/doctor/consultation/${t.id}`}
+                                                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-300 transition-colors"
+                                                                title="Open Consultation & Prescription"
+                                                            >
+                                                                <Stethoscope className="w-3 h-3" />
+                                                                <span>Rx</span>
+                                                            </Link>
                                                             {t.status === 'booked' && (
                                                                 <button
                                                                     type="button"

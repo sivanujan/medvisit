@@ -124,4 +124,47 @@ class StaffAndTeamTest extends TestCase
         $demoteResponse->assertSessionHasErrors('role');
         $this->assertTrue($this->adminUser->hasRole('clinic_admin'));
     }
+
+    public function test_invitee_with_email_existing_in_another_tenant_can_accept_invitation(): void
+    {
+        $otherTenant = Tenant::factory()->active()->create([
+            'id' => 'otherclinic',
+            'name' => 'Other Clinic',
+            'subdomain' => 'otherclinic',
+        ]);
+
+        // User already exists in other clinic
+        User::factory()->doctor()->create([
+            'tenant_id' => $otherTenant->id,
+            'email' => 'shared.doc@medvisit.lk',
+            'is_active' => true,
+        ]);
+
+        // Invite this same doctor to our tenant
+        $invitation = StaffInvitation::create([
+            'tenant_id' => $this->tenant->id,
+            'email' => 'shared.doc@medvisit.lk',
+            'name' => 'Dr. Shared Doctor',
+            'role' => 'doctor',
+            'token' => 'shared-doctor-token-789',
+            'expires_at' => now()->addDays(7),
+        ]);
+
+        $acceptResponse = $this->post("http://medisuite.{$this->baseDomain}/invitation/accept/shared-doctor-token-789", [
+            'name' => 'Dr. Shared Doctor',
+            'password' => 'SecurePass123!@#',
+            'password_confirmation' => 'SecurePass123!@#',
+        ]);
+
+        $acceptResponse->assertRedirect(route('tenant.dashboard'));
+
+        // Both accounts exist in their respective tenants
+        $tenantUser = User::where('tenant_id', $this->tenant->id)->where('email', 'shared.doc@medvisit.lk')->first();
+        $this->assertNotNull($tenantUser);
+        $this->assertTrue($tenantUser->hasRole('doctor'));
+
+        $otherUser = User::withoutGlobalScopes()->where('tenant_id', $otherTenant->id)->where('email', 'shared.doc@medvisit.lk')->first();
+        $this->assertNotNull($otherUser);
+        $this->assertNotEquals($tenantUser->id, $otherUser->id);
+    }
 }

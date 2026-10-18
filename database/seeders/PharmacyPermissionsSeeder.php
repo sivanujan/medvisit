@@ -23,6 +23,11 @@ class PharmacyPermissionsSeeder extends Seeder
             'pharmacy.manage_suppliers',
             'pharmacy.import',
             'catalog.manage',
+            'prescriptions.create',
+            'prescriptions.view',
+            'prescriptions.view_history',
+            'pharmacy.dispense',
+            'templates.manage_shared',
         ];
 
         foreach ($permissions as $permissionName) {
@@ -43,12 +48,29 @@ class PharmacyPermissionsSeeder extends Seeder
             'pharmacy.adjust_stock',
             'pharmacy.manage_suppliers',
             'pharmacy.import',
+            'pharmacy.dispense',
+            'prescriptions.view',
+        ];
+
+        $doctorPermissions = [
+            'pharmacy.view',
+            'prescriptions.create',
+            'prescriptions.view',
+            'prescriptions.view_history',
+        ];
+
+        $clinicAdminPermissions = [
+            ...$pharmacyPermissions,
+            'prescriptions.create',
+            'prescriptions.view',
+            'prescriptions.view_history',
+            'templates.manage_shared',
         ];
 
         $superAdmin->givePermissionTo(Permission::all());
-        $clinicAdmin->givePermissionTo($pharmacyPermissions);
+        $clinicAdmin->givePermissionTo($clinicAdminPermissions);
         $pharmacist->givePermissionTo($pharmacyPermissions);
-        $doctor->givePermissionTo('pharmacy.view');
+        $doctor->givePermissionTo($doctorPermissions);
         $receptionist->givePermissionTo('pharmacy.view');
     }
 }

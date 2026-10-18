@@ -7,6 +7,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Stancl\Tenancy\Database\Concerns\BelongsToTenant;
 
 class Bill extends Model
@@ -89,6 +90,11 @@ class Bill extends Model
     public function settlement(): BelongsTo
     {
         return $this->belongsTo(DoctorSettlement::class, 'doctor_settlement_id');
+    }
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(BillItem::class);
     }
 
     public function getFormattedTotalAttribute(): string

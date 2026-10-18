@@ -25,6 +25,8 @@ import {
     Boxes,
     Pill,
     FileSpreadsheet,
+    ClipboardList,
+    History,
 } from 'lucide-react';
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import ThemeToggle from '@/Components/Common/ThemeToggle';
@@ -169,6 +171,12 @@ export default function AuthenticatedLayout({
                     icon: Stethoscope,
                     visible: isClinicAdmin || isReceptionist,
                 },
+                {
+                    name: 'Prescription Templates',
+                    href: '/doctor/templates',
+                    icon: ClipboardList,
+                    visible: isDoctor || isClinicAdmin,
+                },
             ],
         },
         {
@@ -228,6 +236,18 @@ export default function AuthenticatedLayout({
                   {
                       title: 'PHARMACY & INVENTORY',
                       items: [
+                          {
+                              name: 'Dispense Counter',
+                              href: '/pharmacy/dispense',
+                              icon: Pill,
+                              visible: can('pharmacy.dispense') || can('pharmacy.view'),
+                          },
+                          {
+                              name: 'Dispense History',
+                              href: '/pharmacy/dispense/history',
+                              icon: History,
+                              visible: can('pharmacy.dispense') || can('pharmacy.view'),
+                          },
                           {
                               name: 'Medicines & Stock',
                               href: '/pharmacy/medicines',

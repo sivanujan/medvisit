@@ -49,6 +49,7 @@ interface PendingInvitation {
     expires_at_formatted: string;
     doctor_name: string | null;
     created_at_formatted: string;
+    accept_url?: string;
 }
 
 interface DoctorOption {
@@ -125,6 +126,15 @@ export default function StaffIndex({
         if (confirm(`Revoke invitation for ${inv.email}?`)) {
             router.delete(`/staff/invitations/${inv.id}`, { preserveScroll: true });
         }
+    };
+
+    const [copiedId, setCopiedId] = useState<number | null>(null);
+
+    const copyInviteUrl = (inv: PendingInvitation) => {
+        if (!inv.accept_url) return;
+        navigator.clipboard.writeText(inv.accept_url);
+        setCopiedId(inv.id);
+        setTimeout(() => setCopiedId(null), 2500);
     };
 
     const toggleStatus = (u: StaffUser) => {
@@ -404,6 +414,27 @@ export default function StaffIndex({
 
                                                 <td className="py-3 px-4 text-right">
                                                     <div className="flex items-center justify-end gap-1.5">
+                                                        {inv.accept_url && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => copyInviteUrl(inv)}
+                                                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-primary hover:bg-primary-50 dark:hover:bg-primary-950/30 transition-colors"
+                                                                title="Copy Invitation Link"
+                                                            >
+                                                                {copiedId === inv.id ? (
+                                                                    <>
+                                                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                                                                        <span className="text-emerald-500 font-bold">Copied!</span>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <LinkIcon className="w-3.5 h-3.5" />
+                                                                        <span>Copy Link</span>
+                                                                    </>
+                                                                )}
+                                                            </button>
+                                                        )}
+
                                                         <button
                                                             type="button"
                                                             onClick={() => resendInvite(inv)}

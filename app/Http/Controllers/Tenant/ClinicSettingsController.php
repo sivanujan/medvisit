@@ -60,11 +60,16 @@ class ClinicSettingsController extends Controller
             'platform_available_channels' => config('phone_verification.channels', ['whatsapp', 'textlk']),
         ];
 
-        // 5. Pharmacy Settings
+        // 5. Pharmacy & Prescription Settings
         $pharmacySettings = [
             'pharmacy_enabled' => (bool) ($tenant->pharmacy_enabled ?? false),
             'default_reorder_level' => (int) ($tenant->pharmacy_default_reorder_level ?? 10),
             'expiring_soon_threshold_days' => (int) ($tenant->pharmacy_expiring_soon_days ?? 60),
+            'stock_reduction_mode' => $tenant->pharmacy_stock_reduction_mode ?? 'dispense',
+            'prescription_print_enabled' => (bool) ($tenant->prescription_print_enabled ?? false),
+            'prescription_print_language' => $tenant->prescription_print_language ?? 'en',
+            'prescription_print_show_doctor_reg' => (bool) ($tenant->prescription_print_show_doctor_reg ?? true),
+            'prescription_print_show_diagnosis' => (bool) ($tenant->prescription_print_show_diagnosis ?? false),
         ];
 
         // 6. Audit Log Viewer with Query Filters
@@ -294,12 +299,32 @@ class ClinicSettingsController extends Controller
             'pharmacy_enabled' => ['required', 'boolean'],
             'default_reorder_level' => ['required', 'integer', 'min:0', 'max:10000'],
             'expiring_soon_threshold_days' => ['required', 'integer', 'min:7', 'max:365'],
+            'stock_reduction_mode' => ['nullable', 'string', 'in:dispense,consultation'],
+            'prescription_print_enabled' => ['nullable', 'boolean'],
+            'prescription_print_language' => ['nullable', 'string', 'in:en,ta,si'],
+            'prescription_print_show_doctor_reg' => ['nullable', 'boolean'],
+            'prescription_print_show_diagnosis' => ['nullable', 'boolean'],
         ]);
 
         $tenant = tenant();
         $tenant->pharmacy_enabled = (bool) $validated['pharmacy_enabled'];
         $tenant->pharmacy_default_reorder_level = (int) $validated['default_reorder_level'];
         $tenant->pharmacy_expiring_soon_days = (int) $validated['expiring_soon_threshold_days'];
+        if (isset($validated['stock_reduction_mode'])) {
+            $tenant->pharmacy_stock_reduction_mode = $validated['stock_reduction_mode'];
+        }
+        if (isset($validated['prescription_print_enabled'])) {
+            $tenant->prescription_print_enabled = (bool) $validated['prescription_print_enabled'];
+        }
+        if (isset($validated['prescription_print_language'])) {
+            $tenant->prescription_print_language = $validated['prescription_print_language'];
+        }
+        if (isset($validated['prescription_print_show_doctor_reg'])) {
+            $tenant->prescription_print_show_doctor_reg = (bool) $validated['prescription_print_show_doctor_reg'];
+        }
+        if (isset($validated['prescription_print_show_diagnosis'])) {
+            $tenant->prescription_print_show_diagnosis = (bool) $validated['prescription_print_show_diagnosis'];
+        }
         $tenant->save();
 
         AuditEvent::create([
@@ -314,6 +339,6 @@ class ClinicSettingsController extends Controller
             'created_at' => Carbon::now('Asia/Colombo'),
         ]);
 
-        return redirect()->back()->with('success', 'Pharmacy & inventory settings updated successfully.');
+        return redirect()->back()->with('success', 'Pharmacy & prescription settings updated successfully.');
     }
 }

@@ -55,6 +55,12 @@ class StaffController extends Controller
                 ];
             });
 
+        $baseDomain = config('medvisit.base_domain', 'medvisit.localhost');
+        $subdomain = tenant('subdomain');
+        $port = $request->getPort();
+        $portSuffix = ($port && ! in_array($port, [80, 443])) ? ":{$port}" : '';
+        $scheme = $request->getScheme();
+
         // Fetch pending invitations
         $pendingInvitations = StaffInvitation::where('tenant_id', $tenantId)
             ->whereNull('accepted_at')
@@ -71,6 +77,7 @@ class StaffController extends Controller
                 'expires_at_formatted' => $inv->expires_at->format('M d, Y'),
                 'doctor_name' => $inv->doctor ? trim(($inv->doctor->title ?? 'Dr.').' '.$inv->doctor->name) : null,
                 'created_at_formatted' => $inv->created_at->format('M d, Y'),
+                'accept_url' => "{$scheme}://{$subdomain}.{$baseDomain}{$portSuffix}/invitation/accept/{$inv->token}",
             ]);
 
         // Unlinked doctor profiles
@@ -140,14 +147,22 @@ class StaffController extends Controller
         // Build invitation accept URL on clinic subdomain
         $baseDomain = config('medvisit.base_domain', 'medvisit.localhost');
         $subdomain = tenant('subdomain');
-        $acceptUrl = "http://{$subdomain}.{$baseDomain}:8000/invitation/accept/{$token}";
+        $port = $request->getPort();
+        $portSuffix = ($port && ! in_array($port, [80, 443])) ? ":{$port}" : '';
+        $scheme = $request->getScheme();
+        $acceptUrl = "{$scheme}://{$subdomain}.{$baseDomain}{$portSuffix}/invitation/accept/{$token}";
         $clinicName = ucwords((string) (tenant('name') ?? 'MedVisit Clinic'));
 
+        $mailSent = true;
         try {
             Mail::to($invitation->email)->send(new StaffInviteMail($invitation, $acceptUrl, $clinicName));
         } catch (\Throwable $e) {
-            // Log mail exception if SMTP offline
             report($e);
+            $mailSent = false;
+        }
+
+        if (! $mailSent) {
+            return redirect()->back()->with('warning', "Invitation created for {$invitation->email}, but email dispatch encountered an issue. You can copy the invitation link directly from the list.");
         }
 
         return redirect()->back()->with('success', "Invitation sent to {$invitation->email}.");
@@ -156,7 +171,7 @@ class StaffController extends Controller
     /**
      * Resend an existing invitation.
      */
-    public function resendInvite(StaffInvitation $invitation): RedirectResponse
+    public function resendInvite(Request $request, StaffInvitation $invitation): RedirectResponse
     {
         $invitation->update([
             'token' => Str::random(48),
@@ -165,13 +180,22 @@ class StaffController extends Controller
 
         $baseDomain = config('medvisit.base_domain', 'medvisit.localhost');
         $subdomain = tenant('subdomain');
-        $acceptUrl = "http://{$subdomain}.{$baseDomain}:8000/invitation/accept/{$invitation->token}";
+        $port = $request->getPort();
+        $portSuffix = ($port && ! in_array($port, [80, 443])) ? ":{$port}" : '';
+        $scheme = $request->getScheme();
+        $acceptUrl = "{$scheme}://{$subdomain}.{$baseDomain}{$portSuffix}/invitation/accept/{$invitation->token}";
         $clinicName = ucwords((string) (tenant('name') ?? 'MedVisit Clinic'));
 
+        $mailSent = true;
         try {
             Mail::to($invitation->email)->send(new StaffInviteMail($invitation, $acceptUrl, $clinicName));
         } catch (\Throwable $e) {
             report($e);
+            $mailSent = false;
+        }
+
+        if (! $mailSent) {
+            return redirect()->back()->with('warning', "Invitation refreshed for {$invitation->email}, but email dispatch encountered an issue. You can copy the invitation link directly from the list.");
         }
 
         return redirect()->back()->with('success', "Invitation resent to {$invitation->email}.");
@@ -299,16 +323,29 @@ class StaffController extends Controller
             'password' => ['required', 'confirmed', Password::defaults()],
         ]);
 
-        $user = User::create([
-            'tenant_id' => $invitation->tenant_id,
-            'name' => $validated['name'],
-            'email' => $invitation->email,
-            'password' => Hash::make($validated['password']),
-            'email_verified_at' => now(),
-            'is_active' => true,
-        ]);
+        $user = User::where('tenant_id', $invitation->tenant_id)
+            ->where('email', $invitation->email)
+            ->first();
 
-        $user->assignRole($invitation->role);
+        if ($user) {
+            $user->update([
+                'name' => $validated['name'],
+                'password' => Hash::make($validated['password']),
+                'email_verified_at' => $user->email_verified_at ?? now(),
+                'is_active' => true,
+            ]);
+        } else {
+            $user = User::create([
+                'tenant_id' => $invitation->tenant_id,
+                'name' => $validated['name'],
+                'email' => $invitation->email,
+                'password' => Hash::make($validated['password']),
+                'email_verified_at' => now(),
+                'is_active' => true,
+            ]);
+        }
+
+        $user->syncRoles([$invitation->role]);
 
         // If doctor linkage was specified
         if ($invitation->doctor_id) {

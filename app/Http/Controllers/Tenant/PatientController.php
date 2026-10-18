@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Tenant;
 use App\Http\Controllers\Controller;
 use App\Models\AuditEvent;
 use App\Models\Patient;
+use App\Models\Prescription;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -204,6 +205,30 @@ class PatientController extends Controller
                 'created_at_formatted' => $t->created_at->format('M d, Y h:i A'),
             ]);
 
+        $prescriptions = $patient->prescriptions()
+            ->with(['doctor', 'items'])
+            ->whereIn('status', [
+                Prescription::STATUS_FINALIZED,
+                Prescription::STATUS_PARTIALLY_DISPENSED,
+                Prescription::STATUS_DISPENSED,
+            ])
+            ->latest('finalized_at')
+            ->get()
+            ->map(fn ($p) => [
+                'id' => $p->id,
+                'prescription_number' => $p->prescription_number,
+                'date' => $p->finalized_at?->format('d/m/Y') ?? $p->created_at->format('d/m/Y'),
+                'doctor_name' => $p->doctor ? trim(($p->doctor->title ?? 'Dr.').' '.$p->doctor->name) : 'Doctor',
+                'diagnosis' => $p->diagnosis,
+                'items' => $p->items->map(fn ($it) => [
+                    'display_name' => $it->display_name,
+                    'dose' => $it->dose_display,
+                    'frequency' => $it->frequency,
+                    'timing' => $it->timing,
+                    'duration_days' => $it->duration_days,
+                ]),
+            ]);
+
         return response()->json([
             'patient' => [
                 'id' => $patient->id,
@@ -218,6 +243,7 @@ class PatientController extends Controller
                 'notes' => $patient->notes,
             ],
             'visits' => $tokens,
+            'prescriptions' => $prescriptions,
         ]);
     }
 }

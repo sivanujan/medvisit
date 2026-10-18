@@ -103,6 +103,16 @@ class Doctor extends Model
         return $this->hasMany(DoctorLeave::class);
     }
 
+    public function prescriptions(): HasMany
+    {
+        return $this->hasMany(Prescription::class);
+    }
+
+    public function prescriptionTemplates(): HasMany
+    {
+        return $this->hasMany(PrescriptionTemplate::class);
+    }
+
     public function getFormattedFeeAttribute(): string
     {
         $totalCents = $this->doctor_fee + $this->clinic_fee;
