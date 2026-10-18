@@ -293,6 +293,41 @@ class VisualPageBuilderTest extends TestCase
         $this->assertSame('<p>Page one live</p>', $page1->refresh()->published_html);
     }
 
+    public function test_publish_strips_style_breakout_from_css(): void
+    {
+        $page = $this->homepageA();
+
+        $this->actingAs($this->adminA)
+            ->postJson($this->builderUrl("/{$page->id}/publish"), [
+                'html' => '<p>x</p>',
+                'css' => '#a{color:red}</style><script>alert(1)</script>',
+            ])
+            ->assertOk();
+
+        $page->refresh();
+        $this->assertStringContainsString('#a{color:red}', $page->published_css);
+        $this->assertStringNotContainsString('</style', $page->published_css);
+        $this->assertStringNotContainsString('<script', $page->published_css);
+        $this->assertStringNotContainsString('</style', $page->css);
+        $this->assertStringNotContainsString('<script', $page->css);
+    }
+
+    public function test_draft_save_strips_style_breakout_from_css(): void
+    {
+        $page = $this->homepageA();
+
+        $this->actingAs($this->adminA)
+            ->postJson($this->builderUrl("/{$page->id}/save"), [
+                'html' => '<p>x</p>',
+                'css' => '#a{color:red}< / STYLE ><ScRipt>alert(1)</ScRipt><!-- x -->#b{background:url(javascript:alert(1))}',
+            ])
+            ->assertOk();
+
+        $css = $page->refresh()->css;
+        $this->assertStringContainsString('#a{color:red}', $css);
+        $this->assertDoesNotMatchRegularExpression('/<\s*\/?\s*(style|script)|<!--|-->|javascript:/i', $css);
+    }
+
     public function test_draft_save_keeps_published_at(): void
     {
         $page = $this->homepageA();

@@ -215,6 +215,17 @@ class HtmlSanitizer
         $css = preg_replace('/expression\s*\([^)]+\)/i', '', $css) ?? '';
         $css = preg_replace('/-moz-binding\s*:[^;]+;/i', '', $css) ?? '';
 
+        // Strip tokens that could break out of an inline <style> element.
+        // Loop until stable so removal cannot splice a new token together.
+        do {
+            $before = $css;
+            $css = preg_replace(
+                '/<\s*\/?\s*(?:style|script)|<!--|-->|javascript\s*:/i',
+                '',
+                $css
+            ) ?? '';
+        } while ($css !== $before);
+
         return trim($css);
     }
 }
