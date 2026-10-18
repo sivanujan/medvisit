@@ -152,10 +152,6 @@ function PageBuilderInner({
 
     // Page settings state
     const [pageTheme, setPageTheme] = useState(page.theme_preset || 'medvisit-teal');
-    const [seoTitle, setSeoTitle] = useState(page.seo_title || `${tenant.name} - Specialist Channeling`);
-    const [seoDescription, setSeoDescription] = useState(
-        page.seo_description || `Book doctor channeling sessions online at ${tenant.name}.`
-    );
 
     // Theme Presets for Clinic
     const themePresets = [
@@ -376,14 +372,17 @@ function PageBuilderInner({
                 p.id === summary.id ? summary : summary.is_homepage ? { ...p, is_homepage: false } : p
             )
         );
-        setSeoTitle(summary.seo_title || `${tenant.name} - Specialist Channeling`);
-        setSeoDescription(summary.seo_description || `Book doctor channeling sessions online at ${tenant.name}.`);
 
-        // Keep stored fallback URLs of menu links to this page current
+        // Keep stored fallback URLs of menu links to this page current (needs a save to persist)
+        const stale = (links: MenuLink[] | undefined) =>
+            !!links?.some((l) => l.page_id === summary.id && l.url !== summary.url);
         const refresh = <T extends MenuLink>(links: T[] | undefined) =>
             links?.map((l) => (l.page_id === summary.id ? { ...l, url: summary.url } : l));
-        setHeaderConfig((prev) => ({ ...prev, menu_items: refresh(prev.menu_items) }));
-        setFooterConfig((prev) => ({ ...prev, quick_links: refresh(prev.quick_links) }));
+        if (stale(headerConfig.menu_items) || stale(footerConfig.quick_links)) {
+            setHeaderConfig((prev) => ({ ...prev, menu_items: refresh(prev.menu_items) }));
+            setFooterConfig((prev) => ({ ...prev, quick_links: refresh(prev.quick_links) }));
+            setIsDirty(true);
+        }
     };
 
     // Load Ready-Made Templates
@@ -427,8 +426,6 @@ function PageBuilderInner({
                     html,
                     css,
                     theme_preset: pageTheme,
-                    seo_title: seoTitle,
-                    seo_description: seoDescription,
                     header_config: headerConfig,
                     footer_config: footerConfig,
                 }),
@@ -815,38 +812,6 @@ function PageBuilderInner({
                                         </div>
                                     </div>
                                 ))}
-                            </div>
-                        </div>
-
-                        <div className="pt-2 border-t border-white/10 space-y-3">
-                            <div>
-                                <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                                    SEO Page Title
-                                </label>
-                                <input
-                                    type="text"
-                                    value={seoTitle}
-                                    onChange={(e) => {
-                                        setSeoTitle(e.target.value);
-                                        setIsDirty(true);
-                                    }}
-                                    className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-3 py-1.5 focus:border-teal-500"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                                    SEO Meta Description
-                                </label>
-                                <textarea
-                                    rows={3}
-                                    value={seoDescription}
-                                    onChange={(e) => {
-                                        setSeoDescription(e.target.value);
-                                        setIsDirty(true);
-                                    }}
-                                    className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-3 py-1.5 focus:border-teal-500"
-                                />
                             </div>
                         </div>
                     </div>
