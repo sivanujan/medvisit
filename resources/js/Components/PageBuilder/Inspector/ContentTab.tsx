@@ -11,7 +11,11 @@ import IconListContent from './content/IconListContent';
 import FaqContent from './content/FaqContent';
 import IconContent from './content/IconContent';
 import ContainerContent from './content/ContainerContent';
-import type { ContentPanelProps } from './content/types';
+import DoctorsContent from './content/DoctorsContent';
+import SessionsContent from './content/SessionsContent';
+import BookTokenContent from './content/BookTokenContent';
+import AnnouncementContent from './content/AnnouncementContent';
+import type { ClinicData, ContentPanelProps } from './content/types';
 import type { WidgetKind } from '../lib/widgetKinds';
 
 interface ContentTabProps extends InspectorTabProps {
@@ -19,6 +23,7 @@ interface ContentTabProps extends InspectorTabProps {
     selectedTagName: string;
     onOpenMedia: (currentValue: string, onPick?: (url: string) => void) => void;
     onOpenStyle?: () => void;
+    clinicData?: ClinicData;
 }
 
 // Content panel for each widget kind; kinds without one show only the Element section.
@@ -33,6 +38,10 @@ const PANELS: Partial<Record<WidgetKind, React.ComponentType<ContentPanelProps>>
     faq: FaqContent,
     icon: IconContent,
     container: ContainerContent,
+    doctors: DoctorsContent,
+    sessions: SessionsContent,
+    'book-token': BookTokenContent,
+    announcement: AnnouncementContent,
 };
 
 export default function ContentTab({
@@ -42,6 +51,7 @@ export default function ContentTab({
     setIsDirty,
     onOpenMedia,
     onOpenStyle,
+    clinicData,
 }: ContentTabProps) {
     const { kind, label } = describeComponent(selectedComponent);
     const Panel = selectedComponent ? PANELS[kind] : undefined;
@@ -67,6 +77,7 @@ export default function ContentTab({
                     setIsDirty={setIsDirty}
                     onOpenMedia={onOpenMedia}
                     onOpenStyle={onOpenStyle}
+                    clinicData={clinicData}
                 />
             )}
 

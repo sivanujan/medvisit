@@ -2,6 +2,7 @@ import React from 'react';
 import { Sliders, Copy, Trash2 } from 'lucide-react';
 import type { InspectorTabName, TabBaseProps } from '../types';
 import ContentTab from './ContentTab';
+import type { ClinicData } from './content/types';
 import StyleTab from './StyleTab';
 import AdvancedTab from './AdvancedTab';
 
@@ -47,6 +48,7 @@ interface InspectorProps extends TabBaseProps {
     setSelectedComponent: (component: any) => void;
     setIsDirty: (dirty: boolean) => void;
     onOpenMedia: (currentValue: string, onPick?: (url: string) => void) => void;
+    clinicData?: ClinicData;
 }
 
 export default function Inspector({
@@ -59,6 +61,7 @@ export default function Inspector({
     setSelectedComponent,
     setIsDirty,
     onOpenMedia,
+    clinicData,
 }: InspectorProps) {
     return (
         <aside className="w-72 bg-slate-950 border-l border-white/10 flex flex-col flex-shrink-0 z-20">
@@ -193,6 +196,7 @@ export default function Inspector({
                             selectedTagName={selectedTagName}
                             onOpenMedia={onOpenMedia}
                             onOpenStyle={() => setInspectorTab('style')}
+                            clinicData={clinicData}
                         />
 
                         <StyleTab

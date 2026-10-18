@@ -984,6 +984,7 @@ function PageBuilderInner({
                 <KitContext.Provider value={kit}>
                     <Inspector
                         editor={editor}
+                        clinicData={{ doctors, sessions: upcomingSessions }}
                         selectedComponent={selectedComponent}
                         selectedTagName={selectedTagName}
                         selectedWidgetName={selectedWidgetName}

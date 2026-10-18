@@ -117,3 +117,40 @@ test('toMapEmbedUrl encodes the place and clamps zoom', () => {
     assert.equal(toMapEmbedUrl('Colombo 07', 25), 'https://www.google.com/maps?q=Colombo%2007&z=20&output=embed');
     assert.equal(toMapEmbedUrl('Kandy', 0), 'https://www.google.com/maps?q=Kandy&z=1&output=embed');
 });
+
+import { renderDoctorsHtml, renderSessionsHtml } from '../../../resources/js/Components/PageBuilder/lib/dynamicWidgets.ts';
+
+const doctorList = [1, 2, 3, 4, 5].map((i) => ({ id: i, name: `Dr. Person ${i}`, specialty: 'Physician', doctor_fee: 250000, clinic_fee: 50000 }));
+
+test('renderDoctorsHtml respects the limit', () => {
+    const html = renderDoctorsHtml(doctorList, { limit: 3, layout: 'grid', showFee: true });
+    assert.equal((html.match(/Dr\. Person/g) || []).length, 3);
+    assert.match(html, /repeat\(3, 1fr\)/);
+    assert.match(html, /Rs\. 3,000\.00/);
+});
+
+test('renderDoctorsHtml hides fees and switches to list layout', () => {
+    const html = renderDoctorsHtml(doctorList, { limit: 2, layout: 'list', showFee: false });
+    assert.doesNotMatch(html, /Rs\./);
+    assert.match(html, /grid-template-columns: 1fr/);
+});
+
+test('renderDoctorsHtml escapes doctor names', () => {
+    const html = renderDoctorsHtml([{ id: 9, name: '<b>X</b>', specialty: 'A & B' }], { limit: 3, layout: 'grid', showFee: false });
+    assert.match(html, /&lt;b&gt;X&lt;\/b&gt;/);
+    assert.match(html, /A &amp; B/);
+});
+
+test('renderSessionsHtml filters by days ahead and max', () => {
+    const sessions = [
+        { id: 1, doctor: { name: 'Dr. A', specialty: 'S' }, session_date: '2026-10-20', start_time: '16:30:00', room_number: 'Suite 1' },
+        { id: 2, doctor: { name: 'Dr. B', specialty: 'S' }, session_date: '2026-10-22', start_time: '09:00:00' },
+        { id: 3, doctor: { name: 'Dr. C', specialty: 'S' }, session_date: '2026-10-30', start_time: '10:00:00' },
+    ];
+    const week = renderSessionsHtml(sessions, { daysAhead: 7, max: 20, today: '2026-10-19' });
+    assert.match(week, /Dr\. A/);
+    assert.match(week, /Dr\. B/);
+    assert.doesNotMatch(week, /Dr\. C/);
+    const two = renderSessionsHtml(sessions, { daysAhead: 14, max: 2, today: '2026-10-19' });
+    assert.equal((two.match(/<tr/g) || []).length, 2);
+});
