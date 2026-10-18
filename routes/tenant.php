@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Tenant\BillingController;
 use App\Http\Controllers\Tenant\BookingTokenController;
 use App\Http\Controllers\Tenant\ChannelingCalendarController;
+use App\Http\Controllers\Tenant\ClinicPageController;
 use App\Http\Controllers\Tenant\ClinicSettingsController;
 use App\Http\Controllers\Tenant\ClinicWebsiteController;
 use App\Http\Controllers\Tenant\Doctor\ConsultationController;
@@ -20,6 +21,7 @@ use App\Http\Controllers\Tenant\Pharmacy\StockImportController;
 use App\Http\Controllers\Tenant\Pharmacy\StockReceiptController;
 use App\Http\Controllers\Tenant\Pharmacy\SupplierController;
 use App\Http\Controllers\Tenant\PublicBookingController;
+use App\Http\Controllers\Tenant\SiteKitController;
 use App\Http\Controllers\Tenant\StaffController;
 use App\Http\Controllers\Tenant\TenantAuthenticatedSessionController;
 use App\Http\Controllers\Tenant\TenantDashboardController;
@@ -57,8 +59,9 @@ Route::middleware([
     Route::get('/', [ClinicWebsiteController::class, 'publicHome'])
         ->name('tenant.home');
 
-    Route::get('/preview', [ClinicWebsiteController::class, 'previewHome'])
-        ->name('tenant.preview');
+    Route::get('/p/{slug}', [ClinicWebsiteController::class, 'publicPage'])
+        ->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*')
+        ->name('tenant.page');
 
     // 2. Tenant Public Landing & Calendly-Style Online Booking Flow
     Route::get('/book', [PublicBookingController::class, 'index'])
@@ -276,6 +279,13 @@ Route::middleware([
 
         // Administration routes: Clinic Admin Only (Doctor & Receptionist restricted -> 403)
         Route::middleware(['role:clinic_admin|super_admin'])->group(function () {
+            // Staff-only draft previews of public pages
+            Route::get('/preview', [ClinicWebsiteController::class, 'previewHome'])
+                ->name('tenant.preview');
+            Route::get('/preview/p/{slug}', [ClinicWebsiteController::class, 'previewPage'])
+                ->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*')
+                ->name('tenant.preview.page');
+
             Route::post('/billing/payouts', [DoctorSettlementController::class, 'store'])
                 ->name('tenant.settlements.store');
             Route::post('/billing/payouts/disburse', [DoctorSettlementController::class, 'disburse'])
@@ -311,18 +321,12 @@ Route::middleware([
                 ->name('tenant.website.publish');
             Route::put('/website/theme', [ClinicWebsiteController::class, 'updateTheme'])
                 ->name('tenant.website.theme');
+            Route::get('/website/kit', [SiteKitController::class, 'show'])
+                ->name('tenant.website.kit');
+            Route::put('/website/kit', [SiteKitController::class, 'update'])
+                ->name('tenant.website.kit.update');
 
             // Visual Page Builder & Media Library
-            Route::get('/website/builder', [ClinicWebsiteController::class, 'showBuilder'])
-                ->name('tenant.website.builder');
-            Route::post('/website/builder/save', [ClinicWebsiteController::class, 'saveBuilder'])
-                ->name('tenant.website.builder.save');
-            Route::post('/website/builder/publish', [ClinicWebsiteController::class, 'publishBuilder'])
-                ->name('tenant.website.builder.publish');
-            Route::post('/website/builder/revert/{revision}', [ClinicWebsiteController::class, 'revertRevision'])
-                ->name('tenant.website.builder.revert');
-            Route::get('/website/builder/revisions', [ClinicWebsiteController::class, 'listRevisions'])
-                ->name('tenant.website.builder.revisions');
             Route::get('/website/builder/media', [ClinicWebsiteController::class, 'listMedia'])
                 ->name('tenant.website.builder.media');
             Route::post('/website/builder/media/upload', [ClinicWebsiteController::class, 'uploadMedia'])
@@ -331,6 +335,40 @@ Route::middleware([
                 ->name('tenant.website.builder.media.delete');
             Route::patch('/website/builder/media/{asset}', [ClinicWebsiteController::class, 'updateMedia'])
                 ->name('tenant.website.builder.media.update');
+
+            Route::get('/website/builder/{page?}', [ClinicWebsiteController::class, 'showBuilder'])
+                ->whereNumber('page')
+                ->name('tenant.website.builder');
+            Route::post('/website/builder/{page}/save', [ClinicWebsiteController::class, 'saveBuilder'])
+                ->whereNumber('page')
+                ->name('tenant.website.builder.save');
+            Route::post('/website/builder/{page}/publish', [ClinicWebsiteController::class, 'publishBuilder'])
+                ->whereNumber('page')
+                ->name('tenant.website.builder.publish');
+            Route::get('/website/builder/{page}/revisions', [ClinicWebsiteController::class, 'listRevisions'])
+                ->whereNumber('page')
+                ->name('tenant.website.builder.revisions');
+            Route::post('/website/builder/{page}/revert/{revision}', [ClinicWebsiteController::class, 'revertRevision'])
+                ->whereNumber(['page', 'revision'])
+                ->name('tenant.website.builder.revert');
+
+            // Multi-page management (JSON API)
+            Route::get('/website/pages', [ClinicPageController::class, 'index'])
+                ->name('tenant.website.pages.index');
+            Route::get('/website/pages/trash', [ClinicPageController::class, 'trash'])
+                ->name('tenant.website.pages.trash');
+            Route::post('/website/pages', [ClinicPageController::class, 'store'])
+                ->name('tenant.website.pages.store');
+            Route::post('/website/pages/{page}/duplicate', [ClinicPageController::class, 'duplicate'])
+                ->name('tenant.website.pages.duplicate');
+            Route::patch('/website/pages/{page}', [ClinicPageController::class, 'update'])
+                ->name('tenant.website.pages.update');
+            Route::delete('/website/pages/{page}', [ClinicPageController::class, 'destroy'])
+                ->name('tenant.website.pages.destroy');
+            Route::post('/website/pages/{pageId}/restore', [ClinicPageController::class, 'restore'])
+                ->name('tenant.website.pages.restore');
+            Route::post('/website/pages/{page}/homepage', [ClinicPageController::class, 'homepage'])
+                ->name('tenant.website.pages.homepage');
 
             Route::get('/staff', [StaffController::class, 'index'])
                 ->name('tenant.staff');

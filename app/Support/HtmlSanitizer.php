@@ -207,13 +207,24 @@ class HtmlSanitizer
             return '';
         }
 
-        // Strip @import directives
-        $css = preg_replace('/@import\s+[^;]+;/i', '', $css) ?? '';
-        // Strip javascript: urls
-        $css = preg_replace('/url\s*\(\s*["\']?\s*javascript:[^)]+\)/i', '', $css) ?? '';
-        // Strip expression() or behavior in IE
-        $css = preg_replace('/expression\s*\([^)]+\)/i', '', $css) ?? '';
-        $css = preg_replace('/-moz-binding\s*:[^;]+;/i', '', $css) ?? '';
+        // Loop until stable so removing one construct cannot splice another
+        // forbidden construct back together.
+        do {
+            $before = $css;
+            // Strip @import directives
+            $css = preg_replace('/@import\s+[^;]+;/i', '', $css) ?? '';
+            // Strip javascript: urls
+            $css = preg_replace('/url\s*\(\s*["\']?\s*javascript:[^)]+\)/i', '', $css) ?? '';
+            // Strip expression() or behavior in IE
+            $css = preg_replace('/expression\s*\([^)]+\)/i', '', $css) ?? '';
+            $css = preg_replace('/-moz-binding\s*:[^;]+;/i', '', $css) ?? '';
+            // Strip tokens that could break out of an inline <style> element
+            $css = preg_replace(
+                '/<\s*\/?\s*(?:style|script)|<!--|-->|javascript\s*:/i',
+                '',
+                $css
+            ) ?? '';
+        } while ($css !== $before);
 
         return trim($css);
     }

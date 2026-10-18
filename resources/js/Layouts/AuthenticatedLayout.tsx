@@ -27,6 +27,7 @@ import {
     FileSpreadsheet,
     ClipboardList,
     History,
+    LayoutTemplate,
 } from 'lucide-react';
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import ThemeToggle from '@/Components/Common/ThemeToggle';
@@ -215,6 +216,12 @@ export default function AuthenticatedLayout({
                     name: 'Clinic Website',
                     href: '/website',
                     icon: Globe,
+                    visible: isClinicAdmin,
+                },
+                {
+                    name: 'MedVisit Page Builder',
+                    href: '/website#pages',
+                    icon: LayoutTemplate,
                     visible: isClinicAdmin,
                 },
                 {

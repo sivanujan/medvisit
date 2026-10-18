@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Head, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { PageHeader } from '@/Components/UI/PageHeader';
+import PagesTable from '@/Components/PageBuilder/PagesTable';
+import type { PageSummary } from '@/Components/PageBuilder/types';
 import {
     Globe,
     Eye,
@@ -70,6 +72,7 @@ interface Props {
     };
     doctors: DoctorPreview[];
     upcomingSessions: SessionPreview[];
+    pages: PageSummary[];
     flash?: {
         success?: string;
         error?: string;
@@ -84,6 +87,7 @@ export default function WebsiteIndex({
     clinic,
     doctors,
     upcomingSessions,
+    pages,
 }: Props) {
     const [sections, setSections] = useState<Section[]>(initialSections);
     const [selectedTheme, setSelectedTheme] = useState(initialTheme);
@@ -188,7 +192,7 @@ export default function WebsiteIndex({
                                 className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500 text-white shadow-md shadow-teal-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
                             >
                                 <Sparkles className="w-3.5 h-3.5" />
-                                <span>Visual Page Builder (Elementor)</span>
+                                <span>MedVisit Page Builder</span>
                             </a>
 
                             <a
@@ -226,32 +230,8 @@ export default function WebsiteIndex({
                     }
                 />
 
-                {/* Banner Introducing Elementor-Style Page Builder */}
-                <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-teal-500/10 via-cyan-500/10 to-transparent border border-teal-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3.5">
-                        <div className="w-10 h-10 rounded-xl bg-teal-600 text-white flex items-center justify-center shrink-0 shadow-sm shadow-teal-600/30">
-                            <Sparkles className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                                Elementor-Style Visual Page Builder
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-500/15 text-teal-600 dark:text-teal-400 border border-teal-500/30">
-                                    New
-                                </span>
-                            </h3>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                Design full custom clinic landing pages with live drag-and-drop sections, MedVisit live doctors &amp; sessions widgets, responsive desktop/tablet/mobile simulator, revision history, and media library.
-                            </p>
-                        </div>
-                    </div>
+                <PagesTable pages={pages} clinic={clinic} />
 
-                    <a
-                        href="/website/builder"
-                        className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shrink-0 shadow-sm transition-all"
-                    >
-                        Launch Visual Builder →
-                    </a>
-                </div>
                 {/* Main 2-Column Grid: Builder on Left, Live Preview on Right */}
                 <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
                     {/* Left Column: Sections & Controls (5 Cols) */}

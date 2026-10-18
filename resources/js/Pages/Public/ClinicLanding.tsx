@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Head, Link } from '@inertiajs/react';
 import {
     Calendar,
@@ -19,6 +19,9 @@ import {
 
 import PublicSiteHeader, { HeaderConfig } from '@/Components/Public/PublicSiteHeader';
 import PublicSiteFooter, { FooterConfig } from '@/Components/Public/PublicSiteFooter';
+import { kitToCss, type SiteKit } from '@/Components/PageBuilder/lib/kit';
+import { animationCss, initEntranceAnimations } from '@/Components/PageBuilder/lib/animations';
+import { googleFontsUrl, usedFontFamilies } from '@/Components/PageBuilder/lib/fonts';
 
 interface DoctorItem {
     id: number;
@@ -76,6 +79,7 @@ interface Props {
         title: string;
         description: string;
     };
+    siteKit?: SiteKit | null;
     customPage?: {
         html: string;
         css: string;
@@ -93,8 +97,17 @@ export default function ClinicLanding({
     doctors,
     upcomingSessions,
     seo,
+    siteKit,
     customPage,
 }: Props) {
+    const customMainRef = useRef<HTMLElement>(null);
+    const customHtml = customPage?.html;
+    // Entrance animations run once the builder HTML is mounted; cleanup disconnects the observer.
+    useEffect(() => {
+        if (!customHtml || !customMainRef.current) return;
+        return initEntranceAnimations(customMainRef.current);
+    }, [customHtml]);
+
     const enabledSections = sections.filter((s) => s.enabled);
     const heroSection = sections.find((s) => s.id === 'hero' && s.enabled);
     const aboutSection = sections.find((s) => s.id === 'about' && s.enabled);
@@ -102,6 +115,8 @@ export default function ClinicLanding({
     const hoursSection = sections.find((s) => s.id === 'hours' && s.enabled);
     const contactSection = sections.find((s) => s.id === 'contact' && s.enabled);
     const footerSection = sections.find((s) => s.id === 'footer' && s.enabled);
+
+    const fontsUrl = siteKit ? googleFontsUrl(usedFontFamilies(siteKit, customPage?.css ?? '')) : null;
 
     if (customPage?.html) {
         return (
@@ -115,6 +130,7 @@ export default function ClinicLanding({
                             `Book specialist doctor channeling appointments online at ${clinic.name}. Verified SLMC consultants.`
                         }
                     />
+                    {fontsUrl && <link rel="stylesheet" href={fontsUrl} />}
                 </Head>
 
                 {customPage.isPreview && (
@@ -139,6 +155,9 @@ export default function ClinicLanding({
                     themePreset={theme}
                 />
 
+                {siteKit && <style dangerouslySetInnerHTML={{ __html: kitToCss(siteKit) }} />}
+                <style dangerouslySetInnerHTML={{ __html: animationCss() }} />
+
                 <style
                     dangerouslySetInnerHTML={{
                         __html: `
@@ -152,6 +171,7 @@ export default function ClinicLanding({
                 />
 
                 <main
+                    ref={customMainRef}
                     id="main-content"
                     className="flex-1 medvisit-custom-page-canvas"
                     dangerouslySetInnerHTML={{ __html: customPage.html }}

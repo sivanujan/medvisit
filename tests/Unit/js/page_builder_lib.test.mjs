@@ -1,0 +1,172 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { slugify, isValidSlug } from '../../../resources/js/Components/PageBuilder/lib/slug.ts';
+import { resolveResponsive } from '../../../resources/js/Components/PageBuilder/lib/responsive.ts';
+import { kitToCss } from '../../../resources/js/Components/PageBuilder/lib/kit.ts';
+import { parseUnitValue, formatUnitValue, formatShadow, parseShadow, formatGradient, parseGradient, extractUrl, formatImageBackground, parseImageBackground, isLayoutContainer } from '../../../resources/js/Components/PageBuilder/lib/cssValues.ts';
+import { animationCss, expandSelectorKeyword, ANIMATIONS } from '../../../resources/js/Components/PageBuilder/lib/animations.ts';
+import { usedFontFamilies, googleFontsUrl } from '../../../resources/js/Components/PageBuilder/lib/fonts.ts';
+
+const preset = (d, m, weight = 400) => ({ size: { desktop: d, mobile: m }, weight, lineHeight: 1.4 });
+const sampleKit = {
+  colors: [{ id: 'primary', name: 'Primary', value: '#0E9E8F' }],
+  retired: [{ id: 'custom-old', name: 'Old', value: '#FF0000' }],
+  fonts: { heading: 'Poppins', body: 'Inter' },
+  typography: {
+    h1: preset('48px', '32px', 700), h2: preset('36px', '28px', 700), h3: preset('28px', '24px', 600),
+    h4: preset('24px', '20px', 600), h5: preset('20px', '18px', 600), h6: preset('16px', '16px', 600),
+    body: preset('16px', '15px'), button: preset('16px', '16px', 600),
+  },
+};
+
+test('slugify', () => {
+  assert.equal(slugify('  About Us & Team!! '), 'about-us-team');
+  assert.equal(slugify('Doctors---List'), 'doctors-list');
+  assert.equal(isValidSlug('about-us'), true);
+  assert.equal(isValidSlug('About'), false);
+  assert.equal(isValidSlug('a'.repeat(61)), false);
+});
+test('responsive inheritance', () => {
+  assert.deepEqual(resolveResponsive({ desktop: '48px' }, 'mobile'), { value: '48px', inheritedFrom: 'desktop' });
+  assert.deepEqual(resolveResponsive({ desktop: '48px', tablet: '40px' }, 'mobile'), { value: '40px', inheritedFrom: 'tablet' });
+  assert.deepEqual(resolveResponsive({ mobile: '32px' }, 'mobile'), { value: '32px', inheritedFrom: null });
+});
+test('kitToCss emits variables, retired colors and breakpoints', () => {
+  const css = kitToCss(sampleKit);
+  assert.match(css, /--mv-color-primary:\s*#0E9E8F/);
+  assert.match(css, /--mv-color-custom-old:\s*#FF0000/);
+  assert.match(css, /--mv-font-heading:\s*'Poppins'/);
+  assert.match(css, /@media \(max-width: 480px\)\s*\{[^}]*h1\s*\{[^}]*font-size:\s*32px/);
+});
+test('fonts URL includes only curated families in use', () => {
+  const fams = usedFontFamilies(sampleKit, ".x{font-family:'Noto Sans Sinhala'} .y{font-family:'Comic Sans MS'}");
+  assert.deepEqual(fams.sort(), ['Inter', 'Noto Sans Sinhala', 'Poppins']);
+  const url = googleFontsUrl(fams);
+  assert.ok(url.startsWith('https://fonts.googleapis.com/css2?'));
+  assert.match(url, /family=Noto\+Sans\+Sinhala:wght@400;500;600;700/);
+  assert.match(url, /display=swap$/);
+  assert.equal(googleFontsUrl([]), null);
+});
+
+test('parseUnitValue / formatUnitValue', () => {
+  assert.deepEqual(parseUnitValue('1.5rem'), { number: 1.5, unit: 'rem' });
+  assert.deepEqual(parseUnitValue('-12px'), { number: -12, unit: 'px' });
+  assert.deepEqual(parseUnitValue('100%'), { number: 100, unit: '%' });
+  assert.deepEqual(parseUnitValue('auto'), { number: null, unit: 'auto' });
+  assert.equal(formatUnitValue(2, 'em'), '2em');
+});
+
+test('formatShadow / parseShadow', () => {
+  assert.equal(formatShadow({ x: 0, y: 4, blur: 12, spread: 0, color: '#0003' }), '0px 4px 12px 0px #0003');
+  assert.equal(formatShadow({ x: 1, y: 2, blur: 3, color: '#000' }), '1px 2px 3px #000');
+  assert.deepEqual(parseShadow('0px 4px 12px 0px rgba(0, 0, 0, 0.2)'), { x: 0, y: 4, blur: 12, spread: 0, color: 'rgba(0, 0, 0, 0.2)' });
+  assert.deepEqual(parseShadow('1px 2px 3px #000'), { x: 1, y: 2, blur: 3, color: '#000' });
+  assert.equal(parseShadow('none'), null);
+});
+
+test('gradient and url helpers', () => {
+  assert.equal(formatGradient({ angle: 90, from: '#fff', to: '#000' }), 'linear-gradient(90deg, #fff, #000)');
+  assert.deepEqual(parseGradient('linear-gradient(45deg, rgba(0, 0, 0, 0.5), #fff)'), { angle: 45, from: 'rgba(0, 0, 0, 0.5)', to: '#fff' });
+  assert.equal(parseGradient('url(a.png)'), null);
+  assert.equal(extractUrl('url("/storage/a b.png")'), '/storage/a b.png');
+  assert.equal(extractUrl('none'), '');
+});
+
+test('image background with overlay round-trips', () => {
+  const css = formatImageBackground('/a.png', 'rgba(0, 0, 0, 0.4)');
+  assert.equal(css, 'linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url("/a.png")');
+  assert.deepEqual(parseImageBackground(css), { url: '/a.png', overlay: 'rgba(0, 0, 0, 0.4)' });
+  assert.deepEqual(parseImageBackground(formatImageBackground('/b.png')), { url: '/b.png', overlay: '' });
+});
+
+test('isLayoutContainer', () => {
+  assert.equal(isLayoutContainer('section', 0), true);
+  assert.equal(isLayoutContainer('DIV', 2), true);
+  assert.equal(isLayoutContainer('div', 0), false);
+  assert.equal(isLayoutContainer('h1', 3), false);
+});
+
+test('expandSelectorKeyword replaces only the whole word selector', () => {
+  assert.equal(expandSelectorKeyword('selector:hover{color:red} .selectors{}', 'i3x'), '#i3x:hover{color:red} .selectors{}');
+  assert.equal(expandSelectorKeyword('selector .a, selector>b{}', 'z'), '#z .a, #z>b{}');
+});
+
+test('animationCss covers every animation and honours reduced motion', () => {
+  const css = animationCss();
+  assert.ok(css.includes('prefers-reduced-motion'));
+  for (const a of ANIMATIONS) assert.ok(css.includes(`@keyframes mv-${a}`));
+  assert.ok(css.includes('[data-mv-animation]{opacity:0}'));
+});
+
+test('animationCss reduced-motion override beats the animated rules', () => {
+  const css = animationCss();
+  assert.ok(css.includes('[data-mv-animation],.mv-animated[data-mv-animation]{opacity:1 !important;animation:none !important}'));
+});
+
+test('custom css block builds, strips idempotently and round-trips', async () => {
+  const { buildCustomCssBlock, stripCustomCssBlock } = await import('../../../resources/js/Components/PageBuilder/lib/customCss.ts');
+  assert.equal(buildCustomCssBlock([]), '');
+  assert.equal(buildCustomCssBlock([{ id: 'a', css: '  ' }]), '');
+  const block = buildCustomCssBlock([{ id: 'a', css: 'selector{color:red}' }, { id: 'b', css: 'selector:hover{x:y}' }]);
+  assert.ok(block.includes('#a{color:red}') && block.includes('#b:hover{x:y}'));
+  const base = '#a{margin:0}';
+  const saved = `${base}\n${block}`;
+  assert.equal(stripCustomCssBlock(saved), base);
+  assert.equal(stripCustomCssBlock(stripCustomCssBlock(saved)), base);
+  assert.equal(stripCustomCssBlock(base), base);
+});
+
+test('buildInitialEditorCss never feeds the custom css block to the editor', async () => {
+  const { buildInitialEditorCss, buildCustomCssBlock } = await import('../../../resources/js/Components/PageBuilder/lib/customCss.ts');
+  const block = buildCustomCssBlock([{ id: 'a', css: 'selector{color:red}' }]);
+  const out = buildInitialEditorCss('body{x:y}', `#a{margin:0}\n${block}`);
+  assert.equal(out, 'body{x:y}\n#a{margin:0}');
+  assert.ok(!out.includes('mv-custom-css') && !out.includes('color:red'));
+  assert.equal(buildInitialEditorCss('b{}', null), 'b{}');
+});
+
+import { presetColors, applyPreset, parseColorVar, colorVar, nextCustomColorId, resolveLinkedColor, THEME_COLORS } from '../../../resources/js/Components/PageBuilder/lib/kitEdit.ts';
+
+test('presetColors mirrors the theme palettes and rejects unknown keys', () => {
+  assert.deepEqual(presetColors('ocean-blue'), { primary: '#1E6FD9', secondary: '#0F172A', accent: '#F59E0B', text: '#334155' });
+  assert.equal(Object.keys(THEME_COLORS).length, 5);
+  assert.equal(presetColors('nope'), null);
+});
+
+test('applyPreset fills system colors and keeps custom colors', () => {
+  const colors = [
+    { id: 'primary', name: 'Primary', value: '#000000' },
+    { id: 'custom-1', name: 'Mine', value: '#123456' },
+  ];
+  const out = applyPreset(colors, 'royal-purple');
+  assert.equal(out[0].value, '#7C3AED');
+  assert.equal(out[1].value, '#123456');
+  assert.equal(applyPreset(colors, 'nope'), colors);
+});
+
+test('parseColorVar / colorVar', () => {
+  assert.equal(parseColorVar('var(--mv-color-primary)'), 'primary');
+  assert.equal(parseColorVar(' var( --mv-color-custom-2 ) '), 'custom-2');
+  assert.equal(parseColorVar('#fff'), null);
+  assert.equal(parseColorVar('var(--other)'), null);
+  assert.equal(colorVar('accent'), 'var(--mv-color-accent)');
+});
+
+test('nextCustomColorId fills gaps and avoids retired ids', () => {
+  const c = (id) => ({ id, name: id, value: '#000000' });
+  assert.equal(nextCustomColorId([c('primary')]), 'custom-1');
+  assert.equal(nextCustomColorId([c('custom-1'), c('custom-2')]), 'custom-3');
+  assert.equal(nextCustomColorId([c('custom-2')]), 'custom-1');
+  assert.equal(nextCustomColorId([c('custom-1')], [c('custom-2')]), 'custom-3');
+});
+
+test('resolveLinkedColor: active, retired, unknown and non-links', () => {
+  const kit = {
+    colors: [{ id: 'primary', name: 'Primary', value: '#0E9E8F' }],
+    retired: [{ id: 'custom-9', name: 'Old', value: '#FF0000' }],
+  };
+  assert.deepEqual(resolveLinkedColor('var(--mv-color-primary)', kit), { id: 'primary', status: 'active', name: 'Primary', hex: '#0E9E8F' });
+  assert.deepEqual(resolveLinkedColor('var(--mv-color-custom-9)', kit), { id: 'custom-9', status: 'retired', name: 'Old', hex: '#FF0000' });
+  assert.deepEqual(resolveLinkedColor('var(--mv-color-zzz)', kit), { id: 'zzz', status: 'unknown' });
+  assert.equal(resolveLinkedColor('#fff', kit), null);
+});

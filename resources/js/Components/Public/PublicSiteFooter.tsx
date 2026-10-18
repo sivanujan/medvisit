@@ -17,7 +17,7 @@ export interface FooterConfig {
     logo_url?: string;
     about_text?: string;
     show_about?: boolean;
-    quick_links?: { label: string; url: string }[];
+    quick_links?: { label: string; url: string; page_id?: number }[];
     address?: string;
     phone?: string;
     email?: string;

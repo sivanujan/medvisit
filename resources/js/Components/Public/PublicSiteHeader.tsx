@@ -15,6 +15,7 @@ export interface HeaderMenuItem {
     id?: string;
     label: string;
     url: string;
+    page_id?: number;
     children?: { label: string; url: string }[];
 }
 

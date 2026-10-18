@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 
 class ClinicPage extends Model
 {
     use HasFactory;
+    use SoftDeletes;
 
     protected $fillable = [
         'tenant_id',
@@ -29,6 +33,8 @@ class ClinicPage extends Model
         'seo_title',
         'seo_description',
         'theme_preset',
+        'is_homepage',
+        'sort_order',
     ];
 
     protected $casts = [
@@ -37,7 +43,67 @@ class ClinicPage extends Model
         'published_json' => 'array',
         'is_published' => 'boolean',
         'published_at' => 'datetime',
+        'is_homepage' => 'boolean',
+        'sort_order' => 'integer',
     ];
+
+    public function scopeForTenant(Builder $query, string $tenantId): Builder
+    {
+        return $query->where('tenant_id', $tenantId);
+    }
+
+    public static function homepageFor(string $tenantId): ?self
+    {
+        return static::forTenant($tenantId)->where('is_homepage', true)->first();
+    }
+
+    public function hasUnpublishedChanges(): bool
+    {
+        return $this->is_published
+            && $this->published_at !== null
+            && $this->updated_at !== null
+            && $this->updated_at->gt($this->published_at);
+    }
+
+    public function publicUrl(): string
+    {
+        return $this->is_homepage ? '/' : '/p/'.$this->slug;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toSummaryArray(): array
+    {
+        return [
+            'id' => $this->id,
+            'title' => $this->title,
+            'slug' => $this->slug,
+            'url' => $this->publicUrl(),
+            'is_homepage' => $this->is_homepage,
+            'is_published' => $this->is_published,
+            'has_unpublished_changes' => $this->hasUnpublishedChanges(),
+            'updated_at' => $this->updated_at?->toIso8601String(),
+            'sort_order' => $this->sort_order,
+            'seo_title' => $this->seo_title,
+            'seo_description' => $this->seo_description,
+        ];
+    }
+
+    public function makeHomepage(): void
+    {
+        DB::transaction(function () {
+            // Serialize concurrent homepage switches for this tenant.
+            DB::select('select pg_advisory_xact_lock(hashtext(?))', ['clinic_pages_homepage:'.$this->tenant_id]);
+
+            static::forTenant($this->tenant_id)
+                ->where('id', '!=', $this->id)
+                ->where('is_homepage', true)
+                ->update(['is_homepage' => false]);
+
+            $this->forceFill(['is_homepage' => true])->save();
+        });
+    }
 
     public function tenant(): BelongsTo
     {

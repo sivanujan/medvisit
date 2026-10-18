@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Models\VerifiedPhone;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
 
 class WebsiteAndPublicBookingTest extends TestCase
@@ -90,6 +91,9 @@ class WebsiteAndPublicBookingTest extends TestCase
 
         $response = $this->actingAs($this->adminUser)->get($url);
         $response->assertOk();
+        $response->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('Website/Index')
+            ->has('pages'));
 
         // Update sections
         $sectionsUrl = "http://suwasetha.{$this->baseDomain}/website/sections";
