@@ -1,37 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import type { Component, Editor } from '../types';
-import { expandSelectorKeyword } from '../lib/animations';
+import { CUSTOM_CSS_ATTR as ATTR, syncCustomCssStyle } from '../lib/customCss';
 
-const ATTR = 'data-mv-custom-css';
-
-// Removes what a previous custom-CSS block contributed to the editor CSS. Re-adding the old CSS
-// returns the existing rule instances (GrapesJS merges by selector), whose declared properties are then stripped.
-function removeCustomRules(editor: Editor, expandedCss: string) {
-    if (!expandedCss.trim()) return;
-    const declared = new Set<string>();
-    for (const entry of editor.Parser.parseCss(expandedCss) ?? []) {
-        Object.keys(entry.style ?? {}).forEach((k) => declared.add(k));
-    }
-    for (const rule of editor.Css.addRules(expandedCss) ?? []) {
-        const rest = { ...(rule.getStyle?.() ?? {}) };
-        declared.forEach((k) => delete rest[k]);
-        if (Object.keys(rest).length === 0) editor.Css.remove(rule);
-        else rule.setStyle(rest);
-    }
-}
-
+// Raw text lives on the component; the canvas style and the saved CSS are rebuilt from it,
+// so Style-tab rules for the same #id are never touched.
 export function applyCustomCss(editor: Editor, component: Component, next: string) {
-    const id: string = component.getId();
     const prev: string = component.getAttributes()?.[ATTR] ?? '';
     if (prev === next) return;
-    removeCustomRules(editor, expandSelectorKeyword(prev, id));
     if (next.trim() === '') {
         component.removeAttributes(ATTR);
-        return;
+    } else {
+        // An explicit id attribute guarantees the #id selector matches on the public page.
+        component.addAttributes({ id: component.getId(), [ATTR]: next });
     }
-    // An explicit id attribute guarantees the #id selector is exported to the public page.
-    component.addAttributes({ id, [ATTR]: next });
-    editor.Css.addRules(expandSelectorKeyword(next, id));
+    syncCustomCssStyle(editor);
 }
 
 interface CustomCssEditorProps {

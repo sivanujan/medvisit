@@ -20,7 +20,7 @@ export function animationCss(): string {
         '[data-mv-animation]{opacity:0}' +
         '.mv-animated[data-mv-animation]{animation-duration:.6s;animation-timing-function:ease-out;animation-fill-mode:both}' +
         rules +
-        '@media (prefers-reduced-motion: reduce){[data-mv-animation]{opacity:1;animation:none}}'
+        '@media (prefers-reduced-motion: reduce){[data-mv-animation],.mv-animated[data-mv-animation]{opacity:1 !important;animation:none !important}}'
     );
 }
 
@@ -29,7 +29,7 @@ export function animationCss(): string {
 export function canvasEditorCss(device: 'desktop' | 'tablet' | 'mobile'): string {
     return (
         '[data-mv-animation]{opacity:1 !important}' +
-        `[data-mv-hidden-${device}]{opacity:.35 !important;display:block !important}`
+        `[data-mv-hidden-${device}]{opacity:.35 !important;display:revert !important}`
     );
 }
 
@@ -46,6 +46,13 @@ export function initEntranceAnimations(root: HTMLElement): () => void {
         el.classList.add('mv-animated');
     };
 
+    const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) {
+        els.forEach((el) => {
+            el.style.opacity = '1';
+        });
+        return () => {};
+    }
     if (typeof IntersectionObserver === 'undefined') {
         els.forEach(play);
         return () => {};
@@ -59,7 +66,7 @@ export function initEntranceAnimations(root: HTMLElement): () => void {
                 observer.unobserve(entry.target);
             }
         },
-        { threshold: 0.15 },
+        { threshold: 0, rootMargin: '0px 0px -10% 0px' },
     );
     els.forEach((el) => observer.observe(el));
     return () => observer.disconnect();

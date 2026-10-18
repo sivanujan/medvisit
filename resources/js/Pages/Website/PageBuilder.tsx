@@ -17,6 +17,7 @@ import {
     PanelBottom,
 } from 'lucide-react';
 import { kitToCss } from '@/Components/PageBuilder/lib/kit';
+import { cssWithCustomBlock, stripCustomCssBlock, syncCustomCssStyle } from '@/Components/PageBuilder/lib/customCss';
 import { animationCss, canvasEditorCss } from '@/Components/PageBuilder/lib/animations';
 import { googleFontsUrl, usedFontFamilies } from '@/Components/PageBuilder/lib/fonts';
 import MediaLibraryModal from '@/Components/PageBuilder/MediaLibraryModal';
@@ -290,6 +291,7 @@ function PageBuilderInner({
             setIsDirty(true);
         };
         editor.on('component:update', markDirty);
+        editor.on('component:add component:remove component:update:attributes', () => syncCustomCssStyle(editor));
         editor.on('component:add', markDirty);
         editor.on('component:remove', markDirty);
         editor.on('style:update', markDirty);
@@ -337,6 +339,7 @@ function PageBuilderInner({
                 }
             }
             syncCanvasStyles();
+            syncCustomCssStyle(editor);
             editor.refresh();
         });
 
@@ -429,7 +432,7 @@ function PageBuilderInner({
         setSaveState(null);
 
         const html = editorInstance.current.getHtml();
-        const css = editorInstance.current.getCss();
+        const css = cssWithCustomBlock(editorInstance.current);
         const projectData = editorInstance.current.getProjectData();
 
         const endpoint = isPublish
@@ -522,7 +525,8 @@ function PageBuilderInner({
                     editorInstance.current.setComponents(data.html);
                 }
                 if (data.css) {
-                    editorInstance.current.setStyle(data.css);
+                    editorInstance.current.setStyle(stripCustomCssBlock(data.css));
+                    syncCustomCssStyle(editorInstance.current);
                 }
                 setIsDirty(false);
                 setRevisionsModalOpen(false);

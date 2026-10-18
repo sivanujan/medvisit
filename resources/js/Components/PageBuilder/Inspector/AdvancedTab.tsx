@@ -2,10 +2,11 @@ import React, { useEffect, useReducer, useState } from 'react';
 import { Link2, Unlink2 } from 'lucide-react';
 import type { Component, Editor, InspectorTabName, InspectorTabProps } from '../types';
 import BoxSidesControl from '../controls/BoxSidesControl';
-import { mediaOpts, useEditorTick, toDeviceName } from '../controls/useStyleProp';
+import { useEditorTick, toDeviceName } from '../controls/useStyleProp';
 import { ANIMATIONS } from '../lib/animations';
 import type { Device } from '../lib/responsive';
-import CustomCssEditor, { applyCustomCss } from './CustomCssEditor';
+import CustomCssEditor from './CustomCssEditor';
+import { syncCustomCssStyle } from '../lib/customCss';
 import Group from './style/Group';
 import { SelectField, UnitField } from './style/fields';
 import { getComponentClasses } from './componentHelpers';
@@ -70,11 +71,8 @@ function IdClassesGroup({ editor, component, onChange }: { editor: Editor; compo
             setId(prev);
             return;
         }
-        const custom: string = component.getAttributes()?.['data-mv-custom-css'] ?? '';
-        // Custom CSS rules reference the old id; clear them and re-add against the new one.
-        if (custom) applyCustomCss(editor, component, '');
         component.setId(next);
-        if (custom) applyCustomCss(editor, component, custom);
+        syncCustomCssStyle(editor);
         setId(next);
         onChange();
     };
@@ -110,24 +108,29 @@ function IdClassesGroup({ editor, component, onChange }: { editor: Editor; compo
     );
 }
 
+// Device-exclusive queries so hiding one device never leaks into another.
+const VISIBILITY_MEDIA: Record<Device, string> = {
+    desktop: '(min-width: 993px)',
+    tablet: '(min-width: 481px) and (max-width: 992px)',
+    mobile: '(max-width: 480px)',
+};
+const hideOpts = (device: Device) => ({ atRuleType: 'media', atRuleParams: VISIBILITY_MEDIA[device] });
+
 function isHiddenOn(editor: Editor, component: Component, device: Device): boolean {
-    const rule = editor.Css.getRule(`#${component.getId()}`, mediaOpts(editor, device));
+    const rule = editor.Css.getRule(`#${component.getId()}`, hideOpts(device));
     return rule?.getStyle?.()?.display === 'none';
 }
 
 function setHiddenOn(editor: Editor, component: Component, device: Device, hidden: boolean) {
     const selector = `#${component.getId()}`;
-    const opts = mediaOpts(editor, device);
+    const opts = hideOpts(device);
     const attr = `data-mv-hidden-${device}`;
     if (hidden) {
-        editor.Css.setRule(selector, { display: 'none' }, { ...opts, addStyles: true });
+        editor.Css.setRule(selector, { display: 'none' }, opts);
         component.addAttributes({ id: component.getId(), [attr]: '1' });
     } else {
         const rule = editor.Css.getRule(selector, opts);
-        if (rule) {
-            const { display: _display, ...rest } = rule.getStyle();
-            rule.setStyle(rest);
-        }
+        if (rule) editor.Css.remove(rule);
         component.removeAttributes(attr);
     }
 }
@@ -152,8 +155,7 @@ function VisibilityGroup({ editor, component, onChange }: { editor: Editor; comp
                 </label>
             ))}
             <p className="text-[10px] text-slate-400">
-                Hidden elements stay visible (faded) in the editor. Hiding on Desktop also applies to smaller devices
-                unless shown again there.
+                Hidden elements stay visible (faded) in the editor while that device is active.
             </p>
         </Group>
     );

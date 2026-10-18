@@ -97,3 +97,21 @@ test('animationCss covers every animation and honours reduced motion', () => {
   for (const a of ANIMATIONS) assert.ok(css.includes(`@keyframes mv-${a}`));
   assert.ok(css.includes('[data-mv-animation]{opacity:0}'));
 });
+
+test('animationCss reduced-motion override beats the animated rules', () => {
+  const css = animationCss();
+  assert.ok(css.includes('[data-mv-animation],.mv-animated[data-mv-animation]{opacity:1 !important;animation:none !important}'));
+});
+
+test('custom css block builds, strips idempotently and round-trips', async () => {
+  const { buildCustomCssBlock, stripCustomCssBlock } = await import('../../../resources/js/Components/PageBuilder/lib/customCss.ts');
+  assert.equal(buildCustomCssBlock([]), '');
+  assert.equal(buildCustomCssBlock([{ id: 'a', css: '  ' }]), '');
+  const block = buildCustomCssBlock([{ id: 'a', css: 'selector{color:red}' }, { id: 'b', css: 'selector:hover{x:y}' }]);
+  assert.ok(block.includes('#a{color:red}') && block.includes('#b:hover{x:y}'));
+  const base = '#a{margin:0}';
+  const saved = `${base}\n${block}`;
+  assert.equal(stripCustomCssBlock(saved), base);
+  assert.equal(stripCustomCssBlock(stripCustomCssBlock(saved)), base);
+  assert.equal(stripCustomCssBlock(base), base);
+});
