@@ -70,6 +70,24 @@ class ClinicPage extends Model
         return $this->is_homepage ? '/' : '/p/'.$this->slug;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public function toSummaryArray(): array
+    {
+        return [
+            'id' => $this->id,
+            'title' => $this->title,
+            'slug' => $this->slug,
+            'url' => $this->publicUrl(),
+            'is_homepage' => $this->is_homepage,
+            'is_published' => $this->is_published,
+            'has_unpublished_changes' => $this->hasUnpublishedChanges(),
+            'updated_at' => $this->updated_at?->toIso8601String(),
+            'sort_order' => $this->sort_order,
+        ];
+    }
+
     public function makeHomepage(): void
     {
         DB::transaction(function () {

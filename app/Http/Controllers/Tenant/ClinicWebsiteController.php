@@ -209,24 +209,15 @@ class ClinicWebsiteController extends Controller
     /**
      * Show Visual Page Builder (Elementor-Style 3-panel editor).
      */
-    public function showBuilder(Request $request): Response
+    public function showBuilder(Request $request, ?ClinicPage $page = null): Response
     {
         $tenant = tenant();
 
-        $page = ClinicPage::firstOrCreate(
-            ['tenant_id' => $tenant->id, 'slug' => 'home'],
-            [
-                'title' => 'Home',
-                'schema_version' => 2,
-                'theme_preset' => $tenant->website_theme ?? 'medvisit-teal',
-                'seo_title' => $tenant->seo_title ?? ($tenant->name.' - Specialist Doctor Channeling'),
-                'seo_description' => $tenant->seo_description ?? ('Book doctor channeling sessions online at '.$tenant->name.'.'),
-                'content_json' => $this->getDefaultPageContent($tenant),
-                'html' => null,
-                'css' => null,
-                'is_published' => (bool) ($tenant->website_published ?? false),
-            ]
-        );
+        if ($page) {
+            $this->authorizeTenantPage($page);
+        } else {
+            $page = ClinicPage::homepageFor((string) $tenant->id) ?? $this->createHomepage($tenant);
+        }
 
         $revisions = $page->revisions()
             ->with('user:id,name')
@@ -289,7 +280,16 @@ class ClinicWebsiteController extends Controller
                 'seo_title' => $page->seo_title,
                 'seo_description' => $page->seo_description,
                 'theme_preset' => $page->theme_preset,
+                'is_homepage' => $page->is_homepage,
+                'public_url' => $page->publicUrl(),
             ],
+            'pages' => ClinicPage::forTenant((string) $tenant->id)
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->get()
+                ->map(fn (ClinicPage $p) => $p->toSummaryArray())
+                ->values(),
+            'siteKit' => null,
             'revisions' => $revisions,
             'mediaAssets' => $mediaAssets,
             'doctors' => $doctors,
@@ -302,9 +302,10 @@ class ClinicWebsiteController extends Controller
     /**
      * Save draft of visual page builder layout.
      */
-    public function saveBuilder(Request $request): JsonResponse
+    public function saveBuilder(Request $request, ClinicPage $page): JsonResponse
     {
         $tenant = tenant();
+        $this->authorizeTenantPage($page);
 
         $validated = $request->validate([
             'content_json' => ['nullable'],
@@ -327,14 +328,6 @@ class ClinicWebsiteController extends Controller
             $tenant->website_footer = $validated['footer_config'];
         }
         $tenant->save();
-
-        $page = ClinicPage::firstOrCreate(
-            ['tenant_id' => $tenant->id, 'slug' => 'home'],
-            [
-                'title' => 'Home',
-                'theme_preset' => $tenant->website_theme ?? 'medvisit-teal',
-            ]
-        );
 
         $page->update([
             'content_json' => $validated['content_json'] ?? $page->content_json,
@@ -361,9 +354,10 @@ class ClinicWebsiteController extends Controller
     /**
      * Publish visual page builder layout to public clinic website.
      */
-    public function publishBuilder(Request $request): JsonResponse
+    public function publishBuilder(Request $request, ClinicPage $page): JsonResponse
     {
         $tenant = tenant();
+        $this->authorizeTenantPage($page);
 
         $validated = $request->validate([
             'content_json' => ['nullable'],
@@ -385,14 +379,6 @@ class ClinicWebsiteController extends Controller
         if ($request->has('footer_config')) {
             $tenant->website_footer = $validated['footer_config'];
         }
-
-        $page = ClinicPage::firstOrCreate(
-            ['tenant_id' => $tenant->id, 'slug' => 'home'],
-            [
-                'title' => 'Home',
-                'theme_preset' => $tenant->website_theme ?? 'medvisit-teal',
-            ]
-        );
 
         $page->update([
             'content_json' => $validated['content_json'] ?? $page->content_json,
@@ -427,18 +413,45 @@ class ClinicWebsiteController extends Controller
         ]);
     }
 
+    private function authorizeTenantPage(ClinicPage $page): void
+    {
+        abort_if($page->tenant_id !== tenant('id'), 404);
+    }
+
+    private function createHomepage(Tenant $tenant): ClinicPage
+    {
+        $page = ClinicPage::create([
+            'tenant_id' => $tenant->id,
+            'slug' => 'home',
+            'title' => 'Home',
+            'schema_version' => 2,
+            'theme_preset' => $tenant->website_theme ?? 'medvisit-teal',
+            'seo_title' => $tenant->seo_title ?? ($tenant->name.' - Specialist Doctor Channeling'),
+            'seo_description' => $tenant->seo_description ?? ('Book doctor channeling sessions online at '.$tenant->name.'.'),
+            'content_json' => $this->getDefaultPageContent($tenant),
+            'html' => null,
+            'css' => null,
+            'is_published' => (bool) ($tenant->website_published ?? false),
+            'is_homepage' => true,
+        ]);
+
+        return $page->refresh();
+    }
+
     /**
      * Revert page to a chosen historical revision.
      */
-    public function revertRevision(Request $request, ClinicPageRevision $revision): JsonResponse
+    public function revertRevision(Request $request, ClinicPage $page, ClinicPageRevision $revision): JsonResponse
     {
         $tenant = tenant();
+        $this->authorizeTenantPage($page);
 
         if ($revision->tenant_id !== $tenant->id) {
             abort(403, 'Unauthorized access to revision.');
         }
 
-        $page = ClinicPage::where('tenant_id', $tenant->id)->where('id', $revision->page_id)->firstOrFail();
+        abort_if($revision->page_id !== $page->id, 404);
+
         $page->revertToRevision($revision);
 
         return response()->json([
@@ -453,14 +466,9 @@ class ClinicWebsiteController extends Controller
     /**
      * List historical revisions.
      */
-    public function listRevisions(Request $request): JsonResponse
+    public function listRevisions(Request $request, ClinicPage $page): JsonResponse
     {
-        $tenant = tenant();
-        $page = ClinicPage::where('tenant_id', $tenant->id)->where('slug', 'home')->first();
-
-        if (! $page) {
-            return response()->json(['revisions' => []]);
-        }
+        $this->authorizeTenantPage($page);
 
         $revisions = $page->revisions()
             ->with('user:id,name')

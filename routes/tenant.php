@@ -285,16 +285,6 @@ Route::middleware([
                 ->name('tenant.website.theme');
 
             // Visual Page Builder & Media Library
-            Route::get('/website/builder', [ClinicWebsiteController::class, 'showBuilder'])
-                ->name('tenant.website.builder');
-            Route::post('/website/builder/save', [ClinicWebsiteController::class, 'saveBuilder'])
-                ->name('tenant.website.builder.save');
-            Route::post('/website/builder/publish', [ClinicWebsiteController::class, 'publishBuilder'])
-                ->name('tenant.website.builder.publish');
-            Route::post('/website/builder/revert/{revision}', [ClinicWebsiteController::class, 'revertRevision'])
-                ->name('tenant.website.builder.revert');
-            Route::get('/website/builder/revisions', [ClinicWebsiteController::class, 'listRevisions'])
-                ->name('tenant.website.builder.revisions');
             Route::get('/website/builder/media', [ClinicWebsiteController::class, 'listMedia'])
                 ->name('tenant.website.builder.media');
             Route::post('/website/builder/media/upload', [ClinicWebsiteController::class, 'uploadMedia'])
@@ -303,6 +293,22 @@ Route::middleware([
                 ->name('tenant.website.builder.media.delete');
             Route::patch('/website/builder/media/{asset}', [ClinicWebsiteController::class, 'updateMedia'])
                 ->name('tenant.website.builder.media.update');
+
+            Route::get('/website/builder/{page?}', [ClinicWebsiteController::class, 'showBuilder'])
+                ->whereNumber('page')
+                ->name('tenant.website.builder');
+            Route::post('/website/builder/{page}/save', [ClinicWebsiteController::class, 'saveBuilder'])
+                ->whereNumber('page')
+                ->name('tenant.website.builder.save');
+            Route::post('/website/builder/{page}/publish', [ClinicWebsiteController::class, 'publishBuilder'])
+                ->whereNumber('page')
+                ->name('tenant.website.builder.publish');
+            Route::get('/website/builder/{page}/revisions', [ClinicWebsiteController::class, 'listRevisions'])
+                ->whereNumber('page')
+                ->name('tenant.website.builder.revisions');
+            Route::post('/website/builder/{page}/revert/{revision}', [ClinicWebsiteController::class, 'revertRevision'])
+                ->whereNumber(['page', 'revision'])
+                ->name('tenant.website.builder.revert');
 
             // Multi-page management (JSON API)
             Route::get('/website/pages', [ClinicPageController::class, 'index'])

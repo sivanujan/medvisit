@@ -80,6 +80,8 @@ export interface BuilderPageProps {
         seo_title?: string | null;
         seo_description?: string | null;
         theme_preset?: string;
+        is_homepage?: boolean;
+        public_url?: string;
     };
     revisions: Revision[];
     mediaAssets: MediaAsset[];

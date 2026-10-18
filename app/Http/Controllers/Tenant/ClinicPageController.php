@@ -22,7 +22,7 @@ class ClinicPageController extends Controller
             ->orderBy('id')
             ->get();
 
-        return response()->json(['pages' => $pages->map(fn (ClinicPage $p) => $this->present($p))->values()]);
+        return response()->json(['pages' => $pages->map(fn (ClinicPage $p) => $p->toSummaryArray())->values()]);
     }
 
     public function trash(): JsonResponse
@@ -32,7 +32,7 @@ class ClinicPageController extends Controller
             ->orderByDesc('deleted_at')
             ->get();
 
-        return response()->json(['pages' => $pages->map(fn (ClinicPage $p) => $this->present($p))->values()]);
+        return response()->json(['pages' => $pages->map(fn (ClinicPage $p) => $p->toSummaryArray())->values()]);
     }
 
     public function store(StoreClinicPageRequest $request): JsonResponse
@@ -67,7 +67,7 @@ class ClinicPageController extends Controller
 
         $page = ClinicPage::create($attributes);
 
-        return response()->json($this->present($page->refresh()), 201);
+        return response()->json($page->refresh()->toSummaryArray(), 201);
     }
 
     public function duplicate(ClinicPage $page): JsonResponse
@@ -86,7 +86,7 @@ class ClinicPageController extends Controller
             'seo_description' => $page->seo_description,
         ]);
 
-        return response()->json($this->present($copy->refresh()), 201);
+        return response()->json($copy->refresh()->toSummaryArray(), 201);
     }
 
     public function update(UpdateClinicPageRequest $request, ClinicPage $page): JsonResponse
@@ -95,7 +95,7 @@ class ClinicPageController extends Controller
 
         $page->update($request->validated());
 
-        return response()->json($this->present($page->refresh()));
+        return response()->json($page->refresh()->toSummaryArray());
     }
 
     public function destroy(ClinicPage $page): JsonResponse
@@ -118,7 +118,7 @@ class ClinicPageController extends Controller
 
         $page->restore();
 
-        return response()->json($this->present($page->refresh()));
+        return response()->json($page->refresh()->toSummaryArray());
     }
 
     public function homepage(ClinicPage $page): JsonResponse
@@ -127,29 +127,11 @@ class ClinicPageController extends Controller
 
         $page->makeHomepage();
 
-        return response()->json($this->present($page->refresh()));
+        return response()->json($page->refresh()->toSummaryArray());
     }
 
     private function authorizeTenant(ClinicPage $page): void
     {
         abort_if($page->tenant_id !== tenant('id'), 404);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function present(ClinicPage $page): array
-    {
-        return [
-            'id' => $page->id,
-            'title' => $page->title,
-            'slug' => $page->slug,
-            'url' => $page->publicUrl(),
-            'is_homepage' => $page->is_homepage,
-            'is_published' => $page->is_published,
-            'has_unpublished_changes' => $page->hasUnpublishedChanges(),
-            'updated_at' => $page->updated_at?->toIso8601String(),
-            'sort_order' => $page->sort_order,
-        ];
     }
 }

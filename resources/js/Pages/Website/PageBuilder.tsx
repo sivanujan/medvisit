@@ -707,7 +707,9 @@ export default function PageBuilder({
         const css = editorInstance.current.getCss();
         const projectData = editorInstance.current.getProjectData();
 
-        const endpoint = isPublish ? '/website/builder/publish' : '/website/builder/save';
+        const endpoint = isPublish
+            ? `/website/builder/${page.id}/publish`
+            : `/website/builder/${page.id}/save`;
         const csrfToken =
             (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
 
@@ -757,7 +759,7 @@ export default function PageBuilder({
     // Fetch Revisions
     const fetchRevisions = async () => {
         try {
-            const res = await fetch('/website/builder/revisions');
+            const res = await fetch(`/website/builder/${page.id}/revisions`);
             const data = await res.json();
             if (res.ok && data.revisions) {
                 setRevisionsList(data.revisions);
@@ -776,7 +778,7 @@ export default function PageBuilder({
             (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
 
         try {
-            const res = await fetch(`/website/builder/revert/${rev.id}`, {
+            const res = await fetch(`/website/builder/${page.id}/revert/${rev.id}`, {
                 method: 'POST',
                 headers: {
                     'X-CSRF-TOKEN': csrfToken,

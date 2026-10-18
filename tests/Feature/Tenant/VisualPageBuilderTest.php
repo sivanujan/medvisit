@@ -69,6 +69,22 @@ class VisualPageBuilderTest extends TestCase
         ]);
     }
 
+    private function homepageA(): ClinicPage
+    {
+        return ClinicPage::homepageFor($this->tenantA->id)
+            ?? ClinicPage::create([
+                'tenant_id' => $this->tenantA->id,
+                'slug' => 'home',
+                'title' => 'Home',
+                'is_homepage' => true,
+            ]);
+    }
+
+    private function builderUrl(string $path = ''): string
+    {
+        return "http://{$this->tenantA->subdomain}.{$this->baseDomain}/website/builder{$path}";
+    }
+
     public function test_clinic_admin_can_access_page_builder(): void
     {
         $response = $this->actingAs($this->adminA)
@@ -112,7 +128,7 @@ class VisualPageBuilderTest extends TestCase
         ];
 
         $response = $this->actingAs($this->adminA)
-            ->postJson("http://{$this->tenantA->subdomain}.{$this->baseDomain}/website/builder/save", $payload);
+            ->postJson($this->builderUrl("/{$this->homepageA()->id}/save"), $payload);
 
         $response->assertOk();
         $response->assertJson([
@@ -146,7 +162,7 @@ class VisualPageBuilderTest extends TestCase
         ];
 
         $response = $this->actingAs($this->adminA)
-            ->postJson("http://{$this->tenantA->subdomain}.{$this->baseDomain}/website/builder/publish", $payload);
+            ->postJson($this->builderUrl("/{$this->homepageA()->id}/publish"), $payload);
 
         $response->assertOk();
         $response->assertJson([
@@ -194,6 +210,7 @@ class VisualPageBuilderTest extends TestCase
             'tenant_id' => $this->tenantA->id,
             'slug' => 'home',
             'title' => 'Home',
+            'is_homepage' => true,
             'html' => '<p>Clinic A Content</p>',
         ]);
 
@@ -201,9 +218,9 @@ class VisualPageBuilderTest extends TestCase
 
         // 2. Admin B tries to revert Clinic A's revision
         $response = $this->actingAs($this->adminB)
-            ->postJson("http://{$this->tenantB->subdomain}.{$this->baseDomain}/website/builder/revert/{$revA->id}");
+            ->postJson("http://{$this->tenantB->subdomain}.{$this->baseDomain}/website/builder/{$pageA->id}/revert/{$revA->id}");
 
-        $response->assertForbidden();
+        $response->assertNotFound();
 
         // 3. Create media asset for Clinic A
         $assetA = ClinicMediaAsset::create([
@@ -228,7 +245,7 @@ class VisualPageBuilderTest extends TestCase
     {
         // 1. Save Initial Version
         $this->actingAs($this->adminA)
-            ->postJson("http://{$this->tenantA->subdomain}.{$this->baseDomain}/website/builder/save", [
+            ->postJson($this->builderUrl("/{$this->homepageA()->id}/save"), [
                 'content_json' => ['v' => 1],
                 'html' => '<div>Initial Draft Version 1</div>',
                 'css' => 'div { color: blue; }',
@@ -240,7 +257,7 @@ class VisualPageBuilderTest extends TestCase
 
         // 2. Save Updated Version 2
         $this->actingAs($this->adminA)
-            ->postJson("http://{$this->tenantA->subdomain}.{$this->baseDomain}/website/builder/save", [
+            ->postJson($this->builderUrl("/{$this->homepageA()->id}/save"), [
                 'content_json' => ['v' => 2],
                 'html' => '<div>Updated Draft Version 2</div>',
                 'css' => 'div { color: green; }',
@@ -251,12 +268,88 @@ class VisualPageBuilderTest extends TestCase
 
         // 3. Revert to Revision 1
         $revertResponse = $this->actingAs($this->adminA)
-            ->postJson("http://{$this->tenantA->subdomain}.{$this->baseDomain}/website/builder/revert/{$rev1->id}");
+            ->postJson($this->builderUrl("/{$page->id}/revert/{$rev1->id}"));
 
         $revertResponse->assertOk();
 
         $page->refresh();
         $this->assertStringContainsString('Initial Draft Version 1', $page->html);
+    }
+
+    public function test_publish_only_affects_target_page(): void
+    {
+        $page1 = $this->homepageA();
+        $page1->update(['published_html' => '<p>Page one live</p>']);
+        $page2 = ClinicPage::create(['tenant_id' => $this->tenantA->id, 'slug' => 'about', 'title' => 'About']);
+
+        $this->actingAs($this->adminA)
+            ->postJson($this->builderUrl("/{$page2->id}/publish"), [
+                'html' => '<section>About live</section>',
+                'css' => '',
+            ])->assertOk();
+
+        $this->assertStringContainsString('About live', $page2->refresh()->published_html);
+        $this->assertTrue($page2->is_published);
+        $this->assertSame('<p>Page one live</p>', $page1->refresh()->published_html);
+    }
+
+    public function test_draft_save_keeps_published_at(): void
+    {
+        $page = $this->homepageA();
+
+        $this->actingAs($this->adminA)
+            ->postJson($this->builderUrl("/{$page->id}/publish"), ['html' => '<p>v1</p>', 'css' => ''])
+            ->assertOk();
+        $publishedAt = $page->refresh()->published_at;
+        $this->assertNotNull($publishedAt);
+
+        $this->travel(1)->minutes();
+
+        $this->actingAs($this->adminA)
+            ->postJson($this->builderUrl("/{$page->id}/save"), ['html' => '<p>v2</p>', 'css' => ''])
+            ->assertOk();
+
+        $page->refresh();
+        $this->assertTrue($page->published_at->equalTo($publishedAt));
+        $this->assertTrue($page->is_published);
+        $this->assertTrue($page->hasUnpublishedChanges());
+    }
+
+    public function test_revert_rejects_revision_from_other_page(): void
+    {
+        $page1 = $this->homepageA();
+        $page2 = ClinicPage::create(['tenant_id' => $this->tenantA->id, 'slug' => 'about', 'title' => 'About']);
+        $rev = $page2->createRevision(userId: $this->adminA->id, summary: 'About rev');
+
+        $this->actingAs($this->adminA)
+            ->postJson($this->builderUrl("/{$page1->id}/revert/{$rev->id}"))
+            ->assertNotFound();
+    }
+
+    public function test_builder_without_page_opens_homepage(): void
+    {
+        $home = $this->homepageA();
+        ClinicPage::create(['tenant_id' => $this->tenantA->id, 'slug' => 'about', 'title' => 'About']);
+
+        $this->actingAs($this->adminA)
+            ->get($this->builderUrl())
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Website/PageBuilder')
+                ->where('page.id', $home->id)
+                ->where('page.is_homepage', true)
+                ->where('page.public_url', '/')
+                ->has('pages', 2)
+                ->where('siteKit', null)
+            );
+    }
+
+    public function test_builder_page_of_another_tenant_is_not_found(): void
+    {
+        $other = ClinicPage::create(['tenant_id' => $this->tenantB->id, 'slug' => 'home', 'title' => 'Home', 'is_homepage' => true]);
+
+        $this->actingAs($this->adminA)->get($this->builderUrl("/{$other->id}"))->assertNotFound();
+        $this->actingAs($this->adminA)->postJson($this->builderUrl("/{$other->id}/save"), ['html' => ''])->assertNotFound();
     }
 
     public function test_media_library_upload_and_delete(): void
@@ -293,6 +386,7 @@ class VisualPageBuilderTest extends TestCase
             'tenant_id' => $this->tenantA->id,
             'slug' => 'home',
             'title' => 'Home',
+            'is_homepage' => true,
             'is_published' => true,
             'published_at' => now(),
             'published_html' => '<div class="custom-hero"><h1>Welcome to Our Live Custom Website</h1></div>',
