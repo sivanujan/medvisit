@@ -144,6 +144,8 @@ function PageBuilderInner({
     // Modals
     const [mediaModalOpen, setMediaModalOpen] = useState(false);
     const [mediaCurrentValue, setMediaCurrentValue] = useState('');
+    // One-shot handler for a media pick requested by a non-image control (e.g. background image)
+    const mediaPickRef = useRef<((url: string) => void) | null>(null);
     const [revisionsModalOpen, setRevisionsModalOpen] = useState(false);
     const [revisionsList, setRevisionsList] = useState<Revision[]>(initialRevisions);
     const [revertingRevision, setRevertingRevision] = useState<number | null>(null);
@@ -249,7 +251,7 @@ function PageBuilderInner({
             blockManager: { appendTo: '#builder-blocks-container' },
             layerManager: { appendTo: '#builder-layers-container' },
             styleManager: { appendTo: '#builder-styles-container' },
-            selectorManager: { appendTo: '#builder-selectors-container' },
+            selectorManager: { componentFirst: true, appendTo: '#builder-selectors-container' },
             traitManager: { appendTo: '#builder-traits-container' },
             canvas: {
                 styles: [
@@ -290,6 +292,7 @@ function PageBuilderInner({
         editor.on('component:add', markDirty);
         editor.on('component:remove', markDirty);
         editor.on('style:update', markDirty);
+        editor.on('component:styleUpdate', markDirty);
 
         // Ensure canvas renders on load
         editor.on('load', () => {
@@ -518,7 +521,8 @@ function PageBuilderInner({
     };
 
     // Open the media library modal for the given current value
-    const openMediaLibrary = (currentValue: string) => {
+    const openMediaLibrary = (currentValue: string, onPick?: (url: string) => void) => {
+        mediaPickRef.current = onPick ?? null;
         setMediaCurrentValue(currentValue);
         setMediaModalOpen(true);
     };
@@ -938,8 +942,17 @@ function PageBuilderInner({
             {/* 1. Media Library Modal */}
             <MediaLibraryModal
                 isOpen={mediaModalOpen}
-                onClose={() => setMediaModalOpen(false)}
+                onClose={() => {
+                    mediaPickRef.current = null;
+                    setMediaModalOpen(false);
+                }}
                 onSelect={(url) => {
+                    if (mediaPickRef.current) {
+                        mediaPickRef.current(url);
+                        mediaPickRef.current = null;
+                        setMediaModalOpen(false);
+                        return;
+                    }
                     if (selectedComponent && selectedTagName === 'IMG') {
                         selectedComponent.set('src', url);
                         setIsDirty(true);

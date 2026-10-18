@@ -46,7 +46,7 @@ interface InspectorProps extends TabBaseProps {
     setInspectorTab: (tab: InspectorTabName) => void;
     setSelectedComponent: (component: any) => void;
     setIsDirty: (dirty: boolean) => void;
-    onOpenMedia: (currentValue: string) => void;
+    onOpenMedia: (currentValue: string, onPick?: (url: string) => void) => void;
 }
 
 export default function Inspector({
@@ -199,6 +199,7 @@ export default function Inspector({
                             selectedComponent={selectedComponent}
                             setIsDirty={setIsDirty}
                             inspectorTab={inspectorTab}
+                            onOpenMedia={onOpenMedia}
                         />
 
                         <AdvancedTab

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { slugify, isValidSlug } from '../../../resources/js/Components/PageBuilder/lib/slug.ts';
 import { resolveResponsive } from '../../../resources/js/Components/PageBuilder/lib/responsive.ts';
 import { kitToCss } from '../../../resources/js/Components/PageBuilder/lib/kit.ts';
+import { parseUnitValue, formatUnitValue, formatShadow, parseShadow, formatGradient, parseGradient, extractUrl, formatImageBackground, parseImageBackground } from '../../../resources/js/Components/PageBuilder/lib/cssValues.ts';
 import { usedFontFamilies, googleFontsUrl } from '../../../resources/js/Components/PageBuilder/lib/fonts.ts';
 
 const preset = (d, m, weight = 400) => ({ size: { desktop: d, mobile: m }, weight, lineHeight: 1.4 });
@@ -44,4 +45,35 @@ test('fonts URL includes only curated families in use', () => {
   assert.match(url, /family=Noto\+Sans\+Sinhala:wght@400;500;600;700/);
   assert.match(url, /display=swap$/);
   assert.equal(googleFontsUrl([]), null);
+});
+
+test('parseUnitValue / formatUnitValue', () => {
+  assert.deepEqual(parseUnitValue('1.5rem'), { number: 1.5, unit: 'rem' });
+  assert.deepEqual(parseUnitValue('-12px'), { number: -12, unit: 'px' });
+  assert.deepEqual(parseUnitValue('100%'), { number: 100, unit: '%' });
+  assert.deepEqual(parseUnitValue('auto'), { number: null, unit: 'auto' });
+  assert.equal(formatUnitValue(2, 'em'), '2em');
+});
+
+test('formatShadow / parseShadow', () => {
+  assert.equal(formatShadow({ x: 0, y: 4, blur: 12, spread: 0, color: '#0003' }), '0px 4px 12px 0px #0003');
+  assert.equal(formatShadow({ x: 1, y: 2, blur: 3, color: '#000' }), '1px 2px 3px #000');
+  assert.deepEqual(parseShadow('0px 4px 12px 0px rgba(0, 0, 0, 0.2)'), { x: 0, y: 4, blur: 12, spread: 0, color: 'rgba(0, 0, 0, 0.2)' });
+  assert.deepEqual(parseShadow('1px 2px 3px #000'), { x: 1, y: 2, blur: 3, color: '#000' });
+  assert.equal(parseShadow('none'), null);
+});
+
+test('gradient and url helpers', () => {
+  assert.equal(formatGradient({ angle: 90, from: '#fff', to: '#000' }), 'linear-gradient(90deg, #fff, #000)');
+  assert.deepEqual(parseGradient('linear-gradient(45deg, rgba(0, 0, 0, 0.5), #fff)'), { angle: 45, from: 'rgba(0, 0, 0, 0.5)', to: '#fff' });
+  assert.equal(parseGradient('url(a.png)'), null);
+  assert.equal(extractUrl('url("/storage/a b.png")'), '/storage/a b.png');
+  assert.equal(extractUrl('none'), '');
+});
+
+test('image background with overlay round-trips', () => {
+  const css = formatImageBackground('/a.png', 'rgba(0, 0, 0, 0.4)');
+  assert.equal(css, 'linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url("/a.png")');
+  assert.deepEqual(parseImageBackground(css), { url: '/a.png', overlay: 'rgba(0, 0, 0, 0.4)' });
+  assert.deepEqual(parseImageBackground(formatImageBackground('/b.png')), { url: '/b.png', overlay: '' });
 });
