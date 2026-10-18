@@ -23,6 +23,8 @@ import SiteSettingsTab from '@/Components/PageBuilder/LeftPanel/SiteSettingsTab'
 import { buildInitialEditorCss, cssWithCustomBlock, stripCustomCssBlock, syncCustomCssStyle } from '@/Components/PageBuilder/lib/customCss';
 import { animationCss, canvasEditorCss } from '@/Components/PageBuilder/lib/animations';
 import { createLoadGuard } from '@/Components/PageBuilder/lib/loadGuard';
+import { editorCanvasCss, editorChromeCss, toolbarFor } from '@/Components/PageBuilder/lib/canvasToolbars';
+import { describeComponent } from '@/Components/PageBuilder/Inspector/componentHelpers';
 import MediaLibraryModal from '@/Components/PageBuilder/MediaLibraryModal';
 import TopBar from '@/Components/PageBuilder/TopBar';
 import WidgetsTab from '@/Components/PageBuilder/LeftPanel/WidgetsTab';
@@ -281,8 +283,32 @@ function PageBuilderInner({
         // Register Blocks into categories
         registerBlocks(editor, doctors);
 
+        // Handle commands: open the element's Content panel / the Widgets library
+        editor.Commands.add('mv:edit', { run: () => setInspectorTab('content') });
+        editor.Commands.add('mv:add-inside', { run: () => setLeftPanelTab('elements') });
+
+        // Element handles + friendly badge name per widget kind (silent: these are editor-only, not edits)
+        const applyHandles = (component: any) => {
+            if (!component || component.get('type') === 'textnode' || component.get('type') === 'wrapper') return;
+            const { kind, label } = describeComponent(component);
+            const toolbar = toolbarFor(kind).map((t) => ({
+                label: t.icon,
+                command: t.command,
+                attributes: { title: t.title, ...(t.draggable ? { draggable: true } : {}) },
+            }));
+            component.set('toolbar', toolbar, { silent: true });
+            if (!component.get('name') && !component.get('custom-name')) component.set('name', label, { silent: true });
+        };
+        const applyHandlesDeep = (component: any) => {
+            applyHandles(component);
+            component?.find?.('*')?.forEach(applyHandles);
+        };
+        editor.on('component:add', applyHandlesDeep);
+        editor.on('load', () => applyHandlesDeep(editor.getWrapper()));
+
         // Selection listeners
         editor.on('component:selected', (component: any) => {
+            applyHandles(component);
             setSelectedComponent(component);
             setSelectedTagName(component.get('tagName')?.toUpperCase() || 'ELEMENT');
             const customName =
@@ -323,7 +349,7 @@ function PageBuilderInner({
             const name = String(editor.getDevice?.() || 'Desktop').toLowerCase();
             const device = name === 'tablet' || name === 'mobile' ? name : 'desktop';
             // Appended after the animation rules so the canvas override wins.
-            el.textContent = animationCss() + canvasEditorCss(device);
+            el.textContent = animationCss() + canvasEditorCss(device) + editorCanvasCss();
         };
         editor.on('device:select', (device: any) => {
             setCurrentDevice((device?.get?.('name') || 'Desktop') as DeviceName);
@@ -359,6 +385,15 @@ function PageBuilderInner({
             editorInstance.current = null;
             setEditor(null);
         };
+    }, []);
+
+    // Elementor-style hover outline, name badge and element handles (GrapesJS overlay lives in this document).
+    useEffect(() => {
+        const style = document.createElement('style');
+        style.id = 'mv-editor-chrome';
+        style.textContent = editorChromeCss();
+        document.head.appendChild(style);
+        return () => style.remove();
     }, []);
 
     // Keep the canvas kit style + fonts link in sync with every kit change.

@@ -154,3 +154,22 @@ test('renderSessionsHtml filters by days ahead and max', () => {
     const two = renderSessionsHtml(sessions, { daysAhead: 14, max: 2, today: '2026-10-19' });
     assert.equal((two.match(/<tr/g) || []).length, 2);
 });
+
+import { toolbarFor, editorCanvasCss, editorChromeCss } from '../../../resources/js/Components/PageBuilder/lib/canvasToolbars.ts';
+
+test('containers get select-parent, move, duplicate, add-inside and delete handles', () => {
+    assert.deepEqual(toolbarFor('container').map((t) => t.command), ['core:component-exit', 'tlb-move', 'tlb-clone', 'mv:add-inside', 'tlb-delete']);
+});
+
+test('widgets get edit, move, duplicate and delete handles', () => {
+    assert.deepEqual(toolbarFor('heading').map((t) => t.command), ['mv:edit', 'tlb-move', 'tlb-clone', 'tlb-delete']);
+    assert.ok(toolbarFor('heading').every((t) => t.title.length > 0));
+});
+
+test('editor canvas css outlines selection and labels empty drop areas', () => {
+    const css = editorCanvasCss();
+    assert.match(css, /\.gjs-selected/);
+    assert.match(css, /Drag widget here/);
+    assert.match(editorChromeCss(), /\.gjs-badge/);
+    assert.match(editorChromeCss(), /\.gjs-toolbar/);
+});
