@@ -30,3 +30,40 @@ test('load guard handles nesting and exceptions', () => {
     assert.throws(() => guard.run(() => { throw new Error('boom'); }), /boom/);
     assert.equal(guard.isLoading(), false, 'exception must not leave the guard stuck');
 });
+
+import { detectWidgetKind, WIDGET_LABELS } from '../../../resources/js/Components/PageBuilder/lib/widgetKinds.ts';
+
+const info = (tagName, extra = {}) => ({ tagName, classes: [], attributes: {}, childCount: 0, ...extra });
+
+test('data-mv-widget wins over tag heuristics', () => {
+    assert.equal(detectWidgetKind(info('div', { attributes: { 'data-mv-widget': 'faq' }, childCount: 3 })), 'faq');
+});
+
+test('legacy data-widget markers map to dynamic kinds', () => {
+    assert.equal(detectWidgetKind(info('section', { attributes: { 'data-widget': 'doctors-list' } })), 'doctors');
+    assert.equal(detectWidgetKind(info('section', { attributes: { 'data-widget': 'channeling-sessions' } })), 'sessions');
+    assert.equal(detectWidgetKind(info('section', { attributes: { 'data-widget': 'book-token-box' } })), 'book-token');
+    assert.equal(detectWidgetKind(info('div', { attributes: { 'data-widget': 'announcement-banner' } })), 'announcement');
+});
+
+test('tag heuristics recognise common widgets', () => {
+    assert.equal(detectWidgetKind(info('h3')), 'heading');
+    assert.equal(detectWidgetKind(info('P')), 'text');
+    assert.equal(detectWidgetKind(info('a', { classes: ['btn'] })), 'button');
+    assert.equal(detectWidgetKind(info('a', { attributes: { style: 'background:#0E9E8F; padding: 12px 24px' } })), 'button');
+    assert.equal(detectWidgetKind(info('a')), 'text');
+    assert.equal(detectWidgetKind(info('img')), 'image');
+    assert.equal(detectWidgetKind(info('iframe', { attributes: { src: 'https://www.youtube.com/embed/abc' } })), 'video');
+    assert.equal(detectWidgetKind(info('iframe', { attributes: { src: 'https://www.google.com/maps?q=x&output=embed' } })), 'map');
+    assert.equal(detectWidgetKind(info('ul')), 'icon-list');
+    assert.equal(detectWidgetKind(info('svg')), 'icon');
+    assert.equal(detectWidgetKind(info('div', { childCount: 2 })), 'container');
+    assert.equal(detectWidgetKind(info('div')), 'generic');
+    assert.equal(detectWidgetKind(info('section')), 'container');
+});
+
+test('widget labels are the user-facing names', () => {
+    assert.equal(WIDGET_LABELS.text, 'Text Editor');
+    assert.equal(WIDGET_LABELS.map, 'Google Map');
+    assert.equal(WIDGET_LABELS.generic, 'Element');
+});

@@ -1,3 +1,4 @@
+import { detectWidgetKind, WIDGET_LABELS, type WidgetKind } from '../lib/widgetKinds';
 // Safe helpers to read/write GrapesJS component content, classes and attributes
 
 // Safe helper to read component text/HTML content
@@ -72,4 +73,17 @@ export function getComponentAttribute(comp: any, attr: string): string {
     } catch {
         return '';
     }
+}
+
+// Which widget the selected GrapesJS component is, and its user-facing label.
+export function describeComponent(comp: any): { kind: WidgetKind; label: string } {
+    if (!comp) return { kind: 'generic', label: WIDGET_LABELS.generic };
+    const attributes: Record<string, string> = {};
+    const raw = typeof comp.getAttributes === 'function' ? comp.getAttributes() : {};
+    for (const [key, value] of Object.entries(raw || {})) attributes[key] = String(value ?? '');
+    const classes: string[] =
+        typeof comp.getClasses === 'function' ? comp.getClasses().map((c: any) => String(c?.name ?? c)) : [];
+    const childCount = typeof comp.components === 'function' ? comp.components().length : 0;
+    const kind = detectWidgetKind({ tagName: String(comp.get?.('tagName') || ''), classes, attributes, childCount });
+    return { kind, label: WIDGET_LABELS[kind] };
 }
