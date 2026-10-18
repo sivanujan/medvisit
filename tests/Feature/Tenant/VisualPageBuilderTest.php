@@ -328,6 +328,28 @@ class VisualPageBuilderTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('/<\s*\/?\s*(style|script)|<!--|-->|javascript:/i', $css);
     }
 
+    public function test_css_sanitizer_is_not_bypassed_by_spliced_tokens(): void
+    {
+        $page = $this->homepageA();
+
+        foreach ([
+            '@im<script>port url(//evil/x.css);',
+            'a{width:expr<script>ession(alert(1))}',
+            '@im<!--port url(//evil/x.css);',
+            'a{width:expr<!---->ession(alert(1))}',
+            'a{x:-moz-bin<!--ding:url(x);}',
+        ] as $input) {
+            $this->actingAs($this->adminA)
+                ->postJson($this->builderUrl("/{$page->id}/save"), ['html' => '<p>x</p>', 'css' => $input])
+                ->assertOk();
+
+            $css = $page->refresh()->css;
+            $this->assertStringNotContainsStringIgnoringCase('@import', $css, $input);
+            $this->assertStringNotContainsStringIgnoringCase('expression(', $css, $input);
+            $this->assertStringNotContainsStringIgnoringCase('-moz-binding', $css, $input);
+        }
+    }
+
     public function test_draft_save_keeps_published_at(): void
     {
         $page = $this->homepageA();
