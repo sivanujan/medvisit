@@ -293,6 +293,10 @@ function PageBuilderInner({
         editor.on('component:remove', markDirty);
         editor.on('style:update', markDirty);
         editor.on('component:styleUpdate', markDirty);
+        // Keep page chrome in sync when the device is changed from anywhere (toolbar or Style tab icons)
+        editor.on('device:select', (device: any) => {
+            setCurrentDevice((device?.get?.('name') || 'Desktop') as DeviceName);
+        });
 
         // Ensure canvas renders on load
         editor.on('load', () => {

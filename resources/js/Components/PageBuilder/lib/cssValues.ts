@@ -88,3 +88,9 @@ export function parseImageBackground(raw: string): { url: string; overlay: strin
     const m = /^linear-gradient\((.+),\s*\1\),\s*url\(/i.exec(value.trim());
     return { url: extractUrl(value), overlay: m ? m[1] : '' };
 }
+
+// Layout (flex) controls apply to sections and to div wrappers that contain children (columns / rows).
+export function isLayoutContainer(tagName: string, childCount: number): boolean {
+    const tag = (tagName ?? '').toLowerCase();
+    return tag === 'section' || (tag === 'div' && childCount > 0);
+}

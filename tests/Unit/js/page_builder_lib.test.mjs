@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { slugify, isValidSlug } from '../../../resources/js/Components/PageBuilder/lib/slug.ts';
 import { resolveResponsive } from '../../../resources/js/Components/PageBuilder/lib/responsive.ts';
 import { kitToCss } from '../../../resources/js/Components/PageBuilder/lib/kit.ts';
-import { parseUnitValue, formatUnitValue, formatShadow, parseShadow, formatGradient, parseGradient, extractUrl, formatImageBackground, parseImageBackground } from '../../../resources/js/Components/PageBuilder/lib/cssValues.ts';
+import { parseUnitValue, formatUnitValue, formatShadow, parseShadow, formatGradient, parseGradient, extractUrl, formatImageBackground, parseImageBackground, isLayoutContainer } from '../../../resources/js/Components/PageBuilder/lib/cssValues.ts';
 import { usedFontFamilies, googleFontsUrl } from '../../../resources/js/Components/PageBuilder/lib/fonts.ts';
 
 const preset = (d, m, weight = 400) => ({ size: { desktop: d, mobile: m }, weight, lineHeight: 1.4 });
@@ -76,4 +76,11 @@ test('image background with overlay round-trips', () => {
   assert.equal(css, 'linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url("/a.png")');
   assert.deepEqual(parseImageBackground(css), { url: '/a.png', overlay: 'rgba(0, 0, 0, 0.4)' });
   assert.deepEqual(parseImageBackground(formatImageBackground('/b.png')), { url: '/b.png', overlay: '' });
+});
+
+test('isLayoutContainer', () => {
+  assert.equal(isLayoutContainer('section', 0), true);
+  assert.equal(isLayoutContainer('DIV', 2), true);
+  assert.equal(isLayoutContainer('div', 0), false);
+  assert.equal(isLayoutContainer('h1', 3), false);
 });
