@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { PageHeader } from '@/Components/UI/PageHeader';
@@ -126,6 +126,11 @@ export default function PharmacyStockIndex({
 
     // Drawer Voided batches toggle
     const [showVoidedBatches, setShowVoidedBatches] = useState(false);
+
+    // Main Table Search State (Live Debounced)
+    const [tableSearch, setTableSearch] = useState(filters.search || '');
+    const debouncedTableSearch = useDebounce(tableSearch, 300);
+    const isInitialSearchRender = useRef(true);
 
     // Inline Drawer Selling Price Edit
     const [isEditingDrawerPrice, setIsEditingDrawerPrice] = useState(false);
@@ -274,6 +279,24 @@ export default function PharmacyStockIndex({
             { preserveState: true, replace: true }
         );
     };
+
+    // Trigger filter update when user types in table search bar (debounced)
+    useEffect(() => {
+        if (isInitialSearchRender.current) {
+            isInitialSearchRender.current = false;
+            return;
+        }
+        if (debouncedTableSearch !== (filters.search || '')) {
+            handleFilterChange('search', debouncedTableSearch);
+        }
+    }, [debouncedTableSearch]);
+
+    // Keep tableSearch in sync when filters.search updates externally (e.g. barcode scan)
+    useEffect(() => {
+        if (filters.search !== tableSearch) {
+            setTableSearch(filters.search || '');
+        }
+    }, [filters.search]);
 
     const openDetailDrawer = async (id: number) => {
         setSelectedMedicineId(id);
@@ -866,23 +889,38 @@ export default function PharmacyStockIndex({
                         {/* Search Input with Barcode Trigger */}
                         <div className="relative w-full sm:w-80 flex gap-2">
                             <div className="relative flex-1">
-                                <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                                <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400 pointer-events-none" />
                                 <input
                                     type="text"
-                                    defaultValue={filters.search}
+                                    value={tableSearch}
+                                    onChange={(e) => setTableSearch(e.target.value)}
                                     placeholder="Search medicine, brand or shelf..."
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') {
-                                            handleFilterChange('search', (e.target as HTMLInputElement).value);
+                                            e.preventDefault();
+                                            handleFilterChange('search', tableSearch);
                                         }
                                     }}
-                                    className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-800/70 outline-none focus:ring-2 focus:ring-teal-500"
+                                    className="w-full pl-9 pr-9 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-800/70 outline-none focus:ring-2 focus:ring-teal-500 text-slate-900 dark:text-slate-100 placeholder-slate-400"
                                 />
+                                {tableSearch && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setTableSearch('');
+                                            handleFilterChange('search', '');
+                                        }}
+                                        className="absolute right-2.5 top-2.5 p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-750 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                                        title="Clear search"
+                                    >
+                                        <X className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
                             </div>
                             <button
                                 type="button"
                                 onClick={() => setScannerOpen(true)}
-                                className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-800/70 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-600 dark:text-slate-300"
+                                className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-800/70 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-600 dark:text-slate-300 transition-colors shrink-0"
                                 title="Scan barcode with camera or scanner"
                             >
                                 <Barcode className="w-5 h-5 text-teal-600" />

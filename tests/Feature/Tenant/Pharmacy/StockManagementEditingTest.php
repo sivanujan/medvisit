@@ -7,6 +7,7 @@ namespace Tests\Feature\Tenant\Pharmacy;
 use App\Models\AuditEvent;
 use App\Models\ClinicMedicine;
 use App\Models\Medicine;
+use App\Models\MedicineBrand;
 use App\Models\MedicineVariant;
 use App\Models\StockBatch;
 use App\Models\StockMovement;
@@ -530,5 +531,78 @@ class StockManagementEditingTest extends TestCase
             ->first();
 
         $this->assertNotNull($audit);
+    }
+
+    /**
+     * 7. Stock search finds medicines by generic, brand, strength, shelf location, and batch number.
+     */
+    public function test_search_finds_medicines_by_generic_brand_strength_shelf_and_batch(): void
+    {
+        $v1 = $this->createVariant('Paracetamol', '500mg', 'Tablet');
+        $v2 = $this->createVariant('Metformin', '850mg', 'Tablet');
+
+        $brand = MedicineBrand::create([
+            'medicine_variant_id' => $v1->id,
+            'brand_name' => 'Panadol',
+            'status' => 'approved',
+        ]);
+
+        $cm1 = ClinicMedicine::create([
+            'tenant_id' => $this->tenant->id,
+            'medicine_variant_id' => $v1->id,
+            'medicine_brand_id' => $brand->id,
+            'display_name' => 'Panadol Paracetamol 500 mg Tablet',
+            'base_unit' => 'tablet',
+            'selling_price_cents' => 500,
+            'shelf_location' => 'Shelf A1',
+            'is_active' => true,
+        ]);
+
+        $cm2 = ClinicMedicine::create([
+            'tenant_id' => $this->tenant->id,
+            'medicine_variant_id' => $v2->id,
+            'display_name' => 'Metformin 850 mg Tablet',
+            'base_unit' => 'tablet',
+            'selling_price_cents' => 1500,
+            'shelf_location' => 'Cabinet B3',
+            'is_active' => true,
+        ]);
+
+        // Search by brand "Panadol"
+        $resBrand = $this->actingAs($this->user)
+            ->get("http://{$this->tenant->subdomain}.{$this->baseDomain}/pharmacy/medicines?search=Panadol");
+        $resBrand->assertStatus(200);
+        $resBrand->assertInertia(fn ($page) => $page
+            ->component('Tenant/Pharmacy/Medicines/Index')
+            ->has('medicines.data', 1)
+            ->where('medicines.data.0.id', $cm1->id)
+        );
+
+        // Search by strength "850"
+        $resStrength = $this->actingAs($this->user)
+            ->get("http://{$this->tenant->subdomain}.{$this->baseDomain}/pharmacy/medicines?search=850");
+        $resStrength->assertStatus(200);
+        $resStrength->assertInertia(fn ($page) => $page
+            ->has('medicines.data', 1)
+            ->where('medicines.data.0.id', $cm2->id)
+        );
+
+        // Multi-word search "Metformin Tablet"
+        $resMulti = $this->actingAs($this->user)
+            ->get("http://{$this->tenant->subdomain}.{$this->baseDomain}/pharmacy/medicines?search=Metformin+Tablet");
+        $resMulti->assertStatus(200);
+        $resMulti->assertInertia(fn ($page) => $page
+            ->has('medicines.data', 1)
+            ->where('medicines.data.0.id', $cm2->id)
+        );
+
+        // Search by shelf location "Cabinet B3"
+        $resShelf = $this->actingAs($this->user)
+            ->get("http://{$this->tenant->subdomain}.{$this->baseDomain}/pharmacy/medicines?search=Cabinet");
+        $resShelf->assertStatus(200);
+        $resShelf->assertInertia(fn ($page) => $page
+            ->has('medicines.data', 1)
+            ->where('medicines.data.0.id', $cm2->id)
+        );
     }
 }

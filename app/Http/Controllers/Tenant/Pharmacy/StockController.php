@@ -56,16 +56,65 @@ class StockController extends Controller
             ->where('tenant_id', $tenantId);
 
         if ($search !== '') {
-            $term = '%'.strtolower($search).'%';
-            $query->where(function ($q) use ($term) {
-                $q->whereRaw('LOWER(display_name) LIKE ?', [$term])
-                    ->orWhereRaw('LOWER(shelf_location) LIKE ?', [$term])
-                    ->orWhereHas('variant.medicine', function ($mq) use ($term) {
-                        $mq->whereRaw('LOWER(generic_name) LIKE ?', [$term]);
-                    })
-                    ->orWhereHas('brand', function ($bq) use ($term) {
-                        $bq->whereRaw('LOWER(brand_name) LIKE ?', [$term]);
+            $rawSearch = strtolower($search);
+            $fullTerm = '%'.$rawSearch.'%';
+            $words = array_values(array_filter(explode(' ', $rawSearch), fn ($w) => strlen(trim($w)) > 0));
+
+            $query->where(function ($mainQ) use ($fullTerm, $words) {
+                // 1. Direct full phrase match
+                $mainQ->where(function ($q) use ($fullTerm) {
+                    $q->whereRaw('LOWER(display_name) LIKE ?', [$fullTerm])
+                        ->orWhereRaw('LOWER(COALESCE(shelf_location, \'\')) LIKE ?', [$fullTerm])
+                        ->orWhereHas('variant.medicine', function ($mq) use ($fullTerm) {
+                            $mq->whereRaw('LOWER(generic_name) LIKE ?', [$fullTerm])
+                                ->orWhereRaw('LOWER(CAST(synonyms AS TEXT)) LIKE ?', [$fullTerm]);
+                        })
+                        ->orWhereHas('variant', function ($vq) use ($fullTerm) {
+                            $vq->whereRaw('LOWER(strength_text) LIKE ?', [$fullTerm])
+                                ->orWhereRaw('LOWER(dosage_form) LIKE ?', [$fullTerm]);
+                        })
+                        ->orWhereHas('brand', function ($bq) use ($fullTerm) {
+                            $bq->whereRaw('LOWER(brand_name) LIKE ?', [$fullTerm])
+                                ->orWhereRaw('LOWER(COALESCE(manufacturer, \'\')) LIKE ?', [$fullTerm]);
+                        })
+                        ->orWhereHas('batches', function ($bq) use ($fullTerm) {
+                            $bq->whereRaw('LOWER(batch_number) LIKE ?', [$fullTerm]);
+                        })
+                        ->orWhereHas('brand.barcodes', function ($bcq) use ($fullTerm) {
+                            $bcq->whereRaw('barcode LIKE ?', [$fullTerm]);
+                        });
+                });
+
+                // 2. Multi-word search: all tokens must match somewhere in the item's details
+                if (count($words) > 1) {
+                    $mainQ->orWhere(function ($allWordsQ) use ($words) {
+                        foreach ($words as $word) {
+                            $wordTerm = '%'.$word.'%';
+                            $allWordsQ->where(function ($singleWordQ) use ($wordTerm) {
+                                $singleWordQ->whereRaw('LOWER(display_name) LIKE ?', [$wordTerm])
+                                    ->orWhereRaw('LOWER(COALESCE(shelf_location, \'\')) LIKE ?', [$wordTerm])
+                                    ->orWhereHas('variant.medicine', function ($mq) use ($wordTerm) {
+                                        $mq->whereRaw('LOWER(generic_name) LIKE ?', [$wordTerm])
+                                            ->orWhereRaw('LOWER(CAST(synonyms AS TEXT)) LIKE ?', [$wordTerm]);
+                                    })
+                                    ->orWhereHas('variant', function ($vq) use ($wordTerm) {
+                                        $vq->whereRaw('LOWER(strength_text) LIKE ?', [$wordTerm])
+                                            ->orWhereRaw('LOWER(dosage_form) LIKE ?', [$wordTerm]);
+                                    })
+                                    ->orWhereHas('brand', function ($bq) use ($wordTerm) {
+                                        $bq->whereRaw('LOWER(brand_name) LIKE ?', [$wordTerm])
+                                            ->orWhereRaw('LOWER(COALESCE(manufacturer, \'\')) LIKE ?', [$wordTerm]);
+                                    })
+                                    ->orWhereHas('batches', function ($bq) use ($wordTerm) {
+                                        $bq->whereRaw('LOWER(batch_number) LIKE ?', [$wordTerm]);
+                                    })
+                                    ->orWhereHas('brand.barcodes', function ($bcq) use ($wordTerm) {
+                                        $bcq->whereRaw('barcode LIKE ?', [$wordTerm]);
+                                    });
+                            });
+                        }
                     });
+                }
             });
         }
 
