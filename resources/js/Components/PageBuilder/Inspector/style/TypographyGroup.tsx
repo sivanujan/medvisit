@@ -1,19 +1,22 @@
 import React from 'react';
 import type { Editor } from '../../types';
 import { CURATED_FONTS } from '../../lib/fonts';
+import { useKit } from '../../controls/KitContext';
 import Group from './Group';
 import { SelectField, UnitField, opts } from './fields';
 
-const FONT_OPTIONS = [
-    { value: 'var(--mv-font-heading)', label: 'Site heading font' },
-    { value: 'var(--mv-font-body)', label: 'Site body font' },
-    ...CURATED_FONTS.map((f) => ({ value: `'${f.family}', sans-serif`, label: f.family })),
-];
+const CURATED_OPTIONS = CURATED_FONTS.map((f) => ({ value: `'${f.family}', sans-serif`, label: f.family }));
 
 export default function TypographyGroup({ editor }: { editor: Editor }) {
+    const kit = useKit();
+    const fontOptions = [
+        { value: 'var(--mv-font-heading)', label: `Heading font${kit ? ` (${kit.fonts.heading})` : ''}` },
+        { value: 'var(--mv-font-body)', label: `Body font${kit ? ` (${kit.fonts.body})` : ''}` },
+        ...CURATED_OPTIONS,
+    ];
     return (
         <Group title="Typography" editor={editor}>
-            <SelectField editor={editor} prop="font-family" label="Font family" options={FONT_OPTIONS} />
+            <SelectField editor={editor} prop="font-family" label="Font family" options={fontOptions} />
             <UnitField editor={editor} prop="font-size" label="Size" units={['px', 'rem', 'em', 'vw']} />
             <SelectField
                 editor={editor}

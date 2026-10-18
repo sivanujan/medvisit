@@ -23,6 +23,8 @@ interface TopBarProps {
     onSaveDraft: () => Promise<boolean>;
     onWillNavigate: () => void;
     clinic: TemplateTenant;
+    onOpenSiteSettings?: () => void;
+    siteSettingsActive?: boolean;
 }
 
 export default function TopBar({
@@ -44,6 +46,8 @@ export default function TopBar({
     onSaveDraft,
     onWillNavigate,
     clinic,
+    onOpenSiteSettings,
+    siteSettingsActive = false,
 }: TopBarProps) {
     return (
         <header className="h-14 bg-slate-950 border-b border-white/10 px-4 flex items-center justify-between z-30 flex-shrink-0">
@@ -161,6 +165,24 @@ export default function TopBar({
                         <Redo className="w-3.5 h-3.5" />
                     </button>
                 </div>
+
+                {/* Site Settings (global colors & fonts) */}
+                {onOpenSiteSettings && (
+                    <button
+                        type="button"
+                        onClick={onOpenSiteSettings}
+                        aria-pressed={siteSettingsActive}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors ${
+                            siteSettingsActive
+                                ? 'text-white bg-teal-600 border-teal-500'
+                                : 'text-slate-300 bg-white/5 hover:bg-white/10 border-white/10'
+                        }`}
+                        title="Global colors and fonts"
+                    >
+                        <span aria-hidden="true">🌐</span>
+                        <span>Site Settings</span>
+                    </button>
+                )}
 
                 {/* Templates Button */}
                 <button

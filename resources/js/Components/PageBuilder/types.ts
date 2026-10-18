@@ -13,7 +13,7 @@ export type Component = any;
 
 export type DeviceName = 'Desktop' | 'Tablet' | 'Mobile';
 export type SaveState = 'ok' | 'error' | null;
-export type LeftPanelTabName = 'elements' | 'navigator' | 'header' | 'footer' | 'settings';
+export type LeftPanelTabName = 'elements' | 'navigator' | 'header' | 'footer' | 'settings' | 'site';
 export type InspectorTabName = 'content' | 'style' | 'advanced';
 
 export interface TabBaseProps {

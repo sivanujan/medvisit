@@ -124,3 +124,49 @@ test('buildInitialEditorCss never feeds the custom css block to the editor', asy
   assert.ok(!out.includes('mv-custom-css') && !out.includes('color:red'));
   assert.equal(buildInitialEditorCss('b{}', null), 'b{}');
 });
+
+import { presetColors, applyPreset, parseColorVar, colorVar, nextCustomColorId, resolveLinkedColor, THEME_COLORS } from '../../../resources/js/Components/PageBuilder/lib/kitEdit.ts';
+
+test('presetColors mirrors the theme palettes and rejects unknown keys', () => {
+  assert.deepEqual(presetColors('ocean-blue'), { primary: '#1E6FD9', secondary: '#0F172A', accent: '#F59E0B', text: '#334155' });
+  assert.equal(Object.keys(THEME_COLORS).length, 5);
+  assert.equal(presetColors('nope'), null);
+});
+
+test('applyPreset fills system colors and keeps custom colors', () => {
+  const colors = [
+    { id: 'primary', name: 'Primary', value: '#000000' },
+    { id: 'custom-1', name: 'Mine', value: '#123456' },
+  ];
+  const out = applyPreset(colors, 'royal-purple');
+  assert.equal(out[0].value, '#7C3AED');
+  assert.equal(out[1].value, '#123456');
+  assert.equal(applyPreset(colors, 'nope'), colors);
+});
+
+test('parseColorVar / colorVar', () => {
+  assert.equal(parseColorVar('var(--mv-color-primary)'), 'primary');
+  assert.equal(parseColorVar(' var( --mv-color-custom-2 ) '), 'custom-2');
+  assert.equal(parseColorVar('#fff'), null);
+  assert.equal(parseColorVar('var(--other)'), null);
+  assert.equal(colorVar('accent'), 'var(--mv-color-accent)');
+});
+
+test('nextCustomColorId fills gaps and avoids retired ids', () => {
+  const c = (id) => ({ id, name: id, value: '#000000' });
+  assert.equal(nextCustomColorId([c('primary')]), 'custom-1');
+  assert.equal(nextCustomColorId([c('custom-1'), c('custom-2')]), 'custom-3');
+  assert.equal(nextCustomColorId([c('custom-2')]), 'custom-1');
+  assert.equal(nextCustomColorId([c('custom-1')], [c('custom-2')]), 'custom-3');
+});
+
+test('resolveLinkedColor: active, retired, unknown and non-links', () => {
+  const kit = {
+    colors: [{ id: 'primary', name: 'Primary', value: '#0E9E8F' }],
+    retired: [{ id: 'custom-9', name: 'Old', value: '#FF0000' }],
+  };
+  assert.deepEqual(resolveLinkedColor('var(--mv-color-primary)', kit), { id: 'primary', status: 'active', name: 'Primary', hex: '#0E9E8F' });
+  assert.deepEqual(resolveLinkedColor('var(--mv-color-custom-9)', kit), { id: 'custom-9', status: 'retired', name: 'Old', hex: '#FF0000' });
+  assert.deepEqual(resolveLinkedColor('var(--mv-color-zzz)', kit), { id: 'zzz', status: 'unknown' });
+  assert.equal(resolveLinkedColor('#fff', kit), null);
+});

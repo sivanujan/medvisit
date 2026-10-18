@@ -16,10 +16,12 @@ import {
     PanelTop,
     PanelBottom,
 } from 'lucide-react';
-import { kitToCss } from '@/Components/PageBuilder/lib/kit';
+import type { SiteKit } from '@/Components/PageBuilder/lib/kit';
+import { applyKitToDocument } from '@/Components/PageBuilder/lib/kitCanvas';
+import { KitContext } from '@/Components/PageBuilder/controls/KitContext';
+import SiteSettingsTab from '@/Components/PageBuilder/LeftPanel/SiteSettingsTab';
 import { buildInitialEditorCss, cssWithCustomBlock, stripCustomCssBlock, syncCustomCssStyle } from '@/Components/PageBuilder/lib/customCss';
 import { animationCss, canvasEditorCss } from '@/Components/PageBuilder/lib/animations';
-import { googleFontsUrl, usedFontFamilies } from '@/Components/PageBuilder/lib/fonts';
 import MediaLibraryModal from '@/Components/PageBuilder/MediaLibraryModal';
 import TopBar from '@/Components/PageBuilder/TopBar';
 import WidgetsTab from '@/Components/PageBuilder/LeftPanel/WidgetsTab';
@@ -65,6 +67,13 @@ function PageBuilderInner({
     const editorRef = useRef<HTMLDivElement>(null);
     const editorInstance = useRef<Editor | null>(null);
     const [editor, setEditor] = useState<Editor | null>(null);
+
+    // Site kit: `kit` is the working copy shown live in the canvas; `savedKit` is what the server has.
+    // Kit edits are saved by the Site Settings panel itself and are separate from the page's dirty state.
+    const [kit, setKit] = useState<SiteKit | null>(siteKit ?? null);
+    const [savedKit, setSavedKit] = useState<SiteKit | null>(siteKit ?? null);
+    const kitRef = useRef(kit);
+    kitRef.current = kit;
 
     // Current page + page list (kept in sync with page-settings changes)
     const [page, setPage] = useState(initialPage);
@@ -323,21 +332,7 @@ function PageBuilderInner({
                 editor.setComponents(initialHtml);
             }
             editor.setStyle(initialCss);
-            const canvasDoc = editor.Canvas.getDocument();
-            if (siteKit && canvasDoc) {
-                const kitStyle = canvasDoc.createElement('style');
-                kitStyle.id = 'mv-kit';
-                kitStyle.textContent = kitToCss(siteKit);
-                canvasDoc.head.appendChild(kitStyle);
-                const fontsUrl = googleFontsUrl(usedFontFamilies(siteKit, initialCss));
-                if (fontsUrl) {
-                    const fontLink = canvasDoc.createElement('link');
-                    fontLink.id = 'mv-fonts';
-                    fontLink.rel = 'stylesheet';
-                    fontLink.href = fontsUrl;
-                    canvasDoc.head.appendChild(fontLink);
-                }
-            }
+            if (kitRef.current) applyKitToDocument(editor.Canvas.getDocument(), kitRef.current, initialCss);
             syncCanvasStyles();
             syncCustomCssStyle(editor);
             editor.refresh();
@@ -353,6 +348,12 @@ function PageBuilderInner({
             setEditor(null);
         };
     }, []);
+
+    // Keep the canvas kit style + fonts link in sync with every kit change.
+    useEffect(() => {
+        if (!editor || !kit) return;
+        applyKitToDocument(editor.Canvas.getDocument(), kit, editor.getCss() ?? '');
+    }, [editor, kit]);
 
     // Warn before closing/reloading the tab while there are unsaved changes
     useEffect(() => {
@@ -716,6 +717,8 @@ function PageBuilderInner({
                 onSaveDraft={() => handleSave(false)}
                 onWillNavigate={willNavigate}
                 clinic={tenant}
+                onOpenSiteSettings={kit ? () => setLeftPanelTab('site') : undefined}
+                siteSettingsActive={leftPanelTab === 'site'}
             />
 
             {/* 3-PANEL WORKSPACE */}
@@ -846,6 +849,20 @@ function PageBuilderInner({
                         </div>
                     </div>
 
+                    {kit && savedKit && (
+                        <SiteSettingsTab
+                            editor={editor}
+                            isActive={leftPanelTab === 'site'}
+                            kit={kit}
+                            savedKit={savedKit}
+                            onChange={setKit}
+                            onSaved={(saved) => {
+                                setKit(saved);
+                                setSavedKit(saved);
+                            }}
+                        />
+                    )}
+
                     <HeaderTab
                         editor={editor}
                         selectedComponent={selectedComponent}
@@ -949,17 +966,19 @@ function PageBuilderInner({
                         onSaved={handlePageSaved}
                     />
                 ) : (
-                <Inspector
-                    editor={editor}
-                    selectedComponent={selectedComponent}
-                    selectedTagName={selectedTagName}
-                    selectedWidgetName={selectedWidgetName}
-                    inspectorTab={inspectorTab}
-                    setInspectorTab={setInspectorTab}
-                    setSelectedComponent={setSelectedComponent}
-                    setIsDirty={setIsDirty}
-                    onOpenMedia={openMediaLibrary}
-                />
+                <KitContext.Provider value={kit}>
+                    <Inspector
+                        editor={editor}
+                        selectedComponent={selectedComponent}
+                        selectedTagName={selectedTagName}
+                        selectedWidgetName={selectedWidgetName}
+                        inspectorTab={inspectorTab}
+                        setInspectorTab={setInspectorTab}
+                        setSelectedComponent={setSelectedComponent}
+                        setIsDirty={setIsDirty}
+                        onOpenMedia={openMediaLibrary}
+                    />
+                </KitContext.Provider>
                 )}
             </div>
 
