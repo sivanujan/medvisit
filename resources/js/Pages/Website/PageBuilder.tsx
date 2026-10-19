@@ -27,6 +27,9 @@ import { editorCanvasCss, editorChromeCss, toolbarFor } from '@/Components/PageB
 import { describeComponent } from '@/Components/PageBuilder/Inspector/componentHelpers';
 import Breadcrumbs from '@/Components/PageBuilder/canvas/Breadcrumbs';
 import AddSectionOverlay from '@/Components/PageBuilder/canvas/AddSectionOverlay';
+import ContextMenu from '@/Components/PageBuilder/canvas/ContextMenu';
+import { copyStyle, pasteStyle } from '@/Components/PageBuilder/canvas/clipboard';
+import { shouldHandleShortcut } from '@/Components/PageBuilder/lib/canvasHelpers';
 import MediaLibraryModal from '@/Components/PageBuilder/MediaLibraryModal';
 import TopBar from '@/Components/PageBuilder/TopBar';
 import WidgetsTab from '@/Components/PageBuilder/LeftPanel/WidgetsTab';
@@ -288,6 +291,16 @@ function PageBuilderInner({
         // Handle commands: open the element's Content panel / the Widgets library
         editor.Commands.add('mv:edit', { run: () => setInspectorTab('content') });
         editor.Commands.add('mv:add-inside', { run: () => setLeftPanelTab('elements') });
+
+        // Extra shortcuts (GrapesJS already binds Ctrl/Cmd+C, Ctrl/Cmd+V and Delete/Backspace)
+        const shortcut = (action: () => void) => (_ed: any, _sender: any, opts: any) => {
+            const target = opts?.event?.target as HTMLElement | undefined;
+            if (target && !shouldHandleShortcut({ tagName: target.tagName, isContentEditable: !!target.isContentEditable })) return;
+            if (editor.getSelected()) action();
+        };
+        editor.Keymaps.add('mv:duplicate', '⌘+d, ctrl+d', shortcut(() => editor.runCommand('tlb-clone')), { prevent: true });
+        editor.Keymaps.add('mv:copy-style', '⌘+shift+c, ctrl+shift+c', shortcut(() => copyStyle(editor)), { prevent: true });
+        editor.Keymaps.add('mv:paste-style', '⌘+shift+v, ctrl+shift+v', shortcut(() => pasteStyle(editor)), { prevent: true });
 
         // Element handles + friendly badge name per widget kind (silent: these are editor-only, not edits)
         const applyHandles = (component: any) => {
@@ -968,6 +981,11 @@ function PageBuilderInner({
                     {/* Canvas Frame Container */}
                     <div className="flex-1 relative w-full h-full min-h-0 overflow-hidden flex justify-center items-stretch p-3 bg-slate-950">
                         <AddSectionOverlay editor={editor} />
+                        <ContextMenu
+                            editor={editor}
+                            onEdit={() => setInspectorTab('content')}
+                            onNavigator={() => setLeftPanelTab('navigator')}
+                        />
                         <div
                             ref={editorRef}
                             id="gjs"

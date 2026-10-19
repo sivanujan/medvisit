@@ -33,3 +33,28 @@ export function layoutPresetHtml(preset: LayoutPreset): string {
         .join('');
     return `<section class="medvisit-section" data-mv-widget="container" style="padding: 60px 20px;"><div class="medvisit-container" data-mv-widget="container" style="max-width: 1200px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: ${gap}px;">${columns}</div></section>`;
 }
+
+const MENU_MARGIN = 8;
+
+// Context menu position at the cursor, kept fully inside the canvas area.
+export function clampMenuPosition(x: number, y: number, w: number, h: number, viewW: number, viewH: number): { x: number; y: number } {
+    return {
+        x: Math.max(MENU_MARGIN, Math.min(x, viewW - w - MENU_MARGIN)),
+        y: Math.max(MENU_MARGIN, Math.min(y, viewH - h - MENU_MARGIN)),
+    };
+}
+
+export type StyleRule = { media: string; state: string; style: Record<string, string> };
+
+// Copied style keeps every device (media) and state rule that has declarations.
+export function pickStyleForClipboard(rules: StyleRule[]): StyleRule[] {
+    return rules
+        .filter((r) => Object.keys(r.style || {}).length > 0)
+        .map((r) => ({ media: r.media || '', state: r.state || '', style: { ...r.style } }));
+}
+
+// Editing shortcuts must not fire while the user types in a field or edits text inline.
+export function shouldHandleShortcut(target: { tagName: string; isContentEditable: boolean }): boolean {
+    if (target.isContentEditable) return false;
+    return !['INPUT', 'TEXTAREA', 'SELECT'].includes((target.tagName || '').toUpperCase());
+}

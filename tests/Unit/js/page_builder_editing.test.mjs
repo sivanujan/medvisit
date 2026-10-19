@@ -205,3 +205,31 @@ test('layoutPresetHtml builds columns with the right widths', () => {
     assert.equal((layoutPresetHtml('3').match(/33\.33%/g) || []).length, 3);
     assert.match(layoutPresetHtml('1'), /100%/);
 });
+
+import { clampMenuPosition, pickStyleForClipboard, shouldHandleShortcut } from '../../../resources/js/Components/PageBuilder/lib/canvasHelpers.ts';
+
+test('clampMenuPosition keeps the menu inside the canvas', () => {
+    assert.deepEqual(clampMenuPosition(50, 60, 200, 300, 1000, 800), { x: 50, y: 60 });
+    assert.deepEqual(clampMenuPosition(950, 700, 200, 300, 1000, 800), { x: 792, y: 492 });
+    assert.deepEqual(clampMenuPosition(-20, -5, 200, 300, 1000, 800), { x: 8, y: 8 });
+});
+
+test('pickStyleForClipboard keeps every device and state, drops empty rules', () => {
+    const picked = pickStyleForClipboard([
+        { media: '', state: '', style: { color: 'red' } },
+        { media: '(max-width: 480px)', state: '', style: { 'font-size': '14px' } },
+        { media: '', state: 'hover', style: {} },
+    ]);
+    assert.deepEqual(picked, [
+        { media: '', state: '', style: { color: 'red' } },
+        { media: '(max-width: 480px)', state: '', style: { 'font-size': '14px' } },
+    ]);
+});
+
+test('shortcuts are ignored while typing', () => {
+    assert.equal(shouldHandleShortcut({ tagName: 'INPUT', isContentEditable: false }), false);
+    assert.equal(shouldHandleShortcut({ tagName: 'textarea', isContentEditable: false }), false);
+    assert.equal(shouldHandleShortcut({ tagName: 'SELECT', isContentEditable: false }), false);
+    assert.equal(shouldHandleShortcut({ tagName: 'DIV', isContentEditable: true }), false);
+    assert.equal(shouldHandleShortcut({ tagName: 'DIV', isContentEditable: false }), true);
+});
