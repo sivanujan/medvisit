@@ -14,6 +14,22 @@ export type WidgetKind =
     | 'sessions'
     | 'book-token'
     | 'announcement'
+    | 'divider'
+    | 'spacer'
+    | 'icon-box'
+    | 'image-box'
+    | 'alert'
+    | 'star-rating'
+    | 'tabs'
+    | 'social-icons'
+    | 'counter'
+    | 'progress-bar'
+    | 'testimonial'
+    | 'gallery'
+    | 'cta'
+    | 'price-list'
+    | 'opening-hours'
+    | 'whatsapp'
     | 'generic';
 
 export type WidgetInfo = {
@@ -38,6 +54,22 @@ export const WIDGET_LABELS: Record<WidgetKind, string> = {
     sessions: 'Sessions This Week',
     'book-token': 'Book Token Box',
     announcement: 'Announcement',
+    divider: 'Divider',
+    spacer: 'Spacer',
+    'icon-box': 'Icon Box',
+    'image-box': 'Image Box',
+    alert: 'Alert',
+    'star-rating': 'Star Rating',
+    tabs: 'Tabs',
+    'social-icons': 'Social Icons',
+    counter: 'Counter',
+    'progress-bar': 'Progress Bar',
+    testimonial: 'Testimonial',
+    gallery: 'Image Gallery',
+    cta: 'Call to Action',
+    'price-list': 'Price List',
+    'opening-hours': 'Opening Hours',
+    whatsapp: 'WhatsApp / Call',
     generic: 'Element',
 };
 

@@ -23,6 +23,8 @@ import SiteSettingsTab from '@/Components/PageBuilder/LeftPanel/SiteSettingsTab'
 import { buildInitialEditorCss, cssWithCustomBlock, stripCustomCssBlock, syncCustomCssStyle } from '@/Components/PageBuilder/lib/customCss';
 import { animationCss, canvasEditorCss } from '@/Components/PageBuilder/lib/animations';
 import { createLoadGuard, isEditorOnlyChange } from '@/Components/PageBuilder/lib/loadGuard';
+import { matchesBlockQuery } from '@/Components/PageBuilder/lib/blockSearch';
+import { registerMoreBlocks } from '@/Components/PageBuilder/blocks/registerMoreBlocks';
 import { editorCanvasCss, editorChromeCss, toolbarFor } from '@/Components/PageBuilder/lib/canvasToolbars';
 import { describeComponent } from '@/Components/PageBuilder/Inspector/componentHelpers';
 import Breadcrumbs from '@/Components/PageBuilder/canvas/Breadcrumbs';
@@ -287,6 +289,7 @@ function PageBuilderInner({
 
         // Register Blocks into categories
         registerBlocks(editor, doctors);
+        registerMoreBlocks(editor);
 
         // Handle commands: open the element's Content panel / the Widgets library
         editor.Commands.add('mv:edit', { run: () => setInspectorTab('content') });
@@ -633,28 +636,19 @@ function PageBuilderInner({
         }
     };
 
-    // Filter elements list
-    const filteredWidgets = useMemo(() => {
-        if (!searchQuery.trim()) return null;
-        const q = searchQuery.toLowerCase();
-        return [
-            { name: '1 Column', cat: 'Layout', key: 'layout-1-col' },
-            { name: '2 Columns', cat: 'Layout', key: 'layout-2-col' },
-            { name: '3 Columns', cat: 'Layout', key: 'layout-3-col' },
-            { name: 'Heading', cat: 'Core', key: 'widget-heading' },
-            { name: 'Rich Text', cat: 'Core', key: 'widget-paragraph' },
-            { name: 'Action Button', cat: 'Core', key: 'widget-button' },
-            { name: 'Image', cat: 'Core', key: 'widget-image' },
-            { name: 'Icon List', cat: 'Core', key: 'widget-icon-list' },
-            { name: 'Video Embed', cat: 'Core', key: 'widget-video' },
-            { name: 'FAQ Accordion', cat: 'Core', key: 'widget-faq' },
-            { name: 'Location Map', cat: 'Core', key: 'widget-map' },
-            { name: 'Doctors List (Live)', cat: 'MedVisit Dynamic', key: 'medvisit-doctors' },
-            { name: 'Sessions This Week', cat: 'MedVisit Dynamic', key: 'medvisit-sessions' },
-            { name: 'Book-a-Token Box', cat: 'MedVisit Dynamic', key: 'medvisit-book-token' },
-            { name: 'Announcement Banner', cat: 'MedVisit Dynamic', key: 'medvisit-announcement' },
-        ].filter((w) => w.name.toLowerCase().includes(q) || w.cat.toLowerCase().includes(q));
-    }, [searchQuery]);
+    // Widget library search: show only GrapesJS blocks whose label or category matches the query.
+    const [searchMatches, setSearchMatches] = useState<number | null>(null);
+    useEffect(() => {
+        if (!editor) return;
+        const blockManager = editor.BlockManager;
+        const all = blockManager.getAll().models;
+        const query = searchQuery.trim();
+        const matches = query
+            ? all.filter((b: any) => matchesBlockQuery(String(b.get('label') || ''), String(b.getCategoryLabel?.() || ''), query))
+            : all;
+        blockManager.render(matches);
+        setSearchMatches(query ? matches.length : null);
+    }, [editor, searchQuery]);
 
     return (
         <div className="h-screen w-screen flex flex-col bg-slate-900 text-slate-100 font-sans overflow-hidden select-none">
@@ -877,6 +871,7 @@ function PageBuilderInner({
                         selectedComponent={selectedComponent}
                         isActive={leftPanelTab === 'elements'}
                         searchQuery={searchQuery}
+                        noMatches={searchMatches === 0}
                         setSearchQuery={setSearchQuery}
                     />
 
