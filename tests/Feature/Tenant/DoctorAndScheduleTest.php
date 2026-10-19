@@ -207,4 +207,95 @@ class DoctorAndScheduleTest extends TestCase
         $this->assertEquals('cancelled', $session->status);
         $this->assertEquals('Emergency surgery', $session->cancellation_reason);
     }
+
+    public function test_admin_can_delete_doctor_with_empty_sessions_and_doctor_is_removed(): void
+    {
+        $doctor = Doctor::create([
+            'tenant_id' => $this->tenant->id,
+            'title' => 'Dr.',
+            'name' => 'To Be Deleted',
+            'specialty' => 'General Physician',
+            'slmc_number' => 'SLMC-99999',
+            'doctor_fee' => 150000,
+            'clinic_fee' => 50000,
+            'avg_consultation_minutes' => 10,
+            'is_active' => true,
+        ]);
+
+        // Generate an empty session
+        DoctorSession::create([
+            'tenant_id' => $this->tenant->id,
+            'doctor_id' => $doctor->id,
+            'session_date' => Carbon::tomorrow('Asia/Colombo')->toDateString(),
+            'start_time' => '16:00',
+            'end_time' => '19:00',
+            'max_tokens' => 25,
+            'status' => 'scheduled',
+            'doctor_fee' => 150000,
+            'clinic_fee' => 50000,
+            'room_number' => 'Suite 1',
+        ]);
+
+        $response = $this->actingAs($this->adminUser)
+            ->delete("http://suwasetha.{$this->baseDomain}/doctors/{$doctor->id}");
+
+        $response->assertSessionHas('success');
+
+        // Verify doctor is completely deleted, NOT just marked inactive
+        $this->assertNull(Doctor::find($doctor->id));
+        $this->assertDatabaseMissing('doctors', ['id' => $doctor->id, 'deleted_at' => null]);
+    }
+
+    public function test_admin_cannot_delete_doctor_with_active_bookings(): void
+    {
+        $doctor = Doctor::create([
+            'tenant_id' => $this->tenant->id,
+            'title' => 'Dr.',
+            'name' => 'Has Active Appointments',
+            'specialty' => 'Cardiologist',
+            'slmc_number' => 'SLMC-88888',
+            'doctor_fee' => 200000,
+            'clinic_fee' => 80000,
+            'avg_consultation_minutes' => 15,
+            'is_active' => true,
+        ]);
+
+        $session = DoctorSession::create([
+            'tenant_id' => $this->tenant->id,
+            'doctor_id' => $doctor->id,
+            'session_date' => Carbon::tomorrow('Asia/Colombo')->toDateString(),
+            'start_time' => '17:00',
+            'end_time' => '20:00',
+            'max_tokens' => 25,
+            'status' => 'scheduled',
+            'doctor_fee' => 200000,
+            'clinic_fee' => 80000,
+            'room_number' => 'Suite 2',
+        ]);
+
+        $patient = Patient::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Active Patient',
+            'phone' => '+94770001122',
+        ]);
+
+        BookingToken::create([
+            'tenant_id' => $this->tenant->id,
+            'doctor_session_id' => $session->id,
+            'patient_id' => $patient->id,
+            'token_number' => 1,
+            'status' => 'booked',
+            'doctor_fee' => 200000,
+            'clinic_fee' => 80000,
+            'booked_via' => 'online',
+        ]);
+
+        $response = $this->actingAs($this->adminUser)
+            ->delete("http://suwasetha.{$this->baseDomain}/doctors/{$doctor->id}");
+
+        $response->assertSessionHas('error');
+
+        // Doctor should still exist and not be deleted
+        $this->assertNotNull(Doctor::find($doctor->id));
+    }
 }

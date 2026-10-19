@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
+use App\Models\BookingToken;
 use App\Models\Doctor;
 use App\Models\DoctorLeave;
 use App\Models\DoctorSession;
@@ -314,21 +315,52 @@ class DoctorController extends Controller
     }
 
     /**
-     * Delete a doctor if no bookings exist.
+     * Delete a doctor if no active bookings exist.
      */
     public function destroy(Doctor $doctor): RedirectResponse
     {
-        $hasSessions = $doctor->sessions()->exists();
+        $tenantId = tenant('id');
+        abort_unless($doctor->tenant_id === $tenantId, 404);
 
-        if ($hasSessions) {
-            $doctor->update(['is_active' => false]);
+        // Check for active upcoming patient appointments
+        $hasActiveBookings = BookingToken::whereIn('doctor_session_id', $doctor->sessions()->pluck('id'))
+            ->whereNotIn('status', [BookingToken::STATUS_CANCELLED, BookingToken::STATUS_COMPLETED, BookingToken::STATUS_NO_SHOW])
+            ->exists();
 
-            return redirect()->back()->with('success', "Doctor {$doctor->name} has existing channeling records and was deactivated instead of deleted.");
+        if ($hasActiveBookings) {
+            return redirect()->back()->with('error', "Cannot delete Dr. {$doctor->name} because they have active upcoming patient bookings. Please cancel or reassign those bookings first.");
         }
 
-        $doctor->delete();
+        // Clean up empty sessions (sessions with zero tokens)
+        $emptySessionIds = $doctor->sessions()
+            ->whereDoesntHave('tokens')
+            ->pluck('id');
 
-        return redirect()->back()->with('success', 'Doctor removed successfully.');
+        DoctorSession::whereIn('id', $emptySessionIds)->delete();
+        $doctor->sessionTemplates()->delete();
+        $doctor->leaves()->delete();
+
+        // Check if doctor has any past clinical records (tokens, bills, prescriptions)
+        $hasHistoricalRecords = BookingToken::whereIn('doctor_session_id', $doctor->sessions()->pluck('id'))->exists()
+            || $doctor->bills()->exists()
+            || $doctor->prescriptions()->exists();
+
+        if ($hasHistoricalRecords) {
+            // Cancel any remaining upcoming sessions
+            $doctor->sessions()
+                ->where('session_date', '>=', Carbon::today('Asia/Colombo')->toDateString())
+                ->update(['status' => 'cancelled']);
+
+            // Soft-delete doctor so historical medical & billing records are preserved
+            $doctor->update(['is_active' => false]);
+            $doctor->delete();
+        } else {
+            // Doctor has no booking tokens, bills or prescriptions at all -> force delete everything cleanly
+            $doctor->sessions()->delete();
+            $doctor->forceDelete();
+        }
+
+        return redirect()->back()->with('success', "Doctor {$doctor->name} deleted successfully.");
     }
 
     /**
