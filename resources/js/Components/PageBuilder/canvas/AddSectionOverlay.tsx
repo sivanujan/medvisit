@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
-import { layoutPresetHtml, type LayoutPreset } from '../lib/canvasHelpers';
+import { layoutPresetHtml, sectionEntries, type LayoutPreset } from '../lib/canvasHelpers';
 import LayoutPicker from './LayoutPicker';
 import type { Editor } from '../types';
 
@@ -19,12 +19,12 @@ export default function AddSectionOverlay({ editor }: { editor: Editor | null })
         const wrapper = editor?.getWrapper?.();
         if (!root || !frame || !wrapper) return;
         const offset = frame.getBoundingClientRect().top - root.getBoundingClientRect().top;
-        const sections = wrapper.components().filter((c: any) => c.get('type') !== 'textnode' && c.getEl?.());
+        const sections = sectionEntries<Element | null | undefined>(wrapper.components().map((c: any) => c.getEl?.()));
         const next: Slot[] = [];
         let lastBottom = 8;
-        sections.forEach((c: any, i: number) => {
-            const rect = c.getEl().getBoundingClientRect();
-            if (i > 0) next.push({ index: i, top: offset + rect.top });
+        sections.forEach(({ index, node }, i) => {
+            const rect = node.getBoundingClientRect();
+            if (i > 0) next.push({ index, top: offset + rect.top });
             lastBottom = offset + rect.bottom;
         });
         setSlots(next);
@@ -33,10 +33,11 @@ export default function AddSectionOverlay({ editor }: { editor: Editor | null })
 
     useEffect(() => {
         if (!editor) return;
-        let frameId = 0;
+        // A short timer (not requestAnimationFrame) so positions also update in tabs that are not being painted.
+        let timer: ReturnType<typeof setTimeout> | undefined;
         const schedule = () => {
-            cancelAnimationFrame(frameId);
-            frameId = requestAnimationFrame(recompute);
+            clearTimeout(timer);
+            timer = setTimeout(recompute, 50);
         };
         const events = 'component:add component:remove component:update canvas:frame:load device:select load';
         editor.on(events, schedule);
@@ -46,7 +47,7 @@ export default function AddSectionOverlay({ editor }: { editor: Editor | null })
         win?.addEventListener('resize', schedule);
         schedule();
         return () => {
-            cancelAnimationFrame(frameId);
+            clearTimeout(timer);
             editor.off(events, schedule);
             window.removeEventListener('resize', schedule);
             win?.removeEventListener('scroll', schedule);

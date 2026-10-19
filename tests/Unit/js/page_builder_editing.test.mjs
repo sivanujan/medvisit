@@ -248,3 +248,10 @@ test('content, attribute and style changes are edits', () => {
     assert.equal(isEditorOnlyChange(['status', 'components']), false);
     assert.equal(isEditorOnlyChange([]), false);
 });
+
+import { sectionEntries } from '../../../resources/js/Components/PageBuilder/lib/canvasHelpers.ts';
+
+test('sectionEntries skips comment and text nodes but keeps original indexes', () => {
+    const nodes = [{ nodeType: 1 }, { nodeType: 8 }, { nodeType: 1 }, { nodeType: 3 }, null, { nodeType: 1 }];
+    assert.deepEqual(sectionEntries(nodes).map((e) => e.index), [0, 2, 5]);
+});

@@ -58,3 +58,13 @@ export function shouldHandleShortcut(target: { tagName: string; isContentEditabl
     if (target.isContentEditable) return false;
     return !['INPUT', 'TEXTAREA', 'SELECT'].includes((target.tagName || '').toUpperCase());
 }
+
+// Top-level page children that are real elements (comments/text nodes skipped), keeping their
+// original positions so new sections are inserted at the right place.
+export function sectionEntries<T extends { nodeType?: number } | null | undefined>(nodes: T[]): { index: number; node: NonNullable<T> }[] {
+    const entries: { index: number; node: NonNullable<T> }[] = [];
+    nodes.forEach((node, index) => {
+        if (node && node.nodeType === 1) entries.push({ index, node: node as NonNullable<T> });
+    });
+    return entries;
+}
