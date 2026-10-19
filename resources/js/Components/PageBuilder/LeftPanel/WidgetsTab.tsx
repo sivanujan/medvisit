@@ -6,9 +6,10 @@ interface WidgetsTabProps extends TabBaseProps {
     isActive: boolean;
     searchQuery: string;
     setSearchQuery: (value: string) => void;
+    noMatches?: boolean;
 }
 
-export default function WidgetsTab({ isActive, searchQuery, setSearchQuery }: WidgetsTabProps) {
+export default function WidgetsTab({ isActive, searchQuery, setSearchQuery, noMatches = false }: WidgetsTabProps) {
     return (
         <div className={`flex-1 flex flex-col overflow-hidden ${isActive ? '' : 'hidden'}`}>
             {/* Search box */}
@@ -33,6 +34,12 @@ export default function WidgetsTab({ isActive, searchQuery, setSearchQuery }: Wi
                     )}
                 </div>
             </div>
+
+            {noMatches && (
+                <p className="px-3 pt-3 text-[11px] text-slate-400">
+                    No widgets match “{searchQuery.trim()}”. Try another word, e.g. “button” or “map”.
+                </p>
+            )}
 
             {/* GrapesJS Blocks Container - Always mounted */}
             <div

@@ -268,3 +268,21 @@ test('describeComponent recognises buttons styled through their #id rule', () =>
     };
     assert.deepEqual(describeComponent(fakeLink), { kind: 'button', label: 'Button' });
 });
+
+import { matchesBlockQuery } from '../../../resources/js/Components/PageBuilder/lib/blockSearch.ts';
+
+const headingLabel = '<div style="font-size: 20px;">🔤</div><b>Heading</b><div style="font-size: 10px;">H1 – H4 Title</div>';
+
+test('block search matches visible label text, not markup', () => {
+    assert.equal(matchesBlockQuery(headingLabel, 'Core Widgets', 'head'), true);
+    assert.equal(matchesBlockQuery(headingLabel, 'Core Widgets', 'TITLE'), true);
+    assert.equal(matchesBlockQuery(headingLabel, 'Core Widgets', 'font-size'), false);
+    assert.equal(matchesBlockQuery(headingLabel, 'Core Widgets', 'map'), false);
+});
+
+test('block search matches category and needs every word', () => {
+    assert.equal(matchesBlockQuery('<b>Doctors List</b>', 'MedVisit Dynamic Widgets', 'dynamic'), true);
+    assert.equal(matchesBlockQuery('<b>Doctors List</b>', 'MedVisit Dynamic Widgets', 'doctors list'), true);
+    assert.equal(matchesBlockQuery('<b>Doctors List</b>', 'MedVisit Dynamic Widgets', 'doctors map'), false);
+    assert.equal(matchesBlockQuery('<b>Doctors List</b>', 'MedVisit Dynamic Widgets', '   '), true);
+});
