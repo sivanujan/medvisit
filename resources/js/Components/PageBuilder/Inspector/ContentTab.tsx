@@ -15,6 +15,12 @@ import DoctorsContent from './content/DoctorsContent';
 import SessionsContent from './content/SessionsContent';
 import BookTokenContent from './content/BookTokenContent';
 import AnnouncementContent from './content/AnnouncementContent';
+import { FIELD_CONFIGS, makeFieldsPanel } from './content/FieldsPanel';
+import { OpeningHoursContent, PriceListContent } from './content/RowListPanel';
+import TabsContent from './content/TabsContent';
+import SocialIconsContent from './content/SocialIconsContent';
+import GalleryContent from './content/GalleryContent';
+import WhatsappContent from './content/WhatsappContent';
 import type { ClinicData, ContentPanelProps } from './content/types';
 import type { WidgetKind } from '../lib/widgetKinds';
 
@@ -42,6 +48,16 @@ const PANELS: Partial<Record<WidgetKind, React.ComponentType<ContentPanelProps>>
     sessions: SessionsContent,
     'book-token': BookTokenContent,
     announcement: AnnouncementContent,
+    // Batch A: simple widgets share the field-driven panel; list-style widgets have their own.
+    ...Object.fromEntries(
+        (Object.keys(FIELD_CONFIGS) as WidgetKind[]).map((kind) => [kind, makeFieldsPanel(kind)]),
+    ),
+    tabs: TabsContent,
+    'social-icons': SocialIconsContent,
+    gallery: GalleryContent,
+    'price-list': PriceListContent,
+    'opening-hours': OpeningHoursContent,
+    whatsapp: WhatsappContent,
 };
 
 export default function ContentTab({

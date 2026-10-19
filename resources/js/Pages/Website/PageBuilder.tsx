@@ -24,6 +24,7 @@ import { buildInitialEditorCss, cssWithCustomBlock, stripCustomCssBlock, syncCus
 import { animationCss, canvasEditorCss } from '@/Components/PageBuilder/lib/animations';
 import { createLoadGuard, isEditorOnlyChange } from '@/Components/PageBuilder/lib/loadGuard';
 import { matchesBlockQuery } from '@/Components/PageBuilder/lib/blockSearch';
+import { registerMoreBlocks } from '@/Components/PageBuilder/blocks/registerMoreBlocks';
 import { editorCanvasCss, editorChromeCss, toolbarFor } from '@/Components/PageBuilder/lib/canvasToolbars';
 import { describeComponent } from '@/Components/PageBuilder/Inspector/componentHelpers';
 import Breadcrumbs from '@/Components/PageBuilder/canvas/Breadcrumbs';
@@ -288,6 +289,7 @@ function PageBuilderInner({
 
         // Register Blocks into categories
         registerBlocks(editor, doctors);
+        registerMoreBlocks(editor);
 
         // Handle commands: open the element's Content panel / the Widgets library
         editor.Commands.add('mv:edit', { run: () => setInspectorTab('content') });

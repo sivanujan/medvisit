@@ -21,6 +21,7 @@ import PublicSiteHeader, { HeaderConfig } from '@/Components/Public/PublicSiteHe
 import PublicSiteFooter, { FooterConfig } from '@/Components/Public/PublicSiteFooter';
 import { kitToCss, type SiteKit } from '@/Components/PageBuilder/lib/kit';
 import { animationCss, initEntranceAnimations } from '@/Components/PageBuilder/lib/animations';
+import { initWidgets } from '@/Components/PageBuilder/lib/widgetsRuntime';
 import { googleFontsUrl, usedFontFamilies } from '@/Components/PageBuilder/lib/fonts';
 
 interface DoctorItem {
@@ -102,10 +103,15 @@ export default function ClinicLanding({
 }: Props) {
     const customMainRef = useRef<HTMLElement>(null);
     const customHtml = customPage?.html;
-    // Entrance animations run once the builder HTML is mounted; cleanup disconnects the observer.
+    // Entrance animations, Tabs and Counters run once the builder HTML is mounted; cleanup removes them.
     useEffect(() => {
         if (!customHtml || !customMainRef.current) return;
-        return initEntranceAnimations(customMainRef.current);
+        const stopAnimations = initEntranceAnimations(customMainRef.current);
+        const stopWidgets = initWidgets(customMainRef.current);
+        return () => {
+            stopAnimations();
+            stopWidgets();
+        };
     }, [customHtml]);
 
     const enabledSections = sections.filter((s) => s.enabled);

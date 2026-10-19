@@ -286,3 +286,54 @@ test('block search matches category and needs every word', () => {
     assert.equal(matchesBlockQuery('<b>Doctors List</b>', 'MedVisit Dynamic Widgets', 'doctors map'), false);
     assert.equal(matchesBlockQuery('<b>Doctors List</b>', 'MedVisit Dynamic Widgets', '   '), true);
 });
+
+import { whatsappHref, telHref, starsHtml, MORE_WIDGETS, moreWidgetHtml } from '../../../resources/js/Components/PageBuilder/lib/moreWidgets.ts';
+
+test('whatsappHref normalises Sri Lankan numbers and encodes the message', () => {
+    assert.equal(whatsappHref('077 204 6898', 'Hi, I want to book'), 'https://wa.me/94772046898?text=Hi%2C%20I%20want%20to%20book');
+    assert.equal(whatsappHref('+94 77 204 6898', ''), 'https://wa.me/94772046898');
+});
+
+test('telHref builds an international tel: link', () => {
+    assert.equal(telHref('0112 345 678'), 'tel:+94112345678');
+    assert.equal(telHref('+94772046898'), 'tel:+94772046898');
+});
+
+test('starsHtml renders filled and empty stars within range', () => {
+    const html = starsHtml(4, 5);
+    assert.equal((html.match(/★/g) || []).length, 4);
+    assert.equal((html.match(/☆/g) || []).length, 1);
+    assert.equal((starsHtml(9, 5).match(/★/g) || []).length, 5);
+    assert.equal((starsHtml(-1, 5).match(/☆/g) || []).length, 5);
+});
+
+test('every Batch A widget block carries its marker', () => {
+    const kinds = MORE_WIDGETS.map((w) => w.kind);
+    assert.deepEqual(kinds.sort(), [
+        'alert', 'counter', 'cta', 'divider', 'gallery', 'icon-box', 'image-box', 'opening-hours',
+        'price-list', 'progress-bar', 'social-icons', 'spacer', 'star-rating', 'tabs', 'testimonial', 'whatsapp',
+    ]);
+    for (const w of MORE_WIDGETS) {
+        assert.match(moreWidgetHtml(w.kind), new RegExp(`data-mv-widget="${w.kind}"`), w.kind);
+    }
+});
+
+test('widget blocks expose their editable fields', () => {
+    assert.match(moreWidgetHtml('icon-box'), /data-mv-field="title"/);
+    assert.match(moreWidgetHtml('icon-box'), /data-mv-field="text"/);
+    assert.match(moreWidgetHtml('testimonial'), /data-mv-field="quote"/);
+    assert.match(moreWidgetHtml('cta'), /data-mv-field="button"/);
+    assert.match(moreWidgetHtml('counter'), /data-mv-count="\d+"/);
+    assert.equal((moreWidgetHtml('tabs').match(/data-mv-tab-button/g) || []).length, 3);
+    assert.equal((moreWidgetHtml('tabs').match(/data-mv-tab-panel/g) || []).length, 3);
+    assert.match(moreWidgetHtml('whatsapp'), /href="https:\/\/wa\.me\/\d+/);
+});
+
+import { formatCount } from '../../../resources/js/Components/PageBuilder/lib/widgetsRuntime.ts';
+
+test('formatCount adds thousands separators', () => {
+    assert.equal(formatCount(25000), '25,000');
+    assert.equal(formatCount(999), '999');
+    assert.equal(formatCount(1234567), '1,234,567');
+    assert.equal(formatCount(0), '0');
+});
