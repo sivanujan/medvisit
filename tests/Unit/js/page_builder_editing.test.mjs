@@ -173,3 +173,35 @@ test('editor canvas css outlines selection and labels empty drop areas', () => {
     assert.match(editorChromeCss(), /\.gjs-badge/);
     assert.match(editorChromeCss(), /\.gjs-toolbar/);
 });
+
+import { breadcrumbPath, layoutPresetHtml } from '../../../resources/js/Components/PageBuilder/lib/canvasHelpers.ts';
+
+test('breadcrumbPath labels ancestors root first, custom names win', () => {
+    const path = breadcrumbPath([
+        { id: 'a', kind: 'container' },
+        { id: 'b', kind: 'container', customName: 'Hero' },
+        { id: 'c', kind: 'heading' },
+    ]);
+    assert.deepEqual(path, [
+        { id: 'a', label: 'Container' },
+        { id: 'b', label: 'Hero' },
+        { id: 'c', label: 'Heading' },
+    ]);
+});
+
+test('breadcrumbPath truncates long chains with an ellipsis crumb', () => {
+    const chain = Array.from({ length: 9 }, (_, i) => ({ id: String(i), kind: 'container' }));
+    const path = breadcrumbPath(chain);
+    assert.equal(path.length, 6);
+    assert.deepEqual(path[0], { id: '', label: '…' });
+    assert.equal(path[5].id, '8');
+});
+
+test('layoutPresetHtml builds columns with the right widths', () => {
+    const html = layoutPresetHtml('1-2');
+    assert.match(html, /33\.33%/);
+    assert.match(html, /66\.67%/);
+    assert.ok((html.match(/data-mv-widget="container"/g) || []).length >= 3);
+    assert.equal((layoutPresetHtml('3').match(/33\.33%/g) || []).length, 3);
+    assert.match(layoutPresetHtml('1'), /100%/);
+});

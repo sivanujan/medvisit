@@ -25,6 +25,8 @@ import { animationCss, canvasEditorCss } from '@/Components/PageBuilder/lib/anim
 import { createLoadGuard } from '@/Components/PageBuilder/lib/loadGuard';
 import { editorCanvasCss, editorChromeCss, toolbarFor } from '@/Components/PageBuilder/lib/canvasToolbars';
 import { describeComponent } from '@/Components/PageBuilder/Inspector/componentHelpers';
+import Breadcrumbs from '@/Components/PageBuilder/canvas/Breadcrumbs';
+import AddSectionOverlay from '@/Components/PageBuilder/canvas/AddSectionOverlay';
 import MediaLibraryModal from '@/Components/PageBuilder/MediaLibraryModal';
 import TopBar from '@/Components/PageBuilder/TopBar';
 import WidgetsTab from '@/Components/PageBuilder/LeftPanel/WidgetsTab';
@@ -954,24 +956,18 @@ function PageBuilderInner({
                         </div>
                     )}
 
-                    {/* Page label: opens page settings in the right panel */}
-                    <div className="relative z-10 h-8 bg-slate-900 border-b border-white/10 px-3 flex items-center flex-shrink-0">
-                        <button
-                            type="button"
-                            onClick={() => setPageSettingsOpen((o) => !o)}
-                            className={`inline-flex items-center gap-1.5 text-[11px] font-bold transition-colors ${
-                                pageSettingsOpen ? 'text-teal-400' : 'text-slate-400 hover:text-white'
-                            }`}
-                            title="Page settings"
-                        >
-                            <Settings className="w-3.5 h-3.5" />
-                            <span>Page</span>
-                            <span className="font-normal text-slate-500 truncate max-w-[240px]">{page.title}</span>
-                        </button>
-                    </div>
+                    {/* Breadcrumbs for the selected element + page settings */}
+                    <Breadcrumbs
+                        editor={editor}
+                        selectedComponent={selectedComponent}
+                        pageTitle={page.title}
+                        pageSettingsOpen={pageSettingsOpen}
+                        onTogglePageSettings={() => setPageSettingsOpen((o) => !o)}
+                    />
 
                     {/* Canvas Frame Container */}
                     <div className="flex-1 relative w-full h-full min-h-0 overflow-hidden flex justify-center items-stretch p-3 bg-slate-950">
+                        <AddSectionOverlay editor={editor} />
                         <div
                             ref={editorRef}
                             id="gjs"
