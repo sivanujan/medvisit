@@ -233,3 +233,18 @@ test('shortcuts are ignored while typing', () => {
     assert.equal(shouldHandleShortcut({ tagName: 'DIV', isContentEditable: true }), false);
     assert.equal(shouldHandleShortcut({ tagName: 'DIV', isContentEditable: false }), true);
 });
+
+import { isEditorOnlyChange } from '../../../resources/js/Components/PageBuilder/lib/loadGuard.ts';
+
+test('selection and layer-panel changes are not edits', () => {
+    assert.equal(isEditorOnlyChange(['status']), true);
+    assert.equal(isEditorOnlyChange(['open', 'status']), true);
+    assert.equal(isEditorOnlyChange(['hovered']), true);
+    assert.equal(isEditorOnlyChange(['toolbar']), true);
+});
+
+test('content, attribute and style changes are edits', () => {
+    assert.equal(isEditorOnlyChange(['attributes']), false);
+    assert.equal(isEditorOnlyChange(['status', 'components']), false);
+    assert.equal(isEditorOnlyChange([]), false);
+});

@@ -24,3 +24,10 @@ export function createLoadGuard(initiallyLoading: boolean): LoadGuard {
         },
     };
 }
+
+// Component properties GrapesJS changes for editor UI only (selection, layer tree, hover, handles).
+const EDITOR_ONLY_KEYS = ['status', 'open', 'hovered', 'toolbar'];
+
+export function isEditorOnlyChange(changedKeys: string[]): boolean {
+    return changedKeys.length > 0 && changedKeys.every((k) => EDITOR_ONLY_KEYS.includes(k));
+}

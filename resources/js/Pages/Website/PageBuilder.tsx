@@ -22,7 +22,7 @@ import { KitContext } from '@/Components/PageBuilder/controls/KitContext';
 import SiteSettingsTab from '@/Components/PageBuilder/LeftPanel/SiteSettingsTab';
 import { buildInitialEditorCss, cssWithCustomBlock, stripCustomCssBlock, syncCustomCssStyle } from '@/Components/PageBuilder/lib/customCss';
 import { animationCss, canvasEditorCss } from '@/Components/PageBuilder/lib/animations';
-import { createLoadGuard } from '@/Components/PageBuilder/lib/loadGuard';
+import { createLoadGuard, isEditorOnlyChange } from '@/Components/PageBuilder/lib/loadGuard';
 import { editorCanvasCss, editorChromeCss, toolbarFor } from '@/Components/PageBuilder/lib/canvasToolbars';
 import { describeComponent } from '@/Components/PageBuilder/Inspector/componentHelpers';
 import Breadcrumbs from '@/Components/PageBuilder/canvas/Breadcrumbs';
@@ -344,7 +344,11 @@ function PageBuilderInner({
             if (loadGuardRef.current.isLoading()) return;
             setIsDirty(true);
         };
-        editor.on('component:update', markDirty);
+        // Selecting an element or expanding the Layers tree also fires component:update; those aren't edits.
+        editor.on('component:update', (component: any) => {
+            if (isEditorOnlyChange(Object.keys(component?.changed || {}))) return;
+            markDirty();
+        });
         editor.on('component:add component:remove component:update:attributes', () => syncCustomCssStyle(editor));
         editor.on('component:add', markDirty);
         editor.on('component:remove', markDirty);
