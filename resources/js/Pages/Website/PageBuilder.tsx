@@ -402,7 +402,7 @@ function PageBuilderInner({
         };
     }, []);
 
-    // Elementor-style hover outline, name badge and element handles (GrapesJS overlay lives in this document).
+    // Hover outline, name badge and element handles (GrapesJS overlay lives in this document).
     useEffect(() => {
         const style = document.createElement('style');
         style.id = 'mv-editor-chrome';
