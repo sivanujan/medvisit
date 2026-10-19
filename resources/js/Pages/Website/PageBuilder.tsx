@@ -22,6 +22,14 @@ import { KitContext } from '@/Components/PageBuilder/controls/KitContext';
 import SiteSettingsTab from '@/Components/PageBuilder/LeftPanel/SiteSettingsTab';
 import { buildInitialEditorCss, cssWithCustomBlock, stripCustomCssBlock, syncCustomCssStyle } from '@/Components/PageBuilder/lib/customCss';
 import { animationCss, canvasEditorCss } from '@/Components/PageBuilder/lib/animations';
+import { createLoadGuard, isEditorOnlyChange } from '@/Components/PageBuilder/lib/loadGuard';
+import { editorCanvasCss, editorChromeCss, toolbarFor } from '@/Components/PageBuilder/lib/canvasToolbars';
+import { describeComponent } from '@/Components/PageBuilder/Inspector/componentHelpers';
+import Breadcrumbs from '@/Components/PageBuilder/canvas/Breadcrumbs';
+import AddSectionOverlay from '@/Components/PageBuilder/canvas/AddSectionOverlay';
+import ContextMenu from '@/Components/PageBuilder/canvas/ContextMenu';
+import { copyStyle, pasteStyle } from '@/Components/PageBuilder/canvas/clipboard';
+import { shouldHandleShortcut } from '@/Components/PageBuilder/lib/canvasHelpers';
 import MediaLibraryModal from '@/Components/PageBuilder/MediaLibraryModal';
 import TopBar from '@/Components/PageBuilder/TopBar';
 import WidgetsTab from '@/Components/PageBuilder/LeftPanel/WidgetsTab';
@@ -85,6 +93,8 @@ function PageBuilderInner({
     const [saving, setSaving] = useState(false);
     const [saveState, setSaveState] = useState<SaveState>(null);
     const [isDirty, setIsDirty] = useState(false);
+    // Events fired while content is loaded programmatically are not user edits.
+    const loadGuardRef = useRef(createLoadGuard(true));
     const [lastSavedTime, setLastSavedTime] = useState<string | null>(
         page.published_at ? new Date(page.published_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null
     );
@@ -278,8 +288,42 @@ function PageBuilderInner({
         // Register Blocks into categories
         registerBlocks(editor, doctors);
 
+        // Handle commands: open the element's Content panel / the Widgets library
+        editor.Commands.add('mv:edit', { run: () => setInspectorTab('content') });
+        editor.Commands.add('mv:add-inside', { run: () => setLeftPanelTab('elements') });
+
+        // Extra shortcuts (GrapesJS already binds Ctrl/Cmd+C, Ctrl/Cmd+V and Delete/Backspace)
+        const shortcut = (action: () => void) => (_ed: any, _sender: any, opts: any) => {
+            const target = opts?.event?.target as HTMLElement | undefined;
+            if (target && !shouldHandleShortcut({ tagName: target.tagName, isContentEditable: !!target.isContentEditable })) return;
+            if (editor.getSelected()) action();
+        };
+        editor.Keymaps.add('mv:duplicate', '⌘+d, ctrl+d', shortcut(() => editor.runCommand('tlb-clone')), { prevent: true });
+        editor.Keymaps.add('mv:copy-style', '⌘+shift+c, ctrl+shift+c', shortcut(() => copyStyle(editor)), { prevent: true });
+        editor.Keymaps.add('mv:paste-style', '⌘+shift+v, ctrl+shift+v', shortcut(() => pasteStyle(editor)), { prevent: true });
+
+        // Element handles + friendly badge name per widget kind (silent: these are editor-only, not edits)
+        const applyHandles = (component: any) => {
+            if (!component || component.get('type') === 'textnode' || component.get('type') === 'wrapper') return;
+            const { kind, label } = describeComponent(component);
+            const toolbar = toolbarFor(kind).map((t) => ({
+                label: t.icon,
+                command: t.command,
+                attributes: { title: t.title, ...(t.draggable ? { draggable: true } : {}) },
+            }));
+            component.set('toolbar', toolbar, { silent: true });
+            if (!component.get('name') && !component.get('custom-name')) component.set('name', label, { silent: true });
+        };
+        const applyHandlesDeep = (component: any) => {
+            applyHandles(component);
+            component?.find?.('*')?.forEach(applyHandles);
+        };
+        editor.on('component:add', applyHandlesDeep);
+        editor.on('load', () => applyHandlesDeep(editor.getWrapper()));
+
         // Selection listeners
         editor.on('component:selected', (component: any) => {
+            applyHandles(component);
             setSelectedComponent(component);
             setSelectedTagName(component.get('tagName')?.toUpperCase() || 'ELEMENT');
             const customName =
@@ -297,9 +341,14 @@ function PageBuilderInner({
 
         // Change tracking for unsaved indicator
         const markDirty = () => {
+            if (loadGuardRef.current.isLoading()) return;
             setIsDirty(true);
         };
-        editor.on('component:update', markDirty);
+        // Selecting an element or expanding the Layers tree also fires component:update; those aren't edits.
+        editor.on('component:update', (component: any) => {
+            if (isEditorOnlyChange(Object.keys(component?.changed || {}))) return;
+            markDirty();
+        });
         editor.on('component:add component:remove component:update:attributes', () => syncCustomCssStyle(editor));
         editor.on('component:add', markDirty);
         editor.on('component:remove', markDirty);
@@ -319,7 +368,7 @@ function PageBuilderInner({
             const name = String(editor.getDevice?.() || 'Desktop').toLowerCase();
             const device = name === 'tablet' || name === 'mobile' ? name : 'desktop';
             // Appended after the animation rules so the canvas override wins.
-            el.textContent = animationCss() + canvasEditorCss(device);
+            el.textContent = animationCss() + canvasEditorCss(device) + editorCanvasCss();
         };
         editor.on('device:select', (device: any) => {
             setCurrentDevice((device?.get?.('name') || 'Desktop') as DeviceName);
@@ -328,14 +377,22 @@ function PageBuilderInner({
 
         // Ensure canvas renders on load
         editor.on('load', () => {
-            if (!editor.getHtml() || editor.getHtml().trim() === '<body></body>') {
-                editor.setComponents(initialHtml);
-            }
-            editor.setStyle(initialCss);
-            if (kitRef.current) applyKitToDocument(editor.Canvas.getDocument(), kitRef.current, initialCss);
-            syncCanvasStyles();
-            syncCustomCssStyle(editor);
-            editor.refresh();
+            loadGuardRef.current.run(() => {
+                if (!editor.getHtml() || editor.getHtml().trim() === '<body></body>') {
+                    editor.setComponents(initialHtml);
+                }
+                editor.setStyle(initialCss);
+                if (kitRef.current) applyKitToDocument(editor.Canvas.getDocument(), kitRef.current, initialCss);
+                syncCanvasStyles();
+                syncCustomCssStyle(editor);
+                editor.refresh();
+            });
+            // Let GrapesJS's deferred (0ms) events from the load settle before edits count.
+            setTimeout(() => {
+                editor.UndoManager?.clear?.();
+                loadGuardRef.current.release();
+                setIsDirty(false);
+            }, 0);
         });
 
         setTimeout(() => {
@@ -347,6 +404,15 @@ function PageBuilderInner({
             editorInstance.current = null;
             setEditor(null);
         };
+    }, []);
+
+    // Hover outline, name badge and element handles (GrapesJS overlay lives in this document).
+    useEffect(() => {
+        const style = document.createElement('style');
+        style.id = 'mv-editor-chrome';
+        style.textContent = editorChromeCss();
+        document.head.appendChild(style);
+        return () => style.remove();
     }, []);
 
     // Keep the canvas kit style + fonts link in sync with every kit change.
@@ -522,13 +588,16 @@ function PageBuilderInner({
 
             const data = await res.json();
             if (res.ok && data.ok) {
-                if (data.html) {
-                    editorInstance.current.setComponents(data.html);
-                }
-                if (data.css) {
-                    editorInstance.current.setStyle(stripCustomCssBlock(data.css));
-                    syncCustomCssStyle(editorInstance.current);
-                }
+                // The server already saved the restored revision as the draft, so this is not an unsaved edit.
+                loadGuardRef.current.run(() => {
+                    if (data.html) {
+                        editorInstance.current.setComponents(data.html);
+                    }
+                    if (data.css) {
+                        editorInstance.current.setStyle(stripCustomCssBlock(data.css));
+                        syncCustomCssStyle(editorInstance.current);
+                    }
+                });
                 setIsDirty(false);
                 setRevisionsModalOpen(false);
                 fetchRevisions();
@@ -724,10 +793,10 @@ function PageBuilderInner({
             {/* 3-PANEL WORKSPACE */}
             <div className="flex-1 flex overflow-hidden">
                 {/* 1. LEFT PANEL: Widget Library & Structure Navigator (w-80) */}
-                <aside className="w-80 bg-slate-950 border-r border-white/10 flex flex-col flex-shrink-0 z-20">
-                    {/* Header Tabs */}
-                    <div className="h-11 border-b border-white/10 bg-slate-900/50 px-2 flex items-center justify-between flex-shrink-0">
-                        <div className="flex items-center gap-1">
+                <aside className="w-80 bg-slate-950 border-r border-white/10 flex flex-col flex-shrink-0 z-20 overflow-hidden">
+                    {/* Header Tabs: wrap instead of overflowing into the canvas */}
+                    <div className="min-h-11 py-1 border-b border-white/10 bg-slate-900/50 px-2 flex items-center justify-between gap-1 flex-shrink-0 overflow-hidden">
+                        <div className="flex flex-wrap items-center gap-1 min-w-0">
                             <button
                                 type="button"
                                 onClick={() => setLeftPanelTab('elements')}
@@ -739,7 +808,7 @@ function PageBuilderInner({
                                 title="Widgets Library"
                             >
                                 <LayoutGrid className="w-3.5 h-3.5" />
-                                <span className="hidden xl:inline">Widgets</span>
+                                <span>Widgets</span>
                             </button>
                             <button
                                 type="button"
@@ -752,7 +821,7 @@ function PageBuilderInner({
                                 title="DOM Layers"
                             >
                                 <Layers className="w-3.5 h-3.5" />
-                                <span className="hidden xl:inline">Layers</span>
+                                <span>Layers</span>
                             </button>
                             <button
                                 type="button"
@@ -791,7 +860,7 @@ function PageBuilderInner({
                                 title="Clinic Theme & SEO"
                             >
                                 <Settings className="w-3.5 h-3.5" />
-                                <span className="hidden xl:inline">Page</span>
+                                <span>Theme</span>
                             </button>
                         </div>
 
@@ -904,24 +973,23 @@ function PageBuilderInner({
                         </div>
                     )}
 
-                    {/* Page label: opens page settings in the right panel */}
-                    <div className="h-8 bg-slate-900 border-b border-white/10 px-3 flex items-center flex-shrink-0">
-                        <button
-                            type="button"
-                            onClick={() => setPageSettingsOpen((o) => !o)}
-                            className={`inline-flex items-center gap-1.5 text-[11px] font-bold transition-colors ${
-                                pageSettingsOpen ? 'text-teal-400' : 'text-slate-400 hover:text-white'
-                            }`}
-                            title="Page settings"
-                        >
-                            <Settings className="w-3.5 h-3.5" />
-                            <span>Page</span>
-                            <span className="font-normal text-slate-500 truncate max-w-[240px]">{page.title}</span>
-                        </button>
-                    </div>
+                    {/* Breadcrumbs for the selected element + page settings */}
+                    <Breadcrumbs
+                        editor={editor}
+                        selectedComponent={selectedComponent}
+                        pageTitle={page.title}
+                        pageSettingsOpen={pageSettingsOpen}
+                        onTogglePageSettings={() => setPageSettingsOpen((o) => !o)}
+                    />
 
                     {/* Canvas Frame Container */}
                     <div className="flex-1 relative w-full h-full min-h-0 overflow-hidden flex justify-center items-stretch p-3 bg-slate-950">
+                        <AddSectionOverlay editor={editor} />
+                        <ContextMenu
+                            editor={editor}
+                            onEdit={() => setInspectorTab('content')}
+                            onNavigator={() => setLeftPanelTab('navigator')}
+                        />
                         <div
                             ref={editorRef}
                             id="gjs"
@@ -969,6 +1037,7 @@ function PageBuilderInner({
                 <KitContext.Provider value={kit}>
                     <Inspector
                         editor={editor}
+                        clinicData={{ doctors, sessions: upcomingSessions }}
                         selectedComponent={selectedComponent}
                         selectedTagName={selectedTagName}
                         selectedWidgetName={selectedWidgetName}

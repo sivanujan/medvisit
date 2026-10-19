@@ -19,6 +19,7 @@ class HtmlSanitizer
         'ul', 'ol', 'li', 'blockquote', 'hr', 'br', 'table', 'thead', 'tbody',
         'tr', 'th', 'td', 'b', 'strong', 'i', 'em', 'u', 'mark', 'small',
         'sub', 'sup', 'code', 'pre', 'figure', 'figcaption', 'iframe',
+        'details', 'summary',
         'svg', 'path', 'g', 'circle', 'rect', 'polyline', 'polygon', 'line', 'use',
     ];
 
@@ -31,7 +32,7 @@ class HtmlSanitizer
         'data-gjs-custom-name', 'data-gjs-droppable', 'data-widget',
         'viewbox', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin',
         'd', 'cx', 'cy', 'r', 'x', 'y', 'rx', 'ry', 'x1', 'y1', 'x2', 'y2', 'points',
-        'allow', 'allowfullscreen', 'frameborder', 'loading', 'referrerpolicy',
+        'allow', 'allowfullscreen', 'frameborder', 'loading', 'referrerpolicy', 'open',
         'role', 'aria-label', 'aria-hidden', 'aria-expanded',
     ];
 

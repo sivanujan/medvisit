@@ -499,4 +499,15 @@ class VisualPageBuilderTest extends TestCase
             ->where('customPage.html', fn ($html) => str_contains($html, 'Welcome to Our Live Custom Website'))
         );
     }
+
+    public function test_faq_details_and_summary_survive_sanitization(): void
+    {
+        $clean = \App\Support\HtmlSanitizer::sanitize(
+            '<div data-mv-widget="faq"><details open><summary>How do I book?</summary><p>Online.</p></details></div>'
+        );
+
+        $this->assertStringContainsString('<details', $clean);
+        $this->assertStringContainsString('<summary>How do I book?</summary>', $clean);
+        $this->assertStringContainsString('<p>Online.</p>', $clean);
+    }
 }
