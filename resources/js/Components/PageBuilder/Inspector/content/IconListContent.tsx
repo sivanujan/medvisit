@@ -1,41 +1,53 @@
 import React, { useState } from 'react';
-import { escapeHtml } from '../../lib/contentHelpers';
 import ItemListEditor from './ItemListEditor';
-import { childElements, plainText } from './componentOps';
+import { childElements, plainText, setOwnText } from './componentOps';
 import type { ContentPanelProps } from './types';
 
-function attrString(attrs: Record<string, unknown>): string {
-    return Object.entries(attrs || {})
-        .filter(([k]) => k !== 'id')
-        .map(([k, v]) => ` ${k}="${escapeHtml(String(v))}"`)
-        .join('');
+// Row text without the leading icon element's text.
+function rowText(li: any): string {
+    const icon = childElements(li)[0];
+    return plainText(li).replace(icon ? plainText(icon) : '', '').trim();
 }
 
 export default function IconListContent({ component, setIsDirty }: ContentPanelProps) {
-    const rows = childElements(component);
-    // Reuse the first row's look (attributes + leading icon) for every row.
-    const first = rows[0];
-    const liAttrs = first ? attrString(first.getAttributes?.() || {}) : '';
-    const iconChild = first ? childElements(first)[0] : null;
-    const iconHtml = iconChild ? iconChild.toHTML() : '';
-    const iconText = iconChild ? plainText(iconChild) : '';
-
-    const [items, setItems] = useState<string[]>(() =>
-        rows.length ? rows.map((li: any) => plainText(li).replace(iconText, '').trim()) : ['List item'],
-    );
-
-    const apply = (next: string[]) => {
-        setItems(next);
-        component.components(next.map((text) => `<li${liAttrs}>${iconHtml} ${escapeHtml(text)}</li>`).join(''));
+    const rows = () => childElements(component);
+    const [items, setItems] = useState<string[]>(() => rows().map(rowText));
+    const refresh = () => {
+        setItems(rows().map(rowText));
         setIsDirty(true);
     };
 
     return (
         <ItemListEditor
             items={items}
-            onChange={apply}
-            makeItem={() => 'New item'}
             addLabel="Add item"
+            onUpdate={(i, text) => {
+                setOwnText(rows()[i], ` ${text}`);
+                setItems((prev) => prev.map((t, j) => (j === i ? text : t)));
+                setIsDirty(true);
+            }}
+            onAdd={() => {
+                const list = rows();
+                const template = list[list.length - 1];
+                if (!template) return;
+                // Clone keeps the row's styles (GrapesJS copies the #id rules to the clone).
+                const added = component.append(template.clone());
+                setOwnText(Array.isArray(added) ? added[0] : added, ' New item');
+                refresh();
+            }}
+            onRemove={(i) => {
+                rows()[i]?.remove();
+                refresh();
+            }}
+            onMove={(from, to) => {
+                // Reorder by swapping row text: rows share the same look, and no element is removed.
+                const next = [...items];
+                const [moved] = next.splice(from, 1);
+                next.splice(to, 0, moved);
+                rows().forEach((li: any, i: number) => setOwnText(li, ` ${next[i]}`));
+                setItems(next);
+                setIsDirty(true);
+            }}
             renderItem={(text, update) => (
                 <input
                     type="text"

@@ -1,4 +1,4 @@
-import { detectWidgetKind, WIDGET_LABELS, type WidgetKind } from '../lib/widgetKinds';
+import { detectWidgetKind, WIDGET_LABELS, type WidgetKind } from '../lib/widgetKinds.ts';
 // Safe helpers to read/write GrapesJS component content, classes and attributes
 
 // Safe helper to read component text/HTML content
@@ -81,6 +81,12 @@ export function describeComponent(comp: any): { kind: WidgetKind; label: string 
     const attributes: Record<string, string> = {};
     const raw = typeof comp.getAttributes === 'function' ? comp.getAttributes() : {};
     for (const [key, value] of Object.entries(raw || {})) attributes[key] = String(value ?? '');
+    // In the editor an element's styles live in its #id rule (getStyle), not in a style attribute.
+    if (!attributes.style && typeof comp.getStyle === 'function') {
+        attributes.style = Object.entries(comp.getStyle() || {})
+            .map(([prop, value]) => `${prop}: ${value}`)
+            .join('; ');
+    }
     const classes: string[] =
         typeof comp.getClasses === 'function' ? comp.getClasses().map((c: any) => String(c?.name ?? c)) : [];
     const childCount = typeof comp.components === 'function' ? comp.components().length : 0;

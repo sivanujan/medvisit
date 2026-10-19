@@ -255,3 +255,16 @@ test('sectionEntries skips comment and text nodes but keeps original indexes', (
     const nodes = [{ nodeType: 1 }, { nodeType: 8 }, { nodeType: 1 }, { nodeType: 3 }, null, { nodeType: 1 }];
     assert.deepEqual(sectionEntries(nodes).map((e) => e.index), [0, 2, 5]);
 });
+
+import { describeComponent } from '../../../resources/js/Components/PageBuilder/Inspector/componentHelpers.ts';
+
+test('describeComponent recognises buttons styled through their #id rule', () => {
+    const fakeLink = {
+        get: (key) => (key === 'tagName' ? 'a' : undefined),
+        getAttributes: () => ({ href: '/book' }),
+        getClasses: () => [],
+        components: () => [],
+        getStyle: () => ({ background: '#0E9E8F', padding: '14px 28px' }),
+    };
+    assert.deepEqual(describeComponent(fakeLink), { kind: 'button', label: 'Button' });
+});

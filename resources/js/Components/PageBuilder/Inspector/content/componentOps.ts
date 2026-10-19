@@ -16,6 +16,16 @@ export function findChild(comp: any, tagName: string): any | null {
     return childElements(comp).find((c: any) => String(c.get('tagName')).toLowerCase() === tagName) ?? null;
 }
 
+// Replace only the element's own text (text nodes); child elements such as an icon stay untouched.
+// GrapesJS escapes text-node content when exporting HTML.
+export function setOwnText(comp: any, text: string): void {
+    if (!comp) return;
+    comp.components()
+        .filter((c: any) => c.get('type') === 'textnode')
+        .forEach((c: any) => c.remove());
+    comp.append({ type: 'textnode', content: text });
+}
+
 export function getAttr(comp: any, name: string): string {
     const attrs = typeof comp?.getAttributes === 'function' ? comp.getAttributes() : {};
     return attrs?.[name] != null ? String(attrs[name]) : '';
@@ -35,16 +45,12 @@ export function setTextWithLink(comp: any, text: string, href: string, newTab: b
     comp.components(`<a${attrString}>${safeText}</a>`);
 }
 
-// Swap the element's tag while keeping id, attributes, classes, children and its ID-rule styles.
+// Swap the element's tag in place: same model, so id, children and its #id style rules are kept.
+// (replaceWith would delete the #id rules of the element and all of its descendants.)
 export function retag(editor: any, comp: any, tagName: string): any {
-    const id = comp.getId?.();
-    const json = comp.toJSON();
-    json.tagName = tagName;
-    json.attributes = { ...(json.attributes || {}), ...(id ? { id } : {}) };
-    const replaced = comp.replaceWith(json);
-    const next = Array.isArray(replaced) ? replaced[0] : replaced;
-    if (next) editor.select(next);
-    return next;
+    comp.set('tagName', tagName);
+    editor.select(comp);
+    return comp;
 }
 
 export function setLinkAttributes(comp: any, href: string, newTab: boolean): void {
@@ -52,14 +58,19 @@ export function setLinkAttributes(comp: any, href: string, newTab: boolean): voi
     comp.addAttributes(linkAttributes(href, newTab));
 }
 
-// Wrap an element (e.g. an image) in a link, or update/remove the link around it.
+// Wrap an element (e.g. an image) in a link, or update/remove the link around it. The element
+// itself is moved (temporary removal), never rebuilt, so its #id style rules and selection survive.
 export function setWrappingLink(editor: any, comp: any, href: string, newTab: boolean): void {
     const parent = comp.parent?.();
-    const parentIsLink = parent && String(parent.get('tagName')).toLowerCase() === 'a';
+    if (!parent) return;
+    const parentIsLink = String(parent.get('tagName')).toLowerCase() === 'a';
     if (!href.trim()) {
         if (parentIsLink) {
-            const [restored] = parent.replaceWith(comp.toJSON());
-            if (restored) editor.select(restored);
+            const outer = parent.parent?.();
+            if (!outer) return;
+            comp.move(outer, { at: parent.index() });
+            parent.remove();
+            editor.select(comp);
         }
         return;
     }
@@ -67,8 +78,8 @@ export function setWrappingLink(editor: any, comp: any, href: string, newTab: bo
         setLinkAttributes(parent, href, newTab);
         return;
     }
-    const replaced = comp.replaceWith({ tagName: 'a', attributes: linkAttributes(href, newTab), components: [comp.toJSON()] });
-    const link = Array.isArray(replaced) ? replaced[0] : replaced;
-    const inner = link?.components?.().at?.(0);
-    if (inner) editor.select(inner);
+    const added = parent.components().add({ tagName: 'a', attributes: linkAttributes(href, newTab) }, { at: comp.index() });
+    const link = Array.isArray(added) ? added[0] : added;
+    comp.move(link, {});
+    editor.select(comp);
 }
