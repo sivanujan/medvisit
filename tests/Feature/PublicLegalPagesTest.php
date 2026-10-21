@@ -105,7 +105,6 @@ class PublicLegalPagesTest extends TestCase
             ->where('config.plans.advanced.name', 'Advanced')
             ->where('config.plans.advanced.price_formatted', 'Rs. 15,000')
             ->where('config.business.name', 'MedVisit')
-            ->where('config.business.owner', 'Thanarasan Sivanujan (sole proprietor)')
             ->where('config.business.email', 'support@medvisit.lk')
             ->where('config.business.support_email', 'support@medvisit.lk')
             ->where('config.business.general_email', 'hello@medvisit.lk')
@@ -218,6 +217,12 @@ class PublicLegalPagesTest extends TestCase
             $response->assertDontSee('+94 77 204 6898');
             $response->assertDontSee('772046898');
             $response->assertDontSee('0772046898');
+            $response->assertDontSee('Thanarasan Sivanujan');
+            $response->assertDontSee('sole proprietor');
+            $response->assertDontSee('Puliyankoodal');
+            $response->assertDontSee('Kayts');
+            $response->assertDontSee('Jaffna 40000');
+            $response->assertDontSee('Payments.lk');
 
             // Assert new contact details appear
             $response->assertSee('support@medvisit.lk');

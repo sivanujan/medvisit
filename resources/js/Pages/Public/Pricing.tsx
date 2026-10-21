@@ -37,7 +37,7 @@ export default function Pricing({ config = defaultPublicConfig }: Props) {
         {
             question: 'What payment methods do you accept?',
             answer:
-                'All subscription payments are processed securely in Sri Lankan Rupees (LKR) through Payments.lk (PAYable). We accept all valid Visa and Mastercard debit and credit cards issued by Sri Lankan and international banks.',
+                'All subscription payments are processed securely in Sri Lankan Rupees (LKR) through our secure payment partner. We accept all valid Visa and Mastercard debit and credit cards issued by Sri Lankan and international banks.',
         },
         {
             question: 'Do prices change?',
@@ -49,7 +49,7 @@ export default function Pricing({ config = defaultPublicConfig }: Props) {
     return (
         <PublicLegalLayout
             title="Pricing"
-            description="Simple monthly pricing for Sri Lankan healthcare clinics. Plans starting from Rs. 7,000 per month per clinic. Billed in LKR via Payments.lk."
+            description="Simple monthly pricing for Sri Lankan healthcare clinics. Plans starting from Rs. 7,000 per month per clinic. Billed in LKR."
             isWide={true}
         >
             {/* Hero Section */}
@@ -123,7 +123,7 @@ export default function Pricing({ config = defaultPublicConfig }: Props) {
                                         </span>
                                     </div>
                                     <span className="text-xs font-semibold text-secondary dark:text-secondary-400 block mt-1">
-                                        Billed in LKR via Payments.lk
+                                        Billed monthly in LKR
                                     </span>
                                 </div>
 
@@ -277,7 +277,7 @@ export default function Pricing({ config = defaultPublicConfig }: Props) {
 
                 <ul className="space-y-2.5 list-disc pl-5 leading-relaxed">
                     <li>
-                        Subscriptions are billed monthly in advance in LKR through our secure payment partner, Payments.lk (PAYable). We accept Visa and Mastercard.
+                        Subscriptions are billed monthly in advance in LKR through our secure payment partner. We accept Visa and Mastercard.
                     </li>
                     <li>
                         Your subscription renews automatically each month until you cancel.

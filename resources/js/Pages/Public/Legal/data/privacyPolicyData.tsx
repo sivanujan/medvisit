@@ -12,7 +12,7 @@ export const privacyPolicyData: PolicyPageData = {
     keyPoints: [
         'We never sell your personal or healthcare practice data.',
         'Clinics retain 100% ownership and control of patient records.',
-        'Payment card details are processed directly by Payments.lk (we never store card numbers).',
+        'Payment card details are processed directly by our secure payment gateway (we never store card numbers).',
         'Fully aligned with Sri Lanka’s Personal Data Protection Act, No. 9 of 2022.',
     ],
     sections: [
@@ -21,7 +21,7 @@ export const privacyPolicyData: PolicyPageData = {
             title: 'Who we are',
             render: () => (
                 <p>
-                    MedVisit (https://medvisit.lk) is operated by Thanarasan Sivanujan, a sole proprietor in Sri Lanka. This policy explains how we handle personal data, in line with Sri Lanka's Personal Data Protection Act, No. 9 of 2022.
+                    MedVisit (https://medvisit.lk) is a software-as-a-service platform for clinic management and patient tokens in Sri Lanka. This policy explains how we handle personal data, in line with Sri Lanka's Personal Data Protection Act, No. 9 of 2022.
                 </p>
             ),
         },
@@ -37,7 +37,7 @@ export const privacyPolicyData: PolicyPageData = {
                         <strong>Patient data entered by clinics:</strong> names, phone numbers, appointment and token details, and medical or prescription records the clinic chooses to store.
                     </li>
                     <li>
-                        <strong>Billing data:</strong> plan, payment amounts, dates and payment status. Card details are entered on and processed by Payments.lk (PAYable); we do not store full card numbers.
+                        <strong>Billing data:</strong> plan, payment amounts, dates and payment status. Card details are entered on and processed by our secure payment gateway partner; we do not store full card numbers.
                     </li>
                     <li>
                         <strong>Technical data:</strong> IP address, browser type and activity logs used for security and troubleshooting.
@@ -73,7 +73,7 @@ export const privacyPolicyData: PolicyPageData = {
             title: 'Sharing',
             render: () => (
                 <p>
-                    We share data only with service providers needed to run MedVisit — such as our hosting provider, email delivery provider, SMS/WhatsApp messaging providers and Payments.lk for payments — and only as needed for their service. We may disclose data when required by law.
+                    We share data only with service providers needed to run MedVisit — such as our hosting provider, email delivery provider, SMS/WhatsApp messaging providers and payment processing partners for billing — and only as needed for their service. We may disclose data when required by law.
                 </p>
             ),
         },
@@ -82,7 +82,7 @@ export const privacyPolicyData: PolicyPageData = {
             title: 'Security',
             render: () => (
                 <p>
-                    Each clinic's data is separated from other clinics. We use encrypted connections (HTTPS), hashed passwords, role-based access for staff, and regular backups. Payments are made on Payments.lk's secure checkout page.
+                    Each clinic's data is separated from other clinics. We use encrypted connections (HTTPS), hashed passwords, role-based access for staff, and regular backups. Payments are made on a secure payment checkout page.
                 </p>
             ),
         },
@@ -139,7 +139,7 @@ export const privacyPolicyData: PolicyPageData = {
 
                 return (
                     <p>
-                        {business.name} — {business.owner}, {business.address}. Support: email{' '}
+                        {business.name}. Support: email{' '}
                         <a href={`mailto:${supportEmail}`} className="text-primary font-medium underline">
                             {supportEmail}
                         </a>. General enquiries: email{' '}

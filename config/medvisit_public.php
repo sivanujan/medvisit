@@ -9,13 +9,11 @@ return [
     |--------------------------------------------------------------------------
     |
     | Single source of truth for business contact information, legal entity,
-    | address, and currency as required by payment gateways (PAYable / Payments.lk).
+    | currency, and plan definitions.
     |
     */
     'business' => [
         'name' => 'MedVisit',
-        'owner' => 'Thanarasan Sivanujan (sole proprietor)',
-        'address' => 'Puliyankoodal South, Kayts, Jaffna 40000, Sri Lanka',
         'email' => 'support@medvisit.lk',
         'support_email' => 'support@medvisit.lk',
         'general_email' => 'hello@medvisit.lk',

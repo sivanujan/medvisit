@@ -129,7 +129,7 @@ export default function Receipt({ invoice, clinic, plan }: Props) {
                                 </div>
                                 <div>
                                     <span className="text-slate-400 print:text-slate-500">Gateway: </span>
-                                    <span>Payments.lk (Hosted Checkout)</span>
+                                    <span>Card Payment (Hosted Checkout)</span>
                                 </div>
                             </div>
                         </div>

@@ -269,7 +269,7 @@ export default function Subscribe({ tenant, subscription, invoice, standardPlan 
                                     {isSubmitting ? (
                                         <>
                                             <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                                            <span>Connecting to Payments.lk...</span>
+                                            <span>Connecting to payment gateway...</span>
                                         </>
                                     ) : (
                                         <>
@@ -280,11 +280,11 @@ export default function Subscribe({ tenant, subscription, invoice, standardPlan 
                                 </button>
                             </form>
 
-                            {/* Trust & Security Badge - strictly matching user requirement 1 */}
+                            {/* Trust & Security Badge */}
                             <div className="mt-6 pt-5 border-t border-slate-700/60 flex items-start space-x-2.5 text-xs text-slate-400">
                                 <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                                 <p className="leading-relaxed">
-                                    Secure checkout hosted by Payments.lk — we never see or store your card details.
+                                    Secure checkout hosted by our card processor — we never see or store your card details.
                                 </p>
                             </div>
                         </div>

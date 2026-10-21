@@ -6,7 +6,7 @@ import { PolicyPageData } from './types';
 export const refundPolicyData: PolicyPageData = {
     title: 'Refund and Cancellation Policy',
     eyebrow: 'Merchant Policy',
-    description: 'MedVisit Refund and Cancellation Policy for clinic subscriptions billed in LKR via Payments.lk.',
+    description: 'MedVisit Refund and Cancellation Policy for clinic subscriptions billed in LKR.',
     lastUpdated: '21 October 2026',
     readingTime: '3 min read',
     tokenMotif: 'REF-02',
@@ -22,7 +22,7 @@ export const refundPolicyData: PolicyPageData = {
             title: 'Overview',
             render: () => (
                 <p>
-                    This policy explains how cancellations and refunds work for MedVisit subscriptions. All payments are made in Sri Lankan Rupees (LKR) through Payments.lk (PAYable).
+                    This policy explains how cancellations and refunds work for MedVisit subscriptions. All payments are made in Sri Lankan Rupees (LKR) through our secure card payment partner.
                 </p>
             ),
         },
@@ -139,7 +139,7 @@ export const refundPolicyData: PolicyPageData = {
 
                 return (
                     <p>
-                        {business.name} — {business.owner}, {business.address}. Support: email{' '}
+                        {business.name}. Support: email{' '}
                         <a href={`mailto:${supportEmail}`} className="text-primary font-medium underline">
                             {supportEmail}
                         </a>. General enquiries: email{' '}

@@ -11,7 +11,7 @@ interface Props {
 
 export default function Return({ checkoutId, initialStatus, clinicName }: Props) {
     const [state, setState] = useState<'verifying' | 'succeeded' | 'failed'>('verifying');
-    const [message, setMessage] = useState<string>('Verifying transaction with Payments.lk...');
+    const [message, setMessage] = useState<string>('Verifying transaction...');
     const [redirectUrl, setRedirectUrl] = useState<string>(route('tenant.dashboard'));
 
     useEffect(() => {
@@ -90,7 +90,7 @@ export default function Return({ checkoutId, initialStatus, clinicName }: Props)
                         <div>
                             <h2 className="text-xl font-bold text-white">Confirming Payment</h2>
                             <p className="mt-2 text-sm text-slate-400 leading-relaxed">
-                                Please wait while we verify your transaction with Payments.lk. This typically takes just a few seconds...
+                                Please wait while we verify your transaction. This typically takes just a few seconds...
                             </p>
                         </div>
                     </div>

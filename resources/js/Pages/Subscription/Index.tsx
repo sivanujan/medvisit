@@ -113,7 +113,7 @@ export default function SubscriptionIndex({ subscription, invoices }: Props) {
                             </div>
                             <h4 className="text-base font-semibold text-white">Payment Security</h4>
                             <p className="text-xs text-slate-400 mt-2 leading-relaxed">
-                                Secure checkout hosted by Payments.lk — we never see or store your card details.
+                                Secure checkout — we never see or store your card details.
                             </p>
                         </div>
 

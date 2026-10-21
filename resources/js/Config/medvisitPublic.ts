@@ -13,8 +13,8 @@ export interface PublicPlan {
 
 export interface BusinessDetails {
     name: string;
-    owner: string;
-    address: string;
+    owner?: string;
+    address?: string;
     email: string;
     support_email?: string;
     general_email?: string;
@@ -46,8 +46,6 @@ export interface PublicConfig {
 export const defaultPublicConfig: PublicConfig = {
     business: {
         name: 'MedVisit',
-        owner: 'Thanarasan Sivanujan (sole proprietor)',
-        address: 'Puliyankoodal South, Kayts, Jaffna 40000, Sri Lanka',
         email: 'support@medvisit.lk',
         support_email: 'support@medvisit.lk',
         general_email: 'hello@medvisit.lk',

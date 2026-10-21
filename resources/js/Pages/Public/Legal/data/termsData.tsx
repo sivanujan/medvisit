@@ -22,7 +22,7 @@ export const termsData: PolicyPageData = {
             title: 'About these terms',
             render: () => (
                 <p>
-                    These Terms and Conditions ("Terms") govern your use of MedVisit (https://medvisit.lk), a software-as-a-service platform for clinic management, appointments and patient token numbers, operated by Thanarasan Sivanujan as a sole proprietor in Sri Lanka ("MedVisit", "we", "us"). By creating an account or paying for a subscription, you ("the Clinic", "you") agree to these Terms.
+                    These Terms and Conditions ("Terms") govern your use of MedVisit (https://medvisit.lk), a software-as-a-service platform for clinic management, appointments and patient token numbers, operated in Sri Lanka ("MedVisit", "we", "us"). By creating an account or paying for a subscription, you ("the Clinic", "you") agree to these Terms.
                 </p>
             ),
         },
@@ -78,7 +78,7 @@ export const termsData: PolicyPageData = {
             title: 'Payment and automatic renewal',
             render: () => (
                 <p>
-                    Subscriptions are paid monthly in advance by card through our payment partner, Payments.lk (PAYable). By subscribing, you authorise us to charge the price of your selected plan to your card every month until you cancel. All amounts are charged in LKR. We do not store your full card details; card payments are processed by Payments.lk. If a payment fails, we may retry it and may restrict access to the service until payment is made.
+                    Subscriptions are paid monthly in advance by card through our secure payment gateway partner. By subscribing, you authorise us to charge the price of your selected plan to your card every month until you cancel. All amounts are charged in LKR. We do not store your full card details; card payments are processed securely. If a payment fails, we may retry it and may restrict access to the service until payment is made.
                 </p>
             ),
         },
@@ -197,7 +197,7 @@ export const termsData: PolicyPageData = {
 
                 return (
                     <p>
-                        {business.name} — {business.owner}, {business.address}. Support: email{' '}
+                        {business.name}. Support: email{' '}
                         <a href={`mailto:${supportEmail}`} className="text-primary font-medium underline">
                             {supportEmail}
                         </a>. General enquiries: email{' '}

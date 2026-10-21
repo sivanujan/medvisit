@@ -113,7 +113,7 @@ export default function ChangePlan({
                     action={
                         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-700/60 text-slate-600 dark:text-slate-300 text-xs shadow-xs">
                             <ShieldCheck className="w-4 h-4 text-emerald-500 dark:text-emerald-400 shrink-0" />
-                            <span>Payments secured by Payments.lk</span>
+                            <span>Secure card checkout</span>
                         </div>
                     }
                 />
@@ -281,7 +281,7 @@ export default function ChangePlan({
                                 className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold transition shadow-sm disabled:opacity-50"
                             >
                                 <CreditCard className="w-4 h-4" />
-                                <span>{isUpgrading ? 'Redirecting to Payments.lk...' : 'Proceed to Checkout'}</span>
+                                <span>{isUpgrading ? 'Redirecting to checkout...' : 'Proceed to Checkout'}</span>
                             </button>
                         </div>
                     </form>

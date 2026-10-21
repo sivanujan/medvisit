@@ -378,7 +378,7 @@ export default function SystemHealthIndex({
                         <div className="space-y-3 text-xs">
                             <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 flex items-center justify-between">
                                 <div>
-                                    <div className="font-bold text-slate-900 dark:text-white">Payments.lk Hosted Checkout</div>
+                                    <div className="font-bold text-slate-900 dark:text-white">Payment Gateway Hosted Checkout</div>
                                     <div className="text-slate-400 mt-0.5">
                                         Last success: {webhooks.payments_lk.last_success || 'No events'}
                                     </div>

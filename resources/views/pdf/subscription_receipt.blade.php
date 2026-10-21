@@ -345,19 +345,19 @@
                 @if($isReceipt)
                     <div class="payment-box">
                         <strong style="color: #0f172a;">Payment Details:</strong><br>
-                        Method: <strong>{{ $paymentMethodDetails['method_name'] ?? 'Card via Payments.lk' }}</strong><br>
+                        Method: <strong>{{ $paymentMethodDetails['method_name'] ?? 'Credit / Debit Card' }}</strong><br>
                         @if(!empty($paymentMethodDetails['card_summary']))
                             Card: <strong>{{ $paymentMethodDetails['card_summary'] }}</strong><br>
                         @endif
                         @if(!empty($paymentMethodDetails['reference']))
                             Gateway Ref: <span style="font-family: monospace;">{{ $paymentMethodDetails['reference'] }}</span><br>
                         @endif
-                        Secure checkout hosted by Payments.lk (PAYable) — card details are never stored by MedVisit.
+                        Secure checkout — card details are never stored by MedVisit.
                     </div>
                 @else
                     <div class="payment-box">
                         <strong>Payment Instructions:</strong><br>
-                        Pay online via credit/debit card on your MedVisit Billing Center or hosted Payments.lk checkout.<br>
+                        Pay online via credit/debit card on your MedVisit Billing Center.<br>
                         Due date: {{ $invoice->due_date ? $invoice->due_date->setTimezone('Asia/Colombo')->format('d/m/Y') : 'Upon receipt' }}.
                     </div>
                 @endif

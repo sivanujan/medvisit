@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, usePage } from '@inertiajs/react';
-import { Mail, Phone, MapPin, MessageSquare, ShieldCheck, ExternalLink } from 'lucide-react';
+import { Mail, Phone, MessageSquare, ShieldCheck, ExternalLink } from 'lucide-react';
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import { defaultPublicConfig } from '@/Config/medvisitPublic';
 import { PageProps } from '@/types';
@@ -77,7 +77,7 @@ export default function LegalFooter({ className = '', isTenantContext = false }:
                             Sri Lanka’s smart clinic operating system & live patient token management platform. Built for modern medical practices, doctors, and patient care.
                         </p>
                         <p className="text-[11px] text-slate-500 dark:text-slate-500 font-medium">
-                            {business.name} — {business.owner}
+                            {business.name} — Clinic Operating System
                         </p>
                     </div>
 
@@ -164,10 +164,6 @@ export default function LegalFooter({ className = '', isTenantContext = false }:
                                     <span>WhatsApp: wa.me/94701291688</span>
                                 </a>
                             </li>
-                            <li className="pt-1 flex items-start gap-2 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                                <MapPin className="w-3.5 h-3.5 text-accent shrink-0 mt-0.5" />
-                                <span>{business.address}</span>
-                            </li>
                         </ul>
                     </div>
                 </div>
@@ -181,7 +177,7 @@ export default function LegalFooter({ className = '', isTenantContext = false }:
                     <div className="order-1 sm:order-2 flex flex-wrap items-center justify-center gap-2">
                         <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400 inline-flex items-center gap-1.5">
                             <ShieldCheck className="w-3.5 h-3.5 text-secondary" />
-                            <span>Secure payments by Payments.lk</span>
+                            <span>Secure card payments</span>
                         </span>
                         <div className="flex items-center gap-1.5">
                             <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-300/80 dark:border-slate-700 font-mono font-bold text-[10px] tracking-wider text-blue-700 dark:text-blue-400">

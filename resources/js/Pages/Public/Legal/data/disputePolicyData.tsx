@@ -67,7 +67,7 @@ export const disputePolicyData: PolicyPageData = {
             title: 'Card chargebacks',
             render: () => (
                 <p>
-                    If you raise a chargeback with your bank, it will be handled through our payment partner, Payments.lk (PAYable), and the card networks' rules. We will provide our payment records, your subscription history and evidence of your consent to recurring charges. We may suspend the account while a chargeback is open.
+                    If you raise a chargeback with your bank, it will be handled through our secure card payment partner and the card networks' rules. We will provide our payment records, your subscription history and evidence of your consent to recurring charges. We may suspend the account while a chargeback is open.
                 </p>
             ),
         },
@@ -76,7 +76,7 @@ export const disputePolicyData: PolicyPageData = {
             title: 'Escalation',
             render: () => (
                 <p>
-                    If you are not satisfied with our decision, you may write to us again to request a review by the owner. If the dispute still cannot be resolved, it will be governed by the laws of Sri Lanka and may be referred to the courts of Sri Lanka.
+                    If you are not satisfied with our decision, you may write to us again to request a review by MedVisit management. If the dispute still cannot be resolved, it will be governed by the laws of Sri Lanka and may be referred to the courts of Sri Lanka.
                 </p>
             ),
         },
@@ -91,7 +91,7 @@ export const disputePolicyData: PolicyPageData = {
 
                 return (
                     <p>
-                        {business.name} — {business.owner}, {business.address}. Support: email{' '}
+                        {business.name}. Support: email{' '}
                         <a href={`mailto:${supportEmail}`} className="text-primary font-medium underline">
                             {supportEmail}
                         </a>. General enquiries: email{' '}

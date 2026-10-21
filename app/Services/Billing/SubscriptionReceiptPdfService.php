@@ -86,7 +86,7 @@ class SubscriptionReceiptPdfService
             ->first();
 
         $paymentMethodDetails = [
-            'method_name' => 'Credit / Debit Card (Payments.lk)',
+            'method_name' => 'Credit / Debit Card',
             'card_summary' => null,
             'reference' => null,
         ];

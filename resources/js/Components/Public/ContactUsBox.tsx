@@ -62,18 +62,10 @@ export default function ContactUsBox({ business = defaultPublicConfig.business, 
                     </div>
 
                     <div className="flex items-start gap-2.5">
-                        <User className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
+                        <Globe className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
                         <div>
-                            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Owner / Proprietor</span>
-                            <span className="font-semibold text-slate-800 dark:text-slate-100">{business.owner}</span>
-                        </div>
-                    </div>
-
-                    <div className="flex items-start gap-2.5">
-                        <MapPin className="w-4 h-4 text-accent shrink-0 mt-0.5" />
-                        <div>
-                            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Registered Address</span>
-                            <span className="leading-relaxed text-slate-700 dark:text-slate-300">{business.address}</span>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Platform</span>
+                            <span className="font-semibold text-slate-800 dark:text-slate-100">Clinic Management & Queue System</span>
                         </div>
                     </div>
                 </div>

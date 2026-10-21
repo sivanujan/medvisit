@@ -76,7 +76,7 @@ class BillingCenterController extends Controller
             ->get()
             ->map(function (SubscriptionInvoice $inv) {
                 $transaction = $inv->transactions->where('status', 'succeeded')->first() ?? $inv->transactions->first();
-                $methodLabel = 'Card via Payments.lk';
+                $methodLabel = 'Credit / Debit Card';
                 $cardDetails = null;
 
                 if ($transaction) {

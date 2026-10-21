@@ -331,7 +331,7 @@ class SubscriptionBillingController extends Controller
                 'period_end' => $invoice->period_end?->toDateString(),
                 'paid_at' => $invoice->paid_at?->toFormattedDateString(),
                 'status' => $invoice->status,
-                'payment_method' => $invoice->payment_method ?? 'Credit/Debit Card (Payments.lk)',
+                'payment_method' => $invoice->payment_method ?? 'Credit/Debit Card',
             ],
             'clinic' => [
                 'name' => $tenant->name,

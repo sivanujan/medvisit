@@ -133,7 +133,7 @@ function PaymentPreview() {
                         </span>
                     ))}
                 </div>
-                <p className="mt-1.5 text-xs text-[color:var(--lp-muted)]">via Payments.lk</p>
+                <p className="mt-1.5 text-xs text-[color:var(--lp-muted)]">Secure online payment</p>
             </div>
         </div>
     );
@@ -279,7 +279,7 @@ export default function SriLankaStrip() {
                         index={3}
                         className="md:col-span-2"
                         title="Local payment gateway"
-                        body="Your subscription is charged in rupees through Payments.lk, by Visa or Mastercard."
+                        body="Your subscription is charged in rupees, by Visa or Mastercard."
                     >
                         <PaymentPreview />
                     </Tile>

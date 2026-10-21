@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mail, Phone, MapPin, Building2, Clock, MessageSquare, ExternalLink } from 'lucide-react';
+import { Mail, Phone, Building2, Clock, MessageSquare, ExternalLink } from 'lucide-react';
 import { BusinessDetails, defaultPublicConfig } from '@/Config/medvisitPublic';
 
 interface Props {
@@ -29,7 +29,7 @@ export default function PolicyContactCard({ business = defaultPublicConfig.busin
                             Contact Us & Support
                         </h3>
                         <p className="text-xs text-slate-500 dark:text-slate-400">
-                            {business.name} — {business.owner}
+                            {business.name} — Clinic Operating System
                         </p>
                     </div>
                 </div>
@@ -128,14 +128,14 @@ export default function PolicyContactCard({ business = defaultPublicConfig.busin
                 </div>
             </div>
 
-            {/* Address & Entity Info */}
+            {/* Entity & Currency Info */}
             <div className="mt-4 pt-4 border-t border-slate-200/60 dark:border-slate-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
-                <div className="flex items-start sm:items-center gap-2">
-                    <MapPin className="w-4 h-4 text-accent shrink-0 mt-0.5 sm:mt-0" />
-                    <span>{business.address}</span>
+                <div className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-primary shrink-0" />
+                    <span>Healthcare clinic management & patient queue platform &bull; Sri Lanka</span>
                 </div>
                 <div>
-                    <span>Official registered sole proprietorship in Sri Lanka &bull; All fees in LKR</span>
+                    <span>All fees in LKR</span>
                 </div>
             </div>
         </section>

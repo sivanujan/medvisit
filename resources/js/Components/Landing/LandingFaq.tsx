@@ -16,7 +16,7 @@ const FAQS = [
     },
     {
         q: 'How do we pay for MedVisit?',
-        a: 'Monthly in Sri Lankan rupees, by Visa or Mastercard through Payments.lk. You can cancel from the billing page in your dashboard at any time.',
+        a: 'Monthly in Sri Lankan rupees, by Visa or Mastercard through secure online card payment. You can cancel from the billing page in your dashboard at any time.',
     },
     {
         q: 'Can prescriptions be printed in Tamil or Sinhala?',
