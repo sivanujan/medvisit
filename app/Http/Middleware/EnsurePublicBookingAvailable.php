@@ -20,18 +20,27 @@ class EnsurePublicBookingAvailable
     {
         $tenant = tenant();
 
-        if ($tenant && ! $tenant->hasActiveSubscription()) {
-            if ($request->expectsJson() || $request->is('book/api/*')) {
-                return response()->json([
-                    'message' => "This clinic's online booking is not available right now.",
-                ], 503);
-            }
+        if ($tenant) {
+            $isSubInactive = ! $tenant->hasActiveSubscription();
+            $isBookingDisabled = ! (bool) ($tenant->online_booking_enabled ?? true);
 
-            return Inertia::render('Public/BookingUnavailable', [
-                'clinicName' => $tenant->name ?? 'Clinic',
-                'phone' => $tenant->phone ?? '',
-                'address' => $tenant->address ?? '',
-            ])->toResponse($request)->setStatusCode(503);
+            if ($isSubInactive || $isBookingDisabled) {
+                $message = $isSubInactive
+                    ? "This clinic's online booking is not available right now."
+                    : 'Online booking is currently disabled for this clinic. Please contact the clinic directly.';
+
+                if ($request->expectsJson() || $request->is('book/api/*')) {
+                    return response()->json([
+                        'message' => $message,
+                    ], 503);
+                }
+
+                return Inertia::render('Public/BookingUnavailable', [
+                    'clinicName' => $tenant->name ?? 'Clinic',
+                    'phone' => $tenant->phone ?? '',
+                    'address' => $tenant->address ?? '',
+                ])->toResponse($request)->setStatusCode(503);
+            }
         }
 
         return $next($request);
