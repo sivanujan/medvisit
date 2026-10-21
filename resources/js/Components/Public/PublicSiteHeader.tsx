@@ -50,9 +50,9 @@ interface PublicSiteHeaderProps {
     themePreset?: string;
 }
 
-// Format Sri Lankan and international phone numbers into clean grouped format: "+94 77 204 6898"
+// Format Sri Lankan and international phone numbers into clean grouped format: "+94 70 129 1688"
 function formatPhoneNumber(rawPhone?: string): string {
-    if (!rawPhone) return '+94 77 204 6898';
+    if (!rawPhone) return '+94 70 129 1688';
     const cleaned = rawPhone.trim();
     const digits = cleaned.replace(/\D/g, '');
 
@@ -156,7 +156,7 @@ export default function PublicSiteHeader({
         : defaultMenuItems;
 
     const displayLogoUrl = headerConfig?.logo_url || clinic.logo_url;
-    const displayPhone = headerConfig?.phone || clinic.phone || '+94 77 204 6898';
+    const displayPhone = headerConfig?.phone || clinic.phone || '+94 70 129 1688';
     const formattedPhone = formatPhoneNumber(displayPhone);
     const rawTel = displayPhone.replace(/\s+/g, '');
     const displayWhatsApp = headerConfig?.whatsapp_number || clinic.whatsapp_number;

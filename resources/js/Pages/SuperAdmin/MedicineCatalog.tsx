@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Head, router, useForm } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import PlatformLayout from '@/Layouts/PlatformLayout';
 import { PageHeader } from '@/Components/UI/PageHeader';
 import GlassCard from '@/Components/UI/GlassCard';
 import GlassTable from '@/Components/UI/GlassTable';
@@ -223,7 +223,7 @@ export default function MedicineCatalog({
     };
 
     return (
-        <AuthenticatedLayout>
+        <PlatformLayout>
             <Head title="Medicine Catalog & Review Queue - Super Admin" />
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
@@ -803,6 +803,6 @@ export default function MedicineCatalog({
                     </div>
                 </form>
             </GlassModal>
-        </AuthenticatedLayout>
+        </PlatformLayout>
     );
 }

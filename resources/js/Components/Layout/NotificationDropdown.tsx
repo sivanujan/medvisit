@@ -65,10 +65,10 @@ export default function NotificationDropdown() {
                         setUnreadCount(0); // Mark seen on open
                     }
                 }}
-                className="relative p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus:outline-none"
+                className="group relative flex items-center justify-center w-10 h-10 rounded-xl border border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-primary-300 hover:bg-white dark:hover:bg-slate-800 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary shadow-xs backdrop-blur-md cursor-pointer"
                 aria-label="Queue Notifications"
             >
-                <Bell className="w-5 h-5" />
+                <Bell className="w-4 h-4" />
                 {unreadCount > 0 && (
                     <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-white shadow-sm ring-2 ring-white dark:ring-slate-900 animate-pulse">
                         {unreadCount > 9 ? '9+' : unreadCount}

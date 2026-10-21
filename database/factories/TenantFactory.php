@@ -2,6 +2,8 @@
 
 namespace Database\Factories;
 
+use App\Models\Plan;
+use App\Models\Subscription;
 use App\Models\Tenant;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
@@ -63,12 +65,53 @@ class TenantFactory extends Factory
         ]);
     }
 
+    public function pendingPayment(): static
+    {
+        return $this->afterCreating(function (Tenant $tenant) {
+            $plan = Plan::firstOrCreate(
+                ['slug' => 'medvisit-standard'],
+                ['name' => 'MedVisit Standard', 'price_cents' => 500000, 'billing_interval' => 'month', 'is_active' => true]
+            );
+
+            Subscription::updateOrCreate(
+                ['tenant_id' => $tenant->id],
+                [
+                    'plan_id' => $plan->id,
+                    'status' => Subscription::STATUS_PENDING_PAYMENT,
+                    'current_period_start' => now(),
+                    'current_period_end' => null,
+                    'created_by' => 'factory',
+                ]
+            );
+        });
+    }
+
     public function configure(): static
     {
         return $this->afterCreating(function (Tenant $tenant) {
             $baseDomain = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
             $tenant->domains()->firstOrCreate(['domain' => $tenant->subdomain]);
             $tenant->domains()->firstOrCreate(['domain' => "{$tenant->subdomain}.{$baseDomain}"]);
+
+            // Default to grandfathered complimentary subscription if active
+            if ($tenant->status === 'active' || ($tenant->trial_ends_at && $tenant->trial_ends_at->isFuture())) {
+                $compPlan = Plan::firstOrCreate(
+                    ['slug' => 'comp'],
+                    ['name' => 'Complimentary', 'price_cents' => 0, 'billing_interval' => 'month', 'is_active' => true]
+                );
+
+                Subscription::firstOrCreate(
+                    ['tenant_id' => $tenant->id],
+                    [
+                        'plan_id' => $compPlan->id,
+                        'status' => Subscription::STATUS_ACTIVE,
+                        'current_period_start' => now(),
+                        'current_period_end' => null,
+                        'activated_at' => now(),
+                        'created_by' => 'factory',
+                    ]
+                );
+            }
         });
     }
 }

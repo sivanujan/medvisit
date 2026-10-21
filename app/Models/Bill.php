@@ -97,6 +97,11 @@ class Bill extends Model
         return $this->hasMany(BillItem::class);
     }
 
+    public function adjustments(): HasMany
+    {
+        return $this->hasMany(BillAdjustment::class);
+    }
+
     public function getFormattedTotalAttribute(): string
     {
         return 'Rs. '.number_format($this->total_amount / 100, 2);

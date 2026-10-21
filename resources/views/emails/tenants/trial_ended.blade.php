@@ -1,45 +1,32 @@
-@extends('emails.layouts.medvisit', [
-    'subject' => "Your MedVisit trial has ended - {$clinicName}",
-    'previewText' => "Your free trial for {$clinicName} has expired. Reactivate your clinic portal.",
-    'reason' => $reason,
+@extends('emails.layouts.base', [
+    'subject' => "Your MedVisit trial has ended — {$clinicName}",
+    'preheader' => "Your free trial for {$clinicName} has expired. Reactivate your portal to continue operations.",
 ])
 
 @section('content')
-    <div style="background-color: #FEE2E2; border-radius: 8px; padding: 6px 12px; display: inline-block; margin-bottom: 16px;">
-        <span style="font-size: 13px; font-weight: 600; color: #DC2626; letter-spacing: 0.5px;">TRIAL CONCLUDED</span>
-    </div>
+    <x-email.heading>Your free trial has expired</x-email.heading>
 
-    <h1 style="margin: 0 0 16px 0; font-size: 22px; font-weight: 700; color: #0F172A; line-height: 28px;">
-        Your MedVisit free trial has expired
-    </h1>
-
-    <p style="margin: 0 0 16px 0; font-size: 15px; color: #334155; line-height: 24px;">
+    <x-email.text>
         Hello {{ $adminName }},
-    </p>
+    </x-email.text>
 
-    <p style="margin: 0 0 20px 0; font-size: 15px; color: #334155; line-height: 24px;">
-        The 14-day free trial period for <strong>{{ $clinicName }}</strong> has concluded. Access to routine queue operations and clinic staff portals is temporarily paused until an active subscription is activated.
-    </p>
+    <x-email.text>
+        The 14-day free trial period for <strong>{{ $clinicName }}</strong> has expired and concluded. Front-desk queue management, doctor consultations, and token dispatch are temporarily paused until a subscription plan is selected.
+    </x-email.text>
 
-    <div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
-        <p style="margin: 0 0 8px 0; font-size: 14px; color: #475569; font-weight: 600;">
-            Your clinic data is completely safe:
-        </p>
-        <p style="margin: 0; font-size: 14px; color: #64748B; line-height: 22px;">
-            All your patients, staff profiles, and visit records remain securely preserved. Select a plan to immediately reactivate full clinic access.
-        </p>
-    </div>
+    <x-email.info-card title="Account Security Notice" :items="[
+        'Clinic Workspace' => $clinicName,
+        'Patient Records' => '<strong style=\"color: #0E9E8F;\">Preserved & Encrypted</strong>',
+        'Status' => '<span style=\"color: #DC2626; font-weight: 700;\">Trial Concluded</span>',
+    ]" />
 
-    <div style="text-align: center; margin: 32px 0;">
-        <a href="{{ $portalUrl }}" 
-           class="btn-primary responsive-btn" 
-           target="_blank" 
-           style="background-color: #1E6FD9; color: #FFFFFF; display: inline-block; font-size: 16px; font-weight: 600; text-decoration: none; padding: 14px 32px; border-radius: 8px; box-shadow: 0 2px 4px rgba(30, 111, 217, 0.25);">
-            Reactivate Clinic Access
-        </a>
-    </div>
+    <x-email.alert type="info">
+        <strong>Your clinic data is safe:</strong> All your patient demographics, past tokens, doctor profiles, and billing histories are securely stored. Choosing a plan restores immediate full access.
+    </x-email.alert>
 
-    <p style="margin: 0; font-size: 13px; color: #64748B; line-height: 20px;">
-        Questions or need custom enterprise pricing? Contact our dedicated Sri Lanka support team at <a href="mailto:support@medvisit.lk" style="color: #1E6FD9;">support@medvisit.lk</a>.
-    </p>
+    <x-email.button :url="$portalUrl" align="left">
+        Reactivate Clinic Portal &rarr;
+    </x-email.button>
+
+    <x-email.signature />
 @endsection

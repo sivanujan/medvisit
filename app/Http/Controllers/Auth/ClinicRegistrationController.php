@@ -9,6 +9,9 @@ use App\Http\Requests\Auth\ClinicRegistrationRequest;
 use App\Mail\Auth\RegistrationVerificationCodeMail;
 use App\Mail\Auth\WelcomeClinicMail;
 use App\Models\PendingRegistration;
+use App\Models\Plan;
+use App\Models\Subscription;
+use App\Models\SubscriptionInvoice;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Rules\NotDisposableEmail;
@@ -397,9 +400,9 @@ class ClinicRegistrationController extends Controller
                 'subdomain' => $subdomain,
                 'phone' => $validated['clinic_phone'],
                 'address' => $validated['address'].', '.$validated['city'].', '.$validated['district'],
-                'plan' => 'trial',
-                'status' => 'trial',
-                'trial_ends_at' => now()->addDays(14),
+                'plan' => 'medvisit-standard',
+                'status' => ((int) config('medvisit.subscription.trial_days', 0)) > 0 ? 'trial' : 'pending_payment',
+                'trial_ends_at' => ((int) config('medvisit.subscription.trial_days', 0)) > 0 ? now()->addDays((int) config('medvisit.subscription.trial_days', 0)) : null,
                 'data' => [
                     'clinic_type' => $validated['clinic_type'],
                     'district' => $validated['district'],
@@ -408,6 +411,39 @@ class ClinicRegistrationController extends Controller
                     'timezone' => 'Asia/Colombo',
                     'token_reset' => 'daily',
                 ],
+            ]);
+
+            // Create initial Subscription & first month's invoice
+            $trialDays = (int) config('medvisit.subscription.trial_days', 0);
+            $standardPlan = Plan::where('slug', 'medvisit-standard')->where('is_active', true)->first();
+            $planId = $standardPlan ? $standardPlan->id : 1;
+            $planPrice = $standardPlan ? $standardPlan->price_cents : 500000;
+
+            $trialEndsAt = $trialDays > 0 ? now()->addDays($trialDays) : null;
+            $subStatus = $trialDays > 0 ? Subscription::STATUS_ACTIVE : Subscription::STATUS_PENDING_PAYMENT;
+
+            $subscription = Subscription::create([
+                'tenant_id' => $tenant->id,
+                'plan_id' => $planId,
+                'status' => $subStatus,
+                'current_period_start' => now(),
+                'current_period_end' => $trialEndsAt,
+                'trial_ends_at' => $trialEndsAt,
+                'activated_at' => $trialDays > 0 ? now() : null,
+                'created_by' => 'registration',
+                'notes' => $trialDays > 0 ? "Started with {$trialDays}-day free trial" : 'Initial registration pending subscription payment',
+            ]);
+
+            SubscriptionInvoice::create([
+                'tenant_id' => $tenant->id,
+                'subscription_id' => $subscription->id,
+                'invoice_number' => SubscriptionInvoice::generateInvoiceNumber(),
+                'amount_cents' => $planPrice,
+                'period_start' => now(),
+                'period_end' => now()->addMonth(),
+                'due_date' => $trialDays > 0 ? $trialEndsAt : now(),
+                'status' => SubscriptionInvoice::STATUS_UNPAID,
+                'notes' => 'First month MedVisit subscription invoice',
             ]);
 
             $centralDomain = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
@@ -432,7 +468,7 @@ class ClinicRegistrationController extends Controller
                 'tenant_id' => $tenant->id,
                 'name' => $tenant->name,
                 'subdomain' => $subdomain,
-                'plan' => 'trial',
+                'plan' => 'medvisit-standard',
             ]);
 
             AuditLogger::log('user.created', [
@@ -473,7 +509,7 @@ class ClinicRegistrationController extends Controller
             'subdomain' => $subdomain,
             'clinic_url' => $clinicUrl,
             'auto_login_url' => $autoLoginUrl,
-            'trial_ends_at' => $tenant->trial_ends_at->toFormattedDateString(),
+            'trial_ends_at' => $tenant->trial_ends_at?->toFormattedDateString(),
             'admin_email' => $user->email,
             'clinic_type' => $validated['clinic_type'],
             'district' => $validated['district'],

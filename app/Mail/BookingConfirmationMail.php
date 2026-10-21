@@ -4,35 +4,52 @@ declare(strict_types=1);
 
 namespace App\Mail;
 
+use App\Mail\Enums\MailSenderType;
 use App\Models\BookingToken;
+use App\Models\Tenant;
 use Carbon\Carbon;
-use Illuminate\Bus\Queueable;
-use Illuminate\Mail\Mailable;
-use Illuminate\Mail\Mailables\Address;
-use Illuminate\Mail\Mailables\Content;
-use Illuminate\Mail\Mailables\Envelope;
-use Illuminate\Queue\SerializesModels;
 
-class BookingConfirmationMail extends Mailable
+class BookingConfirmationMail extends MedVisitMailable
 {
-    use Queueable, SerializesModels;
-
     public function __construct(
         public BookingToken $token,
-        public string $clinicName
-    ) {}
-
-    public function envelope(): Envelope
-    {
-        $senderName = "{$this->clinicName} via MedVisit";
-
-        return new Envelope(
-            from: new Address(config('mail.from.address', 'notifications@medvisit.lk'), $senderName),
-            subject: "Your Channeling Appointment Token #{$this->token->token_number} - {$this->clinicName}",
-        );
+        public ?Tenant $tenant = null,
+        public ?string $clinicName = null
+    ) {
+        $resolvedClinicName = $clinicName ?? $tenant?->name ?? 'Clinic';
+        $this->withClinicBrand($tenant, $resolvedClinicName, $tenant?->email ?? null);
+        $this->tenantId = $tenant?->id ?? $token->tenant_id;
+        $this->preheaderText = "Your channeling token is #{$this->token->token_number} for appointment on ".($token->doctorSession ? Carbon::parse($token->doctorSession->session_date)->format('M d, Y') : 'your visit date').'.';
     }
 
-    public function content(): Content
+    public function senderType(): MailSenderType
+    {
+        return MailSenderType::Notifications;
+    }
+
+    public function emailType(): string
+    {
+        return 'patient.booking_confirmation';
+    }
+
+    public function subjectLine(): string
+    {
+        $clinic = $this->onBehalfOfClinicName ?? 'Clinic';
+
+        return "Appointment Confirmed: Token #{$this->token->token_number} — {$clinic}";
+    }
+
+    public function htmlView(): string
+    {
+        return 'emails.booking_confirmation';
+    }
+
+    public function textView(): string
+    {
+        return 'emails.text.booking_confirmation';
+    }
+
+    public function viewData(): array
     {
         $session = $this->token->doctorSession;
         $doctor = $session?->doctor;
@@ -42,19 +59,25 @@ class BookingConfirmationMail extends Mailable
             ? Carbon::parse($this->token->estimated_time)->format('h:i A')
             : ($session ? Carbon::parse($session->start_time)->format('h:i A') : 'TBD');
 
-        return new Content(
-            view: 'emails.booking_confirmation',
-            with: [
-                'tokenNumber' => $this->token->token_number,
-                'doctorName' => trim(($doctor?->title ?? 'Dr.').' '.($doctor?->name ?? 'Doctor')),
-                'doctorSpecialty' => $doctor?->specialty ?? 'Specialist',
-                'sessionDate' => $sDate->format('l, F j, Y'),
-                'sessionTime' => $session ? Carbon::parse($session->start_time)->format('h:i A').' – '.Carbon::parse($session->end_time)->format('h:i A') : '',
-                'approxTime' => $approxTime,
-                'roomNumber' => $session?->room_number ?? 'Consultation Suite',
-                'patientName' => $this->token->patient?->name ?? 'Patient',
-                'signedCode' => $this->token->signed_cancel_token,
-            ]
-        );
+        $clinicAddress = $this->clinicAddress ?? $this->tenant?->address;
+        $mapUrl = ! empty($clinicAddress)
+            ? 'https://www.google.com/maps/search/?api=1&query='.urlencode($clinicAddress)
+            : 'https://www.google.com/maps/search/?api=1&query='.urlencode($this->onBehalfOfClinicName ?? 'Sri Lanka Clinic');
+
+        return [
+            'tokenNumber' => $this->token->token_number,
+            'patientName' => $this->token->patient?->name ?? 'Patient',
+            'doctorName' => trim(($doctor?->title ?? 'Dr.').' '.($doctor?->name ?? 'Doctor')),
+            'doctorSpecialty' => $doctor?->specialty ?? 'General Practice',
+            'sessionDate' => $sDate->format('l, F j, Y'),
+            'sessionTime' => $session ? Carbon::parse($session->start_time)->format('h:i A').' – '.Carbon::parse($session->end_time)->format('h:i A') : 'Scheduled Session',
+            'approxTime' => $approxTime,
+            'roomNumber' => $session?->room_number ?? 'Consultation Suite',
+            'clinicName' => $this->onBehalfOfClinicName,
+            'clinicAddress' => $clinicAddress,
+            'clinicPhone' => $this->clinicPhone ?? $this->tenant?->phone,
+            'mapUrl' => $mapUrl,
+            'cancelUrl' => ! empty($this->token->signed_cancel_token) ? url("/queue/cancel/{$this->token->signed_cancel_token}") : null,
+        ];
     }
 }

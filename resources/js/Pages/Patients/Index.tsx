@@ -23,7 +23,11 @@ import {
     Edit3,
     CheckCircle2,
     Eye,
+    Ticket,
+    ArrowRightLeft,
 } from 'lucide-react';
+import { AssignDoctorDrawer } from '@/Components/Bookings/AssignDoctorDrawer';
+import { MoveTokenModal, TokenToMove } from '@/Components/Bookings/MoveTokenModal';
 
 interface PatientItem {
     id: number;
@@ -72,19 +76,26 @@ interface Props {
         district: string | null;
     };
     districts: string[];
+    doctors?: any[];
+    visitTypes?: any[];
 }
 
-export default function PatientsIndex({ patients, filters, districts }: Props) {
+export default function PatientsIndex({ patients, filters, districts, doctors = [], visitTypes = [] }: Props) {
     const [searchQuery, setSearchQuery] = useState(filters.search || '');
     const [selectedDistrict, setSelectedDistrict] = useState(filters.district || '');
 
-    // Modals
+    // Modals & Drawers
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [editingPatient, setEditingPatient] = useState<PatientItem | null>(null);
     const [historyModalOpen, setHistoryModalOpen] = useState(false);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [activeHistoryPatient, setActiveHistoryPatient] = useState<any | null>(null);
     const [activeVisits, setActiveVisits] = useState<VisitHistoryItem[]>([]);
+
+    const [assignDrawerOpen, setAssignDrawerOpen] = useState(false);
+    const [assignDrawerPatient, setAssignDrawerPatient] = useState<any | null>(null);
+    const [moveModalOpen, setMoveModalOpen] = useState(false);
+    const [tokenToMove, setTokenToMove] = useState<TokenToMove | null>(null);
 
     const form = useForm({
         name: '',
@@ -192,6 +203,30 @@ export default function PatientsIndex({ patients, filters, districts }: Props) {
         } finally {
             setHistoryLoading(false);
         }
+    };
+
+    const openAssignDrawer = (p: PatientItem) => {
+        setAssignDrawerPatient(p);
+        setAssignDrawerOpen(true);
+    };
+
+    const openMoveModalForVisit = (v: VisitHistoryItem) => {
+        if (!activeHistoryPatient) return;
+        setTokenToMove({
+            id: v.id,
+            token_number: v.token_number,
+            patient_id: activeHistoryPatient.id,
+            patient_name: activeHistoryPatient.name,
+            patient_phone: activeHistoryPatient.phone,
+            doctor_name: v.doctor_name,
+            doctor_specialty: v.doctor_specialty,
+            session_date: v.session_date,
+            start_time: v.estimated_time,
+            room_number: v.room_number,
+            total_fee_formatted: v.total_amount_formatted,
+            payment_status: v.payment_status,
+        });
+        setMoveModalOpen(true);
     };
 
     return (
@@ -347,6 +382,16 @@ export default function PatientsIndex({ patients, filters, districts }: Props) {
                                     </span>
 
                                     <div className="flex items-center gap-1.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => openAssignDrawer(p)}
+                                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/40 hover:bg-teal-100 dark:hover:bg-teal-900/60 transition-colors"
+                                            title="Assign Doctor & Issue Channeling Token"
+                                        >
+                                            <Ticket className="w-3.5 h-3.5" />
+                                            <span>Issue Token</span>
+                                        </button>
+
                                         <button
                                             type="button"
                                             onClick={() => viewHistory(p)}
@@ -548,6 +593,24 @@ export default function PatientsIndex({ patients, filters, districts }: Props) {
                             <span className="font-mono text-[10px]">{activeHistoryPatient.phone}</span>
                         </div>
 
+                        {/* History Table Header with Issue New Token Button */}
+                        <div className="flex items-center justify-between pb-1">
+                            <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">
+                                Past Channeling Appointments
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setHistoryModalOpen(false);
+                                    openAssignDrawer(activeHistoryPatient);
+                                }}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 shadow-xs transition-colors"
+                            >
+                                <Ticket className="w-3.5 h-3.5" />
+                                <span>Issue Channeling Token</span>
+                            </button>
+                        </div>
+
                         {/* Visit Table */}
                         <div className="overflow-x-auto rounded-2xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-slate-900">
                             <table className="w-full text-left text-xs">
@@ -559,18 +622,19 @@ export default function PatientsIndex({ patients, filters, districts }: Props) {
                                         <th className="py-2.5 px-3">Est. Time</th>
                                         <th className="py-2.5 px-3">Status</th>
                                         <th className="py-2.5 px-3">Receipt & Billing</th>
+                                        <th className="py-2.5 px-3 text-right">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                                     {historyLoading ? (
                                         <tr>
-                                            <td colSpan={6} className="py-8 text-center text-slate-400">
+                                            <td colSpan={7} className="py-8 text-center text-slate-400">
                                                 Loading patient visit records...
                                             </td>
                                         </tr>
                                     ) : activeVisits.length === 0 ? (
                                         <tr>
-                                            <td colSpan={6} className="py-8 text-center text-slate-400 italic">
+                                            <td colSpan={7} className="py-8 text-center text-slate-400 italic">
                                                 No previous channeling visits recorded for this patient.
                                             </td>
                                         </tr>
@@ -597,7 +661,13 @@ export default function PatientsIndex({ patients, filters, districts }: Props) {
                                                     {v.estimated_time}
                                                 </td>
                                                 <td className="py-2.5 px-3 capitalize">
-                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-300">
+                                                    <span
+                                                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                                                            v.status === 'moved'
+                                                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200'
+                                                                : 'bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-300'
+                                                        }`}
+                                                    >
                                                         {v.status.replace('_', ' ')}
                                                     </span>
                                                 </td>
@@ -609,6 +679,19 @@ export default function PatientsIndex({ patients, filters, districts }: Props) {
                                                         {v.receipt_number || 'No receipt'} • {v.payment_status}
                                                     </span>
                                                 </td>
+                                                <td className="py-2.5 px-3 text-right">
+                                                    {v.status !== 'cancelled' && v.status !== 'moved' && v.status !== 'completed' && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openMoveModalForVisit(v)}
+                                                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 dark:text-amber-300 dark:bg-amber-950/40 transition-colors"
+                                                            title="Move / Reassign to another doctor session"
+                                                        >
+                                                            <ArrowRightLeft className="w-3 h-3" />
+                                                            <span>Move</span>
+                                                        </button>
+                                                    )}
+                                                </td>
                                             </tr>
                                         ))
                                     )}
@@ -618,6 +701,31 @@ export default function PatientsIndex({ patients, filters, districts }: Props) {
                     </div>
                 )}
             </GlassModal>
+
+            {/* DRAWER: ASSIGN DOCTOR & ISSUE TOKEN */}
+            <AssignDoctorDrawer
+                isOpen={assignDrawerOpen}
+                onClose={() => setAssignDrawerOpen(false)}
+                patient={assignDrawerPatient}
+                doctors={doctors}
+                visitTypes={visitTypes}
+                onTokenIssued={() => {
+                    router.reload();
+                }}
+            />
+
+            {/* MODAL: MOVE TOKEN */}
+            <MoveTokenModal
+                isOpen={moveModalOpen}
+                onClose={() => setMoveModalOpen(false)}
+                token={tokenToMove}
+                doctors={doctors}
+                onSuccess={() => {
+                    if (activeHistoryPatient) {
+                        viewHistory(activeHistoryPatient);
+                    }
+                }}
+            />
         </AuthenticatedLayout>
     );
 }

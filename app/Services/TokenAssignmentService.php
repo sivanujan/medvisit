@@ -39,7 +39,7 @@ class TokenAssignmentService
             // Check if patient already has an active token in this session
             $existingActive = BookingToken::where('doctor_session_id', $lockedSession->id)
                 ->where('patient_id', $patient->id)
-                ->whereNotIn('status', [BookingToken::STATUS_CANCELLED])
+                ->whereNotIn('status', [BookingToken::STATUS_CANCELLED, BookingToken::STATUS_MOVED])
                 ->exists();
 
             if ($existingActive) {
@@ -48,7 +48,7 @@ class TokenAssignmentService
 
             // Count current active bookings against capacity
             $activeCount = BookingToken::where('doctor_session_id', $lockedSession->id)
-                ->whereNotIn('status', [BookingToken::STATUS_CANCELLED])
+                ->whereNotIn('status', [BookingToken::STATUS_CANCELLED, BookingToken::STATUS_MOVED])
                 ->count();
 
             if ($activeCount >= $lockedSession->max_tokens) {

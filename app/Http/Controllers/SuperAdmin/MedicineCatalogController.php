@@ -209,8 +209,10 @@ class MedicineCatalogController extends Controller
     /**
      * Approve a review queue item.
      */
-    public function approve(Request $request, string $type, int $id): RedirectResponse
+    public function approve(Request $request): RedirectResponse
     {
+        $type = (string) $request->route('type');
+        $id = (int) $request->route('id');
         $edits = $request->input('edits', []);
 
         switch ($type) {
@@ -240,8 +242,11 @@ class MedicineCatalogController extends Controller
     /**
      * Reject a review queue item.
      */
-    public function reject(Request $request, string $type, int $id): RedirectResponse
+    public function reject(Request $request): RedirectResponse
     {
+        $type = (string) $request->route('type');
+        $id = (int) $request->route('id');
+
         $validated = $request->validate([
             'reason' => ['required', 'string', 'max:500'],
         ]);
@@ -282,8 +287,10 @@ class MedicineCatalogController extends Controller
     /**
      * Soft delete a medicine.
      */
-    public function destroy(Medicine $medicine): RedirectResponse
+    public function destroy(Request $request): RedirectResponse
     {
+        $id = (int) $request->route('medicine');
+        $medicine = Medicine::findOrFail($id);
         $medicine->delete();
 
         return redirect()->back()->with('success', "Medicine {$medicine->generic_name} archived.");

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Billing;
 
 use App\Models\Bill;
+use App\Models\BillAdjustment;
 
 class BillCalculator
 {
@@ -151,6 +152,56 @@ class BillCalculator
             ];
         }
 
+        // 3. Bill adjustments (e.g. Move differential balance/refund)
+        $adjustments = $bill->adjustments()->get();
+        foreach ($adjustments as $adj) {
+            $cents = (int) $adj->amount_cents;
+            $isDue = $cents >= 0;
+            $lines[] = [
+                'name' => $adj->reason ?? ($isDue ? 'Move Differential (Balance Due)' : 'Move Differential (Refund Due)'),
+                'type' => 'adjustment',
+                'quantity' => null,
+                'unit_price_lkr' => null,
+                'unit_price_formatted' => null,
+                'amount_lkr' => round($cents / 100, 2),
+                'amount_cents' => $cents,
+                'amount' => $cents,
+                'amount_formatted' => ($isDue ? '+Rs. ' : '-Rs. ').number_format(abs($cents) / 100, 2),
+                'recipient' => 'clinic',
+            ];
+        }
+
         return $lines;
+    }
+
+    /**
+     * Record a move differential adjustment on a paid bill.
+     * Positive diff = balance due from patient.
+     * Negative diff = refund/credit due to patient.
+     */
+    public function recordMoveAdjustment(
+        Bill $bill,
+        int $diffCents,
+        ?string $reason = null,
+        array $metadata = []
+    ): ?BillAdjustment {
+        if ($diffCents === 0) {
+            return null;
+        }
+
+        $isDue = $diffCents > 0;
+        $defaultReason = $isDue
+            ? 'Differential fee: Balance due Rs. '.number_format($diffCents / 100, 2)
+            : 'Differential fee: Refund due Rs. '.number_format(abs($diffCents) / 100, 2);
+
+        return BillAdjustment::create([
+            'tenant_id' => $bill->tenant_id,
+            'bill_id' => $bill->id,
+            'booking_token_id' => $bill->booking_token_id,
+            'type' => BillAdjustment::TYPE_MOVE_DIFFERENTIAL,
+            'amount_cents' => $diffCents,
+            'reason' => $reason ?: $defaultReason,
+            'metadata' => $metadata,
+        ]);
     }
 }

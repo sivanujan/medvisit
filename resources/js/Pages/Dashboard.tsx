@@ -26,7 +26,7 @@ import { GlassCard } from '@/Components/UI/GlassCard';
 import { StatusBadge } from '@/Components/UI/StatusBadge';
 
 interface DashboardProps {
-    tenant: {
+    tenant?: {
         id: string;
         name: string;
         subdomain: string;
@@ -34,8 +34,8 @@ interface DashboardProps {
         currency_symbol: string;
         base_domain?: string;
     };
-    userRole: 'clinic_admin' | 'doctor' | 'receptionist';
-    stats: {
+    userRole?: 'clinic_admin' | 'doctor' | 'receptionist';
+    stats?: {
         todayPatientsCount: number;
         waitingCount: number;
         activeSessionsCount: number;
@@ -43,7 +43,7 @@ interface DashboardProps {
         todayDoctorFees: string;
         todayClinicFees: string;
     };
-    activeSession: {
+    activeSession?: {
         id: number;
         doctor_name: string;
         specialty: string;
@@ -54,7 +54,7 @@ interface DashboardProps {
         max_tokens: number;
         status: string;
     } | null;
-    queue: {
+    queue?: {
         nowServing: {
             id: number;
             token_number: number;
@@ -80,7 +80,7 @@ interface DashboardProps {
             estimated_time: string;
         }>;
     };
-    upcomingSessions: Array<{
+    upcomingSessions?: Array<{
         id: number;
         doctor_name: string;
         specialty: string;
@@ -93,7 +93,7 @@ interface DashboardProps {
         max_tokens: number;
         fee_formatted: string;
     }>;
-    recentBookings: Array<{
+    recentBookings?: Array<{
         id: number;
         token_number: number;
         patient_name: string;
@@ -104,7 +104,7 @@ interface DashboardProps {
         booked_via: string;
         created_at_human: string;
     }>;
-    checklist: {
+    checklist?: {
         items: {
             add_doctor: boolean;
             create_schedule: boolean;
@@ -119,18 +119,43 @@ interface DashboardProps {
 }
 
 export default function Dashboard({
-    tenant,
-    userRole,
-    stats,
-    activeSession,
-    queue,
-    upcomingSessions,
-    recentBookings,
-    checklist,
+    tenant = {
+        id: '',
+        name: 'Clinic',
+        subdomain: 'demo',
+        currency: 'LKR',
+        currency_symbol: 'Rs.',
+        base_domain: 'medvisit.localhost',
+    },
+    userRole = 'clinic_admin',
+    stats = {
+        todayPatientsCount: 0,
+        waitingCount: 0,
+        activeSessionsCount: 0,
+        todayCollections: 'Rs. 0.00',
+        todayDoctorFees: 'Rs. 0.00',
+        todayClinicFees: 'Rs. 0.00',
+    },
+    activeSession = null,
+    queue = { nowServing: null, nextInLine: [], tokens: [] },
+    upcomingSessions = [],
+    recentBookings = [],
+    checklist = {
+        completedCount: 5,
+        totalCount: 5,
+        percentage: 100,
+        items: {
+            add_doctor: true,
+            create_schedule: true,
+            invite_staff: true,
+            publish_website: true,
+            take_first_booking: true,
+        },
+    },
 }: DashboardProps) {
-    const isNewClinic = checklist.completedCount < 5;
+    const isNewClinic = (checklist?.completedCount ?? 5) < 5;
     const baseDomain =
-        tenant.base_domain ||
+        tenant?.base_domain ||
         (typeof window !== 'undefined' && window.location.hostname.includes('localhost')
             ? 'medvisit.localhost'
             : 'medvisit.lk');
@@ -140,7 +165,7 @@ export default function Dashboard({
             key: 'add_doctor',
             label: 'Add Doctor Profiles & Fees',
             description: 'Register practicing medical officers with SLMC numbers and channeling fees.',
-            done: checklist.items.add_doctor,
+            done: !!checklist?.items?.add_doctor,
             href: '/doctors',
             icon: Stethoscope,
         },
@@ -148,7 +173,7 @@ export default function Dashboard({
             key: 'create_schedule',
             label: 'Schedule Channeling Sessions',
             description: 'Create weekly recurring or one-off channeling dates and token limits.',
-            done: checklist.items.create_schedule,
+            done: !!checklist?.items?.create_schedule,
             href: '/calendar',
             icon: Calendar,
         },
@@ -156,15 +181,15 @@ export default function Dashboard({
             key: 'invite_staff',
             label: 'Invite Receptionist & Staff',
             description: 'Grant role-based access to desk clerks and medical staff.',
-            done: checklist.items.invite_staff,
+            done: !!checklist?.items?.invite_staff,
             href: '/staff',
             icon: UserCheck,
         },
         {
             key: 'publish_website',
             label: 'Configure Public Clinic Website',
-            description: `Publish your branded landing page at ${tenant.subdomain}.${baseDomain}.`,
-            done: checklist.items.publish_website,
+            description: `Publish your branded landing page at ${tenant?.subdomain || 'demo'}.${baseDomain}.`,
+            done: !!checklist?.items?.publish_website,
             href: '/website',
             icon: Globe,
         },
@@ -172,7 +197,7 @@ export default function Dashboard({
             key: 'take_first_booking',
             label: 'Issue Your First Channeling Token',
             description: 'Book a walk-in patient from reception or accept an online booking.',
-            done: checklist.items.take_first_booking,
+            done: !!checklist?.items?.take_first_booking,
             href: '/bookings',
             icon: Ticket,
         },
@@ -183,41 +208,29 @@ export default function Dashboard({
             <Head title={`${tenant.name} - Overview`} />
 
             {/* Page Header */}
-            <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                    <div className="flex items-center gap-2 mb-1">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary">
-                            Sri Lankan Channeling
-                        </span>
-                        <span className="text-xs text-slate-400 font-medium font-mono">
-                            {tenant.subdomain}.{baseDomain}
-                        </span>
-                    </div>
-                    <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-                        {tenant.name}
-                    </h1>
-                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-                        Live queue monitor, daily channeling sessions, and clinic collections.
-                    </p>
-                </div>
-
-                <div className="flex items-center gap-3">
-                    <Link
-                        href="/bookings"
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 transition-colors shadow-md shadow-primary/20"
-                    >
-                        <Ticket className="w-3.5 h-3.5" />
-                        <span>Issue Token</span>
-                    </Link>
-                    <Link
-                        href="/sessions/today"
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-                    >
-                        <Clock className="w-3.5 h-3.5" />
-                        <span>Live Queue View</span>
-                    </Link>
-                </div>
-            </div>
+            <PageHeader
+                eyebrow="Sri Lankan Channeling"
+                title={`${tenant.name} — Overview`}
+                subtitle="Live queue monitor, daily channeling sessions, and clinic collections."
+                actions={
+                    <>
+                        <Link
+                            href="/bookings"
+                            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-primary hover:bg-primary-600 transition-colors shadow-sm shadow-primary/20"
+                        >
+                            <Ticket className="w-3.5 h-3.5" />
+                            <span>Issue Token</span>
+                        </Link>
+                        <Link
+                            href="/sessions/today"
+                            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-xs"
+                        >
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>Live Queue View</span>
+                        </Link>
+                    </>
+                }
+            />
 
             {/* KPI Cards Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

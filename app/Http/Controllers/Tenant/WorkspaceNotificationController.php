@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
+use App\Models\AnnouncementRecipient;
 use App\Models\BookingToken;
 use App\Models\DoctorSession;
 use Carbon\Carbon;
@@ -58,6 +59,33 @@ class WorkspaceNotificationController extends Controller
                 'type' => 'token',
                 'tone' => $token->status === BookingToken::STATUS_CALLED ? 'primary' : 'blue',
             ];
+        }
+
+        // 3. Platform Broadcast Announcements
+        $user = $request->user();
+        if ($user) {
+            $announcements = AnnouncementRecipient::with('announcement')
+                ->where('user_id', $user->id)
+                ->where('channel', 'in_app')
+                ->whereNull('read_at')
+                ->latest()
+                ->limit(5)
+                ->get();
+
+            foreach ($announcements as $rec) {
+                if (! $rec->announcement) {
+                    continue;
+                }
+                $notifications[] = [
+                    'id' => 'announcement_'.$rec->id,
+                    'title' => $rec->announcement->title,
+                    'message' => strip_tags((string) $rec->announcement->message),
+                    'time' => $rec->created_at->diffForHumans(),
+                    'url' => $rec->announcement->cta_url ? route('announcements.cta', ['recipient' => $rec->id]) : '#',
+                    'type' => 'announcement',
+                    'tone' => in_array($rec->announcement->type, ['warning', 'maintenance', 'billing'], true) ? 'primary' : 'emerald',
+                ];
+            }
         }
 
         return response()->json([

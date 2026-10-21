@@ -17,17 +17,19 @@ use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class AuthenticatedSessionController extends Controller
 {
-    /**
-     * Display the login view.
-     */
-    public function create(): Response
+    public function create(Request $request): Response
     {
+        $isAdmin = $request->query('mode') === 'admin'
+            || $request->boolean('admin')
+            || $request->routeIs('admin.login');
+
         return Inertia::render('Auth/Login', [
             'canResetPassword' => Route::has('password.request'),
             'status' => session('status'),
             'showDemoCredentials' => app()->environment('local'),
             'matchedClinics' => session('matchedClinics'),
             'lookupEmail' => session('lookupEmail'),
+            'initialMode' => $isAdmin ? 'admin' : 'find',
         ]);
     }
 
@@ -55,6 +57,25 @@ class AuthenticatedSessionController extends Controller
 
                 return redirect()->away($clinicUrl);
             }
+        }
+
+        // If the user has 2FA enabled, challenge them before completing session
+        if ($user && $user->two_factor_confirmed_at !== null) {
+            $remember = $request->boolean('remember');
+            Auth::guard('web')->logout();
+            $request->session()->put([
+                'login.2fa.user_id' => $user->id,
+                'login.2fa.remember' => $remember,
+            ]);
+
+            return redirect()->route('two-factor.challenge');
+        }
+
+        if ($user) {
+            $user->forceFill([
+                'last_login_at' => now(),
+                'last_login_ip' => $request->ip(),
+            ])->save();
         }
 
         AuditLogger::log('user.login');

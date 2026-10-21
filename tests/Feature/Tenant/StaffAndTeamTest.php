@@ -66,7 +66,7 @@ class StaffAndTeamTest extends TestCase
         $this->assertNotNull($invitation);
         $this->assertEquals('doctor', $invitation->role);
 
-        Mail::assertSent(StaffInviteMail::class, function ($mail) {
+        Mail::assertQueued(StaffInviteMail::class, function ($mail) {
             return $mail->hasTo('perera@gmail.com');
         });
     }

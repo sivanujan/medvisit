@@ -1,11 +1,12 @@
 Hello {{ $adminName }},
 
-The free trial period for {{ $clinicName }} has ended. Clinic access is temporarily paused.
+The 14-day free trial period for {{ $clinicName }} has ended and concluded.
 
-Your patient records and clinic configuration are completely safe. Select a subscription plan to reactivate full access:
+Your clinic data, past patient records, and doctor profiles are securely preserved.
+To reactivate full access and token counters, please select an active plan:
 {{ $portalUrl }}
 
 ---
-MedVisit, Sri Lanka
+MedVisit · Clinic management for Sri Lanka
 Support: {{ config('medvisit.mail.reply_to.address', 'support@medvisit.lk') }}
-{{ $reason }}
+© {{ date('Y') }} MedVisit. All rights reserved.

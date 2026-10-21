@@ -18,6 +18,7 @@ import ApplicationLogo from '@/Components/ApplicationLogo';
 import ThemeToggle from '@/Components/Common/ThemeToggle';
 import { GlassCard } from '@/Components/UI/GlassCard';
 import { StatusBadge } from '@/Components/UI/StatusBadge';
+import LegalFooter from '@/Components/Public/LegalFooter';
 import { PageProps } from '@/types';
 
 interface Props extends PageProps {
@@ -75,6 +76,13 @@ export default function Welcome({
                     </div>
 
                     <nav className="flex items-center gap-3">
+                        <Link
+                            href="/pricing"
+                            className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-primary dark:text-slate-300 dark:hover:text-primary px-3 py-2 rounded-xl transition-colors"
+                        >
+                            <span>Pricing</span>
+                        </Link>
+
                         <Link
                             href="/dev/components"
                             className="hidden sm:inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-primary dark:text-slate-400 dark:hover:text-primary-300 px-3 py-2 rounded-xl transition-colors"
@@ -296,9 +304,7 @@ export default function Welcome({
             </main>
 
             {/* Footer */}
-            <footer className="mt-16 border-t border-slate-200/80 dark:border-white/10 bg-white/50 dark:bg-slate-900/40 backdrop-blur-md py-8 text-center text-xs text-slate-500 dark:text-slate-400">
-                <p>&copy; {new Date().getFullYear()} MedVisit Inc. Sri Lanka. All rights reserved.</p>
-            </footer>
+            <LegalFooter className="mt-20" />
         </div>
     );
 }

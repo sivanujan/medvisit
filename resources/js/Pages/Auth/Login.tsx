@@ -18,6 +18,7 @@ import {
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import AuthHeader from '@/Components/AuthHeader';
 import ThemeToggle from '@/Components/Common/ThemeToggle';
+import LegalFooter from '@/Components/Public/LegalFooter';
 import {
     GlassLabel,
     GlassInput,
@@ -35,6 +36,7 @@ interface Props {
         login_url: string;
     }>;
     lookupEmail?: string;
+    initialMode?: 'find' | 'admin';
 }
 
 export default function Login({
@@ -43,9 +45,23 @@ export default function Login({
     showDemoCredentials = false,
     matchedClinics,
     lookupEmail,
+    initialMode,
 }: Props) {
     // Mode: 'find' (Find Your Clinic) vs 'admin' (Platform Admin Login)
-    const [mode, setMode] = useState<'find' | 'admin'>('find');
+    const [mode, setMode] = useState<'find' | 'admin'>(() => {
+        if (initialMode) return initialMode;
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            if (
+                params.get('admin') === '1' ||
+                params.get('mode') === 'admin' ||
+                window.location.pathname.includes('/admin/login')
+            ) {
+                return 'admin';
+            }
+        }
+        return 'find';
+    });
 
     // Subdomain form
     const subdomainForm = useForm({
@@ -200,6 +216,19 @@ export default function Login({
                                             onChange={(e) => emailLookupForm.setData('email', e.target.value)}
                                         />
                                         <GlassError message={emailLookupForm.errors.email} />
+                                        {emailLookupForm.errors.email?.toLowerCase().includes('platform admin') && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setMode('admin');
+                                                    adminForm.setData('email', emailLookupForm.data.email);
+                                                }}
+                                                className="w-full mt-2 py-2.5 px-3 rounded-xl font-bold text-xs bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                                            >
+                                                <Shield className="w-4 h-4 text-primary shrink-0" />
+                                                <span>Switch to Platform Admin Sign In &rarr;</span>
+                                            </button>
+                                        )}
 
                                         <button
                                             type="submit"
@@ -280,9 +309,10 @@ export default function Login({
                                         <button
                                             type="button"
                                             onClick={() => setMode('admin')}
-                                            className="text-[11px] font-semibold text-slate-400 hover:text-primary dark:hover:text-primary-300 transition-colors cursor-pointer"
+                                            className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-slate-200/80 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-white/10 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
                                         >
-                                            Platform Admin Login &rarr;
+                                            <Shield className="w-3.5 h-3.5 text-primary" />
+                                            <span>Platform Admin Login &rarr;</span>
                                         </button>
                                     </div>
                                 </motion.div>
@@ -455,6 +485,8 @@ export default function Login({
                     </motion.div>
                 </div>
             </main>
+
+            <LegalFooter className="mt-12" />
         </div>
     );
 }

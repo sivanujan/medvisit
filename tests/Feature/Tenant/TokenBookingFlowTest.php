@@ -445,4 +445,539 @@ class TokenBookingFlowTest extends TestCase
             ->where('recentBookings.0.payment_status', 'paid')
         );
     }
+
+    /**
+     * 7. Test patient search by numeric ID, "#14", "PAT-00014".
+     */
+    public function test_search_patients_by_numeric_id_and_formatted_id(): void
+    {
+        $patient = Patient::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Gamini Dissanayake',
+            'phone' => '+94712345678',
+            'nic' => '851234567V',
+            'gender' => 'male',
+        ]);
+
+        $id = $patient->id;
+
+        // Search with plain number
+        $res1 = $this->actingAs($this->adminUser)
+            ->getJson("http://sivacli.{$this->baseDomain}/api/patients/search?q={$id}");
+        $res1->assertOk();
+        $this->assertCount(1, $res1->json());
+        $this->assertEquals($patient->name, $res1->json('0.name'));
+
+        // Search with #ID
+        $res2 = $this->actingAs($this->adminUser)
+            ->getJson("http://sivacli.{$this->baseDomain}/api/patients/search?q=%23{$id}");
+        $res2->assertOk();
+        $this->assertCount(1, $res2->json());
+
+        // Search with formatted PAT-00014
+        $formatted = 'PAT-'.str_pad((string) $id, 5, '0', STR_PAD_LEFT);
+        $res3 = $this->actingAs($this->adminUser)
+            ->getJson("http://sivacli.{$this->baseDomain}/api/patients/search?q={$formatted}");
+        $res3->assertOk();
+        $this->assertCount(1, $res3->json());
+    }
+
+    /**
+     * 8. Test available-sessions API generates on-demand for 14 days and excludes cancelled/moved.
+     */
+    public function test_available_sessions_generates_on_demand_and_excludes_cancelled_and_moved(): void
+    {
+        $doctor = Doctor::create([
+            'tenant_id' => $this->tenant->id,
+            'title' => 'Dr.',
+            'name' => 'Senaka Bandara',
+            'specialty' => 'Pediatrician',
+            'slmc_number' => 'SLMC-77661',
+            'doctor_fee' => 200000,
+            'clinic_fee' => 50000,
+            'avg_consultation_minutes' => 15,
+            'is_active' => true,
+        ]);
+
+        $today = Carbon::today('Asia/Colombo');
+        $targetDayOfWeek = $today->dayOfWeek;
+
+        // Recurring template for today's day of week
+        SessionTemplate::create([
+            'tenant_id' => $this->tenant->id,
+            'doctor_id' => $doctor->id,
+            'title' => 'Pediatric Morning Clinic',
+            'day_of_week' => $targetDayOfWeek,
+            'start_time' => '08:30',
+            'end_time' => '11:30',
+            'max_patients' => 10,
+            'mode' => 'token',
+            'is_active' => true,
+        ]);
+
+        // Hit available sessions endpoint
+        $res = $this->actingAs($this->adminUser)
+            ->getJson("http://sivacli.{$this->baseDomain}/doctors/{$doctor->id}/available-sessions?days=14");
+
+        $res->assertOk();
+        $sessions = $res->json('sessions');
+        $this->assertNotEmpty($sessions, 'Sessions should be generated on-demand for 14 days.');
+
+        $targetSessionId = $sessions[0]['id'];
+        $patient = Patient::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Baby Kaveen',
+            'phone' => '+94770001111',
+            'gender' => 'male',
+        ]);
+
+        // Issue 1 active token, 1 cancelled token, 1 moved token
+        BookingToken::create([
+            'tenant_id' => $this->tenant->id,
+            'doctor_session_id' => $targetSessionId,
+            'patient_id' => $patient->id,
+            'token_number' => 1,
+            'status' => BookingToken::STATUS_BOOKED,
+        ]);
+
+        BookingToken::create([
+            'tenant_id' => $this->tenant->id,
+            'doctor_session_id' => $targetSessionId,
+            'patient_id' => $patient->id,
+            'token_number' => 2,
+            'status' => BookingToken::STATUS_CANCELLED,
+        ]);
+
+        BookingToken::create([
+            'tenant_id' => $this->tenant->id,
+            'doctor_session_id' => $targetSessionId,
+            'patient_id' => $patient->id,
+            'token_number' => 3,
+            'status' => BookingToken::STATUS_MOVED,
+        ]);
+
+        // Hit endpoint again: booked_tokens_count must be 1, not 3!
+        $res2 = $this->actingAs($this->adminUser)
+            ->getJson("http://sivacli.{$this->baseDomain}/doctors/{$doctor->id}/available-sessions?days=14");
+
+        $res2->assertOk();
+        $firstSession = collect($res2->json('sessions'))->firstWhere('id', $targetSessionId);
+        $this->assertEquals(1, $firstSession['booked_tokens_count']);
+        $this->assertEquals(9, $firstSession['available_tokens_count']);
+        $this->assertEquals(2, $firstSession['next_token_number']);
+    }
+
+    /**
+     * 9. Test move token when bill is paid is immutable and records adjustment.
+     */
+    public function test_move_token_when_bill_is_paid_is_immutable_and_records_differential(): void
+    {
+        $doctorA = Doctor::create([
+            'tenant_id' => $this->tenant->id,
+            'title' => 'Dr.',
+            'name' => 'Doctor Alpha',
+            'specialty' => 'General Practice',
+            'slmc_number' => 'SLMC-11111',
+            'use_clinic_default_fees' => false,
+            'custom_doctor_fee' => 150000,
+            'custom_clinic_fee' => 50000,
+            'doctor_fee' => 150000, // Rs. 1,500
+            'clinic_fee' => 50000,  // Rs. 500 => Total Rs. 2,000
+            'is_active' => true,
+        ]);
+
+        $doctorB = Doctor::create([
+            'tenant_id' => $this->tenant->id,
+            'title' => 'Dr.',
+            'name' => 'Doctor Beta',
+            'specialty' => 'Neurologist',
+            'slmc_number' => 'SLMC-22222',
+            'use_clinic_default_fees' => false,
+            'custom_doctor_fee' => 300000,
+            'custom_clinic_fee' => 50000,
+            'doctor_fee' => 300000, // Rs. 3,000
+            'clinic_fee' => 50000,  // Rs. 500 => Total Rs. 3,500
+            'is_active' => true,
+        ]);
+
+        $sessionA = DoctorSession::create([
+            'tenant_id' => $this->tenant->id,
+            'doctor_id' => $doctorA->id,
+            'session_date' => Carbon::today('Asia/Colombo')->toDateString(),
+            'start_time' => '09:00',
+            'end_time' => '12:00',
+            'max_tokens' => 20,
+            'doctor_fee' => 150000,
+            'clinic_fee' => 50000,
+            'status' => 'scheduled',
+        ]);
+
+        $sessionB = DoctorSession::create([
+            'tenant_id' => $this->tenant->id,
+            'doctor_id' => $doctorB->id,
+            'session_date' => Carbon::tomorrow('Asia/Colombo')->toDateString(),
+            'start_time' => '14:00',
+            'end_time' => '17:00',
+            'max_tokens' => 20,
+            'doctor_fee' => 300000,
+            'clinic_fee' => 50000,
+            'status' => 'scheduled',
+        ]);
+
+        $patient = Patient::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Kamal Perera',
+            'phone' => '+94771234567',
+        ]);
+
+        // Issue token with Doctor A and pay the bill
+        $issueRes = $this->actingAs($this->adminUser)
+            ->post("http://sivacli.{$this->baseDomain}/bookings", [
+                'doctor_session_id' => $sessionA->id,
+                'patient_id' => $patient->id,
+                'payment_collected' => true,
+                'payment_method' => 'cash',
+            ]);
+        $issueRes->assertRedirect();
+
+        $tokenA = BookingToken::where('doctor_session_id', $sessionA->id)->firstOrFail();
+        $bill = Bill::where('booking_token_id', $tokenA->id)->firstOrFail();
+        $this->assertEquals(200000, $bill->total_amount);
+        $this->assertEquals(Bill::STATUS_PAID, $bill->payment_status);
+
+        // Move token to Doctor B session
+        $moveRes = $this->actingAs($this->adminUser)
+            ->post("http://sivacli.{$this->baseDomain}/bookings/{$tokenA->id}/move", [
+                'destination_session_id' => $sessionB->id,
+                'reason' => 'Patient requested neurologist consultation',
+                'notify_patient' => true,
+            ]);
+
+        $moveRes->assertRedirect();
+        $moveRes->assertSessionHas('success');
+        $moveRes->assertSessionHas('movedToken');
+
+        // Verify Old Token is moved
+        $tokenA->refresh();
+        $this->assertEquals(BookingToken::STATUS_MOVED, $tokenA->status);
+        $this->assertNotNull($tokenA->moved_to_token_id);
+        $this->assertNotNull($tokenA->moved_at);
+        $this->assertEquals('Patient requested neurologist consultation', $tokenA->move_reason);
+
+        // Verify New Token is created in Session B
+        $tokenB = BookingToken::findOrFail($tokenA->moved_to_token_id);
+        $this->assertEquals($sessionB->id, $tokenB->doctor_session_id);
+        $this->assertEquals(BookingToken::STATUS_BOOKED, $tokenB->status);
+        $this->assertEquals(1, $tokenB->token_number);
+
+        // Verify Bill is IMMUTABLE: total_amount remains original paid Rs. 2,000!
+        $bill->refresh();
+        $this->assertEquals(200000, $bill->total_amount);
+        $this->assertEquals(Bill::STATUS_PAID, $bill->payment_status);
+        $this->assertEquals($tokenB->id, $bill->booking_token_id);
+        $this->assertEquals($doctorB->id, $bill->doctor_id);
+
+        // Verify BillAdjustment is recorded for difference (+150000 = Rs. 1,500 balance due)
+        $this->assertCount(1, $bill->adjustments);
+        $adj = $bill->adjustments->first();
+        $this->assertEquals(150000, $adj->amount_cents);
+        $this->assertEquals('Balance due: Rs. 1,500.00', $adj->formatted_amount);
+    }
+
+    /**
+     * 10. Test doctor payout attribution: after move, payout goes to NEW doctor only; old doctor gets 0.
+     */
+    public function test_doctor_payout_attribution_on_move_goes_only_to_new_doctor(): void
+    {
+        $docOld = Doctor::create([
+            'tenant_id' => $this->tenant->id,
+            'title' => 'Dr.',
+            'name' => 'Old Doctor',
+            'specialty' => 'GP',
+            'slmc_number' => 'SLMC-0001',
+            'use_clinic_default_fees' => false,
+            'custom_doctor_fee' => 150000,
+            'custom_clinic_fee' => 50000,
+            'doctor_fee' => 150000,
+            'clinic_fee' => 50000,
+            'is_active' => true,
+        ]);
+
+        $docNew = Doctor::create([
+            'tenant_id' => $this->tenant->id,
+            'title' => 'Dr.',
+            'name' => 'New Doctor',
+            'specialty' => 'Specialist',
+            'slmc_number' => 'SLMC-0002',
+            'use_clinic_default_fees' => false,
+            'custom_doctor_fee' => 250000,
+            'custom_clinic_fee' => 50000,
+            'doctor_fee' => 250000,
+            'clinic_fee' => 50000,
+            'is_active' => true,
+        ]);
+
+        $sessionOld = DoctorSession::create([
+            'tenant_id' => $this->tenant->id,
+            'doctor_id' => $docOld->id,
+            'session_date' => Carbon::today('Asia/Colombo')->toDateString(),
+            'start_time' => '10:00',
+            'end_time' => '12:00',
+            'max_tokens' => 10,
+            'doctor_fee' => 150000,
+            'clinic_fee' => 50000,
+            'status' => 'scheduled',
+        ]);
+
+        $sessionNew = DoctorSession::create([
+            'tenant_id' => $this->tenant->id,
+            'doctor_id' => $docNew->id,
+            'session_date' => Carbon::today('Asia/Colombo')->toDateString(),
+            'start_time' => '14:00',
+            'end_time' => '16:00',
+            'max_tokens' => 10,
+            'doctor_fee' => 250000,
+            'clinic_fee' => 50000,
+            'status' => 'scheduled',
+        ]);
+
+        $patient = Patient::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Sunil Shantha',
+            'phone' => '+94775555555',
+        ]);
+
+        // Issue token for old doctor
+        $this->actingAs($this->adminUser)
+            ->post("http://sivacli.{$this->baseDomain}/bookings", [
+                'doctor_session_id' => $sessionOld->id,
+                'patient_id' => $patient->id,
+                'payment_collected' => true,
+            ]);
+
+        $token = BookingToken::where('doctor_session_id', $sessionOld->id)->firstOrFail();
+
+        // Move token to new doctor
+        $this->actingAs($this->adminUser)
+            ->post("http://sivacli.{$this->baseDomain}/bookings/{$token->id}/move", [
+                'destination_session_id' => $sessionNew->id,
+                'reason' => 'Patient switch',
+            ]);
+
+        // Query Doctor Payouts page for Old Doctor
+        $resOld = $this->actingAs($this->adminUser)
+            ->get("http://sivacli.{$this->baseDomain}/billing/payouts?doctor_id={$docOld->id}");
+
+        $resOld->assertOk();
+        $resOld->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('Billing/DoctorPayouts')
+            ->where('summary.total_patients', 0)
+            ->where('summary.doctor_payout_due_lkr', 0)
+        );
+
+        // Query Doctor Payouts page for New Doctor
+        $resNew = $this->actingAs($this->adminUser)
+            ->get("http://sivacli.{$this->baseDomain}/billing/payouts?doctor_id={$docNew->id}");
+
+        $resNew->assertOk();
+        $resNew->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('Billing/DoctorPayouts')
+            ->where('summary.total_patients', 1)
+            ->where('summary.doctor_payout_due_lkr', 2500)
+        );
+    }
+
+    /**
+     * 11. Test moving token blocked if consultation already started or completed.
+     */
+    public function test_move_token_blocked_if_consultation_started_or_completed(): void
+    {
+        $doctor = Doctor::create([
+            'tenant_id' => $this->tenant->id,
+            'title' => 'Dr.',
+            'name' => 'Doctor Block',
+            'specialty' => 'GP',
+            'slmc_number' => 'SLMC-9999',
+            'is_active' => true,
+        ]);
+
+        $session1 = DoctorSession::create([
+            'tenant_id' => $this->tenant->id,
+            'doctor_id' => $doctor->id,
+            'session_date' => Carbon::today('Asia/Colombo')->toDateString(),
+            'start_time' => '09:00',
+            'end_time' => '11:00',
+            'max_tokens' => 10,
+            'status' => 'scheduled',
+        ]);
+
+        $session2 = DoctorSession::create([
+            'tenant_id' => $this->tenant->id,
+            'doctor_id' => $doctor->id,
+            'session_date' => Carbon::today('Asia/Colombo')->toDateString(),
+            'start_time' => '13:00',
+            'end_time' => '15:00',
+            'max_tokens' => 10,
+            'status' => 'scheduled',
+        ]);
+
+        $patient = Patient::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Anura Silva',
+            'phone' => '+94776666666',
+        ]);
+
+        $token = BookingToken::create([
+            'tenant_id' => $this->tenant->id,
+            'doctor_session_id' => $session1->id,
+            'patient_id' => $patient->id,
+            'token_number' => 1,
+            'status' => BookingToken::STATUS_IN_CONSULTATION,
+        ]);
+
+        $res = $this->actingAs($this->adminUser)
+            ->post("http://sivacli.{$this->baseDomain}/bookings/{$token->id}/move", [
+                'destination_session_id' => $session2->id,
+            ]);
+
+        $res->assertSessionHasErrors('move_error');
+        $this->assertEquals(BookingToken::STATUS_IN_CONSULTATION, $token->fresh()->status);
+    }
+
+    /**
+     * 12. Test moving unpaid token simply recalculates the bill with the new fee snapshot.
+     */
+    public function test_move_unpaid_token_recalculates_bill(): void
+    {
+        $doctorA = Doctor::create([
+            'tenant_id' => $this->tenant->id,
+            'title' => 'Dr.',
+            'name' => 'Dr. Unpaid A',
+            'specialty' => 'GP',
+            'slmc_number' => 'SLMC-3331',
+            'use_clinic_default_fees' => false,
+            'custom_doctor_fee' => 100000,
+            'custom_clinic_fee' => 50000,
+            'doctor_fee' => 100000,
+            'clinic_fee' => 50000,
+            'is_active' => true,
+        ]);
+
+        $doctorB = Doctor::create([
+            'tenant_id' => $this->tenant->id,
+            'title' => 'Dr.',
+            'name' => 'Dr. Unpaid B',
+            'specialty' => 'Cardio',
+            'slmc_number' => 'SLMC-3332',
+            'use_clinic_default_fees' => false,
+            'custom_doctor_fee' => 200000,
+            'custom_clinic_fee' => 50000,
+            'doctor_fee' => 200000,
+            'clinic_fee' => 50000,
+            'is_active' => true,
+        ]);
+
+        $sessionA = DoctorSession::create([
+            'tenant_id' => $this->tenant->id,
+            'doctor_id' => $doctorA->id,
+            'session_date' => Carbon::today('Asia/Colombo')->toDateString(),
+            'start_time' => '09:00',
+            'end_time' => '12:00',
+            'max_tokens' => 10,
+            'status' => 'scheduled',
+        ]);
+
+        $sessionB = DoctorSession::create([
+            'tenant_id' => $this->tenant->id,
+            'doctor_id' => $doctorB->id,
+            'session_date' => Carbon::tomorrow('Asia/Colombo')->toDateString(),
+            'start_time' => '09:00',
+            'end_time' => '12:00',
+            'max_tokens' => 10,
+            'status' => 'scheduled',
+        ]);
+
+        $patient = Patient::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Unpaid Patient',
+            'phone' => '+94778889999',
+        ]);
+
+        // Issue token WITHOUT payment (payment_collected = false)
+        $this->actingAs($this->adminUser)
+            ->post("http://sivacli.{$this->baseDomain}/bookings", [
+                'doctor_session_id' => $sessionA->id,
+                'patient_id' => $patient->id,
+                'payment_collected' => false,
+            ]);
+
+        $token = BookingToken::where('doctor_session_id', $sessionA->id)->firstOrFail();
+        $bill = Bill::where('booking_token_id', $token->id)->firstOrFail();
+        $this->assertEquals(Bill::STATUS_PENDING, $bill->payment_status);
+        $this->assertEquals(150000, $bill->total_amount); // 1000 + 500
+
+        // Move token to Doctor B
+        $moveRes = $this->actingAs($this->adminUser)
+            ->post("http://sivacli.{$this->baseDomain}/bookings/{$token->id}/move", [
+                'destination_session_id' => $sessionB->id,
+            ]);
+
+        $moveRes->assertRedirect();
+        $moveRes->assertSessionHas('success');
+
+        // Verify bill is updated to new fee (2000 + 500 = 250000)
+        $bill->refresh();
+        $this->assertEquals(250000, $bill->total_amount);
+        $this->assertEquals($doctorB->id, $bill->doctor_id);
+        $this->assertCount(0, $bill->adjustments, 'Unpaid bill should not create adjustments, just recalculate');
+    }
+
+    /**
+     * 13. Test preventing duplicate active token for the same patient in a session.
+     */
+    public function test_prevent_duplicate_active_token_in_same_session(): void
+    {
+        $doctor = Doctor::create([
+            'tenant_id' => $this->tenant->id,
+            'title' => 'Dr.',
+            'name' => 'Doctor Dupe',
+            'specialty' => 'GP',
+            'slmc_number' => 'SLMC-4444',
+            'is_active' => true,
+        ]);
+
+        $session = DoctorSession::create([
+            'tenant_id' => $this->tenant->id,
+            'doctor_id' => $doctor->id,
+            'session_date' => Carbon::today('Asia/Colombo')->toDateString(),
+            'start_time' => '10:00',
+            'end_time' => '12:00',
+            'max_tokens' => 10,
+            'status' => 'scheduled',
+        ]);
+
+        $patient = Patient::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Same Patient',
+            'phone' => '+94770009999',
+        ]);
+
+        // First issue succeeds
+        $res1 = $this->actingAs($this->adminUser)
+            ->post("http://sivacli.{$this->baseDomain}/bookings", [
+                'doctor_session_id' => $session->id,
+                'patient_id' => $patient->id,
+            ]);
+        $res1->assertRedirect();
+        $this->assertEquals(1, BookingToken::where('doctor_session_id', $session->id)->count());
+
+        // Second issue for same patient throws/redirects with error
+        $this->expectException(\Exception::class);
+        $this->actingAs($this->adminUser)
+            ->withoutExceptionHandling()
+            ->post("http://sivacli.{$this->baseDomain}/bookings", [
+                'doctor_session_id' => $session->id,
+                'patient_id' => $patient->id,
+            ]);
+    }
 }

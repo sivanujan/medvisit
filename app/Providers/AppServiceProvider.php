@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Contracts\PaymentGateway;
 use App\Mail\Auth\ResetPasswordMail;
 use App\Mail\Auth\VerifyEmailMail;
 use App\Models\Tenant;
+use App\Services\Payments\PaymentsLkGateway;
 use GuzzleHttp\Client;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
@@ -27,7 +29,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(PaymentGateway::class, function () {
+            return new PaymentsLkGateway;
+        });
     }
 
     /**

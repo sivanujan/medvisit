@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Stancl\Tenancy\Database\Concerns\BelongsToTenant;
 
@@ -27,6 +28,7 @@ class Doctor extends Model
         'phone',
         'email',
         'photo_url',
+        'photo_path',
         'bio',
         'doctor_fee',
         'clinic_fee',
@@ -119,5 +121,22 @@ class Doctor extends Model
         $totalCents = $this->doctor_fee + $this->clinic_fee;
 
         return 'Rs. '.number_format($totalCents / 100, 2);
+    }
+
+    /**
+     * Get the doctor's photo URL.
+     */
+    public function getPhotoUrlAttribute(): ?string
+    {
+        if (! empty($this->attributes['photo_url'])) {
+            return $this->attributes['photo_url'];
+        }
+        if (! empty($this->attributes['photo_path'])) {
+            $disk = config('filesystems.media_disk', env('MEDIA_DISK', 'public'));
+
+            return Storage::disk($disk)->url($this->attributes['photo_path']).'?v='.($this->updated_at?->timestamp ?? time());
+        }
+
+        return null;
     }
 }

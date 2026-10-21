@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Models\Doctor;
 use App\Models\DoctorLeave;
 use App\Models\DoctorSession;
 use App\Models\SessionTemplate;
@@ -12,6 +13,28 @@ use Carbon\Carbon;
 
 class SessionGeneratorService
 {
+    /**
+     * Generate sessions for a specific doctor for the given number of days ahead.
+     * Idempotent: will not create duplicate sessions.
+     */
+    public function generateForDoctor(Doctor $doctor, int $days = 14): int
+    {
+        if (! $doctor->is_active) {
+            return 0;
+        }
+
+        $templates = SessionTemplate::where('doctor_id', $doctor->id)
+            ->where('is_active', true)
+            ->get();
+
+        $total = 0;
+        foreach ($templates as $template) {
+            $total += $this->generateForTemplate($template, $days);
+        }
+
+        return $total;
+    }
+
     /**
      * Generate sessions for a specific session template for the given number of days ahead.
      * Idempotent: will not create duplicate sessions for the same doctor, template, and date.

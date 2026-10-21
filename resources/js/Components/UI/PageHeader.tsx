@@ -14,6 +14,7 @@ export interface PageHeaderProps {
     subtitle?: ReactNode;
     action?: ReactNode;
     actions?: ReactNode;
+    tabs?: ReactNode;
     icon?: ComponentType<{ className?: string }>;
     className?: string;
 }
@@ -25,61 +26,71 @@ export function PageHeader({
     subtitle,
     action,
     actions,
+    tabs,
     icon: Icon = Sparkles,
     className = '',
 }: PageHeaderProps) {
     const displayActions = actions || action;
 
     return (
-        <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 mb-6 border-b border-slate-200/70 dark:border-white/10 ${className}`}>
-            <div className="space-y-1.5">
-                {/* Breadcrumbs or Eyebrow */}
-                {breadcrumbs && breadcrumbs.length > 0 ? (
-                    <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 font-medium">
-                        {breadcrumbs.map((crumb, idx) => {
-                            const isLast = idx === breadcrumbs.length - 1;
-                            return (
-                                <React.Fragment key={idx}>
-                                    {crumb.href && !isLast ? (
-                                        <Link
-                                            href={crumb.href}
-                                            className="hover:text-primary transition-colors text-slate-500 dark:text-slate-400"
-                                        >
-                                            {crumb.label}
-                                        </Link>
-                                    ) : (
-                                        <span className={isLast ? 'text-primary font-semibold' : 'text-slate-500 dark:text-slate-400'}>
-                                            {crumb.label}
-                                        </span>
-                                    )}
-                                    {!isLast && <ChevronRight className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 shrink-0" />}
-                                </React.Fragment>
-                            );
-                        })}
-                    </nav>
-                ) : eyebrow ? (
-                    <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-primary">
-                        {Icon && <Icon className="w-3.5 h-3.5" />}
-                        <span>{eyebrow}</span>
+        <div className={`mb-6 ${className}`}>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200/70 dark:border-white/10">
+                <div className="space-y-1.5 min-w-0">
+                    {/* Breadcrumbs or Eyebrow */}
+                    {breadcrumbs && breadcrumbs.length > 0 ? (
+                        <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 font-medium">
+                            {breadcrumbs.map((crumb, idx) => {
+                                const isLast = idx === breadcrumbs.length - 1;
+                                return (
+                                    <React.Fragment key={idx}>
+                                        {crumb.href && !isLast ? (
+                                            <Link
+                                                href={crumb.href}
+                                                className="hover:text-primary transition-colors text-slate-500 dark:text-slate-400"
+                                            >
+                                                {crumb.label}
+                                            </Link>
+                                        ) : (
+                                            <span className={isLast ? 'text-primary font-semibold' : 'text-slate-500 dark:text-slate-400'}>
+                                                {crumb.label}
+                                            </span>
+                                        )}
+                                        {!isLast && <ChevronRight className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 shrink-0" />}
+                                    </React.Fragment>
+                                );
+                            })}
+                        </nav>
+                    ) : eyebrow ? (
+                        <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-primary">
+                            {Icon && <Icon className="w-3.5 h-3.5" />}
+                            <span>{eyebrow}</span>
+                        </div>
+                    ) : null}
+
+                    {/* Standardized single H1 per page: 28-30px bold tracking-tight */}
+                    <h1 className="text-2xl sm:text-[28px] lg:text-[30px] font-bold tracking-tight text-slate-900 dark:text-white leading-tight">
+                        {title}
+                    </h1>
+
+                    {/* Subtitle / description */}
+                    {subtitle && (
+                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-3xl font-normal leading-relaxed">
+                            {subtitle}
+                        </p>
+                    )}
+                </div>
+
+                {displayActions && (
+                    <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+                        {displayActions}
                     </div>
-                ) : null}
-
-                {/* Standardized 28-30px title */}
-                <h1 className="text-2xl sm:text-[28px] lg:text-[30px] font-bold tracking-tight text-slate-900 dark:text-white leading-tight">
-                    {title}
-                </h1>
-
-                {/* Subtitle / one-line description */}
-                {subtitle && (
-                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-2xl font-normal leading-relaxed">
-                        {subtitle}
-                    </p>
                 )}
             </div>
 
-            {displayActions && (
-                <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
-                    {displayActions}
+            {/* Optional Tabs row underneath */}
+            {tabs && (
+                <div className="pt-2">
+                    {tabs}
                 </div>
             )}
         </div>

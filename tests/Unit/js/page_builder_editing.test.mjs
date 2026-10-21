@@ -290,13 +290,13 @@ test('block search matches category and needs every word', () => {
 import { whatsappHref, telHref, starsHtml, MORE_WIDGETS, moreWidgetHtml } from '../../../resources/js/Components/PageBuilder/lib/moreWidgets.ts';
 
 test('whatsappHref normalises Sri Lankan numbers and encodes the message', () => {
-    assert.equal(whatsappHref('077 204 6898', 'Hi, I want to book'), 'https://wa.me/94772046898?text=Hi%2C%20I%20want%20to%20book');
-    assert.equal(whatsappHref('+94 77 204 6898', ''), 'https://wa.me/94772046898');
+    assert.equal(whatsappHref('070 129 1688', 'Hi, I want to book'), 'https://wa.me/94701291688?text=Hi%2C%20I%20want%20to%20book');
+    assert.equal(whatsappHref('+94 70 129 1688', ''), 'https://wa.me/94701291688');
 });
 
 test('telHref builds an international tel: link', () => {
     assert.equal(telHref('0112 345 678'), 'tel:+94112345678');
-    assert.equal(telHref('+94772046898'), 'tel:+94772046898');
+    assert.equal(telHref('+94701291688'), 'tel:+94701291688');
 });
 
 test('starsHtml renders filled and empty stars within range', () => {

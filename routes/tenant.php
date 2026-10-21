@@ -2,9 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\ClinicAnnouncementController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Tenant\BillingController;
 use App\Http\Controllers\Tenant\BookingTokenController;
 use App\Http\Controllers\Tenant\ChannelingCalendarController;
+use App\Http\Controllers\Tenant\ClinicBrandingController;
 use App\Http\Controllers\Tenant\ClinicPageController;
 use App\Http\Controllers\Tenant\ClinicSettingsController;
 use App\Http\Controllers\Tenant\ClinicWebsiteController;
@@ -21,10 +24,13 @@ use App\Http\Controllers\Tenant\Pharmacy\StockImportController;
 use App\Http\Controllers\Tenant\Pharmacy\StockReceiptController;
 use App\Http\Controllers\Tenant\Pharmacy\SupplierController;
 use App\Http\Controllers\Tenant\PublicBookingController;
+use App\Http\Controllers\Tenant\Settings\BillingCenterController;
 use App\Http\Controllers\Tenant\SiteKitController;
 use App\Http\Controllers\Tenant\StaffController;
+use App\Http\Controllers\Tenant\SubscriptionBillingController;
 use App\Http\Controllers\Tenant\TenantAuthenticatedSessionController;
 use App\Http\Controllers\Tenant\TenantDashboardController;
+use App\Http\Controllers\Tenant\TenantImpersonationController;
 use App\Http\Controllers\Tenant\TenantNewPasswordController;
 use App\Http\Controllers\Tenant\TenantPasswordResetLinkController;
 use App\Http\Controllers\Tenant\TenantSignedLoginController;
@@ -32,6 +38,8 @@ use App\Http\Controllers\Tenant\TenantSuspendedController;
 use App\Http\Controllers\Tenant\TodayQueueController;
 use App\Http\Controllers\Tenant\WorkspaceNotificationController;
 use App\Http\Controllers\Tenant\WorkspaceSearchController;
+use App\Http\Middleware\EnsurePublicBookingAvailable;
+use App\Http\Middleware\EnsureSubscriptionActive;
 use App\Http\Middleware\EnsureTenantIsActive;
 use Illuminate\Support\Facades\Route;
 use Stancl\Tenancy\Middleware\InitializeTenancyBySubdomain;
@@ -55,6 +63,12 @@ Route::middleware([
     Route::get('/clinic/suspended', [TenantSuspendedController::class, 'show'])
         ->name('tenant.suspended');
 
+    // 1.1 Impersonation routes (consumed by Super Admin single-use token)
+    Route::get('/impersonate/{token}', [TenantImpersonationController::class, 'enter'])
+        ->name('tenant.impersonate');
+    Route::match(['get', 'post'], '/impersonate/exit', [TenantImpersonationController::class, 'exit'])
+        ->name('tenant.impersonate.exit');
+
     // 2. Tenant Public Landing & Public Online Booking
     Route::get('/', [ClinicWebsiteController::class, 'publicHome'])
         ->name('tenant.home');
@@ -64,47 +78,49 @@ Route::middleware([
         ->name('tenant.page');
 
     // 2. Tenant Public Landing & Calendly-Style Online Booking Flow
-    Route::get('/book', [PublicBookingController::class, 'index'])
-        ->name('tenant.book');
+    Route::middleware([EnsurePublicBookingAvailable::class])->group(function () {
+        Route::get('/book', [PublicBookingController::class, 'index'])
+            ->name('tenant.book');
 
-    Route::get('/book/api/availability/{slug}', [PublicBookingController::class, 'doctorMonthAvailability'])
-        ->name('tenant.book.availability');
+        Route::get('/book/api/availability/{slug}', [PublicBookingController::class, 'doctorMonthAvailability'])
+            ->name('tenant.book.availability');
 
-    Route::get('/book/confirmed/{signedToken}', [PublicBookingController::class, 'confirmed'])
-        ->name('tenant.book.confirmed');
+        Route::get('/book/confirmed/{signedToken}', [PublicBookingController::class, 'confirmed'])
+            ->name('tenant.book.confirmed');
 
-    Route::get('/book/ics/{signedToken}', [PublicBookingController::class, 'downloadIcs'])
-        ->name('tenant.book.ics');
+        Route::get('/book/ics/{signedToken}', [PublicBookingController::class, 'downloadIcs'])
+            ->name('tenant.book.ics');
 
-    Route::post('/book/cancel/{signedToken}', [PublicBookingController::class, 'cancel'])
-        ->name('tenant.book.cancel');
+        Route::post('/book/cancel/{signedToken}', [PublicBookingController::class, 'cancel'])
+            ->name('tenant.book.cancel');
 
-    // Phone verification endpoints for online public booking
-    Route::post('/book/verify/start', [PublicBookingController::class, 'startPhoneVerification'])
-        ->middleware('throttle:15,1')
-        ->name('tenant.book.verify.start');
+        // Phone verification endpoints for online public booking
+        Route::post('/book/verify/start', [PublicBookingController::class, 'startPhoneVerification'])
+            ->middleware('throttle:15,1')
+            ->name('tenant.book.verify.start');
 
-    Route::get('/book/verify/status', [PublicBookingController::class, 'checkPhoneVerificationStatus'])
-        ->middleware('throttle:60,1')
-        ->name('tenant.book.verify.status');
+        Route::get('/book/verify/status', [PublicBookingController::class, 'checkPhoneVerificationStatus'])
+            ->middleware('throttle:60,1')
+            ->name('tenant.book.verify.status');
 
-    Route::post('/book/verify/check-code', [PublicBookingController::class, 'verifyPhoneCode'])
-        ->middleware('throttle:20,1')
-        ->name('tenant.book.verify.check_code');
+        Route::post('/book/verify/check-code', [PublicBookingController::class, 'verifyPhoneCode'])
+            ->middleware('throttle:20,1')
+            ->name('tenant.book.verify.check_code');
 
-    Route::get('/book/verify/check-remembered', [PublicBookingController::class, 'checkRememberedPhone'])
-        ->middleware('throttle:60,1')
-        ->name('tenant.book.verify.check_remembered');
+        Route::get('/book/verify/check-remembered', [PublicBookingController::class, 'checkRememberedPhone'])
+            ->middleware('throttle:60,1')
+            ->name('tenant.book.verify.check_remembered');
 
-    Route::get('/book/{slug}', [PublicBookingController::class, 'showDoctor'])
-        ->name('tenant.book.doctor');
+        Route::get('/book/{slug}', [PublicBookingController::class, 'showDoctor'])
+            ->name('tenant.book.doctor');
 
-    Route::get('/book/{slug}/{session}', [PublicBookingController::class, 'showSession'])
-        ->name('tenant.book.session');
+        Route::get('/book/{slug}/{session}', [PublicBookingController::class, 'showSession'])
+            ->name('tenant.book.session');
 
-    Route::post('/book', [PublicBookingController::class, 'store'])
-        ->middleware('throttle:15,1')
-        ->name('tenant.book.store');
+        Route::post('/book', [PublicBookingController::class, 'store'])
+            ->middleware('throttle:15,1')
+            ->name('tenant.book.store');
+    });
 
     Route::get('/queue', [ClinicWebsiteController::class, 'publicQueue'])
         ->name('tenant.queue.public');
@@ -146,7 +162,43 @@ Route::middleware([
     });
 
     // 4. Authenticated & Active Tenant Routes
-    Route::middleware(['auth', EnsureTenantIsActive::class])->group(function () {
+    Route::middleware(['auth', EnsureTenantIsActive::class, EnsureSubscriptionActive::class])->group(function () {
+        // Clinic Subscription & Payments.lk Billing
+        Route::get('/subscription/subscribe', [SubscriptionBillingController::class, 'subscribe'])
+            ->name('tenant.subscription.subscribe');
+        Route::post('/subscription/checkout', [SubscriptionBillingController::class, 'createCheckout'])
+            ->name('tenant.subscription.checkout');
+        Route::get('/subscription/return', [SubscriptionBillingController::class, 'return'])
+            ->name('tenant.subscription.return');
+        Route::get('/subscription/check-status', [SubscriptionBillingController::class, 'checkStatus'])
+            ->name('tenant.subscription.check_status');
+        Route::get('/subscription/inactive', [SubscriptionBillingController::class, 'inactive'])
+            ->name('tenant.subscription.inactive');
+        Route::get('/subscription', [SubscriptionBillingController::class, 'invoices'])
+            ->name('tenant.subscription.index');
+        Route::get('/subscription/invoices/{invoice}/receipt', [SubscriptionBillingController::class, 'receipt'])
+            ->name('tenant.subscription.receipt');
+
+        // URL aliases
+        Route::get('/billing/subscribe', fn () => redirect()->route('tenant.subscription.subscribe'))
+            ->name('tenant.billing.subscribe');
+        Route::get('/billing/inactive', fn () => redirect()->route('tenant.subscription.inactive'))
+            ->name('tenant.billing.inactive');
+
+        // Clinic Settings -> Billing Center (Clinic Admin only)
+        Route::prefix('settings/billing')->name('tenant.settings.billing')->group(function () {
+            Route::get('/', [BillingCenterController::class, 'index']);
+            Route::match(['post', 'put'], '/details', [BillingCenterController::class, 'updateBillingDetails'])->name('.details');
+            Route::post('/cancel', [BillingCenterController::class, 'cancelSubscription'])->name('.cancel');
+            Route::post('/resume', [BillingCenterController::class, 'resumeSubscription'])->name('.resume');
+            Route::get('/change-plan', [BillingCenterController::class, 'changePlan'])->name('.change_plan');
+            Route::post('/upgrade', [BillingCenterController::class, 'upgrade'])->name('.upgrade');
+            Route::post('/downgrade', [BillingCenterController::class, 'downgrade'])->name('.downgrade');
+            Route::post('/cancel-downgrade', [BillingCenterController::class, 'cancelDowngrade'])->name('.cancel_downgrade');
+            Route::get('/invoices/{invoice}/download', [BillingCenterController::class, 'downloadInvoice'])->name('.invoice.download');
+            Route::get('/invoices/{invoice}/view', [BillingCenterController::class, 'viewInvoice'])->name('.invoice.view');
+        });
+
         // Universal Clinical Routes (accessible to all authenticated staff: clinic_admin, doctor, receptionist)
         Route::get('/dashboard', [TenantDashboardController::class, 'index'])
             ->name('tenant.dashboard');
@@ -224,6 +276,32 @@ Route::middleware([
             ->name('tenant.api.notifications');
         Route::get('/api/patients/search', [BookingTokenController::class, 'searchPatients'])
             ->name('tenant.api.patients.search');
+        Route::get('/api/patients/by-phone', [BookingTokenController::class, 'findPatientByPhone'])
+            ->name('tenant.api.patients.by_phone');
+
+        // Broadcast Announcements APIs
+        Route::get('/api/announcements/active-banners', [ClinicAnnouncementController::class, 'getActiveBanners'])
+            ->name('tenant.api.announcements.active_banners');
+        Route::post('/api/announcements/{id}/dismiss', [ClinicAnnouncementController::class, 'dismissBanner'])
+            ->name('tenant.api.announcements.dismiss_banner');
+        Route::get('/api/announcements/notifications', [ClinicAnnouncementController::class, 'getNotifications'])
+            ->name('tenant.api.announcements.notifications');
+        Route::post('/api/announcements/{id}/read', [ClinicAnnouncementController::class, 'markRead'])
+            ->name('tenant.api.announcements.mark_read');
+        Route::post('/api/announcements/mark-all-read', [ClinicAnnouncementController::class, 'markAllRead'])
+            ->name('tenant.api.announcements.mark_all_read');
+
+        // User Profile & Avatar
+        Route::get('/profile', [ProfileController::class, 'edit'])
+            ->name('tenant.profile.edit');
+        Route::patch('/profile', [ProfileController::class, 'update'])
+            ->name('tenant.profile.update');
+        Route::delete('/profile', [ProfileController::class, 'destroy'])
+            ->name('tenant.profile.destroy');
+        Route::post('/profile/avatar', [ProfileController::class, 'uploadAvatar'])
+            ->name('tenant.profile.avatar.upload');
+        Route::delete('/profile/avatar', [ProfileController::class, 'deleteAvatar'])
+            ->name('tenant.profile.avatar.delete');
 
         // Doctor Settlements (accessible to doctor, receptionist, clinic_admin)
         Route::middleware(['role:clinic_admin|receptionist|doctor|super_admin'])->group(function () {
@@ -241,6 +319,10 @@ Route::middleware([
                 ->name('tenant.bookings.store');
             Route::post('/bookings/{token}/cancel', [BookingTokenController::class, 'cancel'])
                 ->name('tenant.bookings.cancel');
+            Route::post('/bookings/{token}/move', [BookingTokenController::class, 'move'])
+                ->name('tenant.bookings.move');
+            Route::get('/doctors/{doctor}/available-sessions', [BookingTokenController::class, 'availableSessions'])
+                ->name('tenant.doctors.available_sessions');
 
             Route::get('/doctors', [DoctorController::class, 'index'])
                 ->name('tenant.doctors');
@@ -252,6 +334,10 @@ Route::middleware([
                 ->name('tenant.doctors.toggle');
             Route::delete('/doctors/{doctor}', [DoctorController::class, 'destroy'])
                 ->name('tenant.doctors.destroy');
+            Route::post('/doctors/{doctor}/photo', [DoctorController::class, 'uploadPhoto'])
+                ->name('tenant.doctors.photo.upload');
+            Route::delete('/doctors/{doctor}/photo', [DoctorController::class, 'deletePhoto'])
+                ->name('tenant.doctors.photo.delete');
 
             Route::post('/doctors/templates', [DoctorController::class, 'storeTemplate'])
                 ->name('tenant.doctors.templates.store');
@@ -392,11 +478,15 @@ Route::middleware([
             Route::put('/settings/session-defaults', [ClinicSettingsController::class, 'updateSessionDefaults'])
                 ->name('tenant.settings.session_defaults');
             Route::put('/settings/billing', [ClinicSettingsController::class, 'updateBillingSettings'])
-                ->name('tenant.settings.billing');
+                ->name('tenant.settings.billing_rules');
             Route::put('/settings/online-booking', [ClinicSettingsController::class, 'updateOnlineBooking'])
                 ->name('tenant.settings.online_booking');
             Route::put('/settings/pharmacy', [ClinicSettingsController::class, 'updatePharmacySettings'])
                 ->name('tenant.settings.pharmacy');
+            Route::post('/settings/branding/logo', [ClinicBrandingController::class, 'uploadLogo'])
+                ->name('tenant.settings.branding.logo.upload');
+            Route::delete('/settings/branding/logo', [ClinicBrandingController::class, 'deleteLogo'])
+                ->name('tenant.settings.branding.logo.delete');
         });
 
         // 5. Pharmacy & Inventory Module (Requires pharmacy.enabled)

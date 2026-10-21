@@ -2,6 +2,8 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\DoctorSession;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -42,6 +44,7 @@ class HandleInertiaRequests extends Middleware
                     'tenant_id' => $request->user()->tenant_id,
                     'roles' => $request->user()->roles->pluck('name')->all(),
                     'permissions' => $request->user()->getAllPermissions()->pluck('name')->all(),
+                    'avatar_url' => $request->user()->avatar_url,
                 ] : null,
             ],
             'tenant' => $tenant ? [
@@ -59,11 +62,22 @@ class HandleInertiaRequests extends Middleware
                 'website_header' => $tenant->website_header ?? null,
                 'website_footer' => $tenant->website_footer ?? null,
                 'logo_url' => $tenant->logo_url ?? null,
+                'logo_png_url' => $tenant->logo_png_url ?? null,
+                'favicon_url' => $tenant->favicon_url ?? '/favicon.ico',
                 'whatsapp_number' => $tenant->whatsapp_number ?? null,
                 'opening_hours' => $tenant->opening_hours ?? null,
                 'pharmacy_enabled' => (bool) ($tenant->pharmacy_enabled ?? false),
                 'pharmacy_default_reorder_level' => (int) ($tenant->pharmacy_default_reorder_level ?? 10),
                 'pharmacy_expiring_soon_days' => (int) ($tenant->pharmacy_expiring_soon_days ?? 60),
+                'live_sessions_count' => rescue(function () use ($tenant, $request) {
+                    if (! $tenant || ! $request->user()) {
+                        return 0;
+                    }
+
+                    return DoctorSession::where('session_date', Carbon::today('Asia/Colombo')->toDateString())
+                        ->whereIn('status', ['in_progress', 'scheduled'])
+                        ->count();
+                }, 0, false),
             ] : null,
             'flash' => [
                 'status' => session('status'),
@@ -72,6 +86,15 @@ class HandleInertiaRequests extends Middleware
                 'issuedToken' => session('issuedToken'),
                 'createdSessionId' => session('createdSessionId'),
             ],
+            'impersonation' => session('medvisit_impersonating') ? [
+                'is_active' => true,
+                'impersonator_name' => session('impersonator_name', 'Platform Super Admin'),
+                'reason' => session('impersonation_reason'),
+                'started_at' => session('impersonation_started_at'),
+                'expires_at' => session('impersonation_expires_at'),
+                'return_url' => session('impersonation_return_url'),
+            ] : null,
+            'publicConfig' => config('medvisit_public'),
         ];
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendTokenMoveNotificationJob;
 use App\Models\AuditEvent;
 use App\Models\Bill;
 use App\Models\BookingToken;
@@ -13,7 +14,9 @@ use App\Models\DoctorSession;
 use App\Models\FeeComponent;
 use App\Models\Patient;
 use App\Models\VisitType;
+use App\Services\Billing\BillCalculator;
 use App\Services\FeeResolutionService;
+use App\Services\SessionGeneratorService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -26,7 +29,9 @@ use Inertia\Response;
 class BookingTokenController extends Controller
 {
     public function __construct(
-        protected FeeResolutionService $feeService
+        protected FeeResolutionService $feeService,
+        protected SessionGeneratorService $sessionGenerator,
+        protected BillCalculator $billCalculator,
     ) {}
 
     /**
@@ -203,6 +208,8 @@ class BookingTokenController extends Controller
                 return [
                     'id' => $b->id,
                     'token_number' => $b->token_number,
+                    'doctor_id' => $b->session?->doctor_id,
+                    'doctor_session_id' => $b->doctor_session_id,
                     'doctor_name' => trim(($b->session?->doctor?->title ?? 'Dr.').' '.($b->session?->doctor?->name ?? 'Doctor')),
                     'doctor_specialty' => $b->session?->doctor?->specialty ?? '',
                     'session_date' => $b->session?->session_date?->format('M d, Y') ?? '',
@@ -258,26 +265,85 @@ class BookingTokenController extends Controller
     }
 
     /**
-     * Search patients by phone (+94) or NIC or name.
+     * Search patients by ID ("14", "#14", "P-14", "PAT-00014"), phone (+94), NIC or name.
      */
     public function searchPatients(Request $request): JsonResponse
     {
         $q = trim((string) $request->query('q', ''));
 
-        if (strlen($q) < 2) {
+        if (strlen($q) < 1) {
             return response()->json([]);
         }
 
+        // Extract numeric ID if input is like "14", "#14", "P-14", "PAT-00014", "PAT14"
+        $extractedId = null;
+        if (preg_match('/^(?:#|P-|PAT-|PAT)?(\d+)$/i', $q, $matches)) {
+            $extractedId = (int) $matches[1];
+        }
+
         $patients = Patient::where('tenant_id', tenant('id'))
-            ->where(function ($query) use ($q) {
-                $query->where('phone', 'like', "%{$q}%")
+            ->where(function ($query) use ($q, $extractedId) {
+                if ($extractedId !== null) {
+                    $query->orWhere('id', $extractedId);
+                }
+                $query->orWhere('phone', 'like', "%{$q}%")
                     ->orWhere('nic', 'like', "%{$q}%")
                     ->orWhere('name', 'ilike', "%{$q}%");
             })
             ->limit(10)
-            ->get(['id', 'name', 'phone', 'nic', 'city', 'allergies']);
+            ->get(['id', 'name', 'phone', 'nic', 'gender', 'date_of_birth', 'city', 'allergies'])
+            ->map(fn ($p) => [
+                'id' => $p->id,
+                'name' => $p->name,
+                'phone' => $p->phone,
+                'nic' => $p->nic,
+                'gender' => $p->gender,
+                'city' => $p->city,
+                'date_of_birth' => $p->date_of_birth?->format('Y-m-d'),
+                'age' => $p->date_of_birth ? Carbon::parse($p->date_of_birth)->age : null,
+                'formatted_id' => 'PAT-'.str_pad((string) $p->id, 5, '0', STR_PAD_LEFT),
+                'display_label' => "#{$p->id} - {$p->name} ({$p->phone})",
+            ]);
 
         return response()->json($patients);
+    }
+
+    /**
+     * Check if a patient exists with the given phone number for walk-in duplicate warning.
+     */
+    public function findPatientByPhone(Request $request): JsonResponse
+    {
+        $phone = trim((string) $request->query('phone', ''));
+        if (empty($phone)) {
+            return response()->json(null);
+        }
+
+        $clean = preg_replace('/\D/', '', $phone);
+        $patient = Patient::where('tenant_id', tenant('id'))
+            ->where(function ($q) use ($phone, $clean) {
+                $q->where('phone', $phone);
+                if (strlen($clean) >= 7) {
+                    $q->orWhere('phone', 'like', "%{$clean}%");
+                }
+            })
+            ->first(['id', 'name', 'phone', 'nic', 'gender', 'date_of_birth', 'city', 'allergies']);
+
+        if (! $patient) {
+            return response()->json(null);
+        }
+
+        return response()->json([
+            'id' => $patient->id,
+            'name' => $patient->name,
+            'phone' => $patient->phone,
+            'nic' => $patient->nic,
+            'gender' => $patient->gender,
+            'city' => $patient->city,
+            'date_of_birth' => $patient->date_of_birth?->format('Y-m-d'),
+            'age' => $patient->date_of_birth ? Carbon::parse($patient->date_of_birth)->age : null,
+            'formatted_id' => 'PAT-'.str_pad((string) $patient->id, 5, '0', STR_PAD_LEFT),
+            'display_label' => "#{$patient->id} - {$patient->name} ({$patient->phone})",
+        ]);
     }
 
     /**
@@ -292,6 +358,7 @@ class BookingTokenController extends Controller
             'new_patient_phone' => ['required_without:patient_id', 'nullable', 'string', 'max:30'],
             'new_patient_nic' => ['nullable', 'string', 'max:20'],
             'new_patient_gender' => ['nullable', 'string', 'max:10'],
+            'new_patient_dob' => ['nullable', 'date'],
             'visit_type_id' => ['nullable', 'exists:visit_types,id'],
             'optional_component_ids' => ['nullable', 'array'],
             'optional_component_ids.*' => ['integer', 'exists:fee_components,id'],
@@ -346,6 +413,7 @@ class BookingTokenController extends Controller
                         'phone' => $validated['new_patient_phone'],
                         'nic' => $validated['new_patient_nic'] ?? null,
                         'gender' => $validated['new_patient_gender'] ?? 'other',
+                        'date_of_birth' => $validated['new_patient_dob'] ?? null,
                     ]);
                 }
             }
@@ -357,9 +425,19 @@ class BookingTokenController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            // Check capacity
+            // Check if patient already has active token in this session
+            $existingActive = BookingToken::where('doctor_session_id', $session->id)
+                ->where('patient_id', $patient->id)
+                ->whereNotIn('status', ['cancelled', 'moved'])
+                ->first();
+
+            if ($existingActive) {
+                throw new \Exception("Patient {$patient->name} already has an active token (#{$existingActive->token_number}) in this session.");
+            }
+
+            // Check capacity (excluding cancelled and moved tokens)
             $activeCount = BookingToken::where('doctor_session_id', $session->id)
-                ->whereNotIn('status', ['cancelled'])
+                ->whereNotIn('status', ['cancelled', 'moved'])
                 ->count();
 
             if ($activeCount >= $session->max_tokens) {
@@ -500,5 +578,345 @@ class BookingTokenController extends Controller
         ]);
 
         return redirect()->back()->with('success', "Token #{$token->token_number} cancelled.");
+    }
+
+    /**
+     * Get available sessions for a doctor for the next 14 days.
+     * Generates on-demand from the doctor's recurring schedule idempotently.
+     */
+    public function availableSessions(Request $request, Doctor $doctor): JsonResponse
+    {
+        $tenantId = tenant('id');
+        if ($doctor->tenant_id !== $tenantId) {
+            abort(404);
+        }
+
+        $days = (int) $request->query('days', 14);
+        $days = max(1, min(30, $days));
+
+        // Generate sessions on-demand idempotently
+        $this->sessionGenerator->generateForDoctor($doctor, $days);
+
+        $today = Carbon::today('Asia/Colombo');
+        $endDate = (clone $today)->addDays($days);
+
+        $sessions = DoctorSession::where('tenant_id', $tenantId)
+            ->where('doctor_id', $doctor->id)
+            ->whereBetween('session_date', [$today->toDateString(), $endDate->toDateString()])
+            ->whereNotIn('status', ['cancelled'])
+            ->orderBy('session_date')
+            ->orderBy('start_time')
+            ->get()
+            ->map(function ($s) use ($doctor) {
+                // Capacity counts exclude cancelled and moved tokens
+                $bookedCount = $s->tokens()->whereNotIn('status', ['cancelled', 'moved'])->count();
+                $available = max(0, $s->max_tokens - $bookedCount);
+                $isFull = $available <= 0;
+                $isEnded = in_array($s->status, ['cancelled', 'closed', 'completed'], true);
+                $isSelectable = ! $isFull && ! $isEnded;
+
+                $avgMins = $doctor->avg_consultation_minutes ?? 15;
+                $nextToken = $bookedCount + 1;
+                $sessionStart = Carbon::parse($s->session_date->format('Y-m-d').' '.$s->start_time);
+                $approxTime = (clone $sessionStart)->addMinutes($bookedCount * $avgMins);
+
+                $resolved = $this->feeService->resolve(
+                    doctor: $doctor,
+                    session: $s,
+                    channel: 'walk_in'
+                );
+
+                $startHour = Carbon::parse($s->start_time)->hour;
+                $timeOfDay = $startHour < 12 ? 'morning' : ($startHour < 17 ? 'afternoon' : 'evening');
+
+                return [
+                    'id' => $s->id,
+                    'doctor_id' => $s->doctor_id,
+                    'doctor_name' => trim(($doctor->title ?? 'Dr.').' '.$doctor->name),
+                    'doctor_specialty' => $doctor->specialty,
+                    'session_date' => $s->session_date->format('Y-m-d'),
+                    'session_date_formatted' => $s->session_date->format('M d, Y (D)'),
+                    'day_name' => $s->session_date->format('l'),
+                    'start_time' => Carbon::parse($s->start_time)->format('h:i A'),
+                    'end_time' => Carbon::parse($s->end_time)->format('h:i A'),
+                    'room_number' => $s->room_number ?? 'Suite 1',
+                    'status' => $s->status,
+                    'max_tokens' => $s->max_tokens,
+                    'booked_tokens_count' => $bookedCount,
+                    'available_tokens_count' => $available,
+                    'is_full' => $isFull,
+                    'is_selectable' => $isSelectable,
+                    'is_today' => $s->session_date->isToday(),
+                    'is_tomorrow' => $s->session_date->isTomorrow(),
+                    'time_of_day' => $timeOfDay,
+                    'next_token_number' => $nextToken,
+                    'next_approx_time' => $approxTime->format('g:i A'),
+                    'doctor_fee_lkr' => round($resolved['doctor_fee_portion'] / 100, 2),
+                    'clinic_fee_lkr' => round($resolved['clinic_portion'] / 100, 2),
+                    'total_fee_lkr' => round($resolved['patient_total'] / 100, 2),
+                    'total_fee_formatted' => $resolved['patient_total_formatted'],
+                ];
+            });
+
+        return response()->json([
+            'doctor' => [
+                'id' => $doctor->id,
+                'name' => trim(($doctor->title ?? 'Dr.').' '.$doctor->name),
+                'specialty' => $doctor->specialty,
+                'doctor_fee_lkr' => round($doctor->doctor_fee / 100, 2),
+                'clinic_fee_lkr' => round($doctor->clinic_fee / 100, 2),
+                'total_fee_lkr' => round(($doctor->doctor_fee + $doctor->clinic_fee) / 100, 2),
+                'avg_consultation_minutes' => $doctor->avg_consultation_minutes ?? 15,
+            ],
+            'sessions' => $sessions,
+        ]);
+    }
+
+    /**
+     * Move an existing booking token to another doctor session.
+     */
+    public function move(Request $request, BookingToken $token): RedirectResponse
+    {
+        $user = $request->user();
+        $isStaff = $user->hasRole('receptionist') || $user->hasRole('clinic_admin') || $user->hasRole('super_admin');
+        if (! $isStaff) {
+            abort(403, 'Unauthorized to move booking tokens.');
+        }
+
+        $validated = $request->validate([
+            'destination_session_id' => ['required', 'exists:doctor_sessions,id'],
+            'reason' => ['nullable', 'string', 'max:255'],
+            'notify_patient' => ['nullable', 'boolean'],
+        ]);
+
+        if (in_array($token->status, [BookingToken::STATUS_IN_CONSULTATION, BookingToken::STATUS_COMPLETED], true)) {
+            return redirect()->back()->withErrors([
+                'move_error' => 'Cannot move a token whose consultation has already started or completed.',
+            ]);
+        }
+
+        if (in_array($token->status, [BookingToken::STATUS_CANCELLED, BookingToken::STATUS_MOVED], true)) {
+            return redirect()->back()->withErrors([
+                'move_error' => "Cannot move a token that has status '{$token->status}'.",
+            ]);
+        }
+
+        if ((int) $token->doctor_session_id === (int) $validated['destination_session_id']) {
+            return redirect()->back()->withErrors([
+                'move_error' => 'Destination session is identical to current session.',
+            ]);
+        }
+
+        $userRole = ($user->hasRole('clinic_admin') || $user->hasRole('super_admin')) ? 'clinic_admin' : 'receptionist';
+
+        $moveResult = DB::transaction(function () use ($token, $validated, $userRole, $request) {
+            $tenantId = tenant('id');
+
+            // 1. Lock current token and session
+            $lockedToken = BookingToken::where('tenant_id', $tenantId)
+                ->where('id', $token->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $currentSession = DoctorSession::with('doctor')
+                ->where('tenant_id', $tenantId)
+                ->where('id', $lockedToken->doctor_session_id)
+                ->firstOrFail();
+
+            // 2. Lock destination session
+            $destSession = DoctorSession::with('doctor')
+                ->where('tenant_id', $tenantId)
+                ->where('id', $validated['destination_session_id'])
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if (in_array($destSession->status, ['cancelled', 'closed', 'completed'], true)) {
+                throw new \Exception('Destination session is not active.');
+            }
+
+            // Check capacity in destination session (excluding cancelled and moved)
+            $activeCount = BookingToken::where('doctor_session_id', $destSession->id)
+                ->whereNotIn('status', ['cancelled', 'moved'])
+                ->count();
+
+            if ($activeCount >= $destSession->max_tokens) {
+                throw new \Exception("Destination session is full ({$destSession->max_tokens} maximum tokens booked).");
+            }
+
+            // Check if patient already has active token in destination session
+            $alreadyActive = BookingToken::where('doctor_session_id', $destSession->id)
+                ->where('patient_id', $lockedToken->patient_id)
+                ->whereNotIn('status', ['cancelled', 'moved'])
+                ->exists();
+
+            if ($alreadyActive) {
+                throw new \Exception('Patient already has an active booking token in the destination session.');
+            }
+
+            // 3. Sequential token number for destination session
+            $lastTokenNumber = (int) BookingToken::where('doctor_session_id', $destSession->id)
+                ->max('token_number') ?? 0;
+            $newTokenNumber = $lastTokenNumber + 1;
+            $estimatedTime = $destSession->calculateEstimatedTime($newTokenNumber);
+
+            // 4. Resolve new fee snapshot for destination doctor/session
+            $newSnapshot = $this->feeService->resolve(
+                doctor: $destSession->doctor,
+                session: $destSession,
+                visitType: $lockedToken->visit_type_id,
+                channel: 'walk_in',
+                optionalComponentIds: [],
+                manualDiscount: null,
+                userRole: $userRole
+            );
+
+            // 5. Create new token
+            $newToken = BookingToken::create([
+                'tenant_id' => $tenantId,
+                'doctor_session_id' => $destSession->id,
+                'patient_id' => $lockedToken->patient_id,
+                'token_number' => $newTokenNumber,
+                'visit_type_id' => $newSnapshot['visit_type']['id'] ?? $lockedToken->visit_type_id,
+                'estimated_time' => $estimatedTime,
+                'status' => BookingToken::STATUS_BOOKED,
+                'booked_via' => $lockedToken->booked_via,
+                'signed_cancel_token' => Str::random(40),
+                'fee_snapshot' => $newSnapshot,
+                'payout_status' => 'pending',
+                'notes' => $lockedToken->notes,
+            ]);
+
+            // 6. Mark old token as moved
+            $moveReason = $validated['reason'] ?? 'Moved to another session';
+            $lockedToken->update([
+                'status' => BookingToken::STATUS_MOVED,
+                'moved_to_token_id' => $newToken->id,
+                'moved_at' => now(),
+                'move_reason' => $moveReason,
+            ]);
+
+            // 7. Handle Bill according to immutable paid bill rule
+            $bill = $lockedToken->bill;
+            $diffCents = 0;
+            $differentialMessage = '';
+
+            if ($bill) {
+                if ($bill->payment_status === Bill::STATUS_PAID) {
+                    // Paid bills are immutable: Keep original amounts and payment.
+                    // Re-link bill to the new token and new doctor.
+                    $bill->update([
+                        'booking_token_id' => $newToken->id,
+                        'doctor_id' => $destSession->doctor_id,
+                    ]);
+
+                    $newTotal = (int) ($newSnapshot['patient_total'] ?? 0);
+                    $paidTotal = (int) $bill->total_amount;
+                    $diffCents = $newTotal - $paidTotal;
+
+                    // Record separate adjustment entry via central BillCalculator
+                    $this->billCalculator->recordMoveAdjustment(
+                        bill: $bill,
+                        diffCents: $diffCents,
+                        reason: "Move adjustment from Dr. {$currentSession->doctor?->name} to Dr. {$destSession->doctor?->name}",
+                        metadata: [
+                            'old_token_id' => $lockedToken->id,
+                            'new_token_id' => $newToken->id,
+                            'old_session_id' => $currentSession->id,
+                            'new_session_id' => $destSession->id,
+                            'old_doctor_id' => $currentSession->doctor_id,
+                            'new_doctor_id' => $destSession->doctor_id,
+                            'paid_total_cents' => $paidTotal,
+                            'new_total_cents' => $newTotal,
+                            'differential_cents' => $diffCents,
+                        ]
+                    );
+
+                    if ($diffCents > 0) {
+                        $differentialMessage = 'Balance due: Rs. '.number_format($diffCents / 100, 2);
+                    } elseif ($diffCents < 0) {
+                        $differentialMessage = 'Refund due: Rs. '.number_format(abs($diffCents) / 100, 2);
+                    } else {
+                        $differentialMessage = 'No fee difference.';
+                    }
+                } else {
+                    // Unpaid bills: simply recalculate with new fee snapshot
+                    $bill->update([
+                        'booking_token_id' => $newToken->id,
+                        'doctor_id' => $destSession->doctor_id,
+                        'visit_type_id' => $newSnapshot['visit_type']['id'] ?? null,
+                        'doctor_fee' => $newSnapshot['doctor_fee_portion'],
+                        'clinic_fee' => $newSnapshot['clinic_portion'],
+                        'other_fee' => $newSnapshot['third_party_portion'],
+                        'discount' => $newSnapshot['discount']['amount'],
+                        'discount_reason' => $newSnapshot['discount']['reason'],
+                        'total_amount' => $newSnapshot['patient_total'],
+                        'fee_snapshot' => $newSnapshot,
+                        'doctor_payout_amount' => $newSnapshot['doctor_payout_amount'],
+                        'clinic_net_amount' => $newSnapshot['clinic_net_amount'],
+                        'third_party_amount' => $newSnapshot['third_party_portion'],
+                    ]);
+
+                    $differentialMessage = 'Unpaid bill updated to Rs. '.number_format($newSnapshot['patient_total'] / 100, 2);
+                }
+            }
+
+            // 8. Audit Event
+            AuditEvent::create([
+                'tenant_id' => $tenantId,
+                'user_id' => $request->user()->id,
+                'action' => 'booking_token.moved',
+                'resource_type' => 'booking_token',
+                'resource_id' => (string) $newToken->id,
+                'metadata' => [
+                    'old_token_id' => $lockedToken->id,
+                    'new_token_id' => $newToken->id,
+                    'old_token_number' => $lockedToken->token_number,
+                    'new_token_number' => $newTokenNumber,
+                    'patient_id' => $lockedToken->patient_id,
+                    'old_session_id' => $lockedToken->doctor_session_id,
+                    'new_session_id' => $destSession->id,
+                    'diff_cents' => $diffCents,
+                    'reason' => $moveReason,
+                ],
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'created_at' => Carbon::now('Asia/Colombo'),
+            ]);
+
+            // 9. Dispatch notification
+            $notify = $request->boolean('notify_patient', true);
+            if ($notify) {
+                SendTokenMoveNotificationJob::dispatch(
+                    $lockedToken->id,
+                    $newToken->id,
+                    $moveReason
+                );
+            }
+
+            return [
+                'oldToken' => $lockedToken,
+                'newToken' => $newToken,
+                'session' => $destSession,
+                'patient' => $lockedToken->patient,
+                'diffCents' => $diffCents,
+                'differentialMessage' => $differentialMessage,
+            ];
+        });
+
+        $docName = trim(($moveResult['session']->doctor?->title ?? 'Dr.').' '.($moveResult['session']->doctor?->name ?? 'Doctor'));
+        $successMsg = "Token moved to #{$moveResult['newToken']->token_number} with {$docName}. {$moveResult['differentialMessage']}";
+
+        return redirect()->back()
+            ->with('success', $successMsg)
+            ->with('movedToken', [
+                'id' => $moveResult['newToken']->id,
+                'token_number' => $moveResult['newToken']->token_number,
+                'patient_name' => $moveResult['patient']?->name,
+                'doctor_name' => $docName,
+                'session_date' => $moveResult['session']->session_date->format('M d, Y (D)'),
+                'start_time' => Carbon::parse($moveResult['session']->start_time)->format('h:i A'),
+                'differential_cents' => $moveResult['diffCents'],
+                'differential_message' => $moveResult['differentialMessage'],
+            ]);
     }
 }

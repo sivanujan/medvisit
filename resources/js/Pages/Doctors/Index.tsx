@@ -35,7 +35,10 @@ import {
     Building,
     Copy,
     Check,
+    Upload,
+    Camera,
 } from 'lucide-react';
+import ImageUploaderModal from '@/Components/Media/ImageUploaderModal';
 
 interface DoctorData {
     id: number;
@@ -184,6 +187,8 @@ export default function DoctorsIndex({
     const [copiedDoctorId, setCopiedDoctorId] = useState<number | null>(null);
     const [templateViewMode, setTemplateViewMode] = useState<'calendar' | 'table'>('calendar');
     const [templateDoctorFilter, setTemplateDoctorFilter] = useState<string>('all');
+    const [isDoctorPhotoModalOpen, setIsDoctorPhotoModalOpen] = useState(false);
+    const [selectedDoctorForPhoto, setSelectedDoctorForPhoto] = useState<DoctorData | null>(null);
 
     const defaultMode = feeSettings?.pricing_mode || 'split';
     const defDoc = feeSettings?.default_doctor_fee_lkr ?? 2000;
@@ -594,8 +599,31 @@ export default function DoctorsIndex({
 
                                         <div>
                                             <div className="flex items-start gap-3">
-                                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-primary/20 to-teal-500/20 text-primary dark:text-primary-300 font-extrabold flex items-center justify-center text-base border border-primary/20 shrink-0">
-                                                    {doc.name.charAt(0)}
+                                                <div className="relative group shrink-0">
+                                                    <div className="w-12 h-12 rounded-2xl overflow-hidden bg-gradient-to-tr from-primary/20 to-teal-500/20 text-primary dark:text-primary-300 font-extrabold flex items-center justify-center text-base border border-primary/20">
+                                                        {doc.photo_url ? (
+                                                            <img
+                                                                src={doc.photo_url}
+                                                                alt={doc.name}
+                                                                className="w-full h-full object-cover"
+                                                                width={48}
+                                                                height={48}
+                                                            />
+                                                        ) : (
+                                                            doc.name.charAt(0)
+                                                        )}
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setSelectedDoctorForPhoto(doc);
+                                                            setIsDoctorPhotoModalOpen(true);
+                                                        }}
+                                                        className="absolute -bottom-1 -right-1 p-1 rounded-full bg-primary text-white shadow-sm hover:scale-110 transition-transform opacity-80 group-hover:opacity-100"
+                                                        title="Upload or change doctor photo"
+                                                    >
+                                                        <Camera className="w-3 h-3" />
+                                                    </button>
                                                 </div>
                                                 <div className="flex-1 min-w-0 pr-6">
                                                     <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">
@@ -1111,6 +1139,45 @@ export default function DoctorsIndex({
                 maxWidth="max-w-2xl"
             >
                 <form onSubmit={handleDoctorSubmit} className="space-y-4">
+                    {editingDoctor && (
+                        <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 flex items-center gap-3">
+                            <div className="w-14 h-14 rounded-full overflow-hidden bg-gradient-to-tr from-primary to-secondary flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0 border border-slate-200 dark:border-white/10">
+                                {editingDoctor.photo_url ? (
+                                    <img
+                                        src={editingDoctor.photo_url}
+                                        alt={editingDoctor.name}
+                                        className="w-full h-full object-cover"
+                                        width={56}
+                                        height={56}
+                                    />
+                                ) : (
+                                    editingDoctor.name.charAt(0)
+                                )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <h5 className="text-xs font-bold text-slate-900 dark:text-white">
+                                    Doctor Portrait Photo
+                                </h5>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                    Displayed on the public booking portal, search results, and channeling schedules.
+                                </p>
+                                <div className="flex items-center gap-2 mt-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSelectedDoctorForPhoto(editingDoctor);
+                                            setIsDoctorPhotoModalOpen(true);
+                                        }}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-primary hover:bg-primary-600 text-white text-xs font-semibold shadow-xs transition-all"
+                                    >
+                                        <Upload className="w-3 h-3" />
+                                        <span>{editingDoctor.photo_url ? 'Change Photo' : 'Upload Photo'}</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                         <div className="sm:col-span-1">
                             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
@@ -2002,6 +2069,29 @@ export default function DoctorsIndex({
                     </div>
                 </form>
             </GlassModal>
+
+            {selectedDoctorForPhoto && (
+                <ImageUploaderModal
+                    isOpen={isDoctorPhotoModalOpen}
+                    onClose={() => {
+                        setIsDoctorPhotoModalOpen(false);
+                        setSelectedDoctorForPhoto(null);
+                    }}
+                    type="doctor"
+                    currentImageUrl={selectedDoctorForPhoto.photo_url}
+                    uploadEndpoint={`/doctors/${selectedDoctorForPhoto.id}/photo`}
+                    deleteEndpoint={`/doctors/${selectedDoctorForPhoto.id}/photo`}
+                    title={`Doctor Photo — ${selectedDoctorForPhoto.full_title}`}
+                    subtitle="Upload portrait from device or paste an image link. Circle-cropped and optimized as WebP for patient channeling portals."
+                    fallbackInitial={selectedDoctorForPhoto.name.charAt(0)}
+                    onSuccess={() => {
+                        router.reload({ only: ['doctors'] });
+                    }}
+                    onRemove={() => {
+                        router.reload({ only: ['doctors'] });
+                    }}
+                />
+            )}
         </AuthenticatedLayout>
     );
 }

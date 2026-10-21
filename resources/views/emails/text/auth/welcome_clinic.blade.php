@@ -1,20 +1,21 @@
 Hello {{ $adminName }},
 
-Welcome to MedVisit! Your clinic {{ $clinicName }} is officially registered.
+{{ $clinicName }} is officially registered on MedVisit. Your dedicated digital clinic portal is ready for operations.
 
-Clinic Details:
-- Web Address: {{ $clinicUrl }}
+Clinic Workspace Details:
+- Portal URL: {{ $clinicUrl }}
+- Subdomain: {{ $subdomain }}
 - 14-Day Free Trial Ends: {{ $trialEnd }}
 
 3 Quick Next Steps to Get Started:
-1. Sign in to your portal: Visit {{ $clinicUrl }} with your administrator account.
-2. Invite your team: Add receptionists, doctors, and nurses with their respective roles.
-3. Launch queue & appointments: Configure clinic consultation rooms and start managing visits.
+1. Sign in to your portal & add doctors: Sign in to your dedicated portal and create doctor profiles.
+2. Invite your team & set schedule: Invite receptionists and configure weekly clinic session hours.
+3. Launch queue & share booking link: Launch your digital token counter and share your booking link ({{ $clinicUrl }}/book).
 
-Access your portal now:
+Open Clinic Portal:
 {{ $clinicUrl }}
 
 ---
-MedVisit, Sri Lanka
+MedVisit · Clinic management for Sri Lanka
 Support: {{ config('medvisit.mail.reply_to.address', 'support@medvisit.lk') }}
-{{ $reason }}
+© {{ date('Y') }} MedVisit. All rights reserved.

@@ -223,7 +223,7 @@ export default function DoctorPayouts({
         <AuthenticatedLayout>
             <Head title="Doctor Payouts & Settlements - MedVisit" />
 
-            <div className="max-w-7xl mx-auto space-y-6">
+            <div className="space-y-6">
                 <PageHeader
                     title={isDoctorRole ? 'My Channeling Settlements' : 'Doctor Payouts & Settlements'}
                     subtitle="Track doctor revenue shares, calculate per-session or per-patient compensation, and record bank or cash disbursements"

@@ -27,6 +27,7 @@ import {
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import AuthHeader from '@/Components/AuthHeader';
 import ThemeToggle from '@/Components/Common/ThemeToggle';
+import LegalFooter from '@/Components/Public/LegalFooter';
 import {
     GlassLabel,
     GlassInput,
@@ -912,6 +913,7 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                                         type="button"
                                                         onClick={() => setShowPassword(!showPassword)}
                                                         className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                                                        title={showPassword ? 'Hide password' : 'Show password'}
                                                     >
                                                         {showPassword ? (
                                                             <EyeOff className="w-4 h-4" />
@@ -920,23 +922,58 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                                         )}
                                                     </button>
                                                 </div>
+                                                {data.password.length > 0 && data.password.length < 8 && (
+                                                    <p className="mt-1 text-xs text-amber-600 dark:text-amber-400 font-medium">
+                                                        Must be at least 8 characters (has {data.password.length}).
+                                                    </p>
+                                                )}
                                                 <GlassError message={errors.password} />
+                                                <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                                                    Requires uppercase, lowercase & numbers.
+                                                </p>
                                             </div>
 
                                             <div>
                                                 <GlassLabel htmlFor="password_confirmation" required>
                                                     Confirm Password
                                                 </GlassLabel>
-                                                <GlassInput
-                                                    id="password_confirmation"
-                                                    type={showPassword ? 'text' : 'password'}
-                                                    name="password_confirmation"
-                                                    value={data.password_confirmation}
-                                                    placeholder="••••••••••••"
-                                                    error={!!errors.password_confirmation}
-                                                    icon={<Lock className="w-4 h-4" />}
-                                                    onChange={(e) => setData('password_confirmation', e.target.value)}
-                                                />
+                                                <div className="relative">
+                                                    <GlassInput
+                                                        id="password_confirmation"
+                                                        type={showPassword ? 'text' : 'password'}
+                                                        name="password_confirmation"
+                                                        value={data.password_confirmation}
+                                                        placeholder="••••••••••••"
+                                                        error={!!errors.password_confirmation}
+                                                        icon={<Lock className="w-4 h-4" />}
+                                                        onChange={(e) => setData('password_confirmation', e.target.value)}
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowPassword(!showPassword)}
+                                                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                                                        title={showPassword ? 'Hide password' : 'Show password'}
+                                                    >
+                                                        {showPassword ? (
+                                                            <EyeOff className="w-4 h-4" />
+                                                        ) : (
+                                                            <Eye className="w-4 h-4" />
+                                                        )}
+                                                    </button>
+                                                </div>
+                                                {data.password_confirmation.length > 0 && (
+                                                    data.password !== data.password_confirmation ? (
+                                                        <p className="mt-1 text-xs text-rose-500 dark:text-rose-400 font-medium flex items-center gap-1">
+                                                            <AlertCircle className="w-3.5 h-3.5" />
+                                                            Passwords do not match
+                                                        </p>
+                                                    ) : (
+                                                        <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                                                            <Check className="w-3.5 h-3.5" />
+                                                            Passwords match
+                                                        </p>
+                                                    )
+                                                )}
                                                 <GlassError message={errors.password_confirmation} />
                                             </div>
                                         </div>
@@ -978,6 +1015,13 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                             <GlassError message={errors.terms} />
                                         </div>
 
+                                        {otpError && (
+                                            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/40 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
+                                                <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+                                                <span>{otpError}</span>
+                                            </div>
+                                        )}
+
                                         <div className="pt-4 flex items-center justify-between">
                                             <button
                                                 type="button"
@@ -988,24 +1032,32 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                                 <span>Back</span>
                                             </button>
 
-                                            <button
-                                                type="button"
-                                                disabled={!canProceedStep3 || sendingCode}
-                                                onClick={handleSendCode}
-                                                className="py-3 px-6 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-primary to-primary-600 hover:from-primary-600 hover:to-primary-700 shadow-md shadow-primary/25 hover:shadow-lg transition-all duration-200 flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                            >
-                                                {sendingCode ? (
-                                                    <>
-                                                        <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                                                        <span>Sending Verification Code...</span>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <span>Verify Email</span>
-                                                        <ArrowRight className="w-4 h-4" />
-                                                    </>
+                                            <div className="flex items-center gap-3">
+                                                {!canProceedStep3 && data.password_confirmation.length > 0 && data.password !== data.password_confirmation && (
+                                                    <span className="text-xs text-rose-500 hidden sm:inline">
+                                                        Passwords must match
+                                                    </span>
                                                 )}
-                                            </button>
+
+                                                <button
+                                                    type="button"
+                                                    disabled={!canProceedStep3 || sendingCode}
+                                                    onClick={handleSendCode}
+                                                    className="py-3 px-6 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-primary to-primary-600 hover:from-primary-600 hover:to-primary-700 shadow-md shadow-primary/25 hover:shadow-lg transition-all duration-200 flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                    {sendingCode ? (
+                                                        <>
+                                                            <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                                                            <span>Sending Verification Code...</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <span>Verify Email</span>
+                                                            <ArrowRight className="w-4 h-4" />
+                                                        </>
+                                                    )}
+                                                </button>
+                                            </div>
                                         </div>
                                     </motion.div>
                                 )}
@@ -1479,6 +1531,8 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                     </div>
                 </div>
             </main>
+
+            <LegalFooter className="mt-12" />
         </div>
     );
 }

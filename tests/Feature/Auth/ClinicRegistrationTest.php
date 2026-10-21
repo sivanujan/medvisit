@@ -117,11 +117,10 @@ class ClinicRegistrationTest extends TestCase
         // Assert tenant created
         $tenant = Tenant::find('ruhunu');
         $this->assertNotNull($tenant);
-        $this->assertSame('Ruhunu Medical Centre', $tenant->name);
-        $this->assertSame('trial', $tenant->status);
-        $this->assertSame('trial', $tenant->plan);
-        $this->assertNotNull($tenant->trial_ends_at);
-        $this->assertTrue($tenant->trial_ends_at->isFuture());
+        $expectedStatus = ((int) config('medvisit.subscription.trial_days', 0)) > 0 ? 'trial' : 'pending_payment';
+        $this->assertSame($expectedStatus, $tenant->status);
+        $this->assertNotNull($tenant->subscription);
+        $this->assertSame($expectedStatus, $tenant->subscription->status);
 
         // Assert domain created
         $this->assertTrue($tenant->domains()->where('domain', 'ruhunu')->exists());

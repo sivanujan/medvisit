@@ -39,6 +39,7 @@
         "grapesjs": "^0.23.8",
         "lucide-react": "^1.55.0",
         "qrcode": "^1.5.4",
+        "react-easy-crop": "^6.2.4",
         "recharts": "^3.10.1"
     }
 }

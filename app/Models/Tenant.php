@@ -4,12 +4,15 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Storage;
 use Stancl\Tenancy\Database\Concerns\HasDomains;
 use Stancl\Tenancy\Database\Models\Tenant as BaseTenant;
 
 class Tenant extends BaseTenant
 {
-    use HasDomains, HasFactory;
+    use HasDomains, HasFactory, SoftDeletes;
 
     protected $fillable = [
         'id',
@@ -25,6 +28,10 @@ class Tenant extends BaseTenant
         'fee_settings',
         'require_phone_verification',
         'phone_verification_methods',
+        'logo_path',
+        'logo_url',
+        'logo_png_path',
+        'favicon_path',
     ];
 
     protected $casts = [
@@ -44,6 +51,9 @@ class Tenant extends BaseTenant
             'subdomain',
             'phone',
             'address',
+            'logo_path',
+            'logo_url',
+            'logo_png_path',
             'plan',
             'status',
             'trial_ends_at',
@@ -51,6 +61,51 @@ class Tenant extends BaseTenant
             'trial_ended_reminder_sent_at',
             'fee_settings',
         ];
+    }
+
+    /**
+     * Get the clinic logo URL.
+     */
+    public function getLogoUrlAttribute(): ?string
+    {
+        if (! empty($this->attributes['logo_url'])) {
+            return $this->attributes['logo_url'];
+        }
+        if (! empty($this->attributes['logo_path'])) {
+            $disk = config('filesystems.media_disk', env('MEDIA_DISK', 'public'));
+
+            return Storage::disk($disk)->url($this->attributes['logo_path']).'?v='.($this->updated_at?->timestamp ?? time());
+        }
+
+        return null;
+    }
+
+    /**
+     * Get the PNG logo URL for PDFs and emails.
+     */
+    public function getLogoPngUrlAttribute(): ?string
+    {
+        if (! empty($this->attributes['logo_png_path'])) {
+            $disk = config('filesystems.media_disk', env('MEDIA_DISK', 'public'));
+
+            return Storage::disk($disk)->url($this->attributes['logo_png_path']).'?v='.($this->updated_at?->timestamp ?? time());
+        }
+
+        return $this->logo_url;
+    }
+
+    /**
+     * Get the clinic favicon URL.
+     */
+    public function getFaviconUrlAttribute(): string
+    {
+        if (! empty($this->attributes['favicon_path'])) {
+            $disk = config('filesystems.media_disk', env('MEDIA_DISK', 'public'));
+
+            return Storage::disk($disk)->url($this->attributes['favicon_path']).'?v='.($this->updated_at?->timestamp ?? time());
+        }
+
+        return '/favicon.ico';
     }
 
     public function users(): HasMany
@@ -81,6 +136,60 @@ class Tenant extends BaseTenant
     public function doctorSettlements(): HasMany
     {
         return $this->hasMany(DoctorSettlement::class, 'tenant_id');
+    }
+
+    public function subscription(): HasOne
+    {
+        return $this->hasOne(Subscription::class, 'tenant_id')->latestOfMany();
+    }
+
+    public function subscriptions(): HasMany
+    {
+        return $this->hasMany(Subscription::class, 'tenant_id');
+    }
+
+    public function subscriptionInvoices(): HasMany
+    {
+        return $this->hasMany(SubscriptionInvoice::class, 'tenant_id');
+    }
+
+    public function paymentTransactions(): HasMany
+    {
+        return $this->hasMany(PaymentTransaction::class, 'tenant_id');
+    }
+
+    public function billingDetail(): HasOne
+    {
+        return $this->hasOne(TenantBillingDetail::class, 'tenant_id');
+    }
+
+    public function notes(): HasMany
+    {
+        return $this->hasMany(ClinicNote::class, 'tenant_id')->latest();
+    }
+
+    public function exports(): HasMany
+    {
+        return $this->hasMany(ClinicDataExport::class, 'tenant_id')->latest();
+    }
+
+    public function originatingLead(): HasOne
+    {
+        return $this->hasOne(Lead::class, 'converted_tenant_id');
+    }
+
+    public function planAllows(string $feature): bool
+    {
+        $sub = $this->subscription;
+
+        return $sub ? $sub->planAllows($feature) : true;
+    }
+
+    public function hasActiveSubscription(): bool
+    {
+        $sub = $this->subscription;
+
+        return $sub ? $sub->isActive() : false;
     }
 
     public function isSuspended(): bool

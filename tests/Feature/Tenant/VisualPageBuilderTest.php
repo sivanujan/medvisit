@@ -502,7 +502,7 @@ class VisualPageBuilderTest extends TestCase
 
     public function test_faq_details_and_summary_survive_sanitization(): void
     {
-        $clean = \App\Support\HtmlSanitizer::sanitize(
+        $clean = HtmlSanitizer::sanitize(
             '<div data-mv-widget="faq"><details open><summary>How do I book?</summary><p>Online.</p></details></div>'
         );
 

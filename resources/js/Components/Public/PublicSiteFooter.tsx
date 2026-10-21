@@ -64,7 +64,7 @@ export default function PublicSiteFooter({
     const aboutText =
         footerConfig?.about_text ||
         'Providing premier outpatient healthcare, specialist doctor channeling, and accredited diagnostic medical services with international safety protocols and Sri Lankan warmth.';
-    const displayPhone = footerConfig?.phone || clinic.phone || '+94 77 204 6898';
+    const displayPhone = footerConfig?.phone || clinic.phone || '+94 70 129 1688';
     const displayAddress = footerConfig?.address || clinic.address || 'Colombo, Sri Lanka';
     const displayEmail = footerConfig?.email || clinic.email || `contact@${clinic.subdomain || 'clinic'}.medvisit.lk`;
     const displayWhatsApp = footerConfig?.whatsapp_number || clinic.whatsapp_number;

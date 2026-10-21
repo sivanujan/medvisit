@@ -6,8 +6,10 @@ namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditEvent;
+use App\Models\Doctor;
 use App\Models\Patient;
 use App\Models\Prescription;
+use App\Models\VisitType;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -44,8 +46,16 @@ class PatientController extends Controller
             ->orderBy('name');
 
         if ($search !== '') {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'ilike', "%{$search}%")
+            $extractedId = null;
+            if (preg_match('/^(?:#|P-|PAT-|PAT)?(\d+)$/i', $search, $matches)) {
+                $extractedId = (int) $matches[1];
+            }
+
+            $query->where(function ($q) use ($search, $extractedId) {
+                if ($extractedId !== null) {
+                    $q->orWhere('id', $extractedId);
+                }
+                $q->orWhere('name', 'ilike', "%{$search}%")
                     ->orWhere('phone', 'like', "%{$search}%")
                     ->orWhere('nic', 'like', "%{$search}%")
                     ->orWhere('city', 'ilike', "%{$search}%");
@@ -61,6 +71,7 @@ class PatientController extends Controller
 
             return [
                 'id' => $p->id,
+                'formatted_id' => 'PAT-'.str_pad((string) $p->id, 5, '0', STR_PAD_LEFT),
                 'name' => $p->name,
                 'phone' => $p->phone,
                 'nic' => $p->nic ?? '—',
@@ -80,6 +91,26 @@ class PatientController extends Controller
             ];
         });
 
+        $tenantId = tenant('id');
+        $doctors = Doctor::where('tenant_id', $tenantId)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'title', 'name', 'specialty', 'doctor_fee', 'clinic_fee', 'avg_consultation_minutes'])
+            ->map(fn ($d) => [
+                'id' => $d->id,
+                'name' => trim(($d->title ?? 'Dr.').' '.$d->name),
+                'specialty' => $d->specialty,
+                'avg_consultation_minutes' => $d->avg_consultation_minutes,
+                'doctor_fee_lkr' => round($d->doctor_fee / 100, 2),
+                'clinic_fee_lkr' => round($d->clinic_fee / 100, 2),
+                'total_fee_lkr' => round(($d->doctor_fee + $d->clinic_fee) / 100, 2),
+            ]);
+
+        $visitTypes = VisitType::where('tenant_id', $tenantId)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->get(['id', 'name', 'code', 'pricing_type', 'percentage_value', 'fixed_fee_cents', 'is_default']);
+
         return Inertia::render('Patients/Index', [
             'patients' => $patients,
             'filters' => [
@@ -87,6 +118,8 @@ class PatientController extends Controller
                 'district' => $district,
             ],
             'districts' => $this->districts,
+            'doctors' => $doctors,
+            'visitTypes' => $visitTypes,
         ]);
     }
 

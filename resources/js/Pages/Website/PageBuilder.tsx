@@ -120,7 +120,7 @@ function PageBuilderInner({
             { label: 'Contact', url: '/contact' },
         ],
         show_phone: initialHeaderConfig?.show_phone ?? true,
-        phone: initialHeaderConfig?.phone ?? tenant.phone ?? '+94 77 204 6898',
+        phone: initialHeaderConfig?.phone ?? tenant.phone ?? '+94 70 129 1688',
         show_whatsapp: initialHeaderConfig?.show_whatsapp ?? false,
         whatsapp_number: initialHeaderConfig?.whatsapp_number ?? '',
         cta_text: initialHeaderConfig?.cta_text ?? 'Book a token',

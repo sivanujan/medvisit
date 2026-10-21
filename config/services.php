@@ -54,4 +54,13 @@ return [
         'send_confirmation' => filter_var(env('WHATSAPP_SEND_CONFIRMATION', false), FILTER_VALIDATE_BOOLEAN),
     ],
 
+    'paymentslk' => [
+        'mode' => env('PAYMENTSLK_MODE', 'sandbox'),
+        'secret_key' => env('PAYMENTSLK_SECRET_KEY'),
+        'merchant_id' => env('PAYMENTSLK_MERCHANT_ID'),
+        'webhook_secret' => env('PAYMENTSLK_WEBHOOK_SECRET'),
+        'base_url' => env('PAYMENTSLK_BASE_URL', 'https://api.payments.lk'),
+        'return_base_url' => env('PAYMENTSLK_RETURN_BASE_URL'),
+    ],
+
 ];

@@ -11,7 +11,7 @@ class RegistrationVerificationCodeMail extends MedVisitMailable
 {
     public function __construct(
         public string $code,
-        public string $email,
+        public ?string $email = null,
         public ?string $name = null,
         public ?string $clinicName = null,
     ) {}

@@ -120,7 +120,7 @@ class DoctorSettlementController extends Controller
             $payoutType = $payoutRule['type'] ?? 'full_doctor_fee';
 
             foreach ($tokens as $t) {
-                if ($t->status === 'cancelled') {
+                if ($t->status === 'cancelled' || $t->status === 'moved') {
                     continue;
                 }
 
@@ -285,6 +285,7 @@ class DoctorSettlementController extends Controller
         // Link tokens to this settlement if session-level
         if (! empty($validated['doctor_session_id'])) {
             BookingToken::where('doctor_session_id', $validated['doctor_session_id'])
+                ->whereNotIn('status', ['cancelled', 'moved'])
                 ->update([
                     'doctor_settlement_id' => $settlement->id,
                     'payout_status' => $status === DoctorSettlement::STATUS_PAID ? 'settled' : 'pending',
@@ -339,6 +340,7 @@ class DoctorSettlementController extends Controller
 
         if ($status === DoctorSettlement::STATUS_PAID && $settlement->doctor_session_id) {
             BookingToken::where('doctor_session_id', $settlement->doctor_session_id)
+                ->whereNotIn('status', ['cancelled', 'moved'])
                 ->update(['payout_status' => 'settled']);
         }
 

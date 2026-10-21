@@ -67,4 +67,12 @@ class UserFactory extends Factory
             $user->assignRole($role);
         });
     }
+
+    public function superAdmin(): static
+    {
+        return $this->afterCreating(function (User $user) {
+            $role = Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
+            $user->assignRole($role);
+        });
+    }
 }

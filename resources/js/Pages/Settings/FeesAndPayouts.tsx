@@ -325,7 +325,7 @@ export default function FeesAndPayouts({ settings, components, visitTypes }: Pro
         <AuthenticatedLayout>
             <Head title="Fees & Doctor Payouts - Settings" />
 
-            <div className="max-w-7xl mx-auto space-y-6">
+            <div className="space-y-6">
                 <PageHeader
                     title="Fees & Doctor Payouts"
                     subtitle="Configure pricing models, customizable fee components, visit types, doctor payout calculations and rounding rules"

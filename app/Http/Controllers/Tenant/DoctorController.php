@@ -12,12 +12,16 @@ use App\Models\DoctorSession;
 use App\Models\SessionTemplate;
 use App\Models\User;
 use App\Models\VisitType;
+use App\Services\AuditLogger;
 use App\Services\FeeResolutionService;
+use App\Services\Media\ImageProcessingService;
 use App\Services\SessionGeneratorService;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -704,5 +708,112 @@ class DoctorController extends Controller
         $count = $this->sessionGenerator->generateForTenant(tenant(), 30);
 
         return redirect()->back()->with('success', "{$count} channeling sessions generated for the next 30 days based on active weekly templates.");
+    }
+
+    /**
+     * Upload or fetch doctor photo with tenant isolation.
+     */
+    public function uploadPhoto(
+        Request $request,
+        Doctor $doctor,
+        ImageProcessingService $imageService
+    ): JsonResponse|RedirectResponse {
+        $tenant = tenant();
+        if ($doctor->tenant_id !== $tenant->id) {
+            abort(403, 'Unauthorized access to doctor profile in another clinic.');
+        }
+
+        $request->validate([
+            'file' => ['nullable', 'file', 'max:5120', 'mimes:png,jpg,jpeg,webp'],
+            'source_url' => ['nullable', 'string', 'max:2048'],
+            'crop_x' => ['nullable', 'numeric'],
+            'crop_y' => ['nullable', 'numeric'],
+            'crop_width' => ['nullable', 'numeric'],
+            'crop_height' => ['nullable', 'numeric'],
+            'rotate' => ['nullable', 'numeric'],
+        ]);
+
+        $binary = null;
+        if ($request->hasFile('file')) {
+            $uploaded = $request->file('file');
+            if (! $uploaded->isValid()) {
+                throw ValidationException::withMessages([
+                    'file' => ['The uploaded file is corrupt or invalid.'],
+                ]);
+            }
+            $binary = $uploaded->get();
+        } elseif ($request->filled('source_url')) {
+            $binary = $imageService->fetchSecurelyFromUrl(
+                $request->input('source_url'),
+                $request->user()?->id
+            );
+        } else {
+            throw ValidationException::withMessages([
+                'file' => ['Please upload an image file or provide an image link.'],
+            ]);
+        }
+
+        $cropData = [
+            'crop_x' => $request->input('crop_x'),
+            'crop_y' => $request->input('crop_y'),
+            'crop_width' => $request->input('crop_width'),
+            'crop_height' => $request->input('crop_height'),
+            'rotate' => $request->input('rotate'),
+        ];
+
+        $result = $imageService->processDoctorPhoto($doctor, $binary, $cropData);
+
+        AuditLogger::log('doctor.photo_updated', [
+            'resource' => $doctor,
+            'metadata' => [
+                'doctor_id' => $doctor->id,
+                'photo_path' => $result['photo_path'],
+                'photo_url' => $result['photo_url'],
+            ],
+        ]);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Doctor photo updated.',
+                'photo_url' => $result['photo_url'],
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Doctor photo updated.');
+    }
+
+    /**
+     * Delete doctor photo.
+     */
+    public function deletePhoto(
+        Request $request,
+        Doctor $doctor,
+        ImageProcessingService $imageService
+    ): JsonResponse|RedirectResponse {
+        $tenant = tenant();
+        if ($doctor->tenant_id !== $tenant->id) {
+            abort(403, 'Unauthorized access to doctor profile in another clinic.');
+        }
+
+        $imageService->deleteOldDoctorPhoto($doctor);
+
+        $doctor->photo_path = null;
+        $doctor->photo_url = null;
+        $doctor->save();
+
+        AuditLogger::log('doctor.photo_removed', [
+            'resource' => $doctor,
+        ]);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Doctor photo removed.',
+                'photo_url' => null,
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Doctor photo removed.');
     }
 }

@@ -30,6 +30,8 @@ class BookingToken extends Model
 
     public const STATUS_CANCELLED = 'cancelled';
 
+    public const STATUS_MOVED = 'moved';
+
     protected $fillable = [
         'tenant_id',
         'doctor_session_id',
@@ -37,6 +39,9 @@ class BookingToken extends Model
         'token_number',
         'estimated_time',
         'status',
+        'moved_to_token_id',
+        'moved_at',
+        'move_reason',
         'booked_via',
         'checked_in_at',
         'called_at',
@@ -60,6 +65,7 @@ class BookingToken extends Model
             'called_at' => 'datetime',
             'completed_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            'moved_at' => 'datetime',
             'fee_snapshot' => 'array',
         ];
     }
@@ -102,5 +108,15 @@ class BookingToken extends Model
     public function allPrescriptions(): HasMany
     {
         return $this->hasMany(Prescription::class);
+    }
+
+    public function movedToToken(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'moved_to_token_id');
+    }
+
+    public function sourceTokens(): HasMany
+    {
+        return $this->hasMany(self::class, 'moved_to_token_id');
     }
 }

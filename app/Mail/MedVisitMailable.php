@@ -43,6 +43,36 @@ abstract class MedVisitMailable extends Mailable implements ShouldQueue
     public ?string $onBehalfOfClinicName = null;
 
     /**
+     * Clinic logo URL (PNG, absolute HTTPS).
+     */
+    public ?string $clinicLogoUrl = null;
+
+    /**
+     * Clinic physical address.
+     */
+    public ?string $clinicAddress = null;
+
+    /**
+     * Clinic telephone number.
+     */
+    public ?string $clinicPhone = null;
+
+    /**
+     * Clinic direct reply-to email.
+     */
+    public ?string $clinicReplyToEmail = null;
+
+    /**
+     * Brand mode: 'platform' or 'clinic'.
+     */
+    public string $brandMode = 'platform';
+
+    /**
+     * Optional preheader text (~90 chars) for inbox preview.
+     */
+    public ?string $preheaderText = null;
+
+    /**
      * Return the sender category for this mailable.
      */
     abstract public function senderType(): MailSenderType;
@@ -56,6 +86,14 @@ abstract class MedVisitMailable extends Mailable implements ShouldQueue
      * Return the subject line for this mailable.
      */
     abstract public function subjectLine(): string;
+
+    /**
+     * Optional preheader text for this mailable.
+     */
+    public function preheader(): ?string
+    {
+        return $this->preheaderText;
+    }
 
     /**
      * Return the Blade view path for the HTML version.
@@ -83,6 +121,28 @@ abstract class MedVisitMailable extends Mailable implements ShouldQueue
             $this->tenantId = $tenant->id;
         } else {
             $this->tenantId = $tenant;
+        }
+
+        return $this;
+    }
+
+    /**
+     * Configure this mailable with clinic branding (patient-facing emails).
+     */
+    public function withClinicBrand(
+        ?Tenant $tenant,
+        ?string $clinicName = null,
+        ?string $replyToEmail = null
+    ): static {
+        $this->brandMode = 'clinic';
+        $this->onBehalfOfClinicName = $clinicName ?? $tenant?->name ?? 'Clinic';
+        $this->clinicLogoUrl = $tenant?->logo_png_url;
+        $this->clinicAddress = $tenant?->address;
+        $this->clinicPhone = $tenant?->phone;
+        $this->clinicReplyToEmail = $replyToEmail;
+
+        if ($tenant) {
+            $this->tenantId = $tenant->id;
         }
 
         return $this;
@@ -126,6 +186,10 @@ abstract class MedVisitMailable extends Mailable implements ShouldQueue
      */
     public function resolveReplyToAddress(): Address
     {
+        if (! empty($this->clinicReplyToEmail)) {
+            return new Address($this->clinicReplyToEmail, $this->onBehalfOfClinicName ?? 'Clinic');
+        }
+
         $address = config('medvisit.mail.reply_to.address', 'support@medvisit.lk');
         $name = config('medvisit.mail.reply_to.name', 'MedVisit Support');
 
@@ -149,10 +213,20 @@ abstract class MedVisitMailable extends Mailable implements ShouldQueue
      */
     public function content(): Content
     {
+        $mergedData = array_merge([
+            'brandMode' => $this->brandMode,
+            'clinicName' => $this->onBehalfOfClinicName,
+            'clinicLogo' => $this->clinicLogoUrl,
+            'clinicAddress' => $this->clinicAddress,
+            'clinicPhone' => $this->clinicPhone,
+            'preheader' => $this->preheader() ?? $this->subjectLine(),
+            'subject' => $this->subjectLine(),
+        ], $this->viewData());
+
         return new Content(
             view: $this->htmlView(),
             text: $this->textView(),
-            with: $this->viewData(),
+            with: $mergedData,
         );
     }
 

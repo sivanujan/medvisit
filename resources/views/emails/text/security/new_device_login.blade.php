@@ -1,14 +1,17 @@
 Hello {{ $name }},
 
-We noticed a new login to your MedVisit account:
-- Time: {{ $loginTime }}
-- IP Address: {{ $ipAddress }}
-- Browser/Device: {{ $userAgent }}
+We noticed a new sign-in to your MedVisit account from an unrecognized device or network location:
 
-If this wasn't you, reset your password immediately:
+Sign-In Activity Details:
+- Timestamp: {{ $loginTime }}
+- IP Address: {{ $ipAddress }}
+- Device: {{ $userAgent }}
+
+If this was you, you can safely ignore this email.
+If you suspect unauthorized access, reset your password immediately:
 {{ $resetUrl }}
 
 ---
-MedVisit, Sri Lanka
+MedVisit · Clinic management for Sri Lanka
 Support: {{ config('medvisit.mail.reply_to.address', 'support@medvisit.lk') }}
-{{ $reason }}
+© {{ date('Y') }} MedVisit. All rights reserved.

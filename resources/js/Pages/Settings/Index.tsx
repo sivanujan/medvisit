@@ -25,7 +25,10 @@ import {
     Phone,
     Pill,
     AlertCircle,
+    Upload,
+    ImageIcon,
 } from 'lucide-react';
+import ImageUploaderModal from '@/Components/Media/ImageUploaderModal';
 
 interface AuditLog {
     id: string;
@@ -108,6 +111,9 @@ export default function SettingsIndex({
     const [activeTab, setActiveTab] = useState<
         'profile' | 'sessions' | 'billing' | 'online' | 'pharmacy' | 'audit'
     >('profile');
+
+    const [isLogoModalOpen, setIsLogoModalOpen] = useState(false);
+    const [currentLogoUrl, setCurrentLogoUrl] = useState<string | null>(profile.logo_url || null);
 
     // Profile Form
     const profileForm = useForm({
@@ -380,16 +386,51 @@ export default function SettingsIndex({
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                    Clinic Logo URL
+                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                                    Clinic Logo & Branding
                                 </label>
-                                <input
-                                    type="url"
-                                    value={profileForm.data.logo_url}
-                                    onChange={(e) => profileForm.setData('logo_url', e.target.value)}
-                                    placeholder="https://example.com/logo.png"
-                                    className="w-full text-xs rounded-xl border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                                />
+                                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-white/10">
+                                    <div className="w-16 h-16 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 flex items-center justify-center p-1.5 shadow-sm overflow-hidden shrink-0">
+                                        {currentLogoUrl ? (
+                                            <img
+                                                src={currentLogoUrl}
+                                                alt={profile.name}
+                                                className="w-full h-full object-contain"
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full rounded-xl bg-gradient-to-tr from-primary to-secondary text-white font-bold text-lg flex items-center justify-center shadow-inner">
+                                                {profile.name ? profile.name.charAt(0).toUpperCase() : 'M'}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <h4 className="text-xs font-bold text-slate-900 dark:text-white">
+                                            Official Clinic Logo
+                                        </h4>
+                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                            Displayed in the sidebar brand block, browser tab favicon, public booking site, PDF receipts, and clinic emails.
+                                        </p>
+                                        <div className="flex items-center gap-2 mt-2.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsLogoModalOpen(true)}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary hover:bg-primary-600 text-white font-semibold text-xs shadow-sm shadow-primary/25 transition-all"
+                                            >
+                                                <Upload className="w-3.5 h-3.5" />
+                                                <span>{currentLogoUrl ? 'Change Logo' : 'Upload Logo'}</span>
+                                            </button>
+                                            {currentLogoUrl && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setIsLogoModalOpen(true)}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-200/80 dark:bg-slate-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 font-semibold text-xs transition-all"
+                                                >
+                                                    <span>Manage / Remove</span>
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
@@ -1216,6 +1257,31 @@ export default function SettingsIndex({
                     </div>
                 )}
             </div>
+
+            <ImageUploaderModal
+                isOpen={isLogoModalOpen}
+                onClose={() => setIsLogoModalOpen(false)}
+                type="logo"
+                currentImageUrl={currentLogoUrl}
+                uploadEndpoint="/settings/branding/logo"
+                deleteEndpoint="/settings/branding/logo"
+                title="Clinic Logo & Branding"
+                subtitle="Upload from device or paste an image link. Automatically generates crisp sidebar icons, high-res PDF versions, and browser favicons."
+                clinicName={profileForm.data.name || profile.name}
+                fallbackInitial={profile.name ? profile.name.charAt(0).toUpperCase() : 'M'}
+                onSuccess={(data) => {
+                    if (data.logo_url) {
+                        setCurrentLogoUrl(data.logo_url);
+                        profileForm.setData('logo_url', data.logo_url);
+                        router.reload({ only: ['tenant', 'profile'] });
+                    }
+                }}
+                onRemove={() => {
+                    setCurrentLogoUrl(null);
+                    profileForm.setData('logo_url', '');
+                    router.reload({ only: ['tenant', 'profile'] });
+                }}
+            />
         </AuthenticatedLayout>
     );
 }
