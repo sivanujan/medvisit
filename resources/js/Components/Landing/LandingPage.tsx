@@ -2,8 +2,8 @@ import React from 'react';
 import { usePage } from '@inertiajs/react';
 import { defaultPublicConfig } from '@/Config/medvisitPublic';
 import LegalFooter from '@/Components/Public/LegalFooter';
+import PublicHeader from '@/Components/Public/PublicHeader';
 import { PageProps } from '@/types';
-import LandingNav from './LandingNav';
 import HeroSection from './HeroSection';
 import WaitingRoomStory from './WaitingRoomStory';
 import HowItWorks from './HowItWorks';
@@ -42,7 +42,7 @@ export default function LandingPage({ canLogin = true, canRegister = false }: Pr
             >
                 Skip to content
             </a>
-            <LandingNav user={user} canLogin={canLogin} canRegister={canRegister} />
+            <PublicHeader />
 
             <main id="lp-main" className="overflow-x-clip">
                 <HeroSection getStartedHref={getStartedHref} />

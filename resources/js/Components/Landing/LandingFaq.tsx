@@ -26,7 +26,7 @@ const FAQS = [
 
 export default function LandingFaq() {
     return (
-        <section aria-labelledby="lp-faq-title" className="mx-auto max-w-3xl px-4 sm:px-6 py-20 sm:py-24">
+        <section id="faq" aria-labelledby="lp-faq-title" className="mx-auto max-w-3xl px-4 sm:px-6 py-20 sm:py-24">
             <h2 id="lp-faq-title" className="text-3xl sm:text-4xl font-semibold tracking-[-0.03em]">
                 Questions clinics ask
             </h2>

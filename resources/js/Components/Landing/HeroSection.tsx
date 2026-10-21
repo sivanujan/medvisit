@@ -14,7 +14,7 @@ export default function HeroSection({ getStartedHref }: Props) {
     const playing = inView && !reduced;
 
     return (
-        <section ref={ref} data-play={playing} aria-labelledby="lp-hero-title" className="relative overflow-hidden">
+        <section ref={ref} data-play={playing} aria-labelledby="lp-hero-title" className="relative -mt-[61px] overflow-hidden lg:-mt-[65px]">
             <div aria-hidden="true" className="lp-mesh">
                 <span />
                 <span />
@@ -22,7 +22,7 @@ export default function HeroSection({ getStartedHref }: Props) {
             </div>
             <div aria-hidden="true" className="lp-grain" />
 
-            <div className="relative mx-auto grid max-w-6xl items-center gap-14 px-4 sm:px-6 pt-12 pb-20 sm:pt-16 lg:grid-cols-[1.05fr_1fr] lg:gap-10 lg:pt-24 lg:pb-28">
+            <div className="relative mx-auto grid max-w-6xl items-center gap-14 px-4 sm:px-6 pt-28 pb-20 sm:pt-32 lg:grid-cols-[1.05fr_1fr] lg:gap-10 lg:pt-40 lg:pb-28">
                 <div>
                     <p className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-white/70 dark:bg-white/5 px-3.5 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200">
                         <span className="h-2 w-2 rounded-full bg-secondary" aria-hidden="true" />

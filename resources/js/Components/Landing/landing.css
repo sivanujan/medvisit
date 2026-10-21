@@ -37,6 +37,16 @@
     --lp-perf: rgba(255, 255, 255, 0.2);
 }
 
+.lp-root [id] {
+    scroll-margin-top: 5.5rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    html:has(.lp-root) {
+        scroll-behavior: smooth;
+    }
+}
+
 .lp-root :focus-visible {
     outline: 3px solid var(--lp-blue);
     outline-offset: 3px;
@@ -214,9 +224,11 @@
     filter: drop-shadow(0 30px 60px rgba(0, 0, 0, 0.55));
 }
 
+/* The glow is a filter on the whole number, not a text-shadow: each digit column clips
+   its overflow, which would cut a per-digit shadow into visible boxes. */
 .lp-now {
     color: #ff9c82;
-    text-shadow: 0 0 32px rgba(255, 122, 89, 0.45);
+    filter: drop-shadow(0 0 22px rgba(255, 122, 89, 0.35));
 }
 
 .lp-chime {
@@ -590,6 +602,131 @@
     transform: rotate(45deg);
 }
 
+/* ---------- Built for Sri Lanka ---------- */
+
+.lp-accent-teal { --acc: 14 158 143; --acc-ink: #0a7e73; }
+.lp-accent-blue { --acc: 30 111 217; --acc-ink: #1557b2; }
+.lp-accent-coral { --acc: 255 122 89; --acc-ink: #c12b08; }
+.lp-accent-brand { --acc: 30 111 217; --acc-ink: #ffffff; }
+
+.dark .lp-accent-teal { --acc-ink: #4fd1c3; }
+.dark .lp-accent-blue { --acc-ink: #91bcf8; }
+.dark .lp-accent-coral { --acc-ink: #ff9c82; }
+
+.lp-lk-tile {
+    position: relative;
+    background:
+        radial-gradient(120% 70% at 0% 0%, rgb(var(--acc) / 0.13), transparent 60%),
+        var(--lp-surface);
+    border: 1px solid rgb(var(--acc) / 0.2);
+    /* No backdrop-filter: the section behind is a flat tint, and the blur layer made
+       Chrome drop paint at the bottom of the tall tile on mobile. */
+    transition:
+        transform 300ms cubic-bezier(0.22, 1, 0.36, 1),
+        border-color 300ms ease,
+        box-shadow 300ms ease;
+}
+
+.lp-lk-tile:hover {
+    transform: translateY(-4px);
+    border-color: rgb(var(--acc) / 0.55);
+    box-shadow: 0 22px 44px -22px rgb(var(--acc) / 0.55);
+}
+
+.lp-lk-icon {
+    background: rgb(var(--acc) / 0.12);
+    color: var(--acc-ink);
+    box-shadow: inset 0 0 0 1px rgb(var(--acc) / 0.2);
+}
+
+.lp-accent-brand .lp-lk-icon {
+    background: linear-gradient(135deg, #1e6fd9, #0e9e8f);
+    box-shadow: 0 8px 20px -8px rgb(30 111 217 / 0.6);
+}
+
+.lp-lk-card {
+    background: var(--lp-surface-solid);
+    border: 1px solid var(--lp-line);
+}
+
+.lp-lk-script:lang(ta) {
+    font-family: 'Noto Sans Tamil', 'Poppins', sans-serif;
+}
+
+.lp-lk-script:lang(si) {
+    font-family: 'Noto Sans Sinhala', 'Poppins', sans-serif;
+}
+
+/* Staggered fade-up once the section scrolls into view */
+.lp-reveal {
+    opacity: 0;
+    transform: translateY(18px);
+    transition:
+        opacity 600ms ease,
+        transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: calc(var(--i, 0) * 90ms);
+}
+
+[data-revealed='true'] .lp-reveal {
+    opacity: 1;
+    transform: none;
+}
+
+/* Receipt lines print one after another, then the loop restarts */
+.lp-lk-line {
+    animation: lp-lk-line 6s ease-in-out infinite;
+    animation-delay: calc(var(--i, 0) * 0.45s);
+}
+
+@keyframes lp-lk-line {
+    0%,
+    4% {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    12%,
+    88% {
+        opacity: 1;
+        transform: none;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+
+.lp-lk-fill {
+    transform-origin: left;
+    transform: scaleX(0.4);
+    animation: lp-lk-fill 5s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+}
+
+@keyframes lp-lk-fill {
+    0% {
+        transform: scaleX(0);
+    }
+    45%,
+    100% {
+        transform: scaleX(0.4);
+    }
+}
+
+.lp-lk-check {
+    animation: lp-lk-check 4s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+}
+
+@keyframes lp-lk-check {
+    0%,
+    8% {
+        transform: scale(0.4);
+        opacity: 0;
+    }
+    22%,
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
 /* ---------- Reduced motion: static states only ---------- */
 
 @media (prefers-reduced-motion: reduce) {
@@ -603,7 +740,12 @@
         clip-path: none;
     }
     .lp-cta-ticket,
-    .lp-receipt {
+    .lp-receipt,
+    .lp-reveal,
+    .lp-lk-tile:hover {
         transform: none;
+    }
+    .lp-reveal {
+        opacity: 1;
     }
 }

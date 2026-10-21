@@ -121,7 +121,7 @@ export default function LegalFooter({ className = '', isTenantContext = false }:
                     </div>
 
                     {/* Col 4: Contact */}
-                    <div>
+                    <div id="contact" className="scroll-mt-24">
                         <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white mb-3">
                             Contact
                         </h4>

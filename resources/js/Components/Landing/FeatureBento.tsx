@@ -267,6 +267,7 @@ export default function FeatureBento({ host }: { host: string }) {
         <section
             ref={ref}
             data-play={playing}
+            id="features"
             aria-labelledby="lp-features-title"
             className="mx-auto max-w-6xl px-4 sm:px-6 py-20 sm:py-28"
         >

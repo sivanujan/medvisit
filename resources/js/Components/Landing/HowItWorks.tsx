@@ -31,7 +31,7 @@ export default function HowItWorks() {
     useScrollProgress(ref, { startAt: 0.85, endAt: 0.95, reduced });
 
     return (
-        <section aria-labelledby="lp-how-title" className="mx-auto max-w-6xl px-4 sm:px-6 py-20 sm:py-28">
+        <section id="how-it-works" aria-labelledby="lp-how-title" className="mx-auto max-w-6xl px-4 sm:px-6 py-20 sm:py-28">
             <div className="max-w-2xl">
                 <h2 id="lp-how-title" className="text-3xl sm:text-4xl font-semibold tracking-[-0.03em]">
                     How a visit works
