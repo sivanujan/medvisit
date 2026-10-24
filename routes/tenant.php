@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Api\ClinicAnnouncementController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Support\SupportBroadcastAuthController;
+use App\Http\Controllers\Support\SupportChatWidgetController;
 use App\Http\Controllers\Tenant\BillingController;
 use App\Http\Controllers\Tenant\BookingTokenController;
 use App\Http\Controllers\Tenant\ChannelingCalendarController;
 use App\Http\Controllers\Tenant\ClinicBrandingController;
 use App\Http\Controllers\Tenant\ClinicPageController;
 use App\Http\Controllers\Tenant\ClinicSettingsController;
+use App\Http\Controllers\Tenant\ClinicShareImageController;
 use App\Http\Controllers\Tenant\ClinicWebsiteController;
 use App\Http\Controllers\Tenant\Doctor\ConsultationController;
 use App\Http\Controllers\Tenant\Doctor\PrescriptionTemplateController;
@@ -125,6 +128,10 @@ Route::middleware([
     Route::get('/queue', [ClinicWebsiteController::class, 'publicQueue'])
         ->name('tenant.queue.public');
 
+    // Link-preview image (WhatsApp/Facebook) generated from the clinic's name and logo.
+    Route::get('/share-image.png', [ClinicShareImageController::class, 'show'])
+        ->name('tenant.share_image');
+
     Route::get('/tokens/{token}/status', [ClinicWebsiteController::class, 'publicTokenStatus'])
         ->name('tenant.token.status');
 
@@ -197,6 +204,10 @@ Route::middleware([
             Route::post('/cancel-downgrade', [BillingCenterController::class, 'cancelDowngrade'])->name('.cancel_downgrade');
             Route::get('/invoices/{invoice}/download', [BillingCenterController::class, 'downloadInvoice'])->name('.invoice.download');
             Route::get('/invoices/{invoice}/view', [BillingCenterController::class, 'viewInvoice'])->name('.invoice.view');
+            Route::post('/refund-preview', [BillingCenterController::class, 'previewRefundEligibility'])->name('.refund.preview');
+            Route::post('/refunds', [BillingCenterController::class, 'requestRefund'])->name('.refund.store');
+            Route::post('/refunds/{refundRequest}/cancel', [BillingCenterController::class, 'cancelRefund'])->name('.refund.cancel');
+            Route::get('/refunds/{refundRequest}/credit-note', [BillingCenterController::class, 'downloadCreditNote'])->name('.refund.credit_note');
         });
 
         // Universal Clinical Routes (accessible to all authenticated staff: clinic_admin, doctor, receptionist)
@@ -209,16 +220,34 @@ Route::middleware([
             ->name('tenant.sessions.today.call_next');
         Route::post('/sessions/today/{session}/recall', [TodayQueueController::class, 'recall'])
             ->name('tenant.sessions.today.recall');
+        Route::post('/sessions/today/{session}/skip', [TodayQueueController::class, 'skip'])
+            ->name('tenant.sessions.today.skip');
         Route::post('/sessions/today/{session}/start', [TodayQueueController::class, 'startConsultation'])
             ->name('tenant.sessions.today.start');
         Route::post('/sessions/today/{session}/complete', [TodayQueueController::class, 'completeConsultation'])
             ->name('tenant.sessions.today.complete');
         Route::post('/sessions/today/{session}/complete-and-next', [TodayQueueController::class, 'completeAndNext'])
             ->name('tenant.sessions.today.complete_and_next');
+        Route::post('/sessions/today/{session}/pause', [TodayQueueController::class, 'pauseSession'])
+            ->name('tenant.sessions.today.pause');
+        Route::post('/sessions/today/{session}/resume', [TodayQueueController::class, 'resumeSession'])
+            ->name('tenant.sessions.today.resume');
+        Route::post('/sessions/today/{session}/end', [TodayQueueController::class, 'endSession'])
+            ->name('tenant.sessions.today.end');
+        Route::post('/sessions/today/{session}/delay', [TodayQueueController::class, 'delaySession'])
+            ->name('tenant.sessions.today.delay');
+        Route::post('/sessions/today/{session}/doctor-arrived', [TodayQueueController::class, 'doctorArrived'])
+            ->name('tenant.sessions.today.doctor_arrived');
         Route::post('/sessions/today/{token}/check-in', [TodayQueueController::class, 'checkIn'])
             ->name('tenant.sessions.today.check_in');
         Route::post('/sessions/today/{token}/no-show', [TodayQueueController::class, 'noShow'])
             ->name('tenant.sessions.today.no_show');
+        Route::post('/sessions/today/tokens/{token}/call', [TodayQueueController::class, 'callToken'])
+            ->name('tenant.sessions.today.call_token');
+        Route::post('/sessions/today/tokens/{token}/restore', [TodayQueueController::class, 'restoreToken'])
+            ->name('tenant.sessions.today.restore_token');
+        Route::post('/sessions/today/tokens/{token}/reorder', [TodayQueueController::class, 'reorderToken'])
+            ->name('tenant.sessions.today.reorder_token');
 
         Route::get('/calendar', [ChannelingCalendarController::class, 'index'])
             ->name('tenant.calendar');
@@ -228,6 +257,10 @@ Route::middleware([
             ->name('tenant.calendar.sessions.cancel');
         Route::post('/calendar/sessions/{session}/reschedule', [ChannelingCalendarController::class, 'rescheduleSession'])
             ->name('tenant.calendar.sessions.reschedule');
+        Route::post('/calendar/sessions/{session}/update', [ChannelingCalendarController::class, 'updateSession'])
+            ->name('tenant.calendar.sessions.update');
+        Route::post('/calendar/sessions/{session}/duplicate', [ChannelingCalendarController::class, 'duplicateSession'])
+            ->name('tenant.calendar.sessions.duplicate');
 
         Route::get('/patients', [PatientController::class, 'index'])
             ->name('tenant.patients');
@@ -237,6 +270,8 @@ Route::middleware([
             ->name('tenant.patients.update');
         Route::get('/patients/{patient}/history', [PatientController::class, 'history'])
             ->name('tenant.patients.history');
+        Route::post('/patients/{patient}/reveal-nic', [PatientController::class, 'revealNic'])
+            ->name('tenant.patients.reveal_nic');
 
         // Doctor Consultation & Prescriptions
         Route::get('/doctor/consultation/{token}', [ConsultationController::class, 'show'])
@@ -259,8 +294,18 @@ Route::middleware([
         // Prescription Templates
         Route::get('/doctor/templates', [PrescriptionTemplateController::class, 'index'])
             ->name('tenant.doctor.templates');
+        Route::get('/prescription-templates', [PrescriptionTemplateController::class, 'index'])
+            ->name('tenant.prescription_templates');
         Route::post('/doctor/templates', [PrescriptionTemplateController::class, 'store'])
             ->name('tenant.doctor.templates.store');
+        Route::put('/doctor/templates/{template}', [PrescriptionTemplateController::class, 'update'])
+            ->name('tenant.doctor.templates.update');
+        Route::post('/doctor/templates/{template}/duplicate', [PrescriptionTemplateController::class, 'duplicate'])
+            ->name('tenant.doctor.templates.duplicate');
+        Route::post('/doctor/templates/{template}/toggle-share', [PrescriptionTemplateController::class, 'toggleShare'])
+            ->name('tenant.doctor.templates.toggle_share');
+        Route::post('/doctor/templates/{template}/apply', [PrescriptionTemplateController::class, 'recordUsage'])
+            ->name('tenant.doctor.templates.apply');
         Route::delete('/doctor/templates/{template}', [PrescriptionTemplateController::class, 'destroy'])
             ->name('tenant.doctor.templates.destroy');
 
@@ -309,6 +354,10 @@ Route::middleware([
                 ->name('tenant.settlements');
             Route::get('/billing/payouts/slip/{settlement}', [DoctorSettlementController::class, 'slip'])
                 ->name('tenant.settlements.slip');
+            Route::get('/billing/payouts/session-bills/{session}', [DoctorSettlementController::class, 'sessionBills'])
+                ->name('tenant.settlements.session_bills');
+            Route::get('/billing/payouts/export', [DoctorSettlementController::class, 'export'])
+                ->name('tenant.settlements.export');
         });
 
         // Operations routes: Receptionist & Clinic Admin (Doctor role restricted -> 403)
@@ -346,17 +395,26 @@ Route::middleware([
             Route::delete('/doctors/templates/{template}', [DoctorController::class, 'destroyTemplate'])
                 ->name('tenant.doctors.templates.destroy');
 
+            Route::post('/doctors/templates/{template}/duplicate', [DoctorController::class, 'duplicateTemplate'])
+                ->name('tenant.doctors.templates.duplicate');
+
             Route::post('/doctors/sessions/one-off', [DoctorController::class, 'storeOneOffSession'])
                 ->name('tenant.doctors.sessions.one_off');
             Route::post('/doctors/leaves', [DoctorController::class, 'storeLeave'])
                 ->name('tenant.doctors.leaves.store');
+            Route::post('/doctors/leaves/preview', [DoctorController::class, 'previewLeaveImpact'])
+                ->name('tenant.doctors.leaves.preview');
             Route::delete('/doctors/leaves/{leave}', [DoctorController::class, 'destroyLeave'])
                 ->name('tenant.doctors.leaves.destroy');
             Route::post('/doctors/generate-sessions', [DoctorController::class, 'generateSessions'])
                 ->name('tenant.doctors.generate_sessions');
+            Route::post('/doctors/generate-sessions/preview', [DoctorController::class, 'previewGenerateSessions'])
+                ->name('tenant.doctors.generate_sessions.preview');
 
             Route::get('/billing', [BillingController::class, 'index'])
                 ->name('tenant.billing');
+            Route::get('/billing/export', [BillingController::class, 'export'])
+                ->name('tenant.billing.export');
             Route::post('/billing/{bill}/pay', [BillingController::class, 'pay'])
                 ->name('tenant.billing.pay');
             Route::post('/billing/{bill}/refund', [BillingController::class, 'refund'])
@@ -374,6 +432,10 @@ Route::middleware([
 
             Route::post('/billing/payouts', [DoctorSettlementController::class, 'store'])
                 ->name('tenant.settlements.store');
+            Route::get('/billing/payouts/unsettled-bills/{doctor}', [DoctorSettlementController::class, 'unsettledBills'])
+                ->name('tenant.settlements.unsettled_bills');
+            Route::post('/billing/payouts/{settlement}/void', [DoctorSettlementController::class, 'void'])
+                ->name('tenant.settlements.void');
             Route::post('/billing/payouts/disburse', [DoctorSettlementController::class, 'disburse'])
                 ->name('tenant.settlements.disburse');
             Route::post('/billing/payouts/{settlement}/pay', [DoctorSettlementController::class, 'recordPayment'])
@@ -407,6 +469,10 @@ Route::middleware([
                 ->name('tenant.website.publish');
             Route::put('/website/theme', [ClinicWebsiteController::class, 'updateTheme'])
                 ->name('tenant.website.theme');
+            Route::put('/website/seo', [ClinicWebsiteController::class, 'updateSeo'])
+                ->name('tenant.website.seo');
+            Route::post('/website/pages/{page}/menu', [ClinicWebsiteController::class, 'togglePageMenu'])
+                ->name('tenant.website.pages.menu');
             Route::get('/website/kit', [SiteKitController::class, 'show'])
                 ->name('tenant.website.kit');
             Route::put('/website/kit', [SiteKitController::class, 'update'])
@@ -470,9 +536,18 @@ Route::middleware([
                 ->name('tenant.staff.role');
             Route::post('/staff/{user}/link-doctor', [StaffController::class, 'linkDoctor'])
                 ->name('tenant.staff.link_doctor');
+            Route::post('/staff/{user}/unlink-doctor', [StaffController::class, 'unlinkDoctor'])
+                ->name('tenant.staff.unlink_doctor');
+            Route::post('/staff/{user}/reset-password', [StaffController::class, 'sendPasswordReset'])
+                ->name('tenant.staff.reset_password');
 
             Route::get('/settings', [ClinicSettingsController::class, 'index'])
                 ->name('tenant.settings');
+            Route::get('/settings/audit/export', [ClinicSettingsController::class, 'exportAuditLogs'])
+                ->name('tenant.settings.audit.export');
+            Route::get('/settings/{section}', [ClinicSettingsController::class, 'index'])
+                ->where('section', 'profile|branding|hours|sessions|booking|prescriptions|billing|receipts|pharmacy|directory|audit')
+                ->name('tenant.settings.section');
             Route::put('/settings/profile', [ClinicSettingsController::class, 'updateProfile'])
                 ->name('tenant.settings.profile');
             Route::put('/settings/session-defaults', [ClinicSettingsController::class, 'updateSessionDefaults'])
@@ -483,6 +558,8 @@ Route::middleware([
                 ->name('tenant.settings.online_booking');
             Route::put('/settings/pharmacy', [ClinicSettingsController::class, 'updatePharmacySettings'])
                 ->name('tenant.settings.pharmacy');
+            Route::put('/settings/directory', [ClinicSettingsController::class, 'updateDirectory'])
+                ->name('tenant.settings.directory');
             Route::post('/settings/branding/logo', [ClinicBrandingController::class, 'uploadLogo'])
                 ->name('tenant.settings.branding.logo.upload');
             Route::delete('/settings/branding/logo', [ClinicBrandingController::class, 'deleteLogo'])
@@ -508,6 +585,10 @@ Route::middleware([
                     ->name('tenant.pharmacy.barcodes.lookup');
                 Route::get('/pharmacy/variants/{variant}/brands', [StockReceiptController::class, 'getVariantBrands'])
                     ->name('tenant.pharmacy.variants.brands');
+                Route::get('/pharmacy/medicines-export', [StockController::class, 'export'])
+                    ->name('tenant.pharmacy.medicines.export');
+                Route::get('/pharmacy/receipts-export', [StockReceiptController::class, 'export'])
+                    ->name('tenant.pharmacy.receipts.export');
             });
 
             // Stock Adjustments & Voiding
@@ -529,6 +610,10 @@ Route::middleware([
             Route::middleware(['permission:pharmacy.manage_medicines'])->group(function () {
                 Route::post('/pharmacy/medicines', [StockController::class, 'store'])
                     ->name('tenant.pharmacy.medicines.store');
+                Route::post('/pharmacy/medicines/merge', [StockController::class, 'merge'])
+                    ->name('tenant.pharmacy.medicines.merge');
+                Route::post('/pharmacy/medicines/dismiss-duplicate', [StockController::class, 'dismissDuplicate'])
+                    ->name('tenant.pharmacy.medicines.dismiss_duplicate');
                 Route::put('/pharmacy/medicines/{medicine}', [StockController::class, 'update'])
                     ->name('tenant.pharmacy.medicines.update');
                 Route::delete('/pharmacy/medicines/{medicine}', [StockController::class, 'destroy'])
@@ -553,12 +638,18 @@ Route::middleware([
             Route::middleware(['permission:pharmacy.manage_suppliers'])->group(function () {
                 Route::get('/pharmacy/suppliers', [SupplierController::class, 'index'])
                     ->name('tenant.pharmacy.suppliers');
+                Route::post('/pharmacy/suppliers/check-duplicate', [SupplierController::class, 'checkDuplicate'])
+                    ->name('tenant.pharmacy.suppliers.check-duplicate');
+                Route::get('/pharmacy/suppliers/{supplier}', [SupplierController::class, 'show'])
+                    ->name('tenant.pharmacy.suppliers.show');
                 Route::post('/pharmacy/suppliers', [SupplierController::class, 'store'])
                     ->name('tenant.pharmacy.suppliers.store');
                 Route::put('/pharmacy/suppliers/{supplier}', [SupplierController::class, 'update'])
                     ->name('tenant.pharmacy.suppliers.update');
                 Route::patch('/pharmacy/suppliers/{supplier}/toggle', [SupplierController::class, 'toggle'])
                     ->name('tenant.pharmacy.suppliers.toggle');
+                Route::delete('/pharmacy/suppliers/{supplier}', [SupplierController::class, 'destroy'])
+                    ->name('tenant.pharmacy.suppliers.destroy');
             });
 
             // Bulk CSV Import
@@ -567,6 +658,8 @@ Route::middleware([
                     ->name('tenant.pharmacy.import');
                 Route::get('/pharmacy/import/template', [StockImportController::class, 'downloadTemplate'])
                     ->name('tenant.pharmacy.import.template');
+                Route::get('/pharmacy/import/history', [StockImportController::class, 'history'])
+                    ->name('tenant.pharmacy.import.history');
                 Route::post('/pharmacy/import/preview', [StockImportController::class, 'preview'])
                     ->name('tenant.pharmacy.import.preview');
                 Route::post('/pharmacy/import/confirm', [StockImportController::class, 'confirm'])
@@ -584,6 +677,12 @@ Route::middleware([
             });
 
             Route::middleware(['permission:pharmacy.dispense'])->group(function () {
+                Route::post('/pharmacy/dispense/{prescription}/lock', [DispenseController::class, 'lock'])
+                    ->name('tenant.pharmacy.dispense.lock');
+                Route::post('/pharmacy/dispense/{prescription}/unlock', [DispenseController::class, 'unlock'])
+                    ->name('tenant.pharmacy.dispense.unlock');
+                Route::post('/pharmacy/dispense/{prescription}/hold', [DispenseController::class, 'hold'])
+                    ->name('tenant.pharmacy.dispense.hold');
                 Route::post('/pharmacy/dispense/{prescription}/confirm', [DispenseController::class, 'confirm'])
                     ->name('tenant.pharmacy.dispense.confirm');
                 Route::post('/pharmacy/dispense/{prescription}/undo', [DispenseController::class, 'undo'])
@@ -597,6 +696,24 @@ Route::middleware([
 
         Route::get('/doctor', fn () => redirect()->route('tenant.sessions.today'))
             ->name('tenant.doctor.index');
+
+        // MedVisit Support Chat Widget API & Broadcasting Auth on Tenant Subdomain
+        Route::get('/support/status', [SupportChatWidgetController::class, 'status'])
+            ->name('tenant.support.status');
+        Route::post('/support/conversations', [SupportChatWidgetController::class, 'store'])
+            ->name('tenant.support.conversations.store');
+        Route::get('/support/conversations/{publicId}', [SupportChatWidgetController::class, 'show'])
+            ->name('tenant.support.conversations.show');
+        Route::post('/support/conversations/{publicId}/messages', [SupportChatWidgetController::class, 'sendMessage'])
+            ->name('tenant.support.conversations.messages.send');
+        Route::post('/support/conversations/{publicId}/read', [SupportChatWidgetController::class, 'markRead'])
+            ->name('tenant.support.conversations.read');
+        Route::post('/support/conversations/{publicId}/typing', [SupportChatWidgetController::class, 'typing'])
+            ->name('tenant.support.conversations.typing');
+        Route::post('/support/conversations/{publicId}/close', [SupportChatWidgetController::class, 'close'])
+            ->name('tenant.support.conversations.close');
+        Route::post('/support/broadcasting/auth', [SupportBroadcastAuthController::class, 'authenticate'])
+            ->name('tenant.support.broadcasting.auth');
 
         Route::post('/logout', [TenantAuthenticatedSessionController::class, 'destroy'])
             ->name('tenant.logout');

@@ -1,0 +1,189 @@
+/*
+ * Clinic Registration Wizard: "Watch your clinic come to life"
+ * Matches central login dotted grid, radial glows, glass cards, and clinic auth TV display.
+ */
+
+.reg-root {
+    --reg-bg: #ffffff;
+    --reg-dot: rgba(30, 111, 217, 0.14);
+    --reg-ink: #0f1b2d;
+    --reg-muted: #4b5a70;
+    --reg-blue: #1E6FD9;
+    --reg-teal: #0E9E8F;
+    --reg-coral: #FF7A59;
+    --reg-glass: rgba(255, 255, 255, 0.82);
+    --reg-glass-line: rgba(30, 111, 217, 0.16);
+    --reg-surface: #ffffff;
+    --reg-skel: #e7eef9;
+    --reg-shadow: 0 40px 80px -30px rgba(30, 111, 217, 0.3), 0 12px 30px -12px rgba(15, 27, 45, 0.1);
+}
+
+.dark .reg-root {
+    --reg-bg: #07101e;
+    --reg-dot: rgba(145, 188, 248, 0.1);
+    --reg-ink: #eef3fb;
+    --reg-muted: #a7b4c8;
+    --reg-blue: #3b82f6;
+    --reg-teal: #14b8a6;
+    --reg-coral: #FF7A59;
+    --reg-glass: rgba(15, 23, 42, 0.78);
+    --reg-glass-line: rgba(145, 188, 248, 0.16);
+    --reg-surface: #0f1a2e;
+    --reg-skel: #1e293b;
+    --reg-shadow: 0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(145, 188, 248, 0.08);
+}
+
+/* Dotted grid with subtle brand radial glows */
+.reg-backdrop {
+    background-color: var(--reg-bg);
+    background-image:
+        radial-gradient(65% 55% at 85% 35%, rgba(30, 111, 217, 0.14), transparent 70%),
+        radial-gradient(50% 45% at 95% 85%, rgba(14, 158, 143, 0.12), transparent 70%),
+        radial-gradient(40% 35% at 50% 5%, rgba(255, 122, 89, 0.08), transparent 70%),
+        radial-gradient(circle at 1px 1px, var(--reg-dot) 1px, transparent 1.5px);
+    background-size:
+        100% 100%,
+        100% 100%,
+        100% 100%,
+        22px 22px;
+}
+
+.dark .reg-backdrop {
+    background-image:
+        radial-gradient(65% 55% at 85% 35%, rgba(30, 111, 217, 0.22), transparent 70%),
+        radial-gradient(50% 45% at 95% 85%, rgba(14, 158, 143, 0.16), transparent 70%),
+        radial-gradient(40% 35% at 50% 5%, rgba(255, 122, 89, 0.08), transparent 70%),
+        radial-gradient(circle at 1px 1px, var(--reg-dot) 1px, transparent 1.5px);
+}
+
+/* 3D Perspective Stage for Desktop Preview */
+.reg-stage {
+    --mx: 0;
+    --my: 0;
+    perspective: 1600px;
+    transition: transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.reg-preview-box {
+    transform-style: preserve-3d;
+    transition: transform 500ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (min-width: 1024px) {
+    .reg-stage:hover .reg-preview-box {
+        transform: rotateY(calc(var(--mx) * -6deg)) rotateX(calc(var(--my) * 4deg)) translateZ(8px);
+    }
+}
+
+/* Soft shimmer placeholder */
+@keyframes reg-shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+.reg-shimmer-line {
+    background: linear-gradient(
+        90deg,
+        var(--reg-skel) 0%,
+        rgba(30, 111, 217, 0.12) 50%,
+        var(--reg-skel) 100%
+    );
+    background-size: 200% 100%;
+    animation: reg-shimmer 2s infinite linear;
+    border-radius: 9999px;
+}
+
+.dark .reg-shimmer-line {
+    background: linear-gradient(
+        90deg,
+        var(--reg-skel) 0%,
+        rgba(145, 188, 248, 0.18) 50%,
+        var(--reg-skel) 100%
+    );
+    background-size: 200% 100%;
+    animation: reg-shimmer 2s infinite linear;
+}
+
+/* Blinking caret */
+@keyframes reg-caret-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+.reg-caret {
+    display: inline-block;
+    width: 2px;
+    height: 1.1em;
+    background: #1E6FD9;
+    margin-left: 2px;
+    vertical-align: -0.15em;
+    animation: reg-caret-blink 1s steps(1) infinite;
+}
+
+/* One-time light sweep celebratory reveal on Step 5 */
+@keyframes reg-light-sweep {
+    0% {
+        transform: translateX(-150%) skewX(-25deg);
+        opacity: 0;
+    }
+    20% {
+        opacity: 0.85;
+    }
+    100% {
+        transform: translateX(250%) skewX(-25deg);
+        opacity: 0;
+    }
+}
+
+.reg-sweep-flare {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.05) 20%,
+        rgba(255, 255, 255, 0.65) 50%,
+        rgba(14, 158, 143, 0.4) 65%,
+        transparent 100%
+    );
+    pointer-events: none;
+    animation: reg-light-sweep 1.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Confetti sparkles for celebration */
+@keyframes reg-float-sparkle {
+    0% {
+        transform: translateY(0) scale(0.6) rotate(0deg);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(-80px) scale(1.1) rotate(180deg);
+        opacity: 0;
+    }
+}
+
+.reg-sparkle-dot {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    pointer-events: none;
+    animation: reg-float-sparkle 1.8s ease-out forwards;
+}
+
+/* Reduced Motion overrides */
+@media (prefers-reduced-motion: reduce) {
+    .reg-shimmer-line,
+    .reg-caret,
+    .reg-sweep-flare,
+    .reg-sparkle-dot {
+        animation: none !important;
+    }
+    .reg-stage:hover .reg-preview-box {
+        transform: none !important;
+    }
+}

@@ -104,7 +104,7 @@ export const defaultPublicConfig: PublicConfig = {
         },
     },
     policies: {
-        last_updated: '21 October 2026',
-        terms_version: '2026-10-21',
+        last_updated: '22 October 2026',
+        terms_version: '2026-10-22',
     },
 };

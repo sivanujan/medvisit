@@ -43,6 +43,10 @@ class EnsurePublicBookingAvailable
             }
         }
 
+        if ($request->hasSession() && $request->query('source') === 'directory') {
+            $request->session()->put('booking_source', 'directory');
+        }
+
         return $next($request);
     }
 }

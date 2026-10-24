@@ -93,6 +93,7 @@ class FeeSettingsController extends Controller
                 'receptionist_can_discount' => (bool) ($settings['receptionist_can_discount'] ?? true),
                 'receptionist_max_discount_type' => $settings['receptionist_max_discount_type'] ?? 'percent',
                 'receptionist_max_discount_value' => (int) ($settings['receptionist_max_discount_value'] ?? 20),
+                'show_clinic_share_to_doctors' => (bool) ($settings['show_clinic_share_to_doctors'] ?? false),
                 'fee_setup_completed' => (bool) ($settings['fee_setup_completed'] ?? false),
             ],
             'components' => $components,
@@ -121,6 +122,7 @@ class FeeSettingsController extends Controller
             'receptionist_can_discount' => ['required', 'boolean'],
             'receptionist_max_discount_type' => ['required', 'string', 'in:percent,amount'],
             'receptionist_max_discount_value' => ['required', 'numeric', 'min:0'],
+            'show_clinic_share_to_doctors' => ['nullable', 'boolean'],
         ]);
 
         $tenant = tenant();
@@ -151,6 +153,7 @@ class FeeSettingsController extends Controller
             'receptionist_max_discount_value' => $validated['receptionist_max_discount_type'] === 'amount'
                 ? (int) round($validated['receptionist_max_discount_value'] * 100)
                 : (int) $validated['receptionist_max_discount_value'],
+            'show_clinic_share_to_doctors' => (bool) ($request->input('show_clinic_share_to_doctors', false)),
             'fee_setup_completed' => true,
         ]);
 

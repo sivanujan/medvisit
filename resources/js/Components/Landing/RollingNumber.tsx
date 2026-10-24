@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import './rolling-number.css';
 
 const DIGITS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
 
@@ -56,7 +57,7 @@ export default function RollingNumber({ value, minDigits = 2, className = '' }: 
     const digits = String(Math.max(0, value)).padStart(minDigits, '0').split('').map(Number);
 
     return (
-        <span aria-hidden="true" className={`inline-flex lp-tabular ${className}`}>
+        <span aria-hidden="true" className={`inline-flex tabular-nums ${className}`}>
             {digits.map((d, i) => (
                 <RollingDigit key={digits.length - i} value={d} />
             ))}

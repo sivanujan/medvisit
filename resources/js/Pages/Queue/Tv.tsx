@@ -105,7 +105,50 @@ export default function QueueTv({ tvData: initialTvData }: Props) {
         return () => clearInterval(clockInterval);
     }, []);
 
-    // 5-second polling synchronization
+    // 5-second polling synchronization + BroadcastChannel instant sync
+    useEffect(() => {
+        let channel: BroadcastChannel | null = null;
+        try {
+            if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+                channel = new BroadcastChannel('medvisit_queue_sync');
+                // Heartbeat so Today.tsx knows TV is connected
+                const sendHeartbeat = () => {
+                    channel?.postMessage({ type: 'TV_HEARTBEAT', timestamp: Date.now() });
+                };
+                sendHeartbeat();
+                const hbInterval = setInterval(sendHeartbeat, 2500);
+
+                channel.onmessage = async (event) => {
+                    if (event.data?.type === 'CALL_TOKEN' || event.data?.type === 'QUEUE_UPDATED') {
+                        try {
+                            const res = await fetch('/queue/tv/data');
+                            if (res.ok) {
+                                const data: TvData = await res.json();
+                                setTvData(data);
+                                if (data.nowServing && (data.nowServing.token_number !== lastCalledTokenRef.current || data.nowServing.called_at !== lastCalledAtRef.current)) {
+                                    lastCalledTokenRef.current = data.nowServing.token_number;
+                                    lastCalledAtRef.current = data.nowServing.called_at;
+                                    if (audioEnabled) {
+                                        playHospitalChime();
+                                    }
+                                }
+                            }
+                        } catch (err) {
+                            console.error('TV instant sync error:', err);
+                        }
+                    }
+                };
+
+                return () => {
+                    clearInterval(hbInterval);
+                    channel?.close();
+                };
+            }
+        } catch (e) {
+            console.warn('BroadcastChannel error in TV:', e);
+        }
+    }, [audioEnabled]);
+
     useEffect(() => {
         const pollInterval = setInterval(async () => {
             try {

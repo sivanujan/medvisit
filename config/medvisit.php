@@ -7,6 +7,9 @@ return [
     'timezone' => env('APP_TIMEZONE', 'Asia/Colombo'),
     'base_domain' => env('MEDVISIT_BASE_DOMAIN', 'medvisit.localhost'),
 
+    // Domain shown to people (e.g. "yourclinic.medvisit.lk"), independent of the request host.
+    'public_domain' => env('APP_PUBLIC_DOMAIN', 'medvisit.lk'),
+
     'mail' => [
         'logo_url' => env('MAIL_LOGO_URL'),
         'icon_url' => env('MAIL_ICON_URL'),
@@ -32,7 +35,7 @@ return [
 
     'subscription' => [
         'trial_days' => (int) env('MEDVISIT_TRIAL_DAYS', 0),
-        'default_price_cents' => (int) env('MEDVISIT_PLAN_PRICE_CENTS', 500000), // Rs. 5,000
+        'default_price_cents' => (int) env('MEDVISIT_PLAN_PRICE_CENTS', 900000), // Rs. 9,000 (Pro plan default)
         'grace_days' => (int) env('MEDVISIT_GRACE_DAYS', 3),
     ],
 ];

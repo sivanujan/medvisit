@@ -115,7 +115,7 @@ class WebsiteAndPublicBookingTest extends TestCase
 
         $response->assertRedirect();
         $this->tenant->refresh();
-        $this->assertEquals('Updated Custom Hero Title', $this->tenant->website_sections[0]['title']);
+        $this->assertEquals('Updated Custom Hero Title', ($this->tenant->website_sections_draft ?? $this->tenant->website_sections)[0]['title']);
     }
 
     public function test_admin_can_publish_and_unpublish_website(): void

@@ -16,6 +16,7 @@ use App\Models\Patient;
 use App\Models\VisitType;
 use App\Services\Billing\BillCalculator;
 use App\Services\FeeResolutionService;
+use App\Services\SequenceService;
 use App\Services\SessionGeneratorService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -32,6 +33,7 @@ class BookingTokenController extends Controller
         protected FeeResolutionService $feeService,
         protected SessionGeneratorService $sessionGenerator,
         protected BillCalculator $billCalculator,
+        protected SequenceService $sequenceService,
     ) {}
 
     /**
@@ -478,9 +480,9 @@ class BookingTokenController extends Controller
                 'notes' => $validated['notes'] ?? null,
             ]);
 
-            // 6. Create initial Bill record
-            $receiptNumber = 'REC-'.strtoupper(Str::random(6)).'-'.date('dmy');
+            // 6. Create initial Bill record (receipt number assigned only when payment collected)
             $paymentCollected = ! empty($validated['payment_collected']);
+            $receiptNumber = $paymentCollected ? $this->sequenceService->nextReceiptNumber($tenantId) : null;
             $paymentMethod = $validated['payment_method'] ?? 'cash';
 
             $bill = Bill::create([

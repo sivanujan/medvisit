@@ -83,7 +83,7 @@ class BillCalculator
                     'amount_lkr' => round($cents / 100, 2),
                     'amount_cents' => $cents,
                     'amount' => $cents,
-                    'amount_formatted' => 'Rs. '.number_format($cents / 100, 2),
+                    'amount_formatted' => Bill::formatLKR($cents, true),
                     'recipient' => $line['recipient'] ?? 'clinic',
                 ];
             }
@@ -98,7 +98,7 @@ class BillCalculator
                     'amount_lkr' => round($bill->doctor_fee / 100, 2),
                     'amount_cents' => (int) $bill->doctor_fee,
                     'amount' => (int) $bill->doctor_fee,
-                    'amount_formatted' => 'Rs. '.number_format($bill->doctor_fee / 100, 2),
+                    'amount_formatted' => Bill::formatLKR($bill->doctor_fee, true),
                     'recipient' => 'doctor',
                 ];
             }
@@ -112,7 +112,7 @@ class BillCalculator
                     'amount_lkr' => round($bill->clinic_fee / 100, 2),
                     'amount_cents' => (int) $bill->clinic_fee,
                     'amount' => (int) $bill->clinic_fee,
-                    'amount_formatted' => 'Rs. '.number_format($bill->clinic_fee / 100, 2),
+                    'amount_formatted' => Bill::formatLKR($bill->clinic_fee, true),
                     'recipient' => 'clinic',
                 ];
             }
@@ -126,7 +126,7 @@ class BillCalculator
                     'amount_lkr' => round($bill->other_fee / 100, 2),
                     'amount_cents' => (int) $bill->other_fee,
                     'amount' => (int) $bill->other_fee,
-                    'amount_formatted' => 'Rs. '.number_format($bill->other_fee / 100, 2),
+                    'amount_formatted' => Bill::formatLKR($bill->other_fee, true),
                     'recipient' => 'third_party',
                 ];
             }
@@ -143,11 +143,11 @@ class BillCalculator
                 'type' => 'medicine',
                 'quantity' => $item->quantity,
                 'unit_price_lkr' => $unitLkr,
-                'unit_price_formatted' => 'Rs. '.number_format($unitLkr, 2),
+                'unit_price_formatted' => Bill::formatLKR($item->unit_price_cents, true),
                 'amount_lkr' => $totalLkr,
                 'amount_cents' => $item->total_price_cents,
                 'amount' => $item->total_price_cents,
-                'amount_formatted' => 'Rs. '.number_format($totalLkr, 2),
+                'amount_formatted' => Bill::formatLKR($item->total_price_cents, true),
                 'recipient' => 'pharmacy',
             ];
         }
@@ -166,7 +166,7 @@ class BillCalculator
                 'amount_lkr' => round($cents / 100, 2),
                 'amount_cents' => $cents,
                 'amount' => $cents,
-                'amount_formatted' => ($isDue ? '+Rs. ' : '-Rs. ').number_format(abs($cents) / 100, 2),
+                'amount_formatted' => ($isDue ? '+' : '-').Bill::formatLKR(abs($cents), true),
                 'recipient' => 'clinic',
             ];
         }

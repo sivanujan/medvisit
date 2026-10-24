@@ -8,7 +8,6 @@ import {
     Calendar,
     MessageCircle,
     HeartPulse,
-    ShieldCheck,
     Globe,
     ExternalLink,
 } from 'lucide-react';
@@ -61,18 +60,14 @@ export default function PublicSiteFooter({
     const currentYear = new Date().getFullYear();
 
     const displayLogoUrl = footerConfig?.logo_url || clinic.logo_url;
-    const aboutText =
-        footerConfig?.about_text ||
-        'Providing premier outpatient healthcare, specialist doctor channeling, and accredited diagnostic medical services with international safety protocols and Sri Lankan warmth.';
-    const displayPhone = footerConfig?.phone || clinic.phone || '+94 70 129 1688';
-    const displayAddress = footerConfig?.address || clinic.address || 'Colombo, Sri Lanka';
-    const displayEmail = footerConfig?.email || clinic.email || `contact@${clinic.subdomain || 'clinic'}.medvisit.lk`;
+    // Only the clinic's real details; anything missing is left out rather than invented.
+    const aboutText = footerConfig?.about_text || '';
+    const displayPhone = footerConfig?.phone || clinic.phone || '';
+    const displayAddress = footerConfig?.address || clinic.address || '';
+    const displayEmail = footerConfig?.email || clinic.email || '';
     const displayWhatsApp = footerConfig?.whatsapp_number || clinic.whatsapp_number;
     const cleanWhatsApp = displayWhatsApp ? displayWhatsApp.replace(/\D/g, '') : '';
-    const openingHours =
-        footerConfig?.opening_hours ||
-        clinic.opening_hours ||
-        'Mon – Sat: 07:30 AM – 10:00 PM | Sun: 08:00 AM – 08:00 PM';
+    const openingHours = footerConfig?.opening_hours || clinic.opening_hours || '';
     const ctaText = footerConfig?.cta_text || 'Book a token';
     const ctaLink = footerConfig?.cta_link || '/book';
     const showPoweredBy = footerConfig?.show_powered_by !== false;
@@ -113,20 +108,13 @@ export default function PublicSiteFooter({
                                 <span className="text-lg font-black tracking-tight text-white block leading-tight">
                                     {clinic.name}
                                 </span>
-                                <span className="text-xs text-teal-400 font-semibold block">
-                                    Specialist Medical Center
-                                </span>
                             </div>
                         </Link>
 
-                        <p className="text-xs text-slate-400 leading-relaxed max-w-sm">
-                            {aboutText}
-                        </p>
+                        {aboutText && (
+                            <p className="text-xs text-slate-400 leading-relaxed max-w-sm">{aboutText}</p>
+                        )}
 
-                        <div className="pt-2 flex items-center gap-2 text-xs text-teal-400 font-semibold">
-                            <ShieldCheck className="w-4 h-4 text-teal-400" />
-                            <span>Sri Lanka Medical Council Verified</span>
-                        </div>
                     </div>
 
                     {/* 2. Quick Links */}
@@ -213,15 +201,15 @@ export default function PublicSiteFooter({
                             Opening Hours
                         </h4>
 
-                        <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-1.5 text-xs">
-                            <div className="flex items-center gap-2 text-teal-400 font-bold">
-                                <Clock className="w-4 h-4" />
-                                <span>Clinic Schedule</span>
+                        {openingHours && (
+                            <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-1.5 text-xs">
+                                <div className="flex items-center gap-2 text-teal-400 font-bold">
+                                    <Clock className="w-4 h-4" />
+                                    <span>Clinic Schedule</span>
+                                </div>
+                                <p className="text-[11px] text-slate-300 leading-relaxed">{openingHours}</p>
                             </div>
-                            <p className="text-[11px] text-slate-300 leading-relaxed">
-                                {openingHours}
-                            </p>
-                        </div>
+                        )}
 
                         <div className="pt-1">
                             <Link

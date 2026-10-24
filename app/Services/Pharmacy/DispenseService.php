@@ -115,6 +115,10 @@ class DispenseService
                             ->lockForUpdate()
                             ->findOrFail($batchId);
 
+                        if ($batch->expiry_date && $batch->expiry_date->toDateString() < $today) {
+                            throw new InvalidArgumentException("Batch {$batch->batch_number} has expired on {$batch->expiry_date->format('d/m/Y')} and cannot be dispensed.");
+                        }
+
                         if ($batch->quantity_remaining < $bQty) {
                             throw new InvalidArgumentException("Batch {$batch->batch_number} has only {$batch->quantity_remaining} units remaining, but {$bQty} requested.");
                         }

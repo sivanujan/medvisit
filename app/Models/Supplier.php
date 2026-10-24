@@ -16,9 +16,12 @@ class Supplier extends Model
     protected $fillable = [
         'tenant_id',
         'name',
+        'contact_person',
         'phone',
         'email',
         'address',
+        'city',
+        'payment_terms',
         'notes',
         'is_active',
     ];

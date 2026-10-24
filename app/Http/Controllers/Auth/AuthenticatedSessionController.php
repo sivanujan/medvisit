@@ -10,7 +10,6 @@ use App\Support\RoleRedirect;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
@@ -23,13 +22,21 @@ class AuthenticatedSessionController extends Controller
             || $request->boolean('admin')
             || $request->routeIs('admin.login');
 
+        // Platform admins sign in on their own page, reachable only by its URL.
+        if ($isAdmin) {
+            return Inertia::render('Auth/AdminLogin', [
+                'status' => session('status'),
+                'showDemoCredentials' => app()->environment('local'),
+            ]);
+        }
+
         return Inertia::render('Auth/Login', [
-            'canResetPassword' => Route::has('password.request'),
             'status' => session('status'),
-            'showDemoCredentials' => app()->environment('local'),
             'matchedClinics' => session('matchedClinics'),
             'lookupEmail' => session('lookupEmail'),
-            'initialMode' => $isAdmin ? 'admin' : 'find',
+            'clinicRedirect' => session('clinicRedirect'),
+            // Shown in "yourclinic.<domain>" hints; never the request host (e.g. 127.0.0.1).
+            'publicDomain' => (string) config('medvisit.public_domain', 'medvisit.lk'),
         ]);
     }
 

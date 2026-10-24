@@ -162,7 +162,7 @@ export default function PublicSiteHeader({
     const displayWhatsApp = headerConfig?.whatsapp_number || clinic.whatsapp_number;
     const cleanWhatsApp = displayWhatsApp ? displayWhatsApp.replace(/\D/g, '') : '';
     const showTagline = headerConfig?.show_tagline !== false;
-    const tagline = headerConfig?.tagline || 'Specialist Channeling & Healthcare';
+    const tagline = headerConfig?.tagline || '';
     const ctaText = headerConfig?.cta_text || 'Book a token';
     const ctaLink = headerConfig?.cta_link || '/book';
     const isSticky = headerConfig?.is_sticky !== false;
@@ -194,11 +194,9 @@ export default function PublicSiteHeader({
                 <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                         <span className="flex items-center gap-1.5 text-teal-400 font-medium">
-                            <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse" />
-                            Live Patient Queue Active
+                            <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
+                            Book your token online
                         </span>
-                        <span className="text-slate-600">•</span>
-                        <span className="text-slate-400">SLMC Certified Medical Consultants</span>
                     </div>
 
                     <div className="flex items-center gap-4 text-xs">

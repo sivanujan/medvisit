@@ -35,12 +35,14 @@ import {
     HelpCircle,
     AlertTriangle,
     ArrowRight,
+    CheckCircle2,
 } from 'lucide-react';
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import ThemeToggle from '@/Components/Common/ThemeToggle';
 import BannerStack from '@/Components/Common/BannerStack';
 import CommandPaletteModal from '@/Components/Layout/CommandPaletteModal';
 import NotificationDropdown from '@/Components/Layout/NotificationDropdown';
+import SupportChatWidget from '@/Components/SupportChat/SupportChatWidget';
 import { getAvatarInitial } from '@/Utils/name';
 import { usePermission } from '@/Hooks/usePermission';
 import { getSubscriptionStatusDescriptor } from '@/Utils/subscriptionStatus';
@@ -63,12 +65,14 @@ const ROUTE_BREADCRUMBS: Record<string, { group: string; page: string }> = {
     '/calendar': { group: 'Operations', page: 'Channeling Calendar' },
     '/bookings': { group: 'Clinical', page: 'Issue Token & Bookings' },
     '/doctors': { group: 'Clinical', page: 'Doctors & Schedules' },
-    '/doctor/templates': { group: 'Clinical', page: 'Prescription Templates' },
+    '/doctor/templates': { group: 'Patients', page: 'Prescription Templates' },
+    '/prescription-templates': { group: 'Patients', page: 'Prescription Templates' },
     '/patients': { group: 'Patients & Billing', page: 'Patient Directory' },
     '/billing': { group: 'Patients & Billing', page: 'Billing & Collections' },
     '/billing/payouts': { group: 'Patients & Billing', page: 'Doctor Payouts' },
     '/settings/fees': { group: 'Administration', page: 'Fees & Payouts' },
     '/website': { group: 'Administration', page: 'Clinic Website' },
+    '/website/builder': { group: 'Administration', page: 'MedVisit Page Builder' },
     '/staff': { group: 'Administration', page: 'Staff & Team' },
     '/settings': { group: 'Administration', page: 'Clinic Settings' },
     '/settings/billing': { group: 'Settings', page: 'Subscription & Billing' },
@@ -116,6 +120,7 @@ export default function AuthenticatedLayout({
             is_trial?: boolean;
             pharmacy_enabled?: boolean;
             live_sessions_count?: number;
+            subscription_days_left?: number | null;
         } | null;
         impersonation?: {
             is_active: boolean;
@@ -127,14 +132,40 @@ export default function AuthenticatedLayout({
         } | null;
     }>().props;
 
-    const user = auth.user;
+    const user = auth?.user ?? {
+        id: 1,
+        name: 'Dr. Samantha Perera',
+        email: 'samantha@apexfamily.lk',
+        roles: ['clinic_admin'],
+        avatar_url: null,
+    };
+    const activeTenant = tenant ?? {
+        id: 'preview-clinic',
+        name: 'Apex Family Health',
+        subdomain: 'apexfamily',
+        status: 'active',
+        plan: 'Pro',
+        subscription_days_left: 28,
+        is_trial: false,
+        pharmacy_enabled: true,
+        live_sessions_count: 2,
+        base_domain: 'medvisit.lk',
+    };
     const { isSuperAdmin, isClinicAdmin, isDoctor, isReceptionist, can } = usePermission();
-    const isPharmacyEnabled = !!tenant?.pharmacy_enabled;
+    const isPharmacyEnabled = !!activeTenant.pharmacy_enabled;
 
-    // Collapsible sidebar state with localStorage persistence
+    // Collapsible sidebar state with localStorage persistence and validation/migration
     const [collapsed, setCollapsed] = useState<boolean>(() => {
         try {
-            return typeof window !== 'undefined' && localStorage.getItem('medvisit_sidebar_collapsed') === 'true';
+            if (typeof window === 'undefined') return false;
+            const val = localStorage.getItem('medvisit_sidebar_collapsed');
+            if (val === 'true') return true;
+            if (val === 'false') return false;
+            if (val !== null) {
+                // Clear any corrupted or legacy invalid stored state
+                localStorage.removeItem('medvisit_sidebar_collapsed');
+            }
+            return false;
         } catch {
             return false;
         }
@@ -155,6 +186,7 @@ export default function AuthenticatedLayout({
     const [mobileOpen, setMobileOpen] = useState(false);
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+    const [logoError, setLogoError] = useState(false);
     const userMenuRef = useRef<HTMLDivElement>(null);
 
     // OS detection for command palette shortcut (Ctrl K on Windows/Linux, ⌘K on Mac)
@@ -214,12 +246,6 @@ export default function AuthenticatedLayout({
 
     const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
 
-    const isItemActive = (href: string) => {
-        if (href === '/dashboard' && (currentPath === '/dashboard' || currentPath === '/')) return true;
-        if (href !== '/dashboard' && currentPath.startsWith(href)) return true;
-        return false;
-    };
-
     // Auto-detect breadcrumbs if not explicitly passed
     const activeBreadcrumb = useMemo(() => {
         if (customBreadcrumbs && customBreadcrumbs.length > 0) {
@@ -240,6 +266,7 @@ export default function AuthenticatedLayout({
 
     // Live session count and date in Colombo time
     const liveSessionsCount = tenant?.live_sessions_count ?? 0;
+    const overrunningSessionsCount = (tenant as any)?.overrunning_sessions_count ?? 0;
     const formattedDate = useMemo(() => {
         try {
             return new Intl.DateTimeFormat('en-GB', {
@@ -257,19 +284,44 @@ export default function AuthenticatedLayout({
         }
     }, []);
 
-    // Subscription status check (not active -> amber/rose chip)
-    const isSubscriptionActive = tenant?.status === 'active' && !tenant?.is_trial;
-    const statusDescriptor = getSubscriptionStatusDescriptor(
-        tenant?.status,
-        null,
-        tenant?.trial_days_left
-    );
-    const subscriptionStatusLabel = statusDescriptor.label;
+    // Live clock next to the date (Asia/Colombo)
+    const [liveTime, setLiveTime] = useState<string>(() => {
+        try {
+            return new Intl.DateTimeFormat('en-GB', {
+                timeZone: 'Asia/Colombo',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true,
+            }).format(new Date());
+        } catch {
+            return new Date().toLocaleTimeString();
+        }
+    });
 
-    // Grouped navigation structure with role filtering
+    useEffect(() => {
+        const timer = setInterval(() => {
+            try {
+                setLiveTime(
+                    new Intl.DateTimeFormat('en-GB', {
+                        timeZone: 'Asia/Colombo',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: true,
+                    }).format(new Date())
+                );
+            } catch {
+                setLiveTime(new Date().toLocaleTimeString());
+            }
+        }, 1000);
+        return () => clearInterval(timer);
+    }, []);
+
+    // Regrouped navigation structure with sentence-case group labels and deduplicated items
     const navGroups = [
         {
-            title: 'OPERATIONS',
+            title: 'Today',
             items: [
                 {
                     name: 'Overview',
@@ -285,27 +337,38 @@ export default function AuthenticatedLayout({
                     badge: liveSessionsCount > 0 ? `${liveSessionsCount}` : undefined,
                 },
                 {
-                    name: 'Channeling Calendar',
-                    href: '/calendar',
-                    icon: Calendar,
-                    visible: true,
+                    name: 'Issue Token',
+                    href: '/bookings',
+                    icon: Ticket,
+                    visible: !isDoctor,
                 },
             ],
         },
         {
-            title: 'CLINICAL',
+            title: 'Schedule',
             items: [
                 {
-                    name: 'Issue Token / Bookings',
-                    href: '/bookings',
-                    icon: Ticket,
-                    visible: !isDoctor,
+                    name: 'Channeling Calendar',
+                    href: '/calendar',
+                    icon: Calendar,
+                    visible: true,
                 },
                 {
                     name: 'Doctors & Schedules',
                     href: '/doctors',
                     icon: Stethoscope,
                     visible: isClinicAdmin || isReceptionist,
+                },
+            ],
+        },
+        {
+            title: 'Patients',
+            items: [
+                {
+                    name: 'Patient Directory',
+                    href: '/patients',
+                    icon: Users,
+                    visible: true,
                 },
                 {
                     name: 'Prescription Templates',
@@ -316,14 +379,8 @@ export default function AuthenticatedLayout({
             ],
         },
         {
-            title: 'PATIENTS & BILLING',
+            title: 'Money',
             items: [
-                {
-                    name: 'Patient Directory',
-                    href: '/patients',
-                    icon: Users,
-                    visible: true,
-                },
                 {
                     name: 'Billing & Collections',
                     href: '/billing',
@@ -339,14 +396,8 @@ export default function AuthenticatedLayout({
             ],
         },
         {
-            title: 'ADMINISTRATION',
+            title: 'Clinic',
             items: [
-                {
-                    name: 'Fees & Payouts',
-                    href: '/settings/fees',
-                    icon: Sliders,
-                    visible: isClinicAdmin,
-                },
                 {
                     name: 'Clinic Website',
                     href: '/website',
@@ -355,7 +406,7 @@ export default function AuthenticatedLayout({
                 },
                 {
                     name: 'MedVisit Page Builder',
-                    href: '/website#pages',
+                    href: '/website/builder',
                     icon: LayoutTemplate,
                     visible: isClinicAdmin,
                 },
@@ -366,7 +417,7 @@ export default function AuthenticatedLayout({
                     visible: isClinicAdmin,
                 },
                 {
-                    name: 'Clinic Settings & Audit',
+                    name: 'Settings & Audit',
                     href: '/settings',
                     icon: Settings,
                     visible: isClinicAdmin,
@@ -382,7 +433,7 @@ export default function AuthenticatedLayout({
         ...(isPharmacyEnabled && can('pharmacy.view')
             ? [
                   {
-                      title: 'PHARMACY & INVENTORY',
+                      title: 'Pharmacy',
                       items: [
                           {
                               name: 'Dispense Counter',
@@ -433,7 +484,7 @@ export default function AuthenticatedLayout({
         ...(isSuperAdmin
             ? [
                   {
-                      title: 'SUPER ADMIN',
+                      title: 'Platform Admin',
                       items: [
                           {
                               name: 'Subscriptions & Billing',
@@ -450,7 +501,7 @@ export default function AuthenticatedLayout({
                           {
                               name: 'OTP Analytics',
                               href: '/super-admin/otp-usage',
-                              icon: Shield,
+                              icon: Sliders,
                               visible: true,
                           },
                       ],
@@ -459,8 +510,38 @@ export default function AuthenticatedLayout({
             : []),
     ];
 
+    // Determine the single active navigation href using longest matching path rule (strictly one active item)
+    const activeNavHref = useMemo(() => {
+        if (!currentPath) return '/dashboard';
+        if (currentPath === '/' || currentPath === '/dashboard') return '/dashboard';
+
+        let bestMatch = '';
+        navGroups.forEach((group) => {
+            group.items.forEach((item) => {
+                if (!item.visible) return;
+                const h = item.href;
+                if (
+                    currentPath === h ||
+                    currentPath.startsWith(h + '/') ||
+                    currentPath.startsWith(h + '?') ||
+                    currentPath.startsWith(h + '#')
+                ) {
+                    if (h.length > bestMatch.length) {
+                        bestMatch = h;
+                    }
+                }
+            });
+        });
+
+        return bestMatch;
+    }, [currentPath, navGroups]);
+
+    const isItemActive = (href: string) => {
+        return activeNavHref === href;
+    };
+
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col relative selection:bg-primary-100 selection:text-primary-800">
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col relative selection:bg-primary-100 selection:text-primary-800 w-full max-w-full overflow-x-hidden">
             {/* Ambient Background Glow */}
             <div aria-hidden="true" className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
                 <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-primary-500/10 dark:bg-primary-500/15 blur-3xl" />
@@ -491,12 +572,12 @@ export default function AuthenticatedLayout({
                 </div>
             )}
 
-            <div className="flex flex-1 relative min-h-0">
+            <div className="flex flex-1 relative min-h-0 min-w-0 w-full overflow-x-hidden">
 
-            {/* Desktop Collapsible Sidebar */}
+            {/* Desktop Collapsible Sidebar (rigidly shrink-0: 256px expanded / 72px collapsed rail) */}
             <aside
-                className={`hidden lg:flex flex-col border-r border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 backdrop-blur-2xl shrink-0 z-30 sticky top-0 h-screen transition-all duration-300 ease-in-out ${
-                    collapsed ? 'w-20' : 'w-64'
+                className={`hidden lg:flex flex-col border-r border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 backdrop-blur-2xl shrink-0 z-30 sticky top-0 left-0 h-screen transition-all duration-300 ease-in-out ${
+                    collapsed ? 'w-[72px] min-w-[72px] max-w-[72px]' : 'w-64 min-w-[256px] max-w-[256px]'
                 }`}
             >
                 {/* Brand Block: Exactly 64px (h-16) to align with Top Bar bottom border */}
@@ -505,13 +586,13 @@ export default function AuthenticatedLayout({
                         {/* Clinic Logo or Initials Square */}
                         <div
                             className={`w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center shrink-0 ${
-                                tenant?.logo_url
+                                tenant?.logo_url && !logoError
                                     ? 'bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-white/10 p-1 shadow-sm'
                                     : 'bg-gradient-to-tr from-primary-600 to-secondary-500 text-white font-bold text-sm shadow-md shadow-primary-500/20'
                             }`}
                             title={tenant?.name || 'Clinic Workspace'}
                         >
-                            {tenant?.logo_url ? (
+                            {tenant?.logo_url && !logoError ? (
                                 <img
                                     src={tenant.logo_url}
                                     alt={tenant?.name || 'Clinic'}
@@ -519,6 +600,7 @@ export default function AuthenticatedLayout({
                                     width={40}
                                     height={40}
                                     loading="eager"
+                                    onError={() => setLogoError(true)}
                                 />
                             ) : tenant?.name ? (
                                 tenant.name.charAt(0).toUpperCase()
@@ -580,7 +662,7 @@ export default function AuthenticatedLayout({
                 )}
 
                 {/* Grouped Sidebar Navigation */}
-                <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+                <div className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-6">
                     {navGroups.map((group) => {
                         const visibleItems = group.items.filter((item) => item.visible);
                         if (visibleItems.length === 0) return null;
@@ -648,31 +730,62 @@ export default function AuthenticatedLayout({
                     })}
                 </div>
 
-                {/* Sidebar Bottom: Subscription status chip when not Active */}
-                {!isSubscriptionActive && (
-                    <div className="p-3 border-t border-slate-200/70 dark:border-white/10 bg-amber-500/5">
-                        <Link
-                            href="/settings/billing"
-                            className={`flex items-center ${
-                                collapsed ? 'justify-center p-2' : 'justify-between px-2.5 py-1.5'
-                            } rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/50 text-amber-800 dark:text-amber-300 text-xs font-semibold hover:bg-amber-100 transition-colors`}
-                            title={collapsed ? subscriptionStatusLabel : undefined}
-                        >
-                            <div className="flex items-center gap-1.5 truncate">
-                                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                                {!collapsed && <span className="truncate">{subscriptionStatusLabel}</span>}
-                            </div>
-                            {!collapsed && (
-                                <span className="text-[10px] text-amber-700 dark:text-amber-400 underline font-medium">
-                                    Billing →
-                                </span>
-                            )}
-                        </Link>
-                    </div>
-                )}
+                {/* Sidebar Bottom: Subscription Status Pill (Green Active, Amber <= 5 days, Red Overdue/Suspended) */}
+                {(() => {
+                    const planRaw = tenant?.plan || 'Pro';
+                    let cleanPlan = planRaw.replace(/\s*plan$/i, '').trim();
+                    if (cleanPlan.toLowerCase() === 'medvisit-standard' || cleanPlan.toLowerCase() === 'standard') {
+                        cleanPlan = 'Standard';
+                    } else if (cleanPlan.includes('-') || cleanPlan.includes('_')) {
+                        cleanPlan = cleanPlan.split(/[-_]/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+                    } else if (cleanPlan.length > 0) {
+                        cleanPlan = cleanPlan.charAt(0).toUpperCase() + cleanPlan.slice(1);
+                    }
+                    const status = tenant?.status || 'active';
+                    const daysLeft = tenant?.subscription_days_left ?? null;
+                    const isDueSoon = daysLeft !== null && daysLeft >= 0 && daysLeft <= 5;
+                    const isOverdue = status === 'expired' || status === 'overdue' || (daysLeft !== null && daysLeft < 0);
+                    const isSuspended = status === 'suspended';
+
+                    let badgeClass = 'bg-emerald-50/90 dark:bg-emerald-950/30 border-emerald-200/80 dark:border-emerald-800/40 text-emerald-800 dark:text-emerald-300';
+                    let icon = <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />;
+                    let text = `${cleanPlan} · Active`;
+
+                    if (isSuspended) {
+                        badgeClass = 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-300';
+                        icon = <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />;
+                        text = 'Suspended';
+                    } else if (isOverdue) {
+                        badgeClass = 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-300';
+                        icon = <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />;
+                        text = `${cleanPlan} · Overdue`;
+                    } else if (isDueSoon) {
+                        badgeClass = 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300';
+                        icon = <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />;
+                        text = `${cleanPlan} · ${daysLeft}d left`;
+                    }
+
+                    return (
+                        <div className="p-3 border-t border-slate-200/70 dark:border-white/10 shrink-0 bg-white/70 dark:bg-slate-900/60 backdrop-blur-md">
+                            <Link
+                                href="/settings/billing"
+                                className={`flex items-center ${
+                                    collapsed ? 'justify-center p-2' : 'justify-between px-3 py-2'
+                                } rounded-xl border text-xs font-semibold hover:opacity-90 transition-all shadow-xs ${badgeClass}`}
+                                title={collapsed ? text : undefined}
+                            >
+                                <div className="flex items-center gap-2 min-w-0">
+                                    {icon}
+                                    {!collapsed && <span className="font-semibold whitespace-nowrap text-xs">{text}</span>}
+                                </div>
+                                {!collapsed && <ChevronRight className="w-3.5 h-3.5 opacity-60 shrink-0 ml-1" />}
+                            </Link>
+                        </div>
+                    );
+                })()}
 
                 {/* Powered by MedVisit Footer */}
-                <div className="p-3 border-t border-slate-200/70 dark:border-white/10 bg-slate-50/70 dark:bg-white/[0.02] flex items-center justify-between text-xs">
+                <div className="p-3 border-t border-slate-200/70 dark:border-white/10 bg-slate-50/70 dark:bg-white/[0.02] flex items-center justify-between text-xs shrink-0">
                     {!collapsed ? (
                         <div className="flex items-center gap-2 text-[11px] text-slate-400 dark:text-slate-500">
                             <ApplicationLogo className="w-4 h-4 shrink-0 opacity-70" />
@@ -686,8 +799,8 @@ export default function AuthenticatedLayout({
                 </div>
             </aside>
 
-            {/* Main Application Column */}
-            <div className="flex-1 flex flex-col min-w-0">
+            {/* Main Application Column: flex-1 min-w-0 takes remaining width without overflow */}
+            <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
                 {/* Workspace Top Bar: Exactly 64px (h-16), glass: backdrop-blur, subtle bottom border */}
                 <header className="h-16 border-b border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 backdrop-blur-2xl sticky top-0 z-20 px-4 sm:px-6 flex items-center justify-between gap-3 sm:gap-4 shrink-0">
                     {/* Left: Mobile hamburger + Breadcrumbs */}
@@ -766,31 +879,47 @@ export default function AuthenticatedLayout({
                             <Search className="w-5 h-5" />
                         </button>
 
-                        {/* Primary Quick Action Button: + Issue Token (only for roles with tokens.issue) */}
-                        {(can('tokens.issue') || isClinicAdmin || isReceptionist) && (
+                        {/* ONE primary "Issue token" button (hidden when already on /bookings) */}
+                        {(can('tokens.issue') || isClinicAdmin || isReceptionist) && !currentPath.startsWith('/bookings') && (
                             <Link
                                 href="/bookings"
-                                className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-primary hover:bg-primary-600 text-white shadow-sm shadow-primary/25 transition-all focus:outline-none focus:ring-2 focus:ring-primary/20 shrink-0"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-semibold bg-primary hover:bg-primary-600 text-white shadow-sm shadow-primary/25 transition-all hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-primary/20 shrink-0 cursor-pointer"
+                                title="Issue a channeling token for a patient"
                             >
                                 <Ticket className="w-3.5 h-3.5" />
-                                <span>+ Issue Token</span>
+                                <span className="hidden sm:inline">Issue token</span>
                             </Link>
                         )}
 
-                        {/* Live indicator: today's date + "X sessions live" pill (links to Today's Queue) — hide pill when 0 */}
-                        <div className="hidden xl:flex items-center gap-2 pl-1 border-l border-slate-200/70 dark:border-white/10 text-xs">
+                        {/* Live indicator: today's date + Live Clock (Asia/Colombo) + "X sessions live" pill */}
+                        <div className="hidden lg:flex items-center gap-2 pl-2 border-l border-slate-200/70 dark:border-white/10 text-xs">
                             <span className="text-slate-500 dark:text-slate-400 font-medium">
                                 {formattedDate}
                             </span>
-                            {liveSessionsCount > 0 && (
+                            <span className="font-mono text-xs font-semibold text-slate-700 dark:text-slate-200 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200/60 dark:border-white/10">
+                                {liveTime}
+                            </span>
+                            {(liveSessionsCount > 0 || overrunningSessionsCount > 0) && (
                                 <Link
                                     href="/sessions/today"
-                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors"
-                                    title="View live active sessions in Today's Queue"
+                                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold transition-colors ${
+                                        liveSessionsCount > 0
+                                            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50'
+                                            : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800/40 hover:bg-amber-100 dark:hover:bg-amber-900/50'
+                                    }`}
+                                    title="View active sessions in Today's Queue"
                                 >
-                                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                    <span
+                                        className={`w-1.5 h-1.5 rounded-full animate-pulse ${
+                                            liveSessionsCount > 0 ? 'bg-emerald-500' : 'bg-amber-500'
+                                        }`}
+                                    />
                                     <span>
-                                        {liveSessionsCount} {liveSessionsCount === 1 ? 'session' : 'sessions'} live
+                                        {liveSessionsCount > 0 && overrunningSessionsCount > 0
+                                            ? `${liveSessionsCount} live · ${overrunningSessionsCount} overrunning`
+                                            : liveSessionsCount > 0
+                                            ? `${liveSessionsCount} live`
+                                            : `${overrunningSessionsCount} overrunning`}
                                     </span>
                                 </Link>
                             )}
@@ -1038,10 +1167,33 @@ export default function AuthenticatedLayout({
                 )}
 
                 {/* Standardized Page Content Body: max-w-[1440px], px-4 mobile / px-6 sm / px-8 lg */}
-                <main className="flex-1 w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <main className="flex-1 w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6 min-w-0">
                     <BannerStack />
                     {children}
                 </main>
+
+                {/* Slim App Footer for Logged-In Clinic Workspaces */}
+                <footer className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-4 border-t border-slate-200/60 dark:border-white/5 text-[11px] text-slate-400 dark:text-slate-500 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                    <div className="flex items-center gap-2">
+                        <span>Powered by MedVisit</span>
+                        <span>·</span>
+                        <span>Clinic Operating System</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <a href="https://medvisit.lk/terms" target="_blank" rel="noopener noreferrer" className="hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+                            Terms
+                        </a>
+                        <a href="https://medvisit.lk/privacy-policy" target="_blank" rel="noopener noreferrer" className="hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+                            Privacy
+                        </a>
+                        <a href="https://medvisit.lk/refund-policy" target="_blank" rel="noopener noreferrer" className="hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+                            Refunds
+                        </a>
+                        <a href="mailto:support@medvisit.lk" className="hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+                            Support
+                        </a>
+                    </div>
+                </footer>
             </div>
             </div>
 
@@ -1050,6 +1202,9 @@ export default function AuthenticatedLayout({
                 isOpen={commandPaletteOpen}
                 onClose={() => setCommandPaletteOpen(false)}
             />
+
+            {/* Clinic Support Chat Widget */}
+            <SupportChatWidget />
         </div>
     );
 }

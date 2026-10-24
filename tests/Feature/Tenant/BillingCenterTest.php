@@ -223,7 +223,7 @@ class BillingCenterTest extends TestCase
         $changePlanResponse->assertStatus(403);
     }
 
-    public function test_upgrade_proration_invoice_has_proration_type_and_payment_switches_plan_without_extending_period_end(): void
+    public function test_upgrade_charges_new_plan_full_price_and_starts_new_monthly_period_today(): void
     {
         $tenant = Tenant::factory()->active()->create([
             'id' => 'upgrade-clinic',
@@ -265,21 +265,21 @@ class BillingCenterTest extends TestCase
 
         $this->assertTrue(in_array($response->status(), [302, 409], true));
 
-        // Verify the proration invoice was created
-        $prorationInvoice = SubscriptionInvoice::where('tenant_id', $tenant->id)
-            ->where('type', SubscriptionInvoice::TYPE_PRORATION)
+        // Verify the upgrade invoice was created with full price of the new plan
+        $upgradeInvoice = SubscriptionInvoice::where('tenant_id', $tenant->id)
+            ->latest('id')
             ->first();
 
-        $this->assertNotNull($prorationInvoice);
-        $this->assertSame(SubscriptionInvoice::STATUS_UNPAID, $prorationInvoice->status);
-        $this->assertGreaterThan(0, $prorationInvoice->amount_cents);
+        $this->assertNotNull($upgradeInvoice);
+        $this->assertSame(SubscriptionInvoice::STATUS_UNPAID, $upgradeInvoice->status);
+        $this->assertSame($growthPlan->price_cents, $upgradeInvoice->amount_cents);
 
-        // Process successful payment for proration invoice
+        // Process successful payment for upgrade invoice
         /** @var SubscriptionPaymentService $paymentService */
         $paymentService = app(SubscriptionPaymentService::class);
         $paymentService->processSuccessfulPayment([
-            'reference' => $prorationInvoice->invoice_number,
-            'amount_cents' => $prorationInvoice->amount_cents,
+            'reference' => $upgradeInvoice->invoice_number,
+            'amount_cents' => $upgradeInvoice->amount_cents,
             'currency' => 'LKR',
             'status' => 'succeeded',
             'method' => 'card',
@@ -289,19 +289,20 @@ class BillingCenterTest extends TestCase
             ],
         ]);
 
-        $prorationInvoice->refresh();
+        $upgradeInvoice->refresh();
         $subscription->refresh();
 
         // 1. Invoice is marked paid with a receipt number assigned
-        $this->assertSame(SubscriptionInvoice::STATUS_PAID, $prorationInvoice->status);
-        $this->assertNotNull($prorationInvoice->receipt_number);
-        $this->assertStringStartsWith('RCPT-', $prorationInvoice->receipt_number);
+        $this->assertSame(SubscriptionInvoice::STATUS_PAID, $upgradeInvoice->status);
+        $this->assertNotNull($upgradeInvoice->receipt_number);
+        $this->assertStringStartsWith('RCPT-', $upgradeInvoice->receipt_number);
 
         // 2. Plan is updated immediately to Growth Plan
         $this->assertSame($growthPlan->id, $subscription->plan_id);
 
-        // 3. User Requirement 1: Proration invoices MUST NOT extend current_period_end!
-        $this->assertEquals($periodEnd->toDateTimeString(), $subscription->current_period_end->toDateTimeString());
+        // 3. User Rule: A new period starts today!
+        $this->assertEquals($now->toDateString(), $subscription->current_period_start->toDateString());
+        $this->assertEquals($now->copy()->addMonth()->toDateString(), $subscription->current_period_end->toDateString());
 
         // 4. Payment success email with receipt attached is sent
         Mail::assertQueued(SubscriptionPaymentSuccessMail::class);
@@ -686,5 +687,155 @@ class BillingCenterTest extends TestCase
 
         $unique = array_unique($generated);
         $this->assertCount($count, $unique, 'Receipt numbers must be strictly unique');
+    }
+
+    public function test_billing_email_prefilled_from_tenant_or_admin_and_is_required(): void
+    {
+        $tenant = Tenant::factory()->active()->create([
+            'id' => 'prefill-clinic',
+            'name' => 'Prefill Clinic',
+            'subdomain' => 'prefill',
+            'email' => 'clinic-owner@prefill.lk',
+        ]);
+
+        $admin = User::factory()->clinicAdmin()->create([
+            'tenant_id' => $tenant->id,
+            'email' => 'admin-user@prefill.lk',
+        ]);
+
+        // When visiting Billing Center without existing billing detail, billing_email is prefilled from tenant
+        $response = $this->actingAs($admin)->get("http://prefill.{$this->baseDomain}/settings/billing");
+        $response->assertStatus(200);
+        $response->assertInertia(fn ($page) => $page
+            ->component('Subscription/BillingCenter')
+            ->where('billingDetails.billing_email', 'clinic-owner@prefill.lk')
+            ->where('termsVersion', '2026-10-22')
+            ->has('plans')
+        );
+
+        // Validation requires billing_email
+        $updateResponse = $this->actingAs($admin)->put("http://prefill.{$this->baseDomain}/settings/billing/details", [
+            'legal_name' => 'Prefill Healthcare',
+            'billing_email' => '', // Empty email should fail validation
+        ]);
+        $updateResponse->assertSessionHasErrors(['billing_email']);
+    }
+
+    public function test_cancel_keeps_access_active_and_resume_restores_it(): void
+    {
+        $tenant = Tenant::factory()->active()->create([
+            'id' => 'access-clinic',
+            'name' => 'Access Clinic',
+            'subdomain' => 'access',
+        ]);
+
+        $admin = User::factory()->clinicAdmin()->create([
+            'tenant_id' => $tenant->id,
+            'email' => 'admin@access.lk',
+        ]);
+
+        $standardPlan = Plan::firstOrCreate(
+            ['slug' => 'medvisit-standard'],
+            ['name' => 'MedVisit Standard', 'price_cents' => 500000, 'billing_interval' => 'monthly', 'is_active' => true]
+        );
+
+        $subscription = $tenant->subscription;
+        $periodEnd = Carbon::now()->addDays(15);
+        $subscription->update([
+            'plan_id' => $standardPlan->id,
+            'status' => Subscription::STATUS_ACTIVE,
+            'current_period_end' => $periodEnd,
+        ]);
+
+        // Cancel
+        $this->actingAs($admin)->post("http://access.{$this->baseDomain}/settings/billing/cancel", [
+            'reason' => 'Too expensive',
+            'reason_detail' => 'Budget constraints',
+        ])->assertRedirect();
+
+        $subscription->refresh();
+        $this->assertTrue((bool) $subscription->cancels_at_period_end);
+        $this->assertSame(Subscription::STATUS_CANCELLING, $subscription->status);
+        // Tenant is still considered active until period end
+        $this->assertTrue($subscription->isActive());
+
+        // Resume
+        $this->actingAs($admin)->post("http://access.{$this->baseDomain}/settings/billing/resume")
+            ->assertRedirect();
+
+        $subscription->refresh();
+        $this->assertFalse((bool) $subscription->cancels_at_period_end);
+        $this->assertSame(Subscription::STATUS_ACTIVE, $subscription->status);
+    }
+
+    public function test_change_plan_modal_excludes_inactive_plans_and_handles_downgrade_without_charge(): void
+    {
+        $tenant = Tenant::factory()->active()->create([
+            'id' => 'modal-clinic',
+            'name' => 'Modal Clinic',
+            'subdomain' => 'modal',
+        ]);
+
+        $admin = User::factory()->clinicAdmin()->create([
+            'tenant_id' => $tenant->id,
+            'email' => 'admin@modal.lk',
+        ]);
+
+        // Ensure active config plans exist
+        $basicPlan = Plan::firstOrCreate(
+            ['slug' => 'basic'],
+            ['name' => 'Basic', 'price_cents' => 700000, 'billing_interval' => 'monthly', 'is_active' => true]
+        );
+        $proPlan = Plan::firstOrCreate(
+            ['slug' => 'pro'],
+            ['name' => 'Pro', 'price_cents' => 900000, 'billing_interval' => 'monthly', 'is_active' => true]
+        );
+        $advancedPlan = Plan::firstOrCreate(
+            ['slug' => 'advanced'],
+            ['name' => 'Advanced', 'price_cents' => 1500000, 'billing_interval' => 'monthly', 'is_active' => true]
+        );
+
+        // Ensure an inactive legacy plan exists
+        Plan::firstOrCreate(
+            ['slug' => 'medvisit-standard'],
+            ['name' => 'MedVisit Standard', 'price_cents' => 500000, 'billing_interval' => 'monthly', 'is_active' => false]
+        );
+
+        $subscription = $tenant->subscription;
+        $periodEnd = Carbon::now()->addDays(20);
+        $subscription->update([
+            'plan_id' => $proPlan->id,
+            'status' => Subscription::STATUS_ACTIVE,
+            'current_period_end' => $periodEnd,
+        ]);
+
+        // 1. Modal plan list excludes inactive plans
+        $response = $this->actingAs($admin)->get("http://modal.{$this->baseDomain}/settings/billing");
+        $response->assertStatus(200);
+        $response->assertInertia(function ($page) {
+            $plans = $page->toArray()['props']['plans'];
+            $slugs = array_column($plans, 'slug');
+            $this->assertContains('basic', $slugs);
+            $this->assertContains('pro', $slugs);
+            $this->assertContains('advanced', $slugs);
+            $this->assertNotContains('medvisit-standard', $slugs);
+            $this->assertNotContains('comp', $slugs);
+        });
+
+        // 2. Downgrade takes effect at period end and does not charge today
+        $invoicesCountBefore = SubscriptionInvoice::where('tenant_id', $tenant->id)->count();
+
+        $downgradeResponse = $this->actingAs($admin)->post("http://modal.{$this->baseDomain}/settings/billing/downgrade", [
+            'plan_id' => $basicPlan->id,
+        ]);
+        $downgradeResponse->assertRedirect();
+
+        $subscription->refresh();
+        $this->assertSame($basicPlan->id, $subscription->pending_plan_id);
+        $this->assertSame($proPlan->id, $subscription->plan_id); // stays on Pro until period end
+
+        // No new invoice is created for downgrade
+        $invoicesCountAfter = SubscriptionInvoice::where('tenant_id', $tenant->id)->count();
+        $this->assertSame($invoicesCountBefore, $invoicesCountAfter, 'Downgrade must not create an invoice or charge today');
     }
 }

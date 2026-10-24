@@ -11,7 +11,7 @@ export function GlassLabel({
     return (
         <label
             htmlFor={htmlFor}
-            className={`block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1.5 ${className}`}
+            className={`block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 ${className}`}
             {...props}
         >
             {children}

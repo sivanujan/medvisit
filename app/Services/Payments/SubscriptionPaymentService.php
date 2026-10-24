@@ -161,34 +161,55 @@ class SubscriptionPaymentService
                 return true;
             }
 
-            // 2. REGULAR SUBSCRIPTION INVOICES:
-            // Check if there is a pending downgrade scheduled for renewal
-            if ($subscription->pending_plan_id) {
+            // 2. REGULAR SUBSCRIPTION OR UPGRADE INVOICES:
+            $upgradePlanId = $invoice->billing_details['new_plan_id'] ?? null;
+            if ($upgradePlanId) {
                 $oldPlan = $subscription->plan;
-                $newPlan = Plan::find($subscription->pending_plan_id);
+                $newPlan = Plan::find($upgradePlanId);
 
-                $subscription->plan_id = $subscription->pending_plan_id;
+                $subscription->plan_id = $upgradePlanId;
                 $subscription->pending_plan_id = null;
 
-                AuditLogger::log('subscription.plan_downgraded_applied', [
+                AuditLogger::log('subscription.plan_upgraded', [
                     'tenant_id' => $subscription->tenant_id,
                     'old_plan' => $oldPlan?->name,
                     'new_plan' => $newPlan?->name,
+                    'invoice_number' => $invoice->invoice_number,
+                    'amount_cents' => $invoice->amount_cents,
                 ]);
-            }
 
-            // If clinic is trialing, paid period starts after trial ends!
-            if ($subscription->trial_ends_at && $subscription->trial_ends_at->isFuture()) {
-                $newStart = $subscription->trial_ends_at;
-                $newEnd = $subscription->trial_ends_at->copy()->addMonth();
+                // User Rule: Upgrade = pay new plan price now, and a new period starts today!
+                $newStart = $now;
+                $newEnd = $now->copy()->addMonth();
             } else {
-                $currentEnd = $subscription->current_period_end;
-                if ($currentEnd && $currentEnd->isFuture()) {
-                    $newEnd = $currentEnd->copy()->addMonth();
-                    $newStart = $subscription->current_period_start ?? $now;
+                // Check if there is a pending downgrade scheduled for renewal
+                if ($subscription->pending_plan_id) {
+                    $oldPlan = $subscription->plan;
+                    $newPlan = Plan::find($subscription->pending_plan_id);
+
+                    $subscription->plan_id = $subscription->pending_plan_id;
+                    $subscription->pending_plan_id = null;
+
+                    AuditLogger::log('subscription.plan_downgraded_applied', [
+                        'tenant_id' => $subscription->tenant_id,
+                        'old_plan' => $oldPlan?->name,
+                        'new_plan' => $newPlan?->name,
+                    ]);
+                }
+
+                // If clinic is trialing, paid period starts after trial ends!
+                if ($subscription->trial_ends_at && $subscription->trial_ends_at->isFuture()) {
+                    $newStart = $subscription->trial_ends_at;
+                    $newEnd = $subscription->trial_ends_at->copy()->addMonth();
                 } else {
-                    $newStart = $now;
-                    $newEnd = $now->copy()->addMonth();
+                    $currentEnd = $subscription->current_period_end;
+                    if ($currentEnd && $currentEnd->isFuture()) {
+                        $newEnd = $currentEnd->copy()->addMonth();
+                        $newStart = $subscription->current_period_start ?? $now;
+                    } else {
+                        $newStart = $now;
+                        $newEnd = $now->copy()->addMonth();
+                    }
                 }
             }
 

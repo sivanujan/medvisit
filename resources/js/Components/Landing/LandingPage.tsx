@@ -12,6 +12,7 @@ import SriLankaStrip from './SriLankaStrip';
 import PricingPreview from './PricingPreview';
 import LandingFaq from './LandingFaq';
 import FinalCta from './FinalCta';
+import SupportChatWidget from '@/Components/SupportChat/SupportChatWidget';
 import './landing.css';
 
 interface Props {
@@ -56,6 +57,7 @@ export default function LandingPage({ canLogin = true, canRegister = false }: Pr
             </main>
 
             <LegalFooter className="mt-20" />
+            <SupportChatWidget />
         </div>
     );
 }

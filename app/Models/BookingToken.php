@@ -32,6 +32,8 @@ class BookingToken extends Model
 
     public const STATUS_MOVED = 'moved';
 
+    public const STATUS_SKIPPED = 'skipped';
+
     protected $fillable = [
         'tenant_id',
         'doctor_session_id',
@@ -43,6 +45,7 @@ class BookingToken extends Model
         'moved_at',
         'move_reason',
         'booked_via',
+        'source',
         'checked_in_at',
         'called_at',
         'completed_at',
@@ -52,6 +55,7 @@ class BookingToken extends Model
         'notes',
         'visit_type_id',
         'fee_snapshot',
+        'fee_snapshot_backup',
         'payout_status',
         'doctor_settlement_id',
     ];
@@ -67,6 +71,7 @@ class BookingToken extends Model
             'cancelled_at' => 'datetime',
             'moved_at' => 'datetime',
             'fee_snapshot' => 'array',
+            'fee_snapshot_backup' => 'array',
         ];
     }
 

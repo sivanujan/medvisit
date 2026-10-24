@@ -32,10 +32,7 @@ class TenantNewPasswordController extends Controller
         return Inertia::render('Auth/ResetPassword', [
             'email' => $request->email,
             'token' => $request->route('token'),
-            'tenant' => [
-                'name' => $tenant->name,
-                'subdomain' => $tenant->subdomain,
-            ],
+            'tenant' => $tenant->authBranding(),
         ]);
     }
 

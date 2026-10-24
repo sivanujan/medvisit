@@ -21,6 +21,7 @@ import {
     FileText,
     ArrowUpRight,
     TrendingUp,
+    Check,
 } from 'lucide-react';
 
 interface SettlementItem {
@@ -97,6 +98,7 @@ interface Props {
         phone: string;
         address: string;
     };
+    hideClinicShare?: boolean;
 }
 
 export default function DoctorPayouts({
@@ -108,6 +110,7 @@ export default function DoctorPayouts({
     sessions,
     summary,
     clinicInfo,
+    hideClinicShare = false,
 }: Props) {
     const [startDate, setStartDate] = useState(filters.start_date);
     const [endDate, setEndDate] = useState(filters.end_date);
@@ -341,18 +344,33 @@ export default function DoctorPayouts({
                         </div>
                     </GlassCard>
 
-                    <GlassCard className="p-4 border-l-4 border-l-primary">
-                        <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                            <Building2 className="w-3.5 h-3.5 text-primary" />
-                            Clinic Retained Share
-                        </div>
-                        <div className="text-xl font-black text-primary mt-1">
-                            {summary.clinic_share_formatted}
-                        </div>
-                        <div className="text-[10px] text-slate-400 mt-1">
-                            Channeling & facility margins
-                        </div>
-                    </GlassCard>
+                    {!hideClinicShare ? (
+                        <GlassCard className="p-4 border-l-4 border-l-primary">
+                            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                                <Building2 className="w-3.5 h-3.5 text-primary" />
+                                Clinic Retained Share
+                            </div>
+                            <div className="text-xl font-black text-primary mt-1">
+                                {summary.clinic_share_formatted}
+                            </div>
+                            <div className="text-[10px] text-slate-400 mt-1">
+                                Channeling & facility margins
+                            </div>
+                        </GlassCard>
+                    ) : (
+                        <GlassCard className="p-4 border-l-4 border-l-teal-500">
+                            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                                <Check className="w-3.5 h-3.5 text-teal-600" />
+                                Disbursed / Paid
+                            </div>
+                            <div className="text-xl font-black text-teal-600 dark:text-teal-400 mt-1">
+                                {summary.paid_amount_formatted}
+                            </div>
+                            <div className="text-[10px] text-slate-400 mt-1">
+                                Received doctor payouts
+                            </div>
+                        </GlassCard>
+                    )}
 
                     <GlassCard className="p-4 border-l-4 border-l-amber-500">
                         <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
@@ -407,7 +425,7 @@ export default function DoctorPayouts({
                                         <th className="py-3 px-4">No-Shows</th>
                                         <th className="py-3 px-4">Gross Collected</th>
                                         <th className="py-3 px-4">Doctor Payout Due</th>
-                                        <th className="py-3 px-4">Clinic Margin</th>
+                                        {!hideClinicShare && <th className="py-3 px-4">Clinic Margin</th>}
                                         <th className="py-3 px-4">Status</th>
                                         {!isDoctorRole && <th className="py-3 px-4 text-right">Action</th>}
                                     </tr>
@@ -415,7 +433,7 @@ export default function DoctorPayouts({
                                 <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                                     {sessions.length === 0 ? (
                                         <tr>
-                                            <td colSpan={9} className="py-8 text-center text-slate-400 text-xs">
+                                            <td colSpan={hideClinicShare ? (isDoctorRole ? 7 : 8) : (isDoctorRole ? 8 : 9)} className="py-8 text-center text-slate-400 text-xs">
                                                 No channeling sessions found in this date range.
                                             </td>
                                         </tr>
@@ -440,14 +458,16 @@ export default function DoctorPayouts({
                                                     {sess.no_shows}
                                                 </td>
                                                 <td className="py-3 px-4 font-semibold text-slate-900 dark:text-white">
-                                                    Rs. {sess.gross_collected_lkr.toFixed(2)}
+                                                    Rs. {((sess.gross_collected_lkr ?? (sess as any).consultation_gross_lkr) ?? 0).toFixed(2)}
                                                 </td>
                                                 <td className="py-3 px-4 font-bold text-emerald-600 dark:text-emerald-400">
-                                                    Rs. {sess.doctor_payout_lkr.toFixed(2)}
+                                                    Rs. {((sess.doctor_payout_lkr ?? (sess as any).doctor_share_lkr) ?? 0).toFixed(2)}
                                                 </td>
-                                                <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
-                                                    Rs. {sess.clinic_share_lkr.toFixed(2)}
-                                                </td>
+                                                {!hideClinicShare && (
+                                                    <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
+                                                        Rs. {(sess.clinic_share_lkr ?? 0).toFixed(2)}
+                                                    </td>
+                                                )}
                                                 <td className="py-3 px-4">
                                                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
                                                         sess.is_settled
@@ -459,7 +479,7 @@ export default function DoctorPayouts({
                                                 </td>
                                                 {!isDoctorRole && (
                                                     <td className="py-3 px-4 text-right">
-                                                        {!sess.is_settled && sess.doctor_payout_lkr > 0 && (
+                                                        {!sess.is_settled && ((sess.doctor_payout_lkr ?? (sess as any).doctor_share_lkr) ?? 0) > 0 && (
                                                             <button
                                                                 type="button"
                                                                 onClick={() => openSettleSession(sess)}
@@ -523,10 +543,10 @@ export default function DoctorPayouts({
                                                     {s.doctor_payout_formatted}
                                                 </td>
                                                 <td className="py-3 px-4 font-semibold text-emerald-600 dark:text-emerald-400">
-                                                    Rs. {s.paid_amount_lkr.toFixed(2)}
+                                                    Rs. {(s.paid_amount_lkr ?? 0).toFixed(2)}
                                                 </td>
                                                 <td className="py-3 px-4 font-semibold text-amber-600">
-                                                    Rs. {s.balance_due_lkr.toFixed(2)}
+                                                    Rs. {(s.balance_due_lkr ?? 0).toFixed(2)}
                                                 </td>
                                                 <td className="py-3 px-4">
                                                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
@@ -613,13 +633,13 @@ export default function DoctorPayouts({
                         <div>
                             <span className="text-[10px] font-bold text-slate-400 uppercase">Gross Channeling</span>
                             <div className="text-sm font-bold text-slate-900 dark:text-white">
-                                Rs. {settlementForm.data.gross_collected_lkr.toFixed(2)}
+                                Rs. {(Number(settlementForm.data.gross_collected_lkr) || 0).toFixed(2)}
                             </div>
                         </div>
                         <div>
                             <span className="text-[10px] font-bold text-emerald-600 uppercase">Doctor Payout Due</span>
                             <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                                Rs. {settlementForm.data.doctor_payout_amount_lkr.toFixed(2)}
+                                Rs. {(Number(settlementForm.data.doctor_payout_amount_lkr) || 0).toFixed(2)}
                             </div>
                         </div>
                     </div>
@@ -691,7 +711,7 @@ export default function DoctorPayouts({
                 isOpen={isRecordPaymentOpen}
                 onClose={() => setIsRecordPaymentOpen(false)}
                 title="Record Settlement Payment"
-                subtitle={selectedSettlementForPayment ? `Settlement ${selectedSettlementForPayment.settlement_number} - Balance: Rs. ${selectedSettlementForPayment.balance_due_lkr.toFixed(2)}` : ''}
+                subtitle={selectedSettlementForPayment ? `Settlement ${selectedSettlementForPayment.settlement_number} - Balance: Rs. ${(selectedSettlementForPayment.balance_due_lkr ?? 0).toFixed(2)}` : ''}
                 maxWidth="max-w-md"
             >
                 <form onSubmit={handlePaymentSubmit} className="space-y-4">
@@ -810,10 +830,12 @@ export default function DoctorPayouts({
                                             <td className="py-2 px-3 font-sans">Total Gross Channeling Receipts</td>
                                             <td className="py-2 px-3 text-right font-bold">{slipData.settlement.gross_collected_formatted}</td>
                                         </tr>
-                                        <tr>
-                                            <td className="py-2 px-3 font-sans">Clinic Facility & Service Margin</td>
-                                            <td className="py-2 px-3 text-right text-slate-500">(-) {slipData.settlement.clinic_amount_formatted}</td>
-                                        </tr>
+                                        {!hideClinicShare && (
+                                            <tr>
+                                                <td className="py-2 px-3 font-sans">Clinic Facility & Service Margin</td>
+                                                <td className="py-2 px-3 text-right text-slate-500">(-) {slipData.settlement.clinic_amount_formatted}</td>
+                                            </tr>
+                                        )}
                                         <tr className="bg-emerald-50/50 font-bold">
                                             <td className="py-2 px-3 font-sans text-emerald-900">Total Doctor Payout Entitlement</td>
                                             <td className="py-2 px-3 text-right text-emerald-900">{slipData.settlement.doctor_payout_formatted}</td>

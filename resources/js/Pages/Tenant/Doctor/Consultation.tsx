@@ -428,6 +428,15 @@ export default function Consultation({
             return;
         }
 
+        // Record template usage in background
+        fetch(`/doctor/templates/${tpl.id}/apply`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
+                'Accept': 'application/json',
+            },
+        }).catch(() => {});
+
         const templateItems: PrescriptionItemState[] = tpl.items.map((it) => ({
             clinic_medicine_id: it.clinic_medicine_id,
             medicine_variant_id: it.medicine_variant_id,

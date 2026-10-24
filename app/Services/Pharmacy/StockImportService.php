@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Pharmacy;
 
+use App\Models\AuditEvent;
 use App\Models\ClinicMedicine;
 use App\Models\Medicine;
 use App\Models\MedicineBarcode;
@@ -23,7 +24,7 @@ class StockImportService
     ) {}
 
     /**
-     * Expected CSV headers.
+     * Canonical CSV/Excel headers.
      *
      * @var array<string>
      */
@@ -45,7 +46,126 @@ class StockImportService
     ];
 
     /**
-     * Generate sample CSV template content with 2 batches of the same medicine.
+     * Header synonyms for smart auto-detection.
+     *
+     * @var array<string, array<string>>
+     */
+    public const SYNONYMS = [
+        'barcode' => ['barcode', 'bar_code', 'upc', 'ean', 'sku'],
+        'generic_name' => ['generic_name', 'generic', 'drug_name', 'medicine_name', 'drug', 'item_name', 'item', 'medicine', 'name'],
+        'strength' => ['strength', 'dose', 'dosage', 'potency', 'strength_text'],
+        'dosage_form' => ['dosage_form', 'form', 'type', 'presentation', 'formulation'],
+        'brand_name' => ['brand_name', 'brand', 'trade_name', 'commercial_name'],
+        'manufacturer' => ['manufacturer', 'mfg', 'maker', 'company', 'producer'],
+        'batch_number' => ['batch_number', 'batch', 'batch_no', 'lot', 'lot_number', 'lot_no', 'batch_id', 'lot_id'],
+        'expiry_date' => ['expiry_date', 'expiry', 'exp_date', 'exp', 'expiration', 'expiration_date', 'valid_till', 'best_before'],
+        'quantity' => ['quantity', 'qty', 'units', 'stock_qty', 'count', 'amount'],
+        'base_unit' => ['base_unit', 'unit', 'uom', 'pack_unit'],
+        'cost_price' => ['cost_price', 'cost', 'unit_cost', 'purchase_price', 'buying_price', 'buy_price'],
+        'selling_price' => ['selling_price', 'sell_price', 'mrp', 'retail_price', 'price'],
+        'supplier_name' => ['supplier_name', 'supplier', 'vendor', 'distributor'],
+        'invoice_number' => ['invoice_number', 'invoice_no', 'invoice', 'bill_no', 'bill_number', 'receipt_no', 'inv_no'],
+    ];
+
+    /**
+     * Parse date strictly prioritizing Sri Lankan / International DD/MM format.
+     * Handles DD/MM/YYYY, DD.MM.YYYY, DD-MM-YYYY, YYYY-MM-DD, and Excel serial dates.
+     * "05/06/2027" is strictly parsed as 5th June 2027 (DD/MM), NEVER US MM/DD.
+     */
+    public static function parseSriLankanDate(mixed $raw): ?string
+    {
+        if ($raw === null) {
+            return null;
+        }
+
+        $raw = trim((string) $raw);
+        if ($raw === '') {
+            return null;
+        }
+
+        // 1. Excel serial number: integers between 20000 and 80000 (approx 1954 to 2119)
+        if (is_numeric($raw) && (float) $raw >= 20000 && (float) $raw <= 80000 && ! str_contains($raw, '-') && ! str_contains($raw, '/') && ! str_contains($raw, '.')) {
+            return Carbon::create(1899, 12, 30)->addDays((int) floor((float) $raw))->toDateString();
+        }
+
+        // 2. ISO format: YYYY-MM-DD, YYYY/MM/DD, YYYY.MM.DD
+        if (preg_match('/^(\d{4})[-\/\.](\d{1,2})[-\/\.](\d{1,2})$/', $raw, $m)) {
+            $year = (int) $m[1];
+            $month = (int) $m[2];
+            $day = (int) $m[3];
+            if (checkdate($month, $day, $year)) {
+                return sprintf('%04d-%02d-%02d', $year, $month, $day);
+            }
+        }
+
+        // 3. Strict Sri Lankan DD/MM priority: DD/MM/YYYY, DD.MM.YYYY, DD-MM-YYYY
+        // Example: 05/06/2027 => day 5, month 6 (5 June 2027)
+        if (preg_match('/^(\d{1,2})[-\/\.](\d{1,2})[-\/\.](\d{2,4})$/', $raw, $m)) {
+            $day = (int) $m[1];
+            $month = (int) $m[2];
+            $year = (int) $m[3];
+            if ($year < 100) {
+                $year += 2000;
+            }
+            if (checkdate($month, $day, $year)) {
+                return sprintf('%04d-%02d-%02d', $year, $month, $day);
+            }
+        }
+
+        // 4. Fallback attempt via Carbon
+        try {
+            return Carbon::parse($raw)->toDateString();
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * Automatically map uploaded headers to canonical fields using exact matches & synonyms.
+     *
+     * @param  array<string>  $uploadedHeaders
+     * @return array<string, string> Canonical field => uploaded header name
+     */
+    public function autoMapHeaders(array $uploadedHeaders): array
+    {
+        $normalizedUploaded = [];
+        foreach ($uploadedHeaders as $orig) {
+            $cleaned = strtolower(trim(preg_replace('/[^a-zA-Z0-9_]/', '_', (string) $orig) ?? ''));
+            $cleaned = trim(preg_replace('/_+/', '_', $cleaned) ?? '', '_');
+            $normalizedUploaded[$cleaned] = (string) $orig;
+        }
+
+        $mapping = [];
+        foreach (self::HEADERS as $canonicalField) {
+            $matchedHeader = null;
+
+            // 1. Direct exact match
+            if (isset($normalizedUploaded[$canonicalField])) {
+                $matchedHeader = $normalizedUploaded[$canonicalField];
+            } else {
+                // 2. Check synonyms
+                $synonyms = self::SYNONYMS[$canonicalField] ?? [];
+                foreach ($synonyms as $synonym) {
+                    if (isset($normalizedUploaded[$synonym])) {
+                        $matchedHeader = $normalizedUploaded[$synonym];
+                        break;
+                    }
+                }
+            }
+
+            if ($matchedHeader !== null) {
+                $mapping[$canonicalField] = $matchedHeader;
+            }
+        }
+
+        return $mapping;
+    }
+
+    /**
+     * Generate sample CSV template content with 3 realistic example rows:
+     * 1. Opening stock row (no supplier/invoice)
+     * 2. Supplier invoice row 1 (GRN)
+     * 3. Supplier invoice row 2 (same invoice/medicine, separate batch)
      */
     public function generateTemplateCsv(): string
     {
@@ -67,11 +187,12 @@ class StockImportService
     }
 
     /**
-     * Generate sample Excel (.xlsx) template content with 2 batches of the same medicine.
+     * Generate sample Excel (.xlsx) template content with 3 example rows and a "How to fill" instruction sheet.
      */
     public function generateTemplateXlsx(): string
     {
         $rows = $this->getTemplateSampleRows();
+        $guideRows = $this->getHowToFillRows();
         $tempFile = tempnam(sys_get_temp_dir(), 'xlsx_');
 
         $zip = new \ZipArchive;
@@ -83,6 +204,7 @@ class StockImportService
   <Default Extension="xml" ContentType="application/xml"/>
   <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
   <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
 </Types>';
 
         $rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -93,38 +215,43 @@ class StockImportService
         $wbRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>
 </Relationships>';
 
         $workbook = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <sheets>
     <sheet name="Stock Template" sheetId="1" r:id="rId1"/>
+    <sheet name="How to fill" sheetId="2" r:id="rId2"/>
   </sheets>
 </workbook>';
 
-        $sheetXml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n";
-        $sheetXml .= "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">\n";
-        $sheetXml .= "<sheetData>\n";
-
-        foreach ($rows as $rIdx => $row) {
-            $rowNum = $rIdx + 1;
-            $sheetXml .= '<row r="'.$rowNum.'">'."\n";
-            foreach ($row as $cIdx => $val) {
-                $colLetter = chr(65 + $cIdx);
-                $cellRef = $colLetter.$rowNum;
-                $escaped = htmlspecialchars((string) $val, ENT_XML1, 'UTF-8');
-                $sheetXml .= '<c r="'.$cellRef.'" t="inlineStr"><is><t>'.$escaped."</t></is></c>\n";
+        $renderSheet = function (array $sheetRows): string {
+            $xml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n";
+            $xml .= "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">\n";
+            $xml .= "<sheetData>\n";
+            foreach ($sheetRows as $rIdx => $row) {
+                $rowNum = $rIdx + 1;
+                $xml .= '<row r="'.$rowNum.'">'."\n";
+                foreach ($row as $cIdx => $val) {
+                    $colLetter = chr(65 + $cIdx);
+                    $cellRef = $colLetter.$rowNum;
+                    $escaped = htmlspecialchars((string) $val, ENT_XML1, 'UTF-8');
+                    $xml .= '<c r="'.$cellRef.'" t="inlineStr"><is><t>'.$escaped."</t></is></c>\n";
+                }
+                $xml .= "</row>\n";
             }
-            $sheetXml .= "</row>\n";
-        }
+            $xml .= '</sheetData></worksheet>';
 
-        $sheetXml .= '</sheetData></worksheet>';
+            return $xml;
+        };
 
         $zip->addFromString('[Content_Types].xml', $contentTypes);
         $zip->addFromString('_rels/.rels', $rels);
         $zip->addFromString('xl/_rels/workbook.xml.rels', $wbRels);
         $zip->addFromString('xl/workbook.xml', $workbook);
-        $zip->addFromString('xl/worksheets/sheet1.xml', $sheetXml);
+        $zip->addFromString('xl/worksheets/sheet1.xml', $renderSheet($rows));
+        $zip->addFromString('xl/worksheets/sheet2.xml', $renderSheet($guideRows));
         $zip->close();
 
         $content = (string) file_get_contents($tempFile);
@@ -134,7 +261,10 @@ class StockImportService
     }
 
     /**
-     * Standard rows for template (headers + 2 rows of same medicine with different batches).
+     * Standard 3 example rows for template:
+     * Row 1: Opening stock (no supplier, no invoice)
+     * Row 2: Supplier invoice (GRN batch 1)
+     * Row 3: Same supplier invoice (separate batch of the same medicine)
      *
      * @return array<array<string>>
      */
@@ -142,6 +272,22 @@ class StockImportService
     {
         return [
             self::HEADERS,
+            [
+                '',
+                'Paracetamol',
+                '500 mg',
+                'Tablet',
+                'Panadol',
+                'GSK Sri Lanka',
+                'PND-1044',
+                '2027-08-31',
+                '100',
+                'tablet',
+                '2.50',
+                '4.00',
+                '',
+                '',
+            ],
             [
                 '',
                 'Metformin',
@@ -178,16 +324,57 @@ class StockImportService
     }
 
     /**
-     * Parse and preview uploaded CSV or XLSX file with auto-matching.
+     * Instruction rows for the "How to fill" sheet in the Excel template.
      *
+     * @return array<array<string>>
+     */
+    public function getHowToFillRows(): array
+    {
+        return [
+            ['Column Name', 'Required?', 'Accepted Format / Options', 'Description & Sri Lanka Context Rules'],
+            ['generic_name', 'Required', 'Text (e.g. Paracetamol, Metformin)', 'Active ingredient name. Matched against clinic catalog or created if new.'],
+            ['strength', 'Required', 'Text (e.g. 500 mg, 850 mg, 250 mg/5ml)', 'Dosage strength of the item.'],
+            ['dosage_form', 'Optional', 'Tablet, Capsule, Syrup, Injection, Cream, etc.', 'Defaults to Tablet if left blank.'],
+            ['brand_name', 'Optional', 'Text (e.g. Panadol, Glucophage)', 'Commercial/trade brand name.'],
+            ['manufacturer', 'Optional', 'Text (e.g. GSK, Merck, SPMC)', 'Pharmaceutical manufacturer name.'],
+            ['batch_number', 'Required', 'Text (e.g. B001, LOT-492)', 'Manufacturer batch number. Use "N/A" if untracked.'],
+            ['expiry_date', 'Required', 'DD/MM/YYYY, YYYY-MM-DD, DD.MM.YYYY', 'Must be in future. 05/06/2027 is read as 5 June 2027 (DD/MM priority).'],
+            ['quantity', 'Required', 'Positive whole number (e.g. 100)', 'Number of base units received.'],
+            ['base_unit', 'Optional', 'tablet, capsule, bottle, vial, ampoule', 'Unit of measurement. Defaults to tablet.'],
+            ['cost_price', 'Optional', 'Decimal rupees (e.g. 12.50)', 'Cost per unit in Sri Lankan Rupees (LKR).'],
+            ['selling_price', 'Optional', 'Decimal rupees (e.g. 18.00)', 'Patient retail price in LKR. Defaults to cost + 30% if blank.'],
+            ['supplier_name', 'Optional', 'Text (e.g. State Pharmaceuticals)', 'Leave blank for Opening Stock. Provide with invoice for a GRN.'],
+            ['invoice_number', 'Optional', 'Text (e.g. INV-9921, BILL-402)', 'Supplier invoice/bill number. Groups rows into GRN receipts.'],
+        ];
+    }
+
+    /**
+     * Parse and preview uploaded CSV or XLSX file with auto-matching, re-import checks, and duplicate warnings.
+     *
+     * @param  array<string, string>|null  $customMapping
      * @return array{
      *     total_rows: int,
      *     valid_count: int,
+     *     warning_count: int,
      *     error_count: int,
+     *     new_medicines_count: int,
+     *     existing_medicines_count: int,
+     *     batches_count: int,
+     *     opening_stock_count: int,
+     *     grn_groups_count: int,
+     *     total_units: int,
+     *     total_cost_cents: int,
+     *     headers: array<string>,
+     *     sample_rows: array<array<string>>,
+     *     auto_mapping: array<string, string>,
+     *     file_hash: string,
+     *     is_duplicate_file: bool,
+     *     duplicate_file_info: ?array<string, mixed>,
+     *     duplicate_invoices: array<string>,
      *     preview: array<mixed>
      * }
      */
-    public function parseAndPreview(UploadedFile $file, string $tenantId): array
+    public function parseAndPreview(UploadedFile $file, string $tenantId, ?array $customMapping = null): array
     {
         if ($file->getSize() > 5 * 1024 * 1024) {
             throw new InvalidArgumentException('Uploaded file exceeds maximum allowed size of 5 MB.');
@@ -214,15 +401,83 @@ class StockImportService
             throw new InvalidArgumentException('File has no header row.');
         }
 
-        // Normalize header row
-        $normalizedHeader = array_map(fn ($h) => strtolower(trim((string) $h)), $header);
-        $headerMap = array_flip($normalizedHeader);
+        $detectedHeaders = array_values(array_filter(array_map('trim', $header), fn ($h) => $h !== ''));
+        $autoMapping = $this->autoMapHeaders($detectedHeaders);
+        $effectiveMapping = $customMapping ?: $autoMapping;
+
+        // Build header index map from original header row
+        $rawHeaderMap = [];
+        foreach ($header as $idx => $name) {
+            $cleanName = trim((string) $name);
+            if ($cleanName !== '') {
+                $rawHeaderMap[$cleanName] = $idx;
+            }
+        }
+
+        // Compute file hash & check re-import protection
+        $fileHash = hash_file('sha256', $path) ?: md5_file($path);
+        $duplicateAudit = DB::table('audit_events')
+            ->where('tenant_id', $tenantId)
+            ->where('action', 'stock.imported')
+            ->where('metadata->file_hash', $fileHash)
+            ->latest()
+            ->first();
+
+        $isDuplicateFile = $duplicateAudit !== null;
+        $duplicateFileInfo = $duplicateAudit ? [
+            'imported_at' => $duplicateAudit->created_at,
+            'metadata' => json_decode((string) $duplicateAudit->metadata, true),
+        ] : null;
+
+        // Sample first 3 data rows for mapping preview
+        $sampleRows = [];
+        $sampleCount = 0;
+        foreach ($rawRows as $r) {
+            if (! empty(array_filter($r, fn ($v) => trim((string) $v) !== ''))) {
+                $sampleRows[] = array_map(fn ($v) => trim((string) $v), $r);
+                $sampleCount++;
+                if ($sampleCount >= 3) {
+                    break;
+                }
+            }
+        }
+
+        // Collect all invoice numbers to detect existing duplicates in DB
+        $allInvoices = [];
+        foreach ($rawRows as $row) {
+            $invHeader = $effectiveMapping['invoice_number'] ?? null;
+            if ($invHeader && isset($rawHeaderMap[$invHeader])) {
+                $inv = trim((string) ($row[$rawHeaderMap[$invHeader]] ?? ''));
+                if ($inv !== '') {
+                    $allInvoices[$inv] = true;
+                }
+            }
+        }
+
+        $existingInvoicesList = [];
+        if (! empty($allInvoices)) {
+            $existingInvoicesList = DB::table('stock_receipts')
+                ->where('tenant_id', $tenantId)
+                ->where('status', '!=', 'voided')
+                ->whereIn('invoice_number', array_keys($allInvoices))
+                ->pluck('invoice_number')
+                ->toArray();
+        }
+        $existingInvoicesMap = array_flip($existingInvoicesList);
 
         $previewRows = [];
         $rowCount = 0;
         $maxRows = 2000;
         $validCount = 0;
+        $warningCount = 0;
         $errorCount = 0;
+        $newMedicinesCount = 0;
+        $existingMedicinesCount = 0;
+        $batchesCount = 0;
+        $openingStockCount = 0;
+        $grnGroups = [];
+        $totalUnits = 0;
+        $totalCostCents = 0;
 
         foreach ($rawRows as $row) {
             if ($rowCount >= $maxRows) {
@@ -237,15 +492,41 @@ class StockImportService
 
             $rowData = [];
             foreach (self::HEADERS as $field) {
-                $colIdx = $headerMap[$field] ?? null;
+                $mappedColName = $effectiveMapping[$field] ?? null;
+                $colIdx = $mappedColName !== null ? ($rawHeaderMap[$mappedColName] ?? null) : null;
                 $rowData[$field] = $colIdx !== null && isset($row[$colIdx]) ? trim((string) $row[$colIdx]) : '';
             }
 
-            $parsedRow = $this->matchAndValidateRow($rowData, $tenantId, $rowCount);
+            $parsedRow = $this->matchAndValidateRow($rowData, $tenantId, $rowCount, $existingInvoicesMap);
+
             if ($parsedRow['status'] === 'error') {
                 $errorCount++;
             } else {
                 $validCount++;
+                if (! empty($parsedRow['warnings'])) {
+                    $warningCount++;
+                }
+
+                $qty = (int) ($parsedRow['data']['quantity'] ?? 0);
+                $cost = (int) ($parsedRow['data']['cost_price_cents'] ?? 0);
+                $totalUnits += $qty;
+                $totalCostCents += ($qty * $cost);
+                $batchesCount++;
+
+                if ($parsedRow['status'] === 'new_medicine') {
+                    $newMedicinesCount++;
+                } else {
+                    $existingMedicinesCount++;
+                }
+
+                $supp = trim((string) ($parsedRow['data']['supplier_name'] ?? ''));
+                $inv = trim((string) ($parsedRow['data']['invoice_number'] ?? ''));
+                if ($supp === '' && $inv === '') {
+                    $openingStockCount++;
+                } else {
+                    $suppKey = ($supp ?: 'General').'___'.($inv ?: 'Opening');
+                    $grnGroups[$suppKey] = true;
+                }
             }
 
             $previewRows[] = $parsedRow;
@@ -254,7 +535,22 @@ class StockImportService
         return [
             'total_rows' => count($previewRows),
             'valid_count' => $validCount,
+            'warning_count' => $warningCount,
             'error_count' => $errorCount,
+            'new_medicines_count' => $newMedicinesCount,
+            'existing_medicines_count' => $existingMedicinesCount,
+            'batches_count' => $batchesCount,
+            'opening_stock_count' => $openingStockCount,
+            'grn_groups_count' => count($grnGroups),
+            'total_units' => $totalUnits,
+            'total_cost_cents' => $totalCostCents,
+            'headers' => $detectedHeaders,
+            'sample_rows' => $sampleRows,
+            'auto_mapping' => $autoMapping,
+            'file_hash' => $fileHash,
+            'is_duplicate_file' => $isDuplicateFile,
+            'duplicate_file_info' => $duplicateFileInfo,
+            'duplicate_invoices' => array_values(array_unique($existingInvoicesList)),
             'preview' => $previewRows,
         ];
     }
@@ -377,52 +673,51 @@ class StockImportService
      * Match a single row against catalog and validate fields.
      *
      * @param  array<string, string>  $row
+     * @param  array<string, int>  $existingInvoicesMap
      * @return array<string, mixed>
      */
-    protected function matchAndValidateRow(array $row, string $tenantId, int $rowNumber): array
+    protected function matchAndValidateRow(array $row, string $tenantId, int $rowNumber, array $existingInvoicesMap = []): array
     {
         $errors = [];
+        $warnings = [];
 
         // Required fields
-        if ($row['generic_name'] === '') {
+        if (trim($row['generic_name']) === '') {
             $errors[] = 'Generic name is required';
         }
-        if ($row['strength'] === '') {
+        if (trim($row['strength']) === '') {
             $errors[] = 'Strength is required';
         }
-        $qty = (int) $row['quantity'];
-        if ($qty <= 0) {
-            $errors[] = 'Quantity must be greater than zero';
+
+        $rawQty = trim((string) ($row['quantity'] ?? ''));
+        $qty = (int) $rawQty;
+        if ($rawQty === '' || ! is_numeric($rawQty) || $qty <= 0) {
+            $errors[] = 'Quantity must be a positive whole number';
         }
 
         // Batch number required (allow N/A)
-        if (trim($row['batch_number']) === '') {
+        $batchNumber = trim((string) ($row['batch_number'] ?? ''));
+        if ($batchNumber === '') {
             $errors[] = 'Batch number is required (use "N/A" if none)';
         }
 
-        // Parse and validate Expiry Date (must be in future)
+        // Parse and validate Expiry Date (strict DD/MM priority for Sri Lanka context)
+        $rawExpiry = trim((string) ($row['expiry_date'] ?? ''));
         $expiryDate = null;
-        if (trim($row['expiry_date']) === '') {
+        if ($rawExpiry === '') {
             $errors[] = 'Expiry date is required';
         } else {
-            $rawExpiry = trim($row['expiry_date']);
-            try {
-                if (is_numeric($rawExpiry) && (int) $rawExpiry > 20000 && (int) $rawExpiry < 80000) {
-                    // Excel serial date integer
-                    $expiryDate = Carbon::create(1899, 12, 30)->addDays((int) $rawExpiry)->toDateString();
-                } elseif (str_contains($rawExpiry, '/')) {
-                    $expiryDate = Carbon::createFromFormat('d/m/Y', $rawExpiry)->toDateString();
-                } elseif (str_contains($rawExpiry, '.')) {
-                    $expiryDate = Carbon::createFromFormat('d.m.Y', $rawExpiry)->toDateString();
-                } else {
-                    $expiryDate = Carbon::parse($rawExpiry)->toDateString();
-                }
-
-                if ($expiryDate <= now()->toDateString()) {
+            $expiryDate = self::parseSriLankanDate($rawExpiry);
+            if (! $expiryDate) {
+                $errors[] = 'Invalid expiry date format (use DD/MM/YYYY, YYYY-MM-DD, or DD.MM.YYYY)';
+            } else {
+                $today = now()->toDateString();
+                if ($expiryDate <= $today) {
                     $errors[] = 'Expiry date must be in the future (already-expired stock is rejected)';
+                } elseif ($expiryDate < now()->addDays(90)->toDateString()) {
+                    $daysRemaining = (int) now()->diffInDays(Carbon::parse($expiryDate));
+                    $warnings[] = "Near expiry: expires in {$daysRemaining} days (under 90 days)";
                 }
-            } catch (\Throwable) {
-                $errors[] = 'Invalid expiry date format (use YYYY-MM-DD, DD/MM/YYYY, or DD.MM.YYYY)';
             }
         }
 
@@ -432,16 +727,25 @@ class StockImportService
 
         if ($costPriceRupees < 0 || $sellingPriceRupees < 0) {
             $errors[] = 'Prices cannot be negative';
+        } elseif ($sellingPriceRupees > 0 && $costPriceRupees > $sellingPriceRupees) {
+            $warnings[] = sprintf('Selling price (Rs. %.2f) is below cost price (Rs. %.2f)', $sellingPriceRupees, $costPriceRupees);
         }
 
-        $dosageForm = ! empty($row['dosage_form']) ? ucfirst(strtolower($row['dosage_form'])) : 'Tablet';
-        $brandName = $row['brand_name'] ?: null;
-        $barcode = $row['barcode'] ?: null;
+        // Check duplicate invoice warning
+        $invoiceNum = trim((string) ($row['invoice_number'] ?? ''));
+        if ($invoiceNum !== '' && isset($existingInvoicesMap[$invoiceNum])) {
+            $warnings[] = "Invoice #{$invoiceNum} was already imported in an earlier GRN. Re-importing may duplicate stock.";
+        }
 
-        // Matching strategy
+        $dosageForm = ! empty($row['dosage_form']) ? ucfirst(strtolower(trim($row['dosage_form']))) : 'Tablet';
+        $brandName = trim((string) ($row['brand_name'] ?? '')) ?: null;
+        $barcode = trim((string) ($row['barcode'] ?? '')) ?: null;
+
+        // Matching strategy against catalog and existing clinic stock
         $matchType = 'none';
         $matchedVariant = null;
         $matchedBrand = null;
+        $existingClinicMedicine = null;
 
         // 1. Try barcode match
         if ($barcode) {
@@ -462,7 +766,7 @@ class StockImportService
             $brandRecord = MedicineBrand::with('variant.medicine')
                 ->whereRaw('LOWER(brand_name) = ?', [strtolower($brandName)])
                 ->whereHas('variant', function ($vq) use ($row) {
-                    $vq->whereRaw('LOWER(strength_text) = ?', [strtolower($row['strength'])]);
+                    $vq->whereRaw('LOWER(strength_text) = ?', [strtolower(trim($row['strength']))]);
                 })
                 ->visibleToTenant($tenantId)
                 ->first();
@@ -475,9 +779,9 @@ class StockImportService
         }
 
         // 3. Try Generic + Strength + DosageForm match
-        if (! $matchedVariant && $row['generic_name'] !== '') {
+        if (! $matchedVariant && trim($row['generic_name']) !== '') {
             $variantRecord = MedicineVariant::with('medicine')
-                ->whereRaw('LOWER(strength_text) = ?', [strtolower($row['strength'])])
+                ->whereRaw('LOWER(strength_text) = ?', [strtolower(trim($row['strength']))])
                 ->whereRaw('LOWER(dosage_form) = ?', [strtolower($dosageForm)])
                 ->whereHas('medicine', function ($mq) use ($row) {
                     $mq->whereRaw('LOWER(normalized_name) = ?', [strtolower(trim($row['generic_name']))]);
@@ -491,28 +795,43 @@ class StockImportService
             }
         }
 
+        // Check if existing ClinicMedicine already registered
+        if ($matchedVariant) {
+            $existingClinicMedicine = ClinicMedicine::where('tenant_id', $tenantId)
+                ->where('medicine_variant_id', $matchedVariant->id)
+                ->when($matchedBrand, fn ($q) => $q->where('medicine_brand_id', $matchedBrand->id))
+                ->first();
+        }
+
+        if (! $matchedVariant) {
+            $warnings[] = 'Unmatched catalog medicine: will be created as a new clinic catalog entry';
+        }
+
         $status = ! empty($errors) ? 'error' : ($matchedVariant ? 'matched' : 'new_medicine');
 
         return [
             'row_index' => $rowNumber,
             'status' => $status,
             'match_type' => $matchType,
+            'is_existing_medicine' => $existingClinicMedicine !== null,
+            'existing_clinic_medicine_id' => $existingClinicMedicine?->id,
             'errors' => $errors,
+            'warnings' => $warnings,
             'data' => [
                 'barcode' => $barcode,
-                'generic_name' => $row['generic_name'],
-                'strength' => $row['strength'],
+                'generic_name' => trim($row['generic_name']),
+                'strength' => trim($row['strength']),
                 'dosage_form' => $dosageForm,
                 'brand_name' => $brandName,
-                'manufacturer' => $row['manufacturer'] ?: null,
-                'batch_number' => $row['batch_number'] ?: 'N/A',
+                'manufacturer' => trim((string) ($row['manufacturer'] ?? '')) ?: null,
+                'batch_number' => $batchNumber ?: 'N/A',
                 'expiry_date' => $expiryDate,
                 'quantity' => $qty,
-                'base_unit' => strtolower($row['base_unit'] ?: 'tablet'),
+                'base_unit' => strtolower(trim((string) ($row['base_unit'] ?? 'tablet')) ?: 'tablet'),
                 'cost_price_cents' => (int) round($costPriceRupees * 100),
                 'selling_price_cents' => (int) round($sellingPriceRupees * 100),
-                'supplier_name' => $row['supplier_name'] ?: null,
-                'invoice_number' => $row['invoice_number'] ?: null,
+                'supplier_name' => trim((string) ($row['supplier_name'] ?? '')) ?: null,
+                'invoice_number' => $invoiceNum ?: null,
             ],
             'matched' => $matchedVariant ? [
                 'variant_id' => $matchedVariant->id,
@@ -531,12 +850,15 @@ class StockImportService
      *
      * @param  array<array<string, mixed>>  $rows
      */
-    public function executeImport(array $rows, User $user, string $tenantId): array
+    public function executeImport(array $rows, User $user, string $tenantId, ?string $fileHash = null, ?string $fileName = null): array
     {
-        return DB::transaction(function () use ($rows, $user, $tenantId) {
+        return DB::transaction(function () use ($rows, $user, $tenantId, $fileHash, $fileName) {
             $createdMedicines = 0;
             $createdBatches = 0;
             $createdReceipts = 0;
+            $openingStockCount = 0;
+            $totalInventoryValueCents = 0;
+            $createdReceiptRecords = [];
 
             $groupedByGrn = [];
             $openingStockItems = [];
@@ -674,9 +996,14 @@ class StockImportService
                 );
 
                 $grnItems = [];
+                $grnTotalCents = 0;
                 foreach ($grnGroup['items'] as $itemWrapper) {
                     $clinicMedicine = $resolveClinicMedicine($itemWrapper);
                     $item = $itemWrapper['data'] ?? $itemWrapper;
+                    $qty = (int) $item['quantity'];
+                    $costCents = (int) $item['cost_price_cents'];
+                    $grnTotalCents += ($qty * $costCents);
+                    $totalInventoryValueCents += ($qty * $costCents);
 
                     $grnItems[] = [
                         'clinic_medicine_id' => $clinicMedicine->id,
@@ -684,23 +1011,31 @@ class StockImportService
                         'base_unit' => $item['base_unit'] ?? 'tablet',
                         'batch_number' => $item['batch_number'] ?? 'N/A',
                         'expiry_date' => $item['expiry_date'] ?? null,
-                        'quantity' => (int) $item['quantity'],
-                        'cost_price_cents' => (int) $item['cost_price_cents'],
+                        'quantity' => $qty,
+                        'cost_price_cents' => $costCents,
                         'selling_price_cents' => (int) $item['selling_price_cents'],
                     ];
                 }
 
                 if (! empty($grnItems)) {
-                    $this->stockService->receiveStock([
+                    $receipt = $this->stockService->receiveStock([
                         'supplier_id' => $supplier->id,
                         'invoice_number' => $grnGroup['invoice_number'],
                         'received_date' => now()->toDateString(),
-                        'notes' => 'Bulk imported from file',
+                        'notes' => 'Bulk imported from file'.($fileName ? " ({$fileName})" : ''),
                         'items' => $grnItems,
                     ], $user, $tenantId);
 
                     $createdReceipts++;
                     $createdBatches += count($grnItems);
+                    $createdReceiptRecords[] = [
+                        'id' => $receipt->id,
+                        'receipt_number' => $receipt->receipt_number,
+                        'supplier_name' => $supplier->name,
+                        'invoice_number' => $grnGroup['invoice_number'],
+                        'items_count' => count($grnItems),
+                        'total_cost_cents' => $grnTotalCents,
+                    ];
                 }
             }
 
@@ -708,24 +1043,53 @@ class StockImportService
             foreach ($openingStockItems as $itemWrapper) {
                 $clinicMedicine = $resolveClinicMedicine($itemWrapper);
                 $item = $itemWrapper['data'] ?? $itemWrapper;
+                $qty = (int) $item['quantity'];
+                $costCents = (int) $item['cost_price_cents'];
+                $totalInventoryValueCents += ($qty * $costCents);
 
                 $this->stockService->recordOpeningStock($clinicMedicine, [
                     [
                         'batch_number' => $item['batch_number'] ?? 'N/A',
                         'expiry_date' => $item['expiry_date'],
-                        'quantity' => (int) $item['quantity'],
-                        'cost_price_cents' => (int) $item['cost_price_cents'],
+                        'quantity' => $qty,
+                        'cost_price_cents' => $costCents,
                     ],
                 ], $user, $tenantId);
 
                 $createdBatches++;
+                $openingStockCount++;
             }
+
+            // Record audit event for re-import protection and import history
+            AuditEvent::create([
+                'tenant_id' => $tenantId,
+                'user_id' => $user->id,
+                'action' => 'stock.imported',
+                'resource_type' => 'StockImport',
+                'resource_id' => (string) $createdReceipts,
+                'metadata' => [
+                    'file_hash' => $fileHash,
+                    'file_name' => $fileName,
+                    'total_rows' => count($rows),
+                    'created_medicines' => $createdMedicines,
+                    'created_batches' => $createdBatches,
+                    'created_receipts' => $createdReceipts,
+                    'opening_stock_batches' => $openingStockCount,
+                    'total_value_cents' => $totalInventoryValueCents,
+                    'receipts' => $createdReceiptRecords,
+                ],
+                'created_at' => now(),
+            ]);
 
             return [
                 'success' => true,
+                'total_imported' => count($rows),
                 'created_medicines' => $createdMedicines,
                 'created_receipts' => $createdReceipts,
                 'created_batches' => $createdBatches,
+                'opening_stock_batches' => $openingStockCount,
+                'total_value_cents' => $totalInventoryValueCents,
+                'receipt_records' => $createdReceiptRecords,
             ];
         });
     }

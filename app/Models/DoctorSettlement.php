@@ -20,6 +20,8 @@ class DoctorSettlement extends Model
 
     public const STATUS_PAID = 'paid';
 
+    public const STATUS_VOIDED = 'voided';
+
     protected $fillable = [
         'tenant_id',
         'doctor_id',
@@ -34,7 +36,13 @@ class DoctorSettlement extends Model
         'doctor_payout_amount',
         'clinic_amount',
         'paid_amount',
+        'adjustments_total',
         'payment_status',
+        'is_legacy',
+        'is_voided',
+        'void_reason',
+        'voided_at',
+        'voided_by',
         'payment_method',
         'payment_reference',
         'paid_at',
@@ -55,9 +63,28 @@ class DoctorSettlement extends Model
             'doctor_payout_amount' => 'integer',
             'clinic_amount' => 'integer',
             'paid_amount' => 'integer',
+            'adjustments_total' => 'integer',
+            'is_legacy' => 'boolean',
+            'is_voided' => 'boolean',
             'paid_at' => 'datetime',
+            'voided_at' => 'datetime',
             'metadata' => 'array',
         ];
+    }
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(PayoutSettlementItem::class, 'doctor_settlement_id');
+    }
+
+    public function adjustments(): HasMany
+    {
+        return $this->hasMany(SettlementAdjustment::class, 'doctor_settlement_id');
+    }
+
+    public function voidedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'voided_by');
     }
 
     public function doctor(): BelongsTo

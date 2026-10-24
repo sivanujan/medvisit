@@ -68,14 +68,17 @@ class SettingsAndAuditTest extends TestCase
         $response->assertOk();
     }
 
-    public function test_admin_can_update_clinic_profile_with_proper_capitalization(): void
+    public function test_admin_can_update_clinic_profile_with_exact_display_name_and_structured_address(): void
     {
         $url = "http://suwasetha.{$this->baseDomain}/settings/profile";
 
         $response = $this->actingAs($this->adminUser)->put($url, [
-            'name' => 'suwasetha specialty hospital & heart center',
+            'name' => 'Suwasetha Specialty Hospital & Heart Center',
             'phone' => '+94 11 987 6543',
-            'address' => 'No. 45, Hospital Road, Colombo 05',
+            'address_line' => 'No. 45, Hospital Road',
+            'city' => 'Colombo 05',
+            'district' => 'Colombo',
+            'postal_code' => '00500',
             'registration_number' => 'PHSRC/COL/2026/112',
             'logo_url' => 'https://suwasetha.lk/logo.png',
         ]);
@@ -85,6 +88,10 @@ class SettingsAndAuditTest extends TestCase
         $this->tenant->refresh();
         $this->assertEquals('Suwasetha Specialty Hospital & Heart Center', $this->tenant->name);
         $this->assertEquals('+94 11 987 6543', $this->tenant->phone);
+        $this->assertEquals('No. 45, Hospital Road', $this->tenant->address_line);
+        $this->assertEquals('Colombo 05', $this->tenant->city);
+        $this->assertEquals('Colombo', $this->tenant->district);
+        $this->assertEquals('00500', $this->tenant->postal_code);
         $this->assertEquals('PHSRC/COL/2026/112', $this->tenant->registration_number);
 
         $this->assertDatabaseHas('audit_events', [
@@ -172,6 +179,72 @@ class SettingsAndAuditTest extends TestCase
         $response = $this->actingAs($this->receptionistUser)->put($url, [
             'name' => 'Attempted Change',
         ]);
+
+        $response->assertForbidden();
+    }
+
+    public function test_section_urls_render_successfully(): void
+    {
+        $sections = ['profile', 'branding', 'hours', 'sessions', 'booking', 'prescriptions', 'billing', 'receipts', 'pharmacy', 'directory', 'audit'];
+
+        foreach ($sections as $section) {
+            $url = "http://suwasetha.{$this->baseDomain}/settings/{$section}";
+            $response = $this->actingAs($this->adminUser)->get($url);
+            $response->assertOk();
+        }
+    }
+
+    public function test_admin_can_update_billing_settings_including_clinic_share_visibility(): void
+    {
+        $url = "http://suwasetha.{$this->baseDomain}/settings/billing";
+
+        $response = $this->actingAs($this->adminUser)->put($url, [
+            'billing_timing' => 'pay_at_issue',
+            'receipt_prefix' => 'BIL',
+            'tax_percentage' => 2.5,
+            'accepted_methods' => ['cash', 'card', 'bank_transfer'],
+            'show_clinic_share_to_doctors' => true,
+        ]);
+
+        $response->assertRedirect();
+
+        $this->tenant->refresh();
+        $this->assertEquals('BIL', $this->tenant->receipt_prefix);
+        $this->assertEquals(2.5, $this->tenant->tax_percentage);
+        $this->assertTrue((bool) ($this->tenant->fee_settings['show_clinic_share_to_doctors'] ?? false));
+    }
+
+    public function test_admin_can_export_audit_trail_csv_and_action_is_logged(): void
+    {
+        AuditEvent::create([
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $this->adminUser->id,
+            'action' => 'token.issued',
+            'resource_type' => 'booking_token',
+            'resource_id' => '15',
+            'metadata' => ['token_number' => 15, 'doctor_name' => 'Dr. K. Sivalingam'],
+            'ip_address' => '127.0.0.1',
+            'created_at' => Carbon::now('Asia/Colombo'),
+        ]);
+
+        $url = "http://suwasetha.{$this->baseDomain}/settings/audit/export";
+
+        $response = $this->actingAs($this->adminUser)->get($url);
+
+        $response->assertOk();
+        $this->assertEquals('text/csv; charset=UTF-8', $response->headers->get('content-type'));
+
+        $this->assertDatabaseHas('audit_events', [
+            'tenant_id' => $this->tenant->id,
+            'action' => 'audit.exported',
+        ]);
+    }
+
+    public function test_receptionist_cannot_export_audit_trail(): void
+    {
+        $url = "http://suwasetha.{$this->baseDomain}/settings/audit/export";
+
+        $response = $this->actingAs($this->receptionistUser)->get($url);
 
         $response->assertForbidden();
     }

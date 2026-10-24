@@ -19,7 +19,10 @@ class PrescriptionTemplate extends Model
         'doctor_id',
         'name',
         'description',
+        'condition_tags',
         'is_shared',
+        'usage_count',
+        'last_used_at',
         'created_by',
     ];
 
@@ -27,7 +30,16 @@ class PrescriptionTemplate extends Model
     {
         return [
             'is_shared' => 'boolean',
+            'condition_tags' => 'array',
+            'usage_count' => 'integer',
+            'last_used_at' => 'datetime',
         ];
+    }
+
+    public function recordUsage(): void
+    {
+        $this->increment('usage_count');
+        $this->update(['last_used_at' => now()]);
     }
 
     public function doctor(): BelongsTo

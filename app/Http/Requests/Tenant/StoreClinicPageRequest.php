@@ -11,9 +11,9 @@ class StoreClinicPageRequest extends FormRequest
 {
     /**
      * Template keys; keep in sync with getTemplateHtml in
-     * resources/js/Pages/Website/PageBuilder.tsx.
+     * resources/js/Pages/Website/PageBuilder.tsx and the website editor starter layouts.
      */
-    public const TEMPLATE_KEYS = ['modern-clinic', 'specialist-center', 'family-practice'];
+    public const TEMPLATE_KEYS = ['modern-clinic', 'specialist-center', 'family-practice', 'blank', 'text-image', 'faq'];
 
     public function authorize(): bool
     {

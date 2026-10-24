@@ -14,6 +14,56 @@ export const PAGE_TEMPLATES: { key: string; label: string }[] = [
 ];
 
 export function getTemplateHtml(templateId: string, tenant: TemplateTenant): string {
+    if (templateId === 'blank') {
+        return '';
+    }
+
+    if (templateId === 'text-image') {
+        return `
+            <article style="max-width: 900px; margin: 40px auto; padding: 0 20px; font-family: ui-sans-serif, system-ui, sans-serif;">
+                <header style="margin-bottom: 32px;">
+                    <h1 style="font-size: 2.25rem; font-weight: 700; color: #0f172a; margin-bottom: 12px; line-height: 1.25;">Information &amp; Guidance</h1>
+                    <p style="font-size: 1.1rem; color: #64748b; line-height: 1.6;">Essential details for patients and visitors.</p>
+                </header>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 32px; align-items: start; margin-bottom: 32px;">
+                    <div style="color: #334155; line-height: 1.7; font-size: 1rem;">
+                        <p style="margin-bottom: 16px;">Welcome to our patient resources. We are dedicated to providing timely healthcare information and clear guidance for your visit.</p>
+                        <p style="margin-bottom: 16px;">Please arrive 15 minutes before your scheduled appointment time to complete registration and vital checks at the front desk.</p>
+                    </div>
+                    <div style="background: #f1f5f9; border: 1px dashed #cbd5e1; border-radius: 16px; padding: 40px 20px; text-align: center; color: #64748b;">
+                        <span style="font-size: 2rem; display: block; margin-bottom: 8px;">📷</span>
+                        <p style="margin: 0; font-size: 0.9rem;">Add an illustrative photo or diagram in the visual builder.</p>
+                    </div>
+                </div>
+            </article>
+        `;
+    }
+
+    if (templateId === 'faq') {
+        return `
+            <section style="max-width: 800px; margin: 40px auto; padding: 0 20px; font-family: ui-sans-serif, system-ui, sans-serif;">
+                <header style="text-align: center; margin-bottom: 36px;">
+                    <h1 style="font-size: 2.25rem; font-weight: 700; color: #0f172a; margin-bottom: 12px;">Frequently Asked Questions</h1>
+                    <p style="font-size: 1.05rem; color: #64748b;">Find answers to common questions about clinic appointments and services.</p>
+                </header>
+                <div data-mv-widget="faq" style="border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden;">
+                    <details style="padding: 18px 22px; border-bottom: 1px solid #e2e8f0; background: #ffffff;">
+                        <summary style="font-weight: 600; color: #0f172a; cursor: pointer;">How do I book an appointment online?</summary>
+                        <p style="margin: 10px 0 0 0; color: #64748b; font-size: 0.95rem; line-height: 1.6;">You can browse our doctors and upcoming sessions on the home page and reserve an online token in a few clicks.</p>
+                    </details>
+                    <details style="padding: 18px 22px; border-bottom: 1px solid #e2e8f0; background: #ffffff;">
+                        <summary style="font-weight: 600; color: #0f172a; cursor: pointer;">What should I bring to my consultation?</summary>
+                        <p style="margin: 10px 0 0 0; color: #64748b; font-size: 0.95rem; line-height: 1.6;">Please bring your National Identity Card (NIC) or passport, any previous medical records, and your current medications.</p>
+                    </details>
+                    <details style="padding: 18px 22px; background: #ffffff;">
+                        <summary style="font-weight: 600; color: #0f172a; cursor: pointer;">Can I cancel or reschedule my token?</summary>
+                        <p style="margin: 10px 0 0 0; color: #64748b; font-size: 0.95rem; line-height: 1.6;">Yes, use the cancellation link in your SMS confirmation or contact the reception hotline before your scheduled session.</p>
+                    </details>
+                </div>
+            </section>
+        `;
+    }
+
     if (templateId === 'specialist-center') {
         return `
             <!-- Specialist Suites Header -->

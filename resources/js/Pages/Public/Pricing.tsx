@@ -280,10 +280,10 @@ export default function Pricing({ config = defaultPublicConfig }: Props) {
                         Subscriptions are billed monthly in advance in LKR through our secure payment partner. We accept Visa and Mastercard.
                     </li>
                     <li>
-                        Your subscription renews automatically each month until you cancel.
+                        Your subscription renews monthly; you pay each month online. Access is paused if payment is not made within 3 days after the due date.
                     </li>
                     <li>
-                        You can cancel anytime from the Billing page in your clinic dashboard. Access continues until the end of the period you have already paid for.
+                        We email you payment reminders 7 days and 1 day before each due date. You can cancel anytime from the Billing page in your clinic dashboard. Access continues until the end of the period you have already paid for.
                     </li>
                     <li>
                         Prices may change in the future. We will notify you by email at least 30 days before any change applies to your subscription.

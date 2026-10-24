@@ -554,9 +554,17 @@ class PublicBookingController extends Controller
             ]);
         }
 
+        // Determine if booked via directory
+        $source = null;
+        if ($request->hasSession() && $request->session()->get('booking_source') === 'directory') {
+            $source = 'directory';
+        } elseif ($request->input('source') === 'directory') {
+            $source = 'directory';
+        }
+
         // 3. Concurrency-safe atomic token assignment
         try {
-            $token = DB::transaction(function () use ($validated, $patient, $tenantId) {
+            $token = DB::transaction(function () use ($validated, $patient, $tenantId, $source) {
                 $session = DoctorSession::with('doctor')
                     ->where('id', $validated['doctor_session_id'])
                     ->lockForUpdate()
@@ -597,6 +605,7 @@ class PublicBookingController extends Controller
                     'estimated_time' => $estimatedTime,
                     'status' => BookingToken::STATUS_BOOKED,
                     'booked_via' => 'online',
+                    'source' => $source,
                     'signed_cancel_token' => $signedCode,
                     'fee_snapshot' => $snapshot,
                     'payout_status' => 'pending',
@@ -667,6 +676,10 @@ class PublicBookingController extends Controller
             secure: false,
             httpOnly: false
         );
+
+        if ($request->hasSession()) {
+            $request->session()->forget('booking_source');
+        }
 
         if ($request->wantsJson()) {
             return response()->json([

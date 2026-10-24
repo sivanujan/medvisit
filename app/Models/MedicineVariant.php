@@ -20,6 +20,10 @@ class MedicineVariant extends Model
 
     public const STATUS_REJECTED = 'rejected';
 
+    public const SOURCE_RXTERMS = 'rxterms';
+
+    public const SOURCE_CLINIC = 'clinic';
+
     protected $fillable = [
         'medicine_id',
         'strength_text',
@@ -53,6 +57,11 @@ class MedicineVariant extends Model
     public function createdByTenant(): BelongsTo
     {
         return $this->belongsTo(Tenant::class, 'created_by_tenant_id');
+    }
+
+    public function clinicMedicines(): HasMany
+    {
+        return $this->hasMany(ClinicMedicine::class, 'medicine_variant_id');
     }
 
     /**

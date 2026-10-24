@@ -1,12 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Head, useForm, router, Link, usePage } from '@inertiajs/react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { PageHeader } from '@/Components/UI/PageHeader';
 import { GlassCard } from '@/Components/UI/GlassCard';
 import { GlassModal } from '@/Components/UI/GlassModal';
-import { PhoneInput } from '@/Components/UI/PhoneInput';
-import GlassSelect from '@/Components/UI/GlassSelect';
-import { EmptyState } from '@/Components/UI/EmptyState';
 import {
     Ticket,
     Search,
@@ -17,21 +15,24 @@ import {
     Calendar,
     Clock,
     CheckCircle2,
-    XCircle,
     Plus,
-    Building2,
-    ShieldCheck,
-    Tag,
-    AlertCircle,
-    Sparkles,
-    ArrowRight,
-    CreditCard,
     ChevronRight,
-    Filter,
+    ChevronLeft,
+    Check,
+    Lock,
+    Sparkles,
+    AlertCircle,
+    User,
     ArrowRightLeft,
+    X,
+    RotateCcw,
+    Tv,
+    HelpCircle,
+    DollarSign,
+    Shield,
+    Phone,
 } from 'lucide-react';
-import AssignDoctorDrawer from '@/Components/Bookings/AssignDoctorDrawer';
-import MoveTokenModal from '@/Components/Bookings/MoveTokenModal';
+import MoveTokenModal, { TokenToMove } from '@/Components/Bookings/MoveTokenModal';
 
 interface DateStripItem {
     date: string;
@@ -174,6 +175,15 @@ function maskPhoneNumber(phone: string): string {
     return phone;
 }
 
+function maskNic(nic?: string | null): string {
+    if (!nic) return '';
+    const clean = nic.trim();
+    if (clean.length > 5) {
+        return `${clean.slice(0, 4)}••••${clean.slice(-2)}`;
+    }
+    return clean;
+}
+
 export default function BookingsIndex({
     sessions = [],
     dateStrip = [],
@@ -183,11 +193,15 @@ export default function BookingsIndex({
     clinicInfo,
     visitTypes = [],
     feeComponents = [],
-    discountConfig = { is_admin: true, can_discount: true, max_type: 'percent', max_value: 100, max_display: 'Unlimited' },
+    discountConfig = { is_admin: true, can_discount: true, max_type: 'percent', max_value: 100, max_display: 'unlimited' },
 }: Props) {
     const { flash } = usePage<any>().props;
+    const shouldReduceMotion = useReducedMotion();
 
-    // Date navigation state
+    // Progressive Accordion State: 1 | 2 | 3
+    const [activeStep, setActiveStep] = useState<1 | 2 | 3>(1);
+
+    // Date Strip navigation
     const todayStr = useMemo(() => {
         if (dateStrip.length > 0) return dateStrip[0].date;
         const now = new Date();
@@ -195,12 +209,13 @@ export default function BookingsIndex({
     }, [dateStrip]);
 
     const [currentDate, setCurrentDate] = useState<string>(initialSelectedDate || todayStr);
+    const dateStripRef = useRef<HTMLDivElement>(null);
 
-    // Filter & search state for Step 1
+    // Filters for Step 1
     const [doctorFilter, setDoctorFilter] = useState<string>('all');
     const [sessionSearch, setSessionSearch] = useState<string>('');
 
-    // Session selection
+    // Sessions for currently selected date
     const sessionsForDate = useMemo(() => {
         return sessions.filter((s) => s.session_date === currentDate);
     }, [sessions, currentDate]);
@@ -218,68 +233,36 @@ export default function BookingsIndex({
         });
     }, [sessionsForDate, doctorFilter, sessionSearch]);
 
-    // Initial session selection
+    // Selected session
     const [selectedSessionId, setSelectedSessionId] = useState<number | null>(() => {
         const firstSelectable = sessionsForDate.find((s) => s.is_selectable);
         return firstSelectable ? firstSelectable.id : null;
     });
 
-    // When date changes, auto-select first selectable session of that date if current is not in that date
+    const activeSession = useMemo(
+        () => sessions.find((s) => s.id === selectedSessionId) || null,
+        [sessions, selectedSessionId]
+    );
+
+    // When date changes, select first available session if needed
     useEffect(() => {
-        const currentSessionStillValid = sessionsForDate.find((s) => s.id === selectedSessionId);
-        if (!currentSessionStillValid) {
+        const valid = sessionsForDate.find((s) => s.id === selectedSessionId);
+        if (!valid) {
             const firstSelectable = sessionsForDate.find((s) => s.is_selectable);
             setSelectedSessionId(firstSelectable ? firstSelectable.id : null);
         }
     }, [currentDate, sessionsForDate]);
 
-    // Auto-select session created via inline modal
-    useEffect(() => {
-        if (flash?.createdSessionId) {
-            const newId = Number(flash.createdSessionId);
-            const found = sessions.find((s) => s.id === newId);
-            if (found) {
-                setCurrentDate(found.session_date);
-                setSelectedSessionId(newId);
-            }
-        }
-    }, [flash?.createdSessionId, sessions]);
-
-    // Patient lookup
+    // Step 2: Patient lookup & mini-form
     const [patientQuery, setPatientQuery] = useState('');
     const [patientSearchResults, setPatientSearchResults] = useState<any[]>([]);
     const [selectedPatient, setSelectedPatient] = useState<any | null>(null);
     const [isSearching, setIsSearching] = useState(false);
-    const [isCreatingNewPatient, setIsCreatingNewPatient] = useState(false);
+    const [isInlineNewPatientOpen, setIsInlineNewPatientOpen] = useState(false);
+    const [selectedResultIndex, setSelectedResultIndex] = useState<number>(-1);
+    const patientSearchInputRef = useRef<HTMLInputElement>(null);
 
-    // Success Panel & Slip Modal
-    const [slipModalOpen, setSlipModalOpen] = useState(false);
-    const [activeSlip, setActiveSlip] = useState<any | null>(null);
-
-    // Check if a newly issued token was flashed by backend
-    useEffect(() => {
-        if (flash?.issuedToken) {
-            setActiveSlip(flash.issuedToken);
-            setSlipModalOpen(true);
-        }
-    }, [flash?.issuedToken]);
-
-    // Quick create session modal
-    const [quickSessionModalOpen, setQuickSessionModalOpen] = useState(false);
-    const [quickDocId, setQuickDocId] = useState<string>(doctors[0]?.id ? String(doctors[0].id) : '');
-    const [quickStartTime, setQuickStartTime] = useState('17:00');
-    const [quickEndTime, setQuickEndTime] = useState('20:00');
-    const [quickMaxTokens, setQuickMaxTokens] = useState(25);
-    const [quickRoom, setQuickRoom] = useState('Consulting Room 1');
-    const [isSubmittingQuickSession, setIsSubmittingQuickSession] = useState(false);
-
-    // Move Token Modal & Doctor Drawer states
-    const [doctorDrawerOpen, setDoctorDrawerOpen] = useState(false);
-    const [moveModalOpen, setMoveModalOpen] = useState(false);
-    const [tokenToMove, setTokenToMove] = useState<any | null>(null);
-    const [duplicatePatient, setDuplicatePatient] = useState<any | null>(null);
-    const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
-
+    // Step 3: Visit type & fee options
     const defaultVisitTypeId = visitTypes?.find((v) => v.is_default)?.id || visitTypes?.[0]?.id || '';
 
     // Form
@@ -290,27 +273,18 @@ export default function BookingsIndex({
         new_patient_phone: '',
         new_patient_dob: '',
         new_patient_nic: '',
-        new_patient_gender: 'male',
+        new_patient_gender: 'other',
         visit_type_id: defaultVisitTypeId ? String(defaultVisitTypeId) : '',
         optional_component_ids: [] as number[],
         discount_type: 'none' as 'none' | 'percent' | 'amount' | 'waiver',
         discount_value: 0,
         discount_reason: '',
-        payment_collected: Boolean(clinicInfo.collect_payment_at_issue),
+        payment_collected: true,
         payment_method: 'cash' as 'cash' | 'card' | 'bank_transfer',
         notes: '',
     });
 
-    const activeSession = useMemo(
-        () => sessions.find((s) => s.id === selectedSessionId) || null,
-        [sessions, selectedSessionId]
-    );
-
-    const selectedVisitType = useMemo(
-        () => visitTypes.find((v) => String(v.id) === String(data.visit_type_id)) || visitTypes[0] || null,
-        [visitTypes, data.visit_type_id]
-    );
-
+    // Sync session ID into form data
     useEffect(() => {
         if (activeSession) {
             setData('doctor_session_id', String(activeSession.id));
@@ -319,10 +293,11 @@ export default function BookingsIndex({
         }
     }, [activeSession]);
 
-    // Live Patient Search
+    // Live Patient Search (debounced 250ms)
     useEffect(() => {
         if (patientQuery.trim().length < 2) {
             setPatientSearchResults([]);
+            setSelectedResultIndex(-1);
             return;
         }
 
@@ -333,6 +308,7 @@ export default function BookingsIndex({
                 if (res.ok) {
                     const results = await res.json();
                     setPatientSearchResults(results);
+                    setSelectedResultIndex(-1);
                 }
             } catch (err) {
                 console.error(err);
@@ -344,92 +320,86 @@ export default function BookingsIndex({
         return () => clearTimeout(timer);
     }, [patientQuery]);
 
+    // Focus patient search input when Step 2 expands
+    useEffect(() => {
+        if (activeStep === 2) {
+            setTimeout(() => {
+                patientSearchInputRef.current?.focus();
+            }, 100);
+        }
+    }, [activeStep]);
+
     const selectPatient = (patient: any) => {
         setSelectedPatient(patient);
         setData('patient_id', patient.id);
-        setIsCreatingNewPatient(false);
+        setIsInlineNewPatientOpen(false);
         setPatientQuery('');
         setPatientSearchResults([]);
+        setActiveStep(3);
     };
 
     const clearSelectedPatient = () => {
         setSelectedPatient(null);
         setData('patient_id', '');
         setPatientQuery('');
-        setDuplicatePatient(null);
     };
 
-    const quickAge = useMemo(() => {
-        if (!data.new_patient_dob) return null;
-        const dob = new Date(data.new_patient_dob);
-        if (isNaN(dob.getTime())) return null;
-        const diffMs = Date.now() - dob.getTime();
-        const ageDt = new Date(diffMs);
-        return Math.abs(ageDt.getUTCFullYear() - 1970);
-    }, [data.new_patient_dob]);
-
-    const checkDuplicatePhone = (rawPhone: string) => {
-        const clean = rawPhone.replace(/\D/g, '');
-        if (clean.length < 9) {
-            setDuplicatePatient(null);
-            return;
-        }
-        setIsCheckingDuplicate(true);
-        fetch(`/api/patients/by-phone?phone=${encodeURIComponent(rawPhone)}`)
-            .then((res) => (res.ok ? res.json() : null))
-            .then((json) => {
-                if (json?.patient) {
-                    setDuplicatePatient(json.patient);
-                } else {
-                    setDuplicatePatient(null);
-                }
-            })
-            .catch(() => setDuplicatePatient(null))
-            .finally(() => setIsCheckingDuplicate(false));
-    };
-
-    const openMoveModal = (booking: RecentBooking) => {
-        setTokenToMove({
-            id: booking.id,
-            token_number: booking.token_number,
-            patient_id: booking.patient_id,
-            patient_name: booking.patient_name,
-            patient_phone: booking.patient_phone,
-            doctor_name: booking.doctor_name,
-            doctor_specialty: booking.doctor_specialty,
-            session_id: booking.doctor_session_id,
-            session_date: booking.session_date,
-            total_fee_formatted: booking.total_fee_formatted,
-            payment_status: booking.payment_status,
-            status: booking.status,
+    // Recent 5 patients used today
+    const recentPatients = useMemo(() => {
+        const map = new Map<number, { id: number; name: string; phone: string; nic: string }>();
+        recentBookings.forEach((b) => {
+            if (b.patient_id && !map.has(b.patient_id)) {
+                map.set(b.patient_id, {
+                    id: b.patient_id,
+                    name: b.patient_name,
+                    phone: b.patient_phone,
+                    nic: b.patient_nic,
+                });
+            }
         });
-        setMoveModalOpen(true);
-    };
+        return Array.from(map.values()).slice(0, 5);
+    }, [recentBookings]);
 
-    // Calculate approximate consultation time
+    // Selected visit type model
+    const selectedVisitType = useMemo(
+        () => visitTypes.find((v) => String(v.id) === String(data.visit_type_id)) || visitTypes[0] || null,
+        [visitTypes, data.visit_type_id]
+    );
+
+    // Approximate time preview
     const approximateTime = useMemo(() => {
-        if (!activeSession) return null;
-        return activeSession.next_approx_time || `approx. ${activeSession.start_time}`;
+        if (!activeSession) return '—';
+        return activeSession.next_approx_time || activeSession.start_time;
     }, [activeSession]);
 
-    // Next token number
-    const assignedTokenNumber = useMemo(() => {
-        if (!activeSession) return null;
+    // Next token preview (preview only; server assigns actual number)
+    const previewTokenNumber = useMemo(() => {
+        if (!activeSession) return 1;
         return (activeSession.booked_tokens_count || 0) + 1;
     }, [activeSession]);
 
     // Live Fee Breakdown Calculation
     const liveFeeCalculation = useMemo(() => {
         if (!activeSession) {
-            return null;
+            return {
+                baseDoctorFee: 0,
+                baseClinicFee: 0,
+                baseTotal: 0,
+                consultFee: 0,
+                visitTypeDiff: 0,
+                optionalTotal: 0,
+                grossTotal: 0,
+                discountAmount: 0,
+                patientTotal: 0,
+            };
         }
 
         const baseDoctorFee = activeSession.doctor_fee_lkr || 0;
         const baseClinicFee = activeSession.clinic_fee_lkr || 0;
         const baseSessionFee = activeSession.total_fee_lkr || (baseDoctorFee + baseClinicFee);
         let consultFee = baseSessionFee;
-
         let visitTypeDiff = 0;
+
         if (selectedVisitType) {
             if (selectedVisitType.pricing_type === 'percentage') {
                 const pct = selectedVisitType.percentage_value || 100;
@@ -441,7 +411,6 @@ export default function BookingsIndex({
             }
         }
 
-        // Optional components sum
         const selectedComponents = feeComponents.filter((c) => data.optional_component_ids.includes(c.id));
         let optionalTotal = 0;
         selectedComponents.forEach((c) => {
@@ -466,10 +435,6 @@ export default function BookingsIndex({
 
         const patientTotal = Math.max(0, grossTotal - discountAmount);
 
-        // Doctor share vs clinic share approximation
-        const doctorShare = activeSession.doctor_payout_lkr ?? baseDoctorFee;
-        const clinicShare = Math.max(0, patientTotal - doctorShare);
-
         return {
             baseDoctorFee,
             baseClinicFee,
@@ -480,67 +445,72 @@ export default function BookingsIndex({
             grossTotal,
             discountAmount,
             patientTotal,
-            doctorShare,
-            clinicShare,
-            sourceLabel: activeSession.source_label || 'from clinic',
         };
     }, [activeSession, selectedVisitType, feeComponents, data.optional_component_ids, data.discount_type, data.discount_value]);
 
-    // Validation reason for disabled issue button
-    const issueDisabledReason = useMemo(() => {
-        if (processing) return 'Issuing token...';
-        if (!activeSession) return 'Select a session first';
-        if (!activeSession.is_selectable) return activeSession.unselectable_reason || 'Selected session is unavailable';
-        if (!selectedPatient) {
-            if (!data.new_patient_name.trim()) return 'Enter patient full name';
-            if (!data.new_patient_phone.trim()) return 'Enter patient mobile number';
-        }
-        if (data.discount_type !== 'none') {
-            if (!data.discount_reason.trim()) return 'Enter reason for discount / waiver';
-            if (!discountConfig.is_admin) {
-                if (data.discount_type === 'percent' && discountConfig.max_type === 'percent' && Number(data.discount_value) > discountConfig.max_value) {
-                    return `Discount exceeds limit (${discountConfig.max_display})`;
-                }
-                if (data.discount_type === 'amount' && discountConfig.max_type === 'fixed' && Number(data.discount_value) > (discountConfig.max_value / 100)) {
-                    return `Discount exceeds limit (${discountConfig.max_display})`;
-                }
-                if (data.discount_type === 'waiver' && discountConfig.max_value < 100) {
-                    return 'Full waiver requires clinic admin authorization';
-                }
-            }
-        }
-        return null;
-    }, [processing, activeSession, selectedPatient, data.new_patient_name, data.new_patient_phone, data.discount_type, data.discount_reason, data.discount_value, discountConfig]);
+    // Validation Check for Step Navigation & Issue Button
+    const [stepValidationMessage, setStepValidationMessage] = useState<string | null>(null);
 
-    const handleIssueToken = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (issueDisabledReason) return;
+    // Issue Token Submission
+    const [justIssuedTicket, setJustIssuedTicket] = useState<any | null>(null);
+    const [ariaAnnouncement, setAriaAnnouncement] = useState<string>('');
+    const [quickSessionModalOpen, setQuickSessionModalOpen] = useState(false);
+    const [moveModalOpen, setMoveModalOpen] = useState(false);
+    const [tokenToMove, setTokenToMove] = useState<TokenToMove | null>(null);
+    const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+    const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+
+    // Quick create session state
+    const [quickDocId, setQuickDocId] = useState<string>(doctors[0]?.id ? String(doctors[0].id) : '');
+    const [quickStartTime, setQuickStartTime] = useState('17:30');
+    const [quickEndTime, setQuickEndTime] = useState('20:30');
+    const [quickMaxTokens, setQuickMaxTokens] = useState(25);
+    const [quickRoom, setQuickRoom] = useState('Room 1');
+
+    // Handle Issue Token Click
+    const handleIssueToken = () => {
+        // Validation check with progressive jump to missing step
+        if (!activeSession) {
+            setActiveStep(1);
+            setStepValidationMessage('Please select a doctor channeling session first.');
+            return;
+        }
+        if (!selectedPatient && (!data.new_patient_name.trim() || !data.new_patient_phone.trim())) {
+            setActiveStep(2);
+            setStepValidationMessage('Please select an existing patient or enter walk-in patient details.');
+            patientSearchInputRef.current?.focus();
+            return;
+        }
+        if (data.discount_type !== 'none' && !data.discount_reason.trim()) {
+            setActiveStep(3);
+            setStepValidationMessage('Please provide a reason for the discount or waiver.');
+            return;
+        }
+
+        setStepValidationMessage(null);
 
         post('/bookings', {
             preserveScroll: true,
             onSuccess: (page: any) => {
                 const issued = page.props?.flash?.issuedToken;
-                if (issued) {
-                    setActiveSlip(issued);
-                    setSlipModalOpen(true);
-                } else {
-                    setActiveSlip({
-                        token_number: assignedTokenNumber,
-                        doctor_name: activeSession?.doctor_name,
-                        doctor_specialty: activeSession?.doctor_specialty,
-                        room_number: activeSession?.room_number,
-                        session_date: activeSession?.session_date_formatted,
-                        estimated_time: approximateTime,
-                        patient_name: selectedPatient ? selectedPatient.name : data.new_patient_name,
-                        patient_phone: selectedPatient ? selectedPatient.phone : data.new_patient_phone,
-                        patient_nic: selectedPatient ? selectedPatient.nic : data.new_patient_nic,
-                        total_fee_formatted: `Rs. ${liveFeeCalculation?.patientTotal.toLocaleString()}`,
-                        payment_status: data.payment_collected ? 'paid' : 'pending',
-                        payment_method: data.payment_method,
-                    });
-                    setSlipModalOpen(true);
-                }
-                // Clear patient inputs
+                const tokenData = issued || {
+                    token_number: previewTokenNumber,
+                    doctor_name: activeSession.doctor_name,
+                    doctor_specialty: activeSession.doctor_specialty,
+                    room_number: activeSession.room_number,
+                    session_date: activeSession.session_date_formatted,
+                    estimated_time: approximateTime,
+                    patient_name: selectedPatient ? selectedPatient.name : data.new_patient_name,
+                    patient_phone: selectedPatient ? selectedPatient.phone : data.new_patient_phone,
+                    total_fee_formatted: `Rs. ${liveFeeCalculation.patientTotal.toLocaleString()}`,
+                    payment_status: data.payment_collected ? 'paid' : 'pending',
+                    payment_method: data.payment_method,
+                };
+
+                setJustIssuedTicket(tokenData);
+                setAriaAnnouncement(`Token ${tokenData.token_number} issued to ${tokenData.patient_name}.`);
+
+                // Reset patient inputs but keep current session selected
                 clearSelectedPatient();
                 setData((prev) => ({
                     ...prev,
@@ -556,11 +526,83 @@ export default function BookingsIndex({
         });
     };
 
-    const handleCreateOneOffSession = (e: React.FormEvent) => {
+    // Keyboard navigation: 1-9 for session selection, Esc to go back, Ctrl+Enter to issue
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const activeEl = document.activeElement;
+            const isTyping =
+                activeEl &&
+                (activeEl.tagName === 'INPUT' ||
+                    activeEl.tagName === 'TEXTAREA' ||
+                    activeEl.tagName === 'SELECT' ||
+                    (activeEl as HTMLElement).isContentEditable);
+
+            // Ctrl+Enter or Cmd+Enter to issue token from anywhere
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                handleIssueToken();
+                return;
+            }
+
+            // Esc to go back a step
+            if (e.key === 'Escape') {
+                if (justIssuedTicket) {
+                    setJustIssuedTicket(null);
+                    setActiveStep(2);
+                    return;
+                }
+                if (activeStep > 1 && !isTyping) {
+                    e.preventDefault();
+                    setActiveStep((prev) => (prev > 1 ? ((prev - 1) as 1 | 2 | 3) : 1));
+                    return;
+                }
+            }
+
+            // Number keys 1-9 on Step 1 (when not typing in an input)
+            if (activeStep === 1 && !isTyping) {
+                const num = parseInt(e.key, 10);
+                if (!isNaN(num) && num >= 1 && num <= filteredSessions.length) {
+                    e.preventDefault();
+                    const target = filteredSessions[num - 1];
+                    if (target.is_selectable) {
+                        setSelectedSessionId(target.id);
+                        setActiveStep(2);
+                    }
+                }
+            }
+
+            // Arrow down/up for patient search dropdown
+            if (activeStep === 2 && patientSearchResults.length > 0) {
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setSelectedResultIndex((prev) => (prev < patientSearchResults.length - 1 ? prev + 1 : 0));
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setSelectedResultIndex((prev) => (prev > 0 ? prev - 1 : patientSearchResults.length - 1));
+                } else if (e.key === 'Enter' && selectedResultIndex >= 0) {
+                    e.preventDefault();
+                    selectPatient(patientSearchResults[selectedResultIndex]);
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [activeStep, filteredSessions, patientSearchResults, selectedResultIndex, justIssuedTicket, activeSession, selectedPatient, data, liveFeeCalculation]);
+
+    // Scroll Date Strip
+    const scrollDateStrip = (direction: 'left' | 'right') => {
+        if (dateStripRef.current) {
+            const offset = direction === 'left' ? -240 : 240;
+            dateStripRef.current.scrollBy({ left: offset, behavior: 'smooth' });
+        }
+    };
+
+    // Quick create session submit
+    const handleQuickSessionSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!quickDocId) return;
 
-        setIsSubmittingQuickSession(true);
         router.post(
             '/doctors/sessions/one-off',
             {
@@ -574,34 +616,13 @@ export default function BookingsIndex({
             {
                 preserveScroll: true,
                 onSuccess: () => {
-                    setIsSubmittingQuickSession(false);
                     setQuickSessionModalOpen(false);
                 },
-                onError: () => {
-                    setIsSubmittingQuickSession(false);
-                },
             }
         );
     };
 
-    const handleRecordPayment = (paymentMethod: 'cash' | 'card' | 'bank_transfer') => {
-        if (!activeSlip?.bill_id) return;
-        router.post(
-            `/billing/${activeSlip.bill_id}/pay`,
-            { payment_method: paymentMethod },
-            {
-                preserveScroll: true,
-                onSuccess: () => {
-                    setActiveSlip((prev: any) => ({
-                        ...prev,
-                        payment_status: 'paid',
-                        payment_method: paymentMethod,
-                    }));
-                },
-            }
-        );
-    };
-
+    // Generate WhatsApp Web URL for issued ticket
     const generateWhatsAppUrl = (slip: any) => {
         if (!slip?.patient_phone) return '#';
         const cleanPhone = slip.patient_phone.replace(/\D/g, '');
@@ -613,48 +634,38 @@ export default function BookingsIndex({
 
         const msg = `*${clinicInfo.name}* - Appointment Confirmation
 Token: *#${slip.token_number}*
-Doctor: ${slip.doctor_name} (${slip.doctor_specialty})
+Doctor: ${slip.doctor_name} (${slip.doctor_specialty || ''})
 Date: ${slip.session_date}
-Time: ${slip.estimated_time || slip.approx_time || 'Queue'}
-Room: ${slip.room_number || 'Consulting Room'}
+Time: ${slip.estimated_time || 'Queue'}
+Room: ${slip.room_number || 'Room 1'}
 Patient: ${slip.patient_name}
-Total: ${slip.total_fee_formatted || slip.fee_formatted}
+Total: ${slip.total_fee_formatted}
 Status: ${slip.payment_status === 'paid' ? 'PAID' : 'PAYMENT DUE'}
 Live Queue: https://${clinicInfo.subdomain}.medvisit.lk/queue/tv`;
 
         return `https://wa.me/${recipient}?text=${encodeURIComponent(msg)}`;
     };
 
-    const openSlipForRecent = (b: RecentBooking) => {
-        setActiveSlip({
-            id: b.id,
-            token_number: b.token_number,
-            doctor_name: b.doctor_name,
-            doctor_specialty: b.doctor_specialty,
-            room_number: b.room_number,
-            session_date: b.session_date,
-            estimated_time: b.estimated_time,
-            patient_name: b.patient_name,
-            patient_phone: b.patient_phone,
-            patient_nic: b.patient_nic,
-            total_fee_formatted: b.total_fee_formatted,
-            receipt_number: b.receipt_number,
-            payment_status: b.payment_status,
-        });
-        setSlipModalOpen(true);
-    };
-
-    const cancelBooking = (booking: RecentBooking) => {
-        if (confirm(`Cancel Token #${booking.token_number} for ${booking.patient_name}?`)) {
-            router.post(`/bookings/${booking.id}/cancel`, {}, { preserveScroll: true });
+    // Human date format for empty date state
+    const formattedHumanDate = useMemo(() => {
+        try {
+            const d = new Date(currentDate);
+            return d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
+        } catch {
+            return currentDate;
         }
-    };
+    }, [currentDate]);
 
     return (
         <AuthenticatedLayout>
             <Head title="Issue Token | Reception Desk" />
 
-            {/* Print Slip Styling */}
+            {/* SCREEN READER ARIA-LIVE ANNOUNCEMENT */}
+            <div aria-live="polite" className="sr-only">
+                {ariaAnnouncement}
+            </div>
+
+            {/* PRINT SLIP STYLING FOR 80MM THERMAL PRINTER */}
             <style>{`
                 @media print {
                     body * {
@@ -669,1173 +680,1328 @@ Live Queue: https://${clinicInfo.subdomain}.medvisit.lk/queue/tv`;
                         top: 0 !important;
                         width: 80mm !important;
                         margin: 0 !important;
-                        padding: 12px !important;
+                        padding: 14px !important;
                         border: none !important;
                         box-shadow: none !important;
                         background: white !important;
                         color: black !important;
+                        font-family: monospace, sans-serif !important;
                     }
                 }
             `}</style>
 
-            <div className="space-y-6">
+            <div className="space-y-6 pb-24 lg:pb-8 max-w-[1600px] mx-auto">
+                {/* SINGLE HEADER & CLEAN BREADCRUMB */}
                 <PageHeader
                     breadcrumbs={[
-                        { label: 'Reception Desk', href: '/dashboard' },
-                        { label: 'Issue Token' },
+                        { label: 'Reception', href: '/dashboard' },
+                        { label: 'Issue token' },
                     ]}
-                    title="Issue Token"
-                    subtitle="Fast 3-step token desk: select doctor session, look up patient, and confirm issuance."
+                    title="Issue token"
+                    subtitle="Pick a session, find the patient, issue the token."
                     actions={
                         <div className="flex items-center gap-2">
                             <button
                                 type="button"
                                 onClick={() => setQuickSessionModalOpen(true)}
-                                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-primary text-white hover:bg-primary-600 transition-all shadow-xs"
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 shadow-xs transition-colors"
                             >
-                                <Plus className="w-3.5 h-3.5" />
-                                <span>+ Create Session</span>
+                                <Plus className="w-3.5 h-3.5 text-[#1E6FD9]" />
+                                <span>Create session</span>
                             </button>
+
                             <Link
                                 href="/calendar"
-                                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 transition-all shadow-xs"
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 shadow-xs transition-colors"
                             >
-                                <Calendar className="w-3.5 h-3.5 text-primary" />
+                                <Calendar className="w-3.5 h-3.5 text-slate-500" />
                                 <span>Calendar</span>
                             </Link>
+
+                            <button
+                                type="button"
+                                onClick={() => setShowShortcutsModal(true)}
+                                className="p-2 rounded-2xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-white/60 dark:hover:bg-white/5 transition-colors"
+                                title="Keyboard shortcuts"
+                            >
+                                <HelpCircle className="w-4 h-4" />
+                            </button>
                         </div>
                     }
                 />
 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                    {/* LEFT COLUMN: 3-STEP ISSUANCE DESK (7 COLS) */}
-                    <div className="lg:col-span-7 space-y-5">
-                        {/* STEP 1: CHOOSE SESSION */}
-                        <GlassCard className="p-5 space-y-4">
-                            {/* Step Header */}
-                            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/5">
-                                <div className="flex items-center gap-2.5">
-                                    <span className="w-6 h-6 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center shadow-xs">
-                                        1
-                                    </span>
-                                    <div>
-                                        <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                                            Choose session
-                                        </h3>
-                                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                                            Select a date and doctor channeling session
-                                        </p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setDoctorDrawerOpen(true)}
-                                        className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-colors shadow-xs"
-                                        title="Doctor-first channeling flow: pick a doctor to view their 14-day schedule and issue a token"
-                                    >
-                                        <Sparkles className="w-3.5 h-3.5 text-primary" />
-                                        <span>Pick by Doctor</span>
-                                    </button>
-                                    <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 px-2.5 py-1 rounded-full">
-                                        {sessionsForDate.length} {sessionsForDate.length === 1 ? 'session' : 'sessions'} on selected date
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* 14-DAY DATE STRIP + CALENDAR PICKER */}
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                    <span>Select Date</span>
-                                    <label className="relative inline-flex items-center gap-1.5 text-primary cursor-pointer hover:underline text-[11px] font-bold">
-                                        <Calendar className="w-3.5 h-3.5" />
-                                        <span>Pick any date</span>
-                                        <input
-                                            type="date"
-                                            value={currentDate}
-                                            onChange={(e) => {
-                                                if (e.target.value) setCurrentDate(e.target.value);
-                                            }}
-                                            className="absolute opacity-0 inset-0 cursor-pointer w-full h-full"
-                                        />
-                                    </label>
-                                </div>
-
-                                <div className="flex items-center gap-1.5 overflow-x-auto pb-2 pt-1 no-scrollbar scroll-smooth">
-                                    {dateStrip.map((item) => {
-                                        const isSelected = item.date === currentDate;
-                                        const hasSessions = item.session_count > 0;
-
-                                        return (
-                                            <button
-                                                key={item.date}
-                                                type="button"
-                                                onClick={() => setCurrentDate(item.date)}
-                                                className={`flex flex-col items-center justify-center min-w-[70px] py-2 px-2.5 rounded-2xl border text-center transition-all shrink-0 ${
-                                                    isSelected
-                                                        ? 'border-primary bg-primary text-white shadow-md shadow-primary/20 ring-2 ring-primary/20 scale-[1.02]'
-                                                        : hasSessions
-                                                        ? 'border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/50 text-slate-700 dark:text-slate-300 hover:border-primary/50'
-                                                        : 'border-slate-200/40 dark:border-white/5 bg-slate-50/50 dark:bg-slate-900/20 text-slate-400 opacity-60 hover:opacity-100'
-                                                }`}
-                                            >
-                                                <span
-                                                    className={`text-[10px] font-bold uppercase tracking-wider block ${
-                                                        isSelected ? 'text-white/90' : 'text-slate-400'
-                                                    }`}
-                                                >
-                                                    {item.label}
-                                                </span>
-                                                <span className="text-base font-extrabold my-0.5 block leading-none">
-                                                    {item.day_number}
-                                                </span>
-                                                <span
-                                                    className={`text-[9px] font-semibold px-1.5 py-0.2 rounded-full inline-block ${
-                                                        isSelected
-                                                            ? 'bg-white/20 text-white'
-                                                            : hasSessions
-                                                            ? 'bg-primary/10 text-primary'
-                                                            : 'bg-slate-100 dark:bg-white/5 text-slate-400'
-                                                    }`}
-                                                >
-                                                    {item.session_count > 0 ? `${item.session_count} sess` : 'No sess'}
-                                                </span>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-
-                            {/* FILTERS & SEARCH FOR CHOSEN DATE */}
-                            <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
-                                <div className="relative flex-1 w-full">
-                                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                                    <input
-                                        type="text"
-                                        value={sessionSearch}
-                                        onChange={(e) => setSessionSearch(e.target.value)}
-                                        placeholder="Search doctor, specialty, room..."
-                                        className="w-full text-xs rounded-xl border border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 pl-8 pr-3 py-1.5 text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                                    />
-                                </div>
-                                <select
-                                    value={doctorFilter}
-                                    onChange={(e) => setDoctorFilter(e.target.value)}
-                                    className="w-full sm:w-44 text-xs rounded-xl border border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 py-1.5 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
+                {/* MAIN TWO-COLUMN LAYOUT (DESKTOP ≥1280px) */}
+                <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+                    {/* =========================================================================
+                        LEFT COLUMN (~62%): PROGRESSIVE ACCORDION (STEPS 1, 2, 3)
+                        ========================================================================= */}
+                    <div className="xl:col-span-7 space-y-4">
+                        {/* INLINE VALIDATION TOAST / MESSAGE */}
+                        <AnimatePresence>
+                            {stepValidationMessage && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: -10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    className="p-3.5 rounded-2xl bg-[#FF7A59]/10 border border-[#FF7A59]/30 text-[#FF7A59] text-xs font-semibold flex items-center justify-between"
                                 >
-                                    <option value="all">All Doctors</option>
-                                    {doctors.map((d) => (
-                                        <option key={d.id} value={d.id}>
-                                            {d.name} ({d.specialty})
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* SESSIONS LIST FOR CHOSEN DATE */}
-                            {filteredSessions.length === 0 ? (
-                                <EmptyState
-                                    icon={Calendar}
-                                    title={`No sessions on ${currentDate}`}
-                                    description="There are no doctor channeling sessions scheduled for this date. You can create a one-off session right now."
-                                    action={
-                                        <button
-                                            type="button"
-                                            onClick={() => setQuickSessionModalOpen(true)}
-                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-sm transition-all"
-                                        >
-                                            <Plus className="w-3.5 h-3.5" />
-                                            <span>Create session for this date</span>
-                                        </button>
-                                    }
-                                    className="py-6 border border-dashed border-slate-200 dark:border-white/10 rounded-2xl bg-slate-50/50 dark:bg-white/[0.02]"
-                                />
-                            ) : (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-1">
-                                    {filteredSessions.map((s) => {
-                                        const isSelected = selectedSessionId === s.id;
-                                        const progressPercent = Math.min(
-                                            100,
-                                            Math.round((s.booked_tokens_count / (s.max_tokens || 1)) * 100)
-                                        );
-                                        const isSelectable = s.is_selectable;
-
-                                        return (
-                                            <button
-                                                key={s.id}
-                                                type="button"
-                                                disabled={!isSelectable}
-                                                onClick={() => setSelectedSessionId(s.id)}
-                                                className={`text-left p-3.5 rounded-2xl border transition-all text-xs relative flex flex-col justify-between ${
-                                                    isSelected
-                                                        ? 'border-primary ring-2 ring-primary/20 bg-primary-50/70 dark:bg-primary-950/40 shadow-sm'
-                                                        : isSelectable
-                                                        ? 'border-slate-200/80 dark:border-white/10 hover:border-primary/40 bg-white/60 dark:bg-slate-900/40'
-                                                        : 'border-slate-200/40 dark:border-white/5 bg-slate-100/40 dark:bg-slate-900/20 opacity-60 cursor-not-allowed'
-                                                }`}
-                                            >
-                                                <div className="w-full">
-                                                    <div className="flex items-start justify-between gap-2">
-                                                        <div className="flex items-center gap-2.5 min-w-0">
-                                                            <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary font-bold flex items-center justify-center text-xs shrink-0 ring-1 ring-primary/20">
-                                                                {s.doctor_photo_url ? (
-                                                                    <img
-                                                                        src={s.doctor_photo_url}
-                                                                        alt={s.doctor_name}
-                                                                        className="w-full h-full object-cover rounded-xl"
-                                                                    />
-                                                                ) : (
-                                                                    <span>{s.doctor_initials}</span>
-                                                                )}
-                                                            </div>
-                                                            <div className="min-w-0">
-                                                                <span className="font-bold text-slate-900 dark:text-white truncate block">
-                                                                    {s.doctor_name}
-                                                                </span>
-                                                                <span className="text-[11px] text-primary dark:text-primary-400 font-semibold truncate block">
-                                                                    {s.doctor_specialty}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-
-                                                        {isSelectable ? (
-                                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300">
-                                                                Open
-                                                            </span>
-                                                        ) : (
-                                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300">
-                                                                {s.unselectable_reason || 'Unavailable'}
-                                                            </span>
-                                                        )}
-                                                    </div>
-
-                                                    <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-white/5 space-y-1.5">
-                                                        <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400">
-                                                            <div className="flex items-center gap-1">
-                                                                <Clock className="w-3 h-3 text-slate-400" />
-                                                                <span>{s.start_time} – {s.end_time}</span>
-                                                            </div>
-                                                            <span className="font-medium text-slate-500">{s.room_number}</span>
-                                                        </div>
-
-                                                        {/* Token Progress Bar */}
-                                                        <div>
-                                                            <div className="flex justify-between items-center text-[10px] text-slate-500 mb-1">
-                                                                <span className="font-semibold text-slate-700 dark:text-slate-300">
-                                                                    {s.booked_tokens_count} / {s.max_tokens} booked
-                                                                </span>
-                                                                <span className="font-bold text-primary">
-                                                                    Next: #{s.next_token_number}
-                                                                </span>
-                                                            </div>
-                                                            <div className="w-full h-1.5 rounded-full bg-slate-200/80 dark:bg-white/10 overflow-hidden">
-                                                                <div
-                                                                    className={`h-full transition-all ${
-                                                                        progressPercent >= 100
-                                                                            ? 'bg-rose-500'
-                                                                            : progressPercent >= 80
-                                                                            ? 'bg-amber-500'
-                                                                            : 'bg-primary'
-                                                                    }`}
-                                                                    style={{ width: `${progressPercent}%` }}
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
-                                                    <span className="text-[10px] text-slate-400 font-medium">Patient Total</span>
-                                                    <span className="font-extrabold text-xs text-slate-900 dark:text-white">
-                                                        Rs. {s.total_fee_lkr.toLocaleString()}
-                                                    </span>
-                                                </div>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </GlassCard>
-
-                        {/* STEP 2: PATIENT LOOKUP */}
-                        <GlassCard className="p-5 space-y-4">
-                            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/5">
-                                <div className="flex items-center gap-2.5">
-                                    <span className="w-6 h-6 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center shadow-xs">
-                                        2
-                                    </span>
-                                    <div>
-                                        <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                                            Patient details
-                                        </h3>
-                                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                                            Search registered patient by mobile/NIC or enter a new walk-in
-                                        </p>
+                                    <div className="flex items-center gap-2">
+                                        <AlertCircle className="w-4 h-4 shrink-0" />
+                                        <span>{stepValidationMessage}</span>
                                     </div>
-                                </div>
-                                {selectedPatient && (
                                     <button
                                         type="button"
-                                        onClick={clearSelectedPatient}
-                                        className="text-xs text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-1"
+                                        onClick={() => setStepValidationMessage(null)}
+                                        className="p-1 hover:opacity-75"
                                     >
-                                        <XCircle className="w-3.5 h-3.5" />
-                                        <span>Change</span>
+                                        <X className="w-3.5 h-3.5" />
+                                    </button>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        {/* =================================================================
+                            ACCORDION STEP 1: SESSION SELECTION
+                            ================================================================= */}
+                        <GlassCard className="transition-all overflow-hidden p-5 sm:p-6">
+                            {/* Header (Always Visible) */}
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div
+                                        className={`w-7 h-7 rounded-xl flex items-center justify-center font-bold text-xs ${
+                                            activeSession
+                                                ? 'bg-[#0E9E8F] text-white'
+                                                : activeStep === 1
+                                                ? 'bg-[#1E6FD9] text-white'
+                                                : 'bg-slate-100 dark:bg-white/10 text-slate-500'
+                                        }`}
+                                    >
+                                        {activeSession ? <Check className="w-4 h-4" /> : '1'}
+                                    </div>
+                                    <div>
+                                        <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                                            Step 1 — Channeling session
+                                        </h3>
+                                        {activeStep !== 1 && activeSession && (
+                                            <p className="text-xs text-[#0E9E8F] font-medium mt-0.5">
+                                                {activeSession.doctor_name} · {activeSession.session_date_formatted} ({activeSession.start_time}) · {activeSession.room_number}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {activeStep !== 1 && activeSession && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveStep(1)}
+                                        className="text-xs font-semibold text-[#1E6FD9] hover:underline px-2.5 py-1 rounded-lg hover:bg-[#1E6FD9]/10 transition-colors"
+                                    >
+                                        Edit
                                     </button>
                                 )}
                             </div>
 
-                            {selectedPatient ? (
-                                <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold flex items-center justify-center">
-                                            <UserCheck className="w-5 h-5" />
-                                        </div>
-                                        <div>
-                                            <span className="font-bold text-slate-900 dark:text-white text-sm block">
-                                                {selectedPatient.name}
-                                            </span>
-                                            <span className="text-xs text-slate-600 dark:text-slate-300 block">
-                                                {selectedPatient.phone} {selectedPatient.nic ? `• NIC: ${selectedPatient.nic}` : ''}
-                                            </span>
-                                            {selectedPatient.city && (
-                                                <span className="text-[11px] text-slate-400">
-                                                    {selectedPatient.city}
+                            {/* Expanded Content for Step 1 */}
+                            <AnimatePresence>
+                                {activeStep === 1 && (
+                                    <motion.div
+                                        initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+                                        animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, height: 'auto' }}
+                                        exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+                                        transition={{ duration: 0.25 }}
+                                        className="mt-5 pt-4 border-t border-slate-200/60 dark:border-white/10 space-y-4"
+                                    >
+                                        {/* COMPACT DATE STRIP */}
+                                        <div className="relative">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                                                    Select session date
                                                 </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/60 px-2.5 py-1 rounded-full">
-                                        Existing Patient
-                                    </span>
-                                </div>
-                            ) : (
-                                <div className="space-y-3">
-                                    <div className="relative">
-                                        <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                                        <input
-                                            type="text"
-                                            value={patientQuery}
-                                            onChange={(e) => setPatientQuery(e.target.value)}
-                                            placeholder="Search by Sri Lankan mobile (+94), NIC, or Name..."
-                                            className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 pl-9 pr-4 py-2.5 text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:ring-2 focus:ring-primary focus:border-transparent transition-all shadow-xs"
-                                        />
-                                        {isSearching && (
-                                            <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-slate-400">
-                                                Searching...
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Patient search suggestions dropdown */}
-                                    {patientSearchResults.length > 0 && (
-                                        <div className="p-1 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 shadow-lg space-y-1 max-h-48 overflow-y-auto">
-                                            {patientSearchResults.map((p) => (
-                                                <button
-                                                    key={p.id}
-                                                    type="button"
-                                                    onClick={() => selectPatient(p)}
-                                                    className="w-full text-left p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-white/5 transition-colors flex items-center justify-between text-xs"
-                                                >
-                                                    <div>
-                                                        <span className="font-bold text-slate-900 dark:text-white block">
-                                                            {p.name}
-                                                        </span>
-                                                        <span className="text-[11px] text-slate-500">
-                                                            {p.phone} {p.nic ? `• ${p.nic}` : ''} {p.city ? `• ${p.city}` : ''}
-                                                        </span>
-                                                    </div>
-                                                    <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
-                                                        Select
-                                                    </span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    {/* Toggle or Show New Patient Form */}
-                                    <div className="pt-2">
-                                        {!isCreatingNewPatient ? (
-                                            <button
-                                                type="button"
-                                                onClick={() => setIsCreatingNewPatient(true)}
-                                                className="inline-flex items-center gap-1.5 text-xs text-primary font-bold hover:underline"
-                                            >
-                                                <UserPlus className="w-3.5 h-3.5" />
-                                                <span>+ Register new walk-in patient</span>
-                                            </button>
-                                        ) : (
-                                            <div className="p-4 rounded-2xl border border-slate-200/80 dark:border-white/10 bg-slate-50/70 dark:bg-white/[0.02] space-y-3">
-                                                <div className="flex items-center justify-between pb-2 border-b border-slate-200/60 dark:border-white/5">
-                                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                                                        <UserPlus className="w-3.5 h-3.5 text-primary" />
-                                                        <span>New Walk-in Patient</span>
-                                                    </span>
+                                                <div className="flex items-center gap-1">
                                                     <button
                                                         type="button"
-                                                        onClick={() => setIsCreatingNewPatient(false)}
-                                                        className="text-[11px] text-slate-500 hover:text-slate-700"
+                                                        onClick={() => scrollDateStrip('left')}
+                                                        className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5"
+                                                        aria-label="Previous dates"
                                                     >
-                                                        Cancel
+                                                        <ChevronLeft className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => scrollDateStrip('right')}
+                                                        className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5"
+                                                        aria-label="Next dates"
+                                                    >
+                                                        <ChevronRight className="w-4 h-4" />
                                                     </button>
                                                 </div>
+                                            </div>
 
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                                                    <div>
-                                                        <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                                                            Full Name *
-                                                        </label>
-                                                        <input
-                                                            type="text"
-                                                            required
-                                                            value={data.new_patient_name}
-                                                            onChange={(e) => setData('new_patient_name', e.target.value)}
-                                                            placeholder="e.g. Sunil Perera"
-                                                            className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-2 px-3 text-slate-800 dark:text-slate-200"
-                                                        />
-                                                    </div>
+                                            <div
+                                                ref={dateStripRef}
+                                                className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none scroll-smooth"
+                                            >
+                                                {dateStrip.map((item) => {
+                                                    const isSelected = item.date === currentDate;
+                                                    return (
+                                                        <button
+                                                            key={item.date}
+                                                            type="button"
+                                                            onClick={() => setCurrentDate(item.date)}
+                                                            className={`min-w-[96px] p-2.5 rounded-2xl border text-center transition-all shrink-0 ${
+                                                                isSelected
+                                                                    ? 'bg-[#1E6FD9] text-white border-[#1E6FD9] shadow-md shadow-[#1E6FD9]/20 scale-[1.02]'
+                                                                    : 'bg-white/80 dark:bg-white/5 text-slate-700 dark:text-slate-200 border-slate-200/80 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/10'
+                                                            }`}
+                                                        >
+                                                            <span className="text-[10px] font-bold uppercase tracking-wider block opacity-75">
+                                                                {item.is_today ? 'Today' : item.is_tomorrow ? 'Tomorrow' : item.day_name}
+                                                            </span>
+                                                            <span className="text-lg font-black block leading-tight mt-0.5">
+                                                                {item.day_number}
+                                                            </span>
+                                                            <span className={`text-[10px] font-medium block mt-1 ${isSelected ? 'text-white/80' : 'text-slate-400'}`}>
+                                                                {item.session_count > 0 ? `${item.session_count} session${item.session_count > 1 ? 's' : ''}` : '—'}
+                                                            </span>
+                                                        </button>
+                                                    );
+                                                })}
 
-                                                    <div>
-                                                        <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                                                            Mobile Number (+94) *
-                                                        </label>
-                                                        <PhoneInput
-                                                            value={data.new_patient_phone}
-                                                            onChange={(val) => {
-                                                                setData('new_patient_phone', val);
-                                                                checkDuplicatePhone(val);
+                                                {/* Pick a Date Input button at end */}
+                                                <div className="relative shrink-0">
+                                                    <input
+                                                        type="date"
+                                                        id="calendar-pick-date"
+                                                        value={currentDate}
+                                                        onChange={(e) => {
+                                                            if (e.target.value) setCurrentDate(e.target.value);
+                                                        }}
+                                                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                                                    />
+                                                    <label
+                                                        htmlFor="calendar-pick-date"
+                                                        className="min-w-[80px] h-full p-2.5 rounded-2xl border border-dashed border-slate-300 dark:border-white/20 bg-slate-50/60 dark:bg-white/5 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 hover:border-[#1E6FD9] hover:text-[#1E6FD9] transition-colors cursor-pointer text-center"
+                                                    >
+                                                        <Calendar className="w-4 h-4 mb-1" />
+                                                        <span className="text-[10px] font-bold">Pick date</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* SEARCH & DOCTOR FILTER BAR */}
+                                        <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                                            <div className="relative flex-1">
+                                                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                                <input
+                                                    type="text"
+                                                    value={sessionSearch}
+                                                    onChange={(e) => setSessionSearch(e.target.value)}
+                                                    placeholder="Search doctor, specialty, room..."
+                                                    className="w-full pl-9 pr-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E6FD9]"
+                                                />
+                                            </div>
+
+                                            {doctors.length > 0 && (
+                                                <select
+                                                    value={doctorFilter}
+                                                    onChange={(e) => setDoctorFilter(e.target.value)}
+                                                    className="px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E6FD9]"
+                                                >
+                                                    <option value="all">All doctors</option>
+                                                    {doctors.map((d) => (
+                                                        <option key={d.id} value={String(d.id)}>
+                                                            {d.name}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            )}
+                                        </div>
+
+                                        {/* SESSION CARDS LIST */}
+                                        <div className="space-y-2.5 pt-1">
+                                            {filteredSessions.length === 0 ? (
+                                                <div className="py-8 text-center bg-slate-50/60 dark:bg-white/5 rounded-2xl border border-dashed border-slate-200 dark:border-white/10 p-4">
+                                                    <Calendar className="w-8 h-8 text-slate-400 mx-auto mb-2 opacity-60" />
+                                                    <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                                        No sessions scheduled for {formattedHumanDate}
+                                                    </p>
+                                                    <p className="text-[11px] text-slate-400 mt-0.5">
+                                                        Create a quick session for this date to start issuing tokens.
+                                                    </p>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setQuickSessionModalOpen(true)}
+                                                        className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-[#1E6FD9] hover:bg-[#1859ae] shadow-xs"
+                                                    >
+                                                        <Plus className="w-3.5 h-3.5" />
+                                                        <span>Create session for {formattedHumanDate}</span>
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                filteredSessions.map((session, sIdx) => {
+                                                    const isSelected = selectedSessionId === session.id;
+                                                    const bookedCount = session.booked_tokens_count || 0;
+                                                    const maxTokens = session.max_tokens || 1;
+                                                    const occupancyPct = Math.round((bookedCount / maxTokens) * 100);
+                                                    const isFull = session.is_full || occupancyPct >= 100;
+                                                    const isAmber = occupancyPct >= 80 && !isFull;
+
+                                                    return (
+                                                        <div
+                                                            key={session.id}
+                                                            onClick={() => {
+                                                                if (!session.is_selectable) return;
+                                                                setSelectedSessionId(session.id);
+                                                                setActiveStep(2);
                                                             }}
-                                                            error={errors.new_patient_phone}
-                                                            placeholder="77 123 4567"
-                                                            required
-                                                        />
-                                                    </div>
+                                                            className={`group p-4 rounded-2xl border transition-all cursor-pointer relative ${
+                                                                !session.is_selectable
+                                                                    ? 'opacity-50 cursor-not-allowed bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5'
+                                                                    : isSelected
+                                                                    ? 'bg-gradient-to-r from-[#1E6FD9]/10 via-[#1E6FD9]/5 to-transparent border-[#1E6FD9] shadow-sm ring-1 ring-[#1E6FD9]'
+                                                                    : 'bg-white/80 dark:bg-white/5 border-slate-200/80 dark:border-white/10 hover:border-[#1E6FD9]/40 hover:bg-slate-50/70 dark:hover:bg-white/10'
+                                                            }`}
+                                                        >
+                                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                                {/* Doctor avatar, name & time */}
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#1E6FD9] to-[#0E9E8F] text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
+                                                                        {session.doctor_initials || 'DR'}
+                                                                    </div>
+                                                                    <div>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+                                                                                {session.doctor_name}
+                                                                            </h4>
+                                                                            {/* Keyboard hint badge (1-9) */}
+                                                                            {sIdx < 9 && (
+                                                                                <kbd className="hidden sm:inline-block px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-100 dark:bg-white/10 text-slate-500">
+                                                                                    {sIdx + 1}
+                                                                                </kbd>
+                                                                            )}
+                                                                        </div>
+                                                                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                                                            {session.doctor_specialty} · <span className="font-semibold text-slate-700 dark:text-slate-300">{session.start_time} - {session.end_time}</span> · {session.room_number}
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
 
-                                                    {duplicatePatient && (
-                                                        <div className="col-span-1 sm:col-span-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 flex items-center justify-between text-xs animate-in fade-in">
-                                                            <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200">
-                                                                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                                                                <div>
-                                                                    <span className="font-semibold">Matching patient exists: </span>
-                                                                    <span className="font-bold">{duplicatePatient.name}</span>
-                                                                    <span className="text-[11px] opacity-80"> (#{duplicatePatient.id}) • {duplicatePatient.phone}</span>
+                                                                {/* Fee & Capacity Pill */}
+                                                                <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+                                                                    <div className="text-right">
+                                                                        <span className="text-xs font-black text-slate-900 dark:text-white block">
+                                                                            {session.total_fee_formatted}
+                                                                        </span>
+                                                                        <span className="text-[10px] font-bold text-[#1E6FD9]">
+                                                                            Next token: #{session.next_token_number || (bookedCount + 1)}
+                                                                        </span>
+                                                                    </div>
+
+                                                                    <div className="w-24">
+                                                                        <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 mb-1">
+                                                                            <span>Booked</span>
+                                                                            <span className={`font-bold ${isFull ? 'text-rose-500' : isAmber ? 'text-amber-500' : 'text-slate-600 dark:text-slate-300'}`}>
+                                                                                {bookedCount}/{maxTokens}
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="w-full h-1.5 rounded-full bg-slate-100 dark:bg-white/10 overflow-hidden">
+                                                                            <div
+                                                                                className={`h-full rounded-full transition-all ${
+                                                                                    isFull ? 'bg-rose-500' : isAmber ? 'bg-amber-500' : 'bg-[#0E9E8F]'
+                                                                                }`}
+                                                                                style={{ width: `${Math.min(100, occupancyPct)}%` }}
+                                                                            />
+                                                                        </div>
+                                                                    </div>
                                                                 </div>
                                                             </div>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => selectPatient(duplicatePatient)}
-                                                                className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-amber-600 hover:bg-amber-700 text-white shadow-xs shrink-0"
+                                                        </div>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </GlassCard>
+
+                        {/* =================================================================
+                            ACCORDION STEP 2: PATIENT SELECTION
+                            ================================================================= */}
+                        <GlassCard className="transition-all overflow-hidden p-5 sm:p-6">
+                            {/* Header */}
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div
+                                        className={`w-7 h-7 rounded-xl flex items-center justify-center font-bold text-xs ${
+                                            selectedPatient || (data.new_patient_name && data.new_patient_phone)
+                                                ? 'bg-[#0E9E8F] text-white'
+                                                : activeStep === 2
+                                                ? 'bg-[#1E6FD9] text-white'
+                                                : 'bg-slate-100 dark:bg-white/10 text-slate-500'
+                                        }`}
+                                    >
+                                        {selectedPatient || (data.new_patient_name && data.new_patient_phone) ? (
+                                            <Check className="w-4 h-4" />
+                                        ) : activeStep < 2 ? (
+                                            <Lock className="w-3.5 h-3.5 opacity-60" />
+                                        ) : (
+                                            '2'
+                                        )}
+                                    </div>
+                                    <div>
+                                        <h3
+                                            className={`text-sm font-bold ${
+                                                activeStep < 2 && !selectedPatient && !data.new_patient_name
+                                                    ? 'text-slate-400 dark:text-slate-500'
+                                                    : 'text-slate-900 dark:text-white'
+                                            }`}
+                                        >
+                                            Step 2 — Patient details
+                                        </h3>
+                                        {activeStep !== 2 && (selectedPatient || data.new_patient_name) && (
+                                            <p className="text-xs text-[#0E9E8F] font-medium mt-0.5">
+                                                {selectedPatient ? selectedPatient.name : data.new_patient_name} ·{' '}
+                                                {selectedPatient ? maskPhoneNumber(selectedPatient.phone) : maskPhoneNumber(data.new_patient_phone)}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {activeStep !== 2 && activeStep > 1 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveStep(2)}
+                                        className="text-xs font-semibold text-[#1E6FD9] hover:underline px-2.5 py-1 rounded-lg hover:bg-[#1E6FD9]/10 transition-colors"
+                                    >
+                                        Edit
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Expanded Content for Step 2 */}
+                            <AnimatePresence>
+                                {activeStep === 2 && (
+                                    <motion.div
+                                        initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+                                        animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, height: 'auto' }}
+                                        exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+                                        transition={{ duration: 0.25 }}
+                                        className="mt-5 pt-4 border-t border-slate-200/60 dark:border-white/10 space-y-4"
+                                    >
+                                        {/* Selected Patient Banner if already picked */}
+                                        {selectedPatient ? (
+                                            <div className="p-4 rounded-2xl bg-[#0E9E8F]/10 border border-[#0E9E8F]/30 flex items-center justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-2xl bg-[#0E9E8F] text-white flex items-center justify-center font-bold">
+                                                        <UserCheck className="w-5 h-5" />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                                                            {selectedPatient.name}
+                                                        </h4>
+                                                        <p className="text-xs text-slate-600 dark:text-slate-300">
+                                                            {maskPhoneNumber(selectedPatient.phone)} {selectedPatient.nic ? `· NIC: ${maskNic(selectedPatient.nic)}` : ''}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={clearSelectedPatient}
+                                                        className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+                                                    >
+                                                        Change
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setActiveStep(3)}
+                                                        className="inline-flex items-center gap-1 px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-[#0E9E8F] hover:bg-[#0c8a7d] shadow-xs"
+                                                    >
+                                                        <span>Next: Confirm</span>
+                                                        <ChevronRight className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                {/* BIG PATIENT SEARCH INPUT */}
+                                                <div className="relative">
+                                                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                                                    <input
+                                                        ref={patientSearchInputRef}
+                                                        type="text"
+                                                        value={patientQuery}
+                                                        onChange={(e) => setPatientQuery(e.target.value)}
+                                                        placeholder="Search by mobile, NIC or name..."
+                                                        className="w-full pl-10 pr-10 py-3 rounded-2xl text-xs sm:text-sm bg-slate-50 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E6FD9] transition-all"
+                                                    />
+                                                    {isSearching && (
+                                                        <div className="absolute right-3.5 top-1/2 -translate-y-1/2">
+                                                            <div className="w-4 h-4 border-2 border-[#1E6FD9] border-t-transparent rounded-full animate-spin" />
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Live Search Results Dropdown */}
+                                                {patientSearchResults.length > 0 && (
+                                                    <div className="rounded-2xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-slate-900 shadow-xl overflow-hidden divide-y divide-slate-100 dark:divide-white/5 max-h-56 overflow-y-auto">
+                                                        {patientSearchResults.map((pat, idx) => (
+                                                            <div
+                                                                key={pat.id}
+                                                                onClick={() => selectPatient(pat)}
+                                                                className={`p-3 text-xs flex items-center justify-between cursor-pointer transition-colors ${
+                                                                    idx === selectedResultIndex
+                                                                        ? 'bg-[#1E6FD9]/10 text-[#1E6FD9]'
+                                                                        : 'hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-200'
+                                                                }`}
                                                             >
-                                                                Select This Patient
-                                                            </button>
+                                                                <div>
+                                                                    <span className="font-bold block text-slate-900 dark:text-white">
+                                                                        {pat.name}
+                                                                    </span>
+                                                                    <span className="text-[11px] text-slate-500 font-mono">
+                                                                        {maskPhoneNumber(pat.phone)} {pat.nic ? `· NIC: ${maskNic(pat.nic)}` : ''}
+                                                                    </span>
+                                                                </div>
+                                                                <button
+                                                                    type="button"
+                                                                    className="px-2.5 py-1 rounded-lg text-[10px] font-bold text-[#1E6FD9] bg-[#1E6FD9]/10 hover:bg-[#1E6FD9]/20"
+                                                                >
+                                                                    Select
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                {/* RECENT PATIENTS (Last 5 used today) */}
+                                                {recentPatients.length > 0 && (
+                                                    <div>
+                                                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                                                            Recent patients today
+                                                        </span>
+                                                        <div className="flex flex-wrap items-center gap-1.5">
+                                                            {recentPatients.map((rp) => (
+                                                                <button
+                                                                    key={rp.id}
+                                                                    type="button"
+                                                                    onClick={() => selectPatient(rp)}
+                                                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-white/5 hover:bg-[#1E6FD9]/10 hover:text-[#1E6FD9] text-slate-700 dark:text-slate-300 transition-colors"
+                                                                >
+                                                                    <User className="w-3 h-3 text-slate-400" />
+                                                                    <span>{rp.name}</span>
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* NEW WALK-IN PATIENT TOGGLE & INLINE FORM */}
+                                                <div className="pt-2">
+                                                    {!isInlineNewPatientOpen ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setIsInlineNewPatientOpen(true)}
+                                                            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold text-[#0E9E8F] bg-[#0E9E8F]/10 hover:bg-[#0E9E8F]/20 border border-[#0E9E8F]/20 transition-all hover:scale-[1.01]"
+                                                        >
+                                                            <UserPlus className="w-3.5 h-3.5" />
+                                                            <span>+ New walk-in patient</span>
+                                                        </button>
+                                                    ) : (
+                                                        <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 space-y-3">
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                                                    <UserPlus className="w-3.5 h-3.5 text-[#0E9E8F]" />
+                                                                    New walk-in patient
+                                                                </span>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setIsInlineNewPatientOpen(false)}
+                                                                    className="text-slate-400 hover:text-slate-600"
+                                                                >
+                                                                    <X className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </div>
+
+                                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                                <div>
+                                                                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                                                                        Patient name *
+                                                                    </label>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={data.new_patient_name}
+                                                                        onChange={(e) => setData('new_patient_name', e.target.value)}
+                                                                        placeholder="e.g. Kasun Fernando"
+                                                                        className="w-full px-3 py-2 rounded-xl text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0E9E8F]"
+                                                                    />
+                                                                </div>
+
+                                                                <div>
+                                                                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                                                                        Mobile number *
+                                                                    </label>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={data.new_patient_phone}
+                                                                        onChange={(e) => setData('new_patient_phone', e.target.value)}
+                                                                        placeholder="e.g. 0771234567"
+                                                                        className="w-full px-3 py-2 rounded-xl text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0E9E8F]"
+                                                                    />
+                                                                </div>
+
+                                                                <div>
+                                                                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                                                                        NIC (Optional)
+                                                                    </label>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={data.new_patient_nic}
+                                                                        onChange={(e) => setData('new_patient_nic', e.target.value)}
+                                                                        placeholder="e.g. 199012345678"
+                                                                        className="w-full px-3 py-2 rounded-xl text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0E9E8F]"
+                                                                    />
+                                                                </div>
+
+                                                                <div>
+                                                                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                                                                        Gender
+                                                                    </label>
+                                                                    <div className="flex items-center gap-2">
+                                                                        {['male', 'female', 'other'].map((g) => (
+                                                                            <button
+                                                                                key={g}
+                                                                                type="button"
+                                                                                onClick={() => setData('new_patient_gender', g)}
+                                                                                className={`flex-1 py-1.5 rounded-xl text-xs font-semibold capitalize transition-all border ${
+                                                                                    data.new_patient_gender === g
+                                                                                        ? 'bg-[#0E9E8F] text-white border-[#0E9E8F]'
+                                                                                        : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-white/10'
+                                                                                }`}
+                                                                            >
+                                                                                {g}
+                                                                            </button>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="flex justify-end pt-2">
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={!data.new_patient_name.trim() || !data.new_patient_phone.trim()}
+                                                                    onClick={() => setActiveStep(3)}
+                                                                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#0E9E8F] hover:bg-[#0c8a7d] disabled:opacity-40 shadow-xs"
+                                                                >
+                                                                    <span>Next: Confirm & issue</span>
+                                                                    <ChevronRight className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </>
+                                        )}
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </GlassCard>
+
+                        {/* =================================================================
+                            ACCORDION STEP 3: CONFIRM & ISSUE
+                            ================================================================= */}
+                        <GlassCard className="transition-all overflow-hidden p-5 sm:p-6">
+                            {/* Header */}
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div
+                                        className={`w-7 h-7 rounded-xl flex items-center justify-center font-bold text-xs ${
+                                            activeStep === 3
+                                                ? 'bg-[#1E6FD9] text-white'
+                                                : 'bg-slate-100 dark:bg-white/10 text-slate-500'
+                                        }`}
+                                    >
+                                        {activeStep < 3 ? <Lock className="w-3.5 h-3.5 opacity-60" /> : '3'}
+                                    </div>
+                                    <div>
+                                        <h3
+                                            className={`text-sm font-bold ${
+                                                activeStep < 3 ? 'text-slate-400 dark:text-slate-500' : 'text-slate-900 dark:text-white'
+                                            }`}
+                                        >
+                                            Step 3 — Confirm & issue
+                                        </h3>
+                                        {activeStep === 3 && (
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                                Review visit type, fees, discount and issue token.
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Expanded Content for Step 3 */}
+                            <AnimatePresence>
+                                {activeStep === 3 && (
+                                    <motion.div
+                                        initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+                                        animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, height: 'auto' }}
+                                        exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+                                        transition={{ duration: 0.25 }}
+                                        className="mt-5 pt-4 border-t border-slate-200/60 dark:border-white/10 space-y-5"
+                                    >
+                                        {/* VISIT TYPE: SEGMENTED BUTTONS (Not empty dropdown) */}
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-2">
+                                                Visit type
+                                            </label>
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                                {visitTypes.map((vt) => {
+                                                    const isSelected = String(vt.id) === String(data.visit_type_id);
+                                                    return (
+                                                        <button
+                                                            key={vt.id}
+                                                            type="button"
+                                                            onClick={() => setData('visit_type_id', String(vt.id))}
+                                                            className={`p-3 rounded-2xl border text-left transition-all ${
+                                                                isSelected
+                                                                    ? 'bg-[#1E6FD9]/10 border-[#1E6FD9] text-[#1E6FD9] shadow-xs'
+                                                                    : 'bg-white/80 dark:bg-white/5 border-slate-200/80 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:bg-slate-50'
+                                                            }`}
+                                                        >
+                                                            <span className="font-bold text-xs block truncate">
+                                                                {vt.name}
+                                                            </span>
+                                                            <span className="text-[10px] opacity-75 block mt-0.5">
+                                                                {vt.pricing_type === 'percentage'
+                                                                    ? `${vt.percentage_value}% fee`
+                                                                    : vt.fixed_fee_cents > 0
+                                                                    ? `Rs. ${(vt.fixed_fee_cents / 100).toLocaleString()}`
+                                                                    : 'Standard'}
+                                                            </span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+
+                                        {/* DISCOUNT SELECT (Shown only to roles with discount permission) */}
+                                        {discountConfig.can_discount && (
+                                            <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 space-y-3">
+                                                <div className="flex items-center justify-between">
+                                                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                                        <Shield className="w-3.5 h-3.5 text-[#0E9E8F]" />
+                                                        <span>Discount (your limit: {discountConfig.max_display})</span>
+                                                    </label>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                                                    <div>
+                                                        <select
+                                                            value={data.discount_type}
+                                                            onChange={(e) => {
+                                                                const dt = e.target.value as any;
+                                                                setData('discount_type', dt);
+                                                                if (dt === 'waiver') setData('discount_value', 100);
+                                                            }}
+                                                            className="w-full px-3 py-2 rounded-xl text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-slate-200"
+                                                        >
+                                                            <option value="none">No discount</option>
+                                                            <option value="percent">Percentage (%)</option>
+                                                            <option value="amount">Fixed amount (Rs.)</option>
+                                                            <option value="waiver">Full fee waiver (100%)</option>
+                                                        </select>
+                                                    </div>
+
+                                                    {data.discount_type !== 'none' && data.discount_type !== 'waiver' && (
+                                                        <div>
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                value={data.discount_value || ''}
+                                                                onChange={(e) => setData('discount_value', Number(e.target.value))}
+                                                                placeholder={data.discount_type === 'percent' ? 'e.g. 10%' : 'e.g. 500'}
+                                                                className="w-full px-3 py-2 rounded-xl text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-slate-200"
+                                                            />
                                                         </div>
                                                     )}
 
-                                                    <div>
-                                                        <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                                                            Date of Birth {quickAge !== null && <span className="text-primary font-bold">({quickAge} yrs)</span>}
-                                                        </label>
-                                                        <input
-                                                            type="date"
-                                                            value={data.new_patient_dob}
-                                                            onChange={(e) => setData('new_patient_dob', e.target.value)}
-                                                            max={new Date().toISOString().split('T')[0]}
-                                                            className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-2 px-3 text-slate-800 dark:text-slate-200"
-                                                        />
-                                                    </div>
-
-                                                    <div>
-                                                        <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                                                            National ID / NIC (Optional)
-                                                        </label>
-                                                        <input
-                                                            type="text"
-                                                            value={data.new_patient_nic}
-                                                            onChange={(e) => setData('new_patient_nic', e.target.value)}
-                                                            placeholder="e.g. 198512345678"
-                                                            className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-2 px-3 text-slate-800 dark:text-slate-200"
-                                                        />
-                                                    </div>
-
-                                                    <div className="col-span-1 sm:col-span-2">
-                                                        <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                                                            Gender
-                                                        </label>
-                                                        <GlassSelect
-                                                            value={data.new_patient_gender}
-                                                            onValueChange={(val) => setData('new_patient_gender', val)}
-                                                            options={[
-                                                                { value: 'male', label: 'Male' },
-                                                                { value: 'female', label: 'Female' },
-                                                                { value: 'other', label: 'Other' },
-                                                            ]}
-                                                        />
-                                                    </div>
+                                                    {data.discount_type !== 'none' && (
+                                                        <div className={data.discount_type === 'waiver' ? 'sm:col-span-2' : ''}>
+                                                            <input
+                                                                type="text"
+                                                                value={data.discount_reason}
+                                                                onChange={(e) => setData('discount_reason', e.target.value)}
+                                                                placeholder="Reason for discount (required) *"
+                                                                className="w-full px-3 py-2 rounded-xl text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-slate-200"
+                                                            />
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         )}
-                                    </div>
-                                </div>
-                            )}
-                        </GlassCard>
 
-                        {/* STEP 3: CONFIRM & ISSUE SUMMARY CARD */}
-                        <GlassCard className="p-5 space-y-4 border-primary/30 bg-gradient-to-br from-white/95 via-primary-50/20 to-white/95 dark:from-slate-900/95 dark:via-primary-950/20 dark:to-slate-900/95">
-                            <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100 dark:border-white/5">
-                                <span className="w-6 h-6 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center shadow-xs">
-                                    3
-                                </span>
-                                <div>
-                                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                                        Confirm & issue
-                                    </h3>
-                                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                                        Review assigned token and fee breakdown
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* Summary Details */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                                <div className="p-3.5 rounded-xl bg-slate-50/90 dark:bg-white/[0.03] border border-slate-200/70 dark:border-white/5 space-y-1">
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                        Doctor & Session
-                                    </span>
-                                    <p className="font-bold text-slate-900 dark:text-white text-xs">
-                                        {activeSession?.doctor_name || 'No session selected'}
-                                    </p>
-                                    <p className="text-[11px] text-primary dark:text-primary-400 font-semibold">
-                                        {activeSession?.doctor_specialty || '—'}
-                                    </p>
-                                    <p className="text-[11px] text-slate-500">
-                                        {activeSession
-                                            ? `${activeSession.session_date_formatted} • ${activeSession.start_time} (${activeSession.room_number})`
-                                            : 'Choose a session in Step 1'}
-                                    </p>
-                                </div>
-
-                                <div className="p-3.5 rounded-xl bg-slate-50/90 dark:bg-white/[0.03] border border-slate-200/70 dark:border-white/5 space-y-1">
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                        Assigned Token & Time
-                                    </span>
-                                    <div className="flex items-baseline gap-2">
-                                        <span className="text-2xl font-extrabold text-primary">
-                                            {assignedTokenNumber ? `#${assignedTokenNumber}` : '—'}
-                                        </span>
-                                        <span className="text-[11px] text-slate-600 dark:text-slate-300 font-medium">
-                                            {approximateTime || '—'}
-                                        </span>
-                                    </div>
-                                    <p className="text-[11px] text-slate-500 truncate">
-                                        Patient:{' '}
-                                        <span className="font-semibold text-slate-800 dark:text-slate-200">
-                                            {selectedPatient
-                                                ? selectedPatient.name
-                                                : data.new_patient_name.trim() || 'Not specified'}
-                                        </span>
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* Visit Type & Discount Controls */}
-                            <div className="p-3.5 rounded-xl bg-slate-50/90 dark:bg-white/[0.03] border border-slate-200/70 dark:border-white/5 space-y-3">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                            Visit Type *
-                                        </label>
-                                        <select
-                                            value={data.visit_type_id}
-                                            onChange={(e) => setData('visit_type_id', e.target.value)}
-                                            className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-1.5 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
-                                        >
-                                            {visitTypes.map((vt) => (
-                                                <option key={vt.id} value={vt.id}>
-                                                    {vt.name}{' '}
-                                                    {vt.pricing_type === 'percentage'
-                                                        ? `(${vt.percentage_value}%)`
-                                                        : vt.pricing_type === 'fixed'
-                                                        ? `(Rs. ${(vt.fixed_fee_cents / 100).toLocaleString()})`
-                                                        : '(Standard)'}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <div className="flex items-center justify-between mb-1">
-                                            <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                                                Discount / Waiver
-                                            </label>
-                                            <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-primary/10 text-primary">
-                                                {discountConfig.is_admin ? 'Admin: Unlimited' : `Limit: ${discountConfig.max_display}`}
-                                            </span>
-                                        </div>
-                                        <select
-                                            value={data.discount_type}
-                                            onChange={(e) => setData('discount_type', e.target.value as any)}
-                                            className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-1.5 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
-                                        >
-                                            <option value="none">No discount</option>
-                                            <option value="percent">Percentage discount (%)</option>
-                                            <option value="amount">Fixed amount (Rs.)</option>
-                                            <option value="waiver">Full waiver (100% Free)</option>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                {/* Discount Value & Reason Inputs (only shown when discount != 'none') */}
-                                {data.discount_type !== 'none' && (
-                                    <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-2 animate-in fade-in-0 duration-150">
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                            {data.discount_type !== 'waiver' && (
-                                                <div>
-                                                    <label className="block text-[10px] font-bold text-amber-900 dark:text-amber-200 mb-1">
-                                                        {data.discount_type === 'percent'
-                                                            ? 'Discount percentage (%) *'
-                                                            : 'Discount amount (LKR) *'}
-                                                    </label>
-                                                    <input
-                                                        type="number"
-                                                        min="1"
-                                                        max={data.discount_type === 'percent' ? 100 : liveFeeCalculation?.grossTotal || 50000}
-                                                        value={data.discount_value || ''}
-                                                        onChange={(e) => setData('discount_value', parseFloat(e.target.value) || 0)}
-                                                        placeholder={data.discount_type === 'percent' ? 'e.g. 20' : 'e.g. 500'}
-                                                        className="w-full text-xs rounded-xl border border-amber-300 dark:border-amber-500/30 bg-white dark:bg-slate-900 py-1.5 px-3"
-                                                    />
-                                                </div>
-                                            )}
-                                            <div className={data.discount_type === 'waiver' ? 'sm:col-span-2' : ''}>
-                                                <label className="block text-[10px] font-bold text-amber-900 dark:text-amber-200 mb-1">
-                                                    Discount reason (Required) *
-                                                </label>
+                                        {/* COLLECT PAYMENT NOW TOGGLE & METHOD */}
+                                        <div className="flex flex-wrap items-center justify-between p-3.5 rounded-2xl bg-slate-50/80 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 gap-3">
+                                            <div className="flex items-center gap-2">
                                                 <input
-                                                    type="text"
-                                                    required
-                                                    value={data.discount_reason}
-                                                    onChange={(e) => setData('discount_reason', e.target.value)}
-                                                    placeholder="e.g. Senior citizen courtesy, staff review, waiver"
-                                                    className="w-full text-xs rounded-xl border border-amber-300 dark:border-amber-500/30 bg-white dark:bg-slate-900 py-1.5 px-3"
+                                                    type="checkbox"
+                                                    id="collect_pay_toggle"
+                                                    checked={data.payment_collected}
+                                                    onChange={(e) => setData('payment_collected', e.target.checked)}
+                                                    className="w-4 h-4 rounded text-[#0E9E8F] focus:ring-[#0E9E8F] border-slate-300"
                                                 />
+                                                <label htmlFor="collect_pay_toggle" className="text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer">
+                                                    Collect payment now at desk
+                                                </label>
                                             </div>
-                                        </div>
-                                    </div>
-                                )}
 
-                                {/* Payment at Issue Toggle & Method */}
-                                <div className="pt-2 border-t border-slate-200/60 dark:border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                    <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-300">
-                                        <input
-                                            type="checkbox"
-                                            checked={data.payment_collected}
-                                            onChange={(e) => setData('payment_collected', e.target.checked)}
-                                            className="rounded border-slate-300 text-primary focus:ring-primary w-4 h-4"
-                                        />
-                                        <span>Collect payment now at token issue</span>
-                                    </label>
-
-                                    {data.payment_collected && (
-                                        <div className="flex items-center gap-1.5">
-                                            {(['cash', 'card', 'bank_transfer'] as const).map((method) => (
-                                                <button
-                                                    key={method}
-                                                    type="button"
-                                                    onClick={() => setData('payment_method', method)}
-                                                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold capitalize border transition-all ${
-                                                        data.payment_method === method
-                                                            ? 'bg-primary text-white border-primary'
-                                                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-white/10'
-                                                    }`}
-                                                >
-                                                    {method.replace('_', ' ')}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* LIVE FEE BREAKDOWN & ISSUE ACTION */}
-                            <div className="p-4 rounded-xl bg-slate-100/80 dark:bg-white/[0.04] border border-slate-200/70 dark:border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                {liveFeeCalculation ? (
-                                    <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1">
-                                        <div className="flex items-center gap-2 text-[11px] flex-wrap">
-                                            <span>
-                                                Consultation: Rs. {liveFeeCalculation.consultFee.toLocaleString()}
-                                            </span>
-                                            <span className="text-[10px] text-primary font-semibold">
-                                                ({liveFeeCalculation.sourceLabel})
-                                            </span>
-                                            {liveFeeCalculation.visitTypeDiff !== 0 && (
-                                                <span className="text-[10px] text-slate-500">
-                                                    (Visit Type: {liveFeeCalculation.visitTypeDiff > 0 ? '+' : ''}Rs. {liveFeeCalculation.visitTypeDiff.toLocaleString()})
-                                                </span>
+                                            {data.payment_collected && (
+                                                <div className="flex items-center gap-1.5">
+                                                    {(['cash', 'card'] as const).map((method) => (
+                                                        <button
+                                                            key={method}
+                                                            type="button"
+                                                            onClick={() => setData('payment_method', method)}
+                                                            className={`px-3 py-1 rounded-xl text-xs font-semibold capitalize transition-all border ${
+                                                                data.payment_method === method
+                                                                    ? 'bg-[#0E9E8F] text-white border-[#0E9E8F]'
+                                                                    : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-white/10'
+                                                            }`}
+                                                        >
+                                                            {method}
+                                                        </button>
+                                                    ))}
+                                                </div>
                                             )}
+                                        </div>
+
+                                        {/* CLEAN FEE BREAKDOWN SUMMARY */}
+                                        <div className="p-4 rounded-2xl bg-white/60 dark:bg-white/5 border border-slate-200/60 dark:border-white/10 space-y-1.5 text-xs">
+                                            <div className="flex justify-between text-slate-500">
+                                                <span>Doctor consultation fee</span>
+                                                <span className="font-mono">Rs. {liveFeeCalculation.baseDoctorFee.toLocaleString()}</span>
+                                            </div>
+                                            <div className="flex justify-between text-slate-500">
+                                                <span>Clinic fee</span>
+                                                <span className="font-mono">Rs. {liveFeeCalculation.baseClinicFee.toLocaleString()}</span>
+                                            </div>
                                             {liveFeeCalculation.discountAmount > 0 && (
-                                                <>
-                                                    <span>•</span>
-                                                    <span className="text-emerald-600 font-bold">
-                                                        Discount: -Rs. {liveFeeCalculation.discountAmount.toLocaleString()}
-                                                    </span>
-                                                </>
+                                                <div className="flex justify-between text-[#FF7A59] font-medium">
+                                                    <span>Discount / waiver</span>
+                                                    <span className="font-mono">-Rs. {liveFeeCalculation.discountAmount.toLocaleString()}</span>
+                                                </div>
                                             )}
-                                        </div>
-
-                                        <div className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
-                                            <span>Patient Total:</span>
-                                            <span className="text-primary text-xl">
-                                                Rs. {liveFeeCalculation.patientTotal.toLocaleString()}
-                                            </span>
-                                        </div>
-
-                                        {/* Admin Share Breakdown */}
-                                        {discountConfig.is_admin && (
-                                            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium pt-0.5">
-                                                Admin View: Doctor share: Rs. {liveFeeCalculation.doctorShare.toLocaleString()} • Clinic share: Rs. {liveFeeCalculation.clinicShare.toLocaleString()}
+                                            <div className="pt-2 border-t border-slate-200/60 dark:border-white/10 flex justify-between font-black text-sm text-slate-900 dark:text-white">
+                                                <span>Total payable</span>
+                                                <span className="font-mono text-[#1E6FD9]">Rs. {liveFeeCalculation.patientTotal.toLocaleString()}</span>
                                             </div>
-                                        )}
-                                    </div>
-                                ) : (
-                                    <div className="text-xs text-slate-500 italic py-1">
-                                        Select a session to see fees
-                                    </div>
-                                )}
+                                        </div>
 
-                                <div className="flex flex-col items-end gap-1">
-                                    <button
-                                        type="button"
-                                        onClick={handleIssueToken}
-                                        disabled={Boolean(issueDisabledReason)}
-                                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-md shadow-primary/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                                    >
-                                        <Ticket className="w-4 h-4" />
-                                        <span>{processing ? 'Issuing...' : 'Issue token'}</span>
-                                    </button>
-                                    {issueDisabledReason && (
-                                        <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
-                                            {issueDisabledReason}
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
+                                        {/* PRIMARY ISSUE TOKEN BUTTON */}
+                                        <div className="pt-2">
+                                            <button
+                                                type="button"
+                                                onClick={handleIssueToken}
+                                                disabled={processing}
+                                                className="w-full min-h-[50px] inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl text-sm font-bold text-white bg-[#1E6FD9] hover:bg-[#1859ae] shadow-lg shadow-[#1E6FD9]/25 transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
+                                            >
+                                                <Ticket className="w-4 h-4" />
+                                                <span>{processing ? 'Issuing token...' : 'Issue token'}</span>
+                                                <kbd className="hidden sm:inline-block px-1.5 py-0.5 rounded text-[10px] font-mono bg-white/20 text-white ml-1">
+                                                    Ctrl + Enter
+                                                </kbd>
+                                            </button>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </GlassCard>
                     </div>
 
-                    {/* RIGHT COLUMN: LIVE RECENT TOKENS (5 COLS) */}
-                    <div className="lg:col-span-5 space-y-5">
-                        <GlassCard className="p-5 space-y-4">
-                            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/5">
-                                <div>
-                                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                                        Today's tokens
-                                    </h3>
-                                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                                        Live list of issued appointments
+                    {/* =========================================================================
+                        RIGHT COLUMN (~38%, STICKY): TICKET PREVIEW + TODAY'S TOKENS
+                        ========================================================================= */}
+                    <div className="xl:col-span-5 space-y-6 xl:sticky xl:top-24">
+                        {/* THE TICKET PREVIEW CARD (Realistic Thermal Notch & Tear Line) */}
+                        <div className="relative">
+                            <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-white/10 shadow-xl relative overflow-hidden">
+                                {/* Left & Right Notches for Ticket Silhouette */}
+                                <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-950 border border-slate-200/80 dark:border-white/10 shadow-inner" />
+                                <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-950 border border-slate-200/80 dark:border-white/10 shadow-inner" />
+
+                                {/* Ticket Top Section */}
+                                <div className="text-center pb-4">
+                                    <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#1E6FD9] to-[#0E9E8F] text-white flex items-center justify-center mx-auto mb-2 font-bold text-xs shadow-xs">
+                                        <Ticket className="w-4 h-4" />
+                                    </div>
+                                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                                        {clinicInfo.name || 'MedVisit Clinic'}
+                                    </h4>
+                                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                        Channeling Appointment Slip
                                     </p>
                                 </div>
-                                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary-50 dark:bg-primary-950/60 text-primary border border-primary-200/60 dark:border-primary-800/40">
-                                    {recentBookings.length} issued
+
+                                {/* Large Token Number Display (with shimmer when empty) */}
+                                <div className="text-center py-3">
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#1E6FD9] block">
+                                        Assigned token
+                                    </span>
+                                    <span className="text-5xl font-black text-slate-900 dark:text-white font-mono tracking-tight block leading-none mt-1">
+                                        #{justIssuedTicket?.token_number || (activeSession ? previewTokenNumber : '—')}
+                                    </span>
+                                    <span className="text-[11px] text-slate-500 font-medium mt-1.5 block">
+                                        Est. {justIssuedTicket?.estimated_time || approximateTime}
+                                    </span>
+                                </div>
+
+                                {/* Patient & Doctor Details */}
+                                <div className="space-y-2 py-3 text-xs">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-slate-400">Doctor:</span>
+                                        {activeSession ? (
+                                            <span className="font-bold text-slate-900 dark:text-white truncate max-w-[180px]">
+                                                {justIssuedTicket?.doctor_name || activeSession.doctor_name}
+                                            </span>
+                                        ) : (
+                                            <span className="h-3 w-28 bg-slate-200 dark:bg-white/10 rounded animate-pulse" />
+                                        )}
+                                    </div>
+
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-slate-400">Room:</span>
+                                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                            {justIssuedTicket?.room_number || (activeSession?.room_number ?? 'Consultation Suite')}
+                                        </span>
+                                    </div>
+
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-slate-400">Patient:</span>
+                                        {selectedPatient || data.new_patient_name || justIssuedTicket ? (
+                                            <span className="font-bold text-slate-900 dark:text-white">
+                                                {justIssuedTicket?.patient_name || (selectedPatient ? selectedPatient.name : data.new_patient_name)}
+                                            </span>
+                                        ) : (
+                                            <span className="h-3 w-24 bg-slate-200 dark:bg-white/10 rounded animate-pulse" />
+                                        )}
+                                    </div>
+
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-slate-400">Visit type:</span>
+                                        <span className="font-medium text-slate-600 dark:text-slate-400">
+                                            {selectedVisitType?.name || 'Standard Consultation'}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Dashed Tear Line */}
+                                <div className="border-b-2 border-dashed border-slate-200 dark:border-white/10 my-4" />
+
+                                {/* Ticket Bottom Tear Section: Fee & Payment Status */}
+                                <div className="flex items-center justify-between text-xs pt-1">
+                                    <div>
+                                        <span className="text-[10px] text-slate-400 uppercase tracking-wider block">
+                                            Total fee
+                                        </span>
+                                        <span className="font-mono text-base font-black text-slate-900 dark:text-white">
+                                            {justIssuedTicket?.total_fee_formatted || `Rs. ${liveFeeCalculation.patientTotal.toLocaleString()}`}
+                                        </span>
+                                    </div>
+
+                                    <div>
+                                        <span
+                                            className={`px-3 py-1 rounded-full text-[11px] font-bold ${
+                                                data.payment_collected || justIssuedTicket?.payment_status === 'paid'
+                                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                                            }`}
+                                        >
+                                            {data.payment_collected || justIssuedTicket?.payment_status === 'paid' ? 'Paid' : 'Payment due'}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* SUCCESS ACTIONS PANEL (Shown on successful issue) */}
+                        <AnimatePresence>
+                            {justIssuedTicket && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 12 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: 12 }}
+                                    className="p-5 rounded-3xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 space-y-3"
+                                >
+                                    <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-bold text-xs">
+                                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                        <span>Token #{justIssuedTicket.token_number} issued successfully!</span>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2 pt-1">
+                                        {/* Print Slip */}
+                                        <button
+                                            type="button"
+                                            onClick={() => window.print()}
+                                            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold text-white bg-slate-900 hover:bg-black dark:bg-slate-800 dark:hover:bg-slate-700 shadow-xs transition-colors"
+                                        >
+                                            <Printer className="w-3.5 h-3.5" />
+                                            <span>Print slip</span>
+                                        </button>
+
+                                        {/* Send WhatsApp */}
+                                        {justIssuedTicket.patient_phone && (
+                                            <a
+                                                href={generateWhatsAppUrl(justIssuedTicket)}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold text-white bg-[#0E9E8F] hover:bg-[#0c8a7d] shadow-xs transition-colors"
+                                            >
+                                                <Share2 className="w-3.5 h-3.5" />
+                                                <span>Send WhatsApp</span>
+                                            </a>
+                                        )}
+
+                                        {/* Open in Queue */}
+                                        <Link
+                                            href={`/sessions/today?session_id=${activeSession?.id}`}
+                                            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold text-[#1E6FD9] bg-[#1E6FD9]/10 hover:bg-[#1E6FD9]/20 transition-colors"
+                                        >
+                                            <Tv className="w-3.5 h-3.5" />
+                                            <span>Open in queue</span>
+                                        </Link>
+
+                                        {/* Issue Another Token */}
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setJustIssuedTicket(null);
+                                                setActiveStep(2);
+                                            }}
+                                            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-800 hover:bg-slate-100 shadow-xs transition-colors"
+                                        >
+                                            <RotateCcw className="w-3.5 h-3.5" />
+                                            <span>Issue another</span>
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        {/* TODAY'S TOKENS LIVE LIST */}
+                        <GlassCard className="p-5">
+                            <div className="flex items-center justify-between pb-3 border-b border-slate-200/70 dark:border-white/10">
+                                <h4 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                    <Clock className="w-3.5 h-3.5 text-[#1E6FD9]" />
+                                    <span>Today's tokens</span>
+                                </h4>
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#1E6FD9]/10 text-[#1E6FD9]">
+                                    {recentBookings.length}
                                 </span>
                             </div>
 
-                            {recentBookings.length === 0 ? (
-                                <div className="space-y-4 py-2">
-                                    <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-white/[0.02] border border-slate-200/60 dark:border-white/5 text-center">
-                                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                                            No tokens issued yet today
-                                        </p>
-                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                                            Issued tokens will appear here live with instant print slips and WhatsApp confirmations.
-                                        </p>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="space-y-2.5 max-h-[580px] overflow-y-auto pr-1">
-                                    {recentBookings.map((b) => (
+                            <div className="mt-3 space-y-2 max-h-[300px] overflow-y-auto pr-1 scrollbar-thin">
+                                {recentBookings.length === 0 ? (
+                                    <p className="text-xs text-slate-400 py-6 text-center italic">
+                                        No tokens issued yet today.
+                                    </p>
+                                ) : (
+                                    recentBookings.map((b) => (
                                         <div
                                             key={b.id}
-                                            className={`p-3 rounded-2xl border text-xs transition-colors flex items-center justify-between ${
-                                                b.status === 'cancelled'
-                                                    ? 'bg-rose-50/30 border-rose-200/50 opacity-60'
-                                                    : 'bg-slate-50/70 dark:bg-white/[0.02] border-slate-200/60 dark:border-white/5'
-                                            }`}
+                                            className="p-2.5 rounded-xl bg-slate-50/80 dark:bg-white/5 border border-slate-100 dark:border-white/5 flex items-center justify-between text-xs hover:border-[#1E6FD9]/30 transition-colors"
                                         >
-                                            <div className="flex items-center gap-3 min-w-0">
-                                                <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary font-black flex items-center justify-center text-sm shrink-0">
+                                            <div className="flex items-center gap-2.5 min-w-0">
+                                                <span className="w-7 h-7 rounded-lg bg-slate-200 dark:bg-white/10 text-slate-800 dark:text-white font-black font-mono flex items-center justify-center text-xs shrink-0">
                                                     #{b.token_number}
-                                                </div>
+                                                </span>
                                                 <div className="min-w-0">
                                                     <span className="font-bold text-slate-900 dark:text-white block truncate">
                                                         {b.patient_name}
                                                     </span>
-                                                    <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate">
-                                                        {b.doctor_name} • {b.estimated_time || 'Queue'}
+                                                    <span className="text-[10px] text-slate-400 block truncate">
+                                                        {b.doctor_name} · {b.estimated_time}
                                                     </span>
-                                                    <div className="flex items-center gap-1.5 mt-0.5">
-                                                        <span className="text-[10px] text-slate-400">
-                                                            {b.created_at_time} • {b.total_fee_formatted}
-                                                        </span>
-                                                        {b.status === 'moved' ? (
-                                                            <span className="text-[9px] px-1.5 py-0.2 rounded font-bold uppercase bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                                                                Moved
-                                                            </span>
-                                                        ) : (
-                                                            <span
-                                                                className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase ${
-                                                                    b.payment_status === 'paid'
-                                                                        ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
-                                                                        : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300'
-                                                                }`}
-                                                            >
-                                                                {b.payment_status}
-                                                            </span>
-                                                        )}
-                                                    </div>
                                                 </div>
                                             </div>
 
-                                            <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                                            <div className="flex items-center gap-1.5 shrink-0">
+                                                <span
+                                                    className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                                        b.payment_status === 'paid'
+                                                            ? 'bg-emerald-100 text-emerald-800'
+                                                            : 'bg-amber-100 text-amber-800'
+                                                    }`}
+                                                >
+                                                    {b.payment_status}
+                                                </span>
                                                 <button
                                                     type="button"
-                                                    onClick={() => openSlipForRecent(b)}
-                                                    className="p-1.5 rounded-lg text-slate-500 hover:text-primary hover:bg-primary-50 dark:hover:bg-primary-950/40 transition-colors"
-                                                    title="View & Print Slip"
+                                                    onClick={() => {
+                                                        setTokenToMove({
+                                                            id: b.id,
+                                                            token_number: b.token_number,
+                                                            patient_id: b.patient_id,
+                                                            patient_name: b.patient_name,
+                                                            patient_phone: b.patient_phone,
+                                                            doctor_name: b.doctor_name,
+                                                            doctor_specialty: b.doctor_specialty,
+                                                            session_date: b.session_date,
+                                                            payment_status: b.payment_status,
+                                                        });
+                                                        setMoveModalOpen(true);
+                                                    }}
+                                                    className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                                                    title="Move token to another session"
                                                 >
-                                                    <Printer className="w-3.5 h-3.5" />
+                                                    <ArrowRightLeft className="w-3.5 h-3.5" />
                                                 </button>
-
-                                                <a
-                                                    href={generateWhatsAppUrl(b)}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors"
-                                                    title="Share via WhatsApp"
-                                                >
-                                                    <Share2 className="w-3.5 h-3.5" />
-                                                </a>
-
-                                                {b.status !== 'cancelled' && b.status !== 'completed' && b.status !== 'moved' && b.status !== 'in_consultation' && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => openMoveModal(b)}
-                                                        className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors"
-                                                        title="Move Token to Another Doctor/Session"
-                                                    >
-                                                        <ArrowRightLeft className="w-3.5 h-3.5" />
-                                                    </button>
-                                                )}
-
-                                                {b.status !== 'cancelled' && b.status !== 'moved' && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => cancelBooking(b)}
-                                                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-                                                        title="Cancel Token"
-                                                    >
-                                                        <XCircle className="w-3.5 h-3.5" />
-                                                    </button>
-                                                )}
                                             </div>
                                         </div>
-                                    ))}
-                                </div>
-                            )}
+                                    ))
+                                )}
+                            </div>
                         </GlassCard>
                     </div>
                 </div>
+
+                {/* STICKY BOTTOM BAR FOR TABLET/MOBILE (<1280px) */}
+                <div className="xl:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-t border-slate-200/80 dark:border-white/10 p-3 shadow-2xl flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                        <span className="text-xs font-bold text-slate-900 dark:text-white block truncate">
+                            Token #{previewTokenNumber} · {selectedPatient ? selectedPatient.name : data.new_patient_name || 'Patient'}
+                        </span>
+                        <span className="text-[11px] font-mono text-[#1E6FD9] block">
+                            Rs. {liveFeeCalculation.patientTotal.toLocaleString()}
+                        </span>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={handleIssueToken}
+                        disabled={processing}
+                        className="min-h-[44px] px-5 rounded-2xl text-xs font-bold text-white bg-[#1E6FD9] hover:bg-[#1859ae] shadow-md shadow-[#1E6FD9]/20 transition-all shrink-0"
+                    >
+                        {processing ? 'Issuing...' : 'Issue token'}
+                    </button>
+                </div>
             </div>
 
-            {/* MODAL: SUCCESS PANEL & 80MM THERMAL TOKEN SLIP */}
-            <GlassModal
-                isOpen={slipModalOpen}
-                onClose={() => setSlipModalOpen(false)}
-                title="Token Issued Successfully"
-                subtitle="Fast token slip, thermal printing, and WhatsApp share"
-                maxWidth="max-w-md"
-            >
-                {activeSlip && (
-                    <div className="space-y-4">
-                        {/* Printable 80mm Thermal Slip Box */}
-                        <div
-                            id="printable-token-slip"
-                            className="bg-white text-slate-900 p-5 rounded-2xl border-2 border-dashed border-slate-300 text-center font-mono space-y-3 shadow-inner"
+            {/* QUICK CREATE ONE-OFF SESSION MODAL */}
+            <AnimatePresence>
+                {quickSessionModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            className="w-full max-w-md p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-white/10 shadow-2xl space-y-4"
                         >
-                            <div>
-                                <h3 className="font-bold text-sm tracking-wider uppercase">
-                                    {clinicInfo.name}
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                    <Plus className="w-4 h-4 text-[#1E6FD9]" />
+                                    <span>Create session for {formattedHumanDate}</span>
                                 </h3>
-                                <p className="text-[10px] text-slate-500">{clinicInfo.address}</p>
-                                <p className="text-[10px] text-slate-500">{clinicInfo.phone}</p>
+                                <button
+                                    type="button"
+                                    onClick={() => setQuickSessionModalOpen(false)}
+                                    className="text-slate-400 hover:text-slate-600"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
                             </div>
 
-                            <div className="border-t border-b border-dashed border-slate-300 py-3 my-2">
-                                <span className="text-[11px] uppercase tracking-widest text-slate-500 block">
-                                    Channeling Token
-                                </span>
-                                <span className="text-5xl font-black text-slate-900 block my-1">
-                                    #{activeSlip.token_number}
-                                </span>
-                                <span className="text-xs font-bold text-primary block">
-                                    {activeSlip.estimated_time || activeSlip.approx_time || 'Queue'}
-                                </span>
-                            </div>
+                            <form onSubmit={handleQuickSessionSubmit} className="space-y-3 pt-1">
+                                <div>
+                                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                                        Doctor *
+                                    </label>
+                                    <select
+                                        value={quickDocId}
+                                        onChange={(e) => setQuickDocId(e.target.value)}
+                                        className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-slate-200"
+                                        required
+                                    >
+                                        {doctors.map((d) => (
+                                            <option key={d.id} value={String(d.id)}>
+                                                {d.name} ({d.specialty})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
 
-                            <div className="text-left text-xs space-y-1">
-                                <div className="flex justify-between">
-                                    <span className="text-slate-500">Doctor:</span>
-                                    <span className="font-bold">{activeSlip.doctor_name}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-slate-500">Specialty:</span>
-                                    <span>{activeSlip.doctor_specialty}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-slate-500">Room:</span>
-                                    <span className="font-semibold">{activeSlip.room_number || 'Room 1'}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-slate-500">Date:</span>
-                                    <span className="font-semibold">{activeSlip.session_date}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-slate-500">Patient:</span>
-                                    <span className="font-bold">{activeSlip.patient_name}</span>
-                                </div>
-                                {activeSlip.patient_phone && (
-                                    <div className="flex justify-between">
-                                        <span className="text-slate-500">Phone:</span>
-                                        <span>{activeSlip.patient_phone}</span>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                                            Start time *
+                                        </label>
+                                        <input
+                                            type="time"
+                                            value={quickStartTime}
+                                            onChange={(e) => setQuickStartTime(e.target.value)}
+                                            className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-slate-200"
+                                            required
+                                        />
                                     </div>
-                                )}
-                                <div className="flex justify-between pt-1 border-t border-slate-200 font-bold">
-                                    <span>Total Amount:</span>
-                                    <span className="text-sm">
-                                        {activeSlip.total_fee_formatted || activeSlip.fee_formatted}
-                                    </span>
+                                    <div>
+                                        <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                                            End time *
+                                        </label>
+                                        <input
+                                            type="time"
+                                            value={quickEndTime}
+                                            onChange={(e) => setQuickEndTime(e.target.value)}
+                                            className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-slate-200"
+                                            required
+                                        />
+                                    </div>
                                 </div>
-                                <div className="flex justify-between text-[11px]">
-                                    <span className="text-slate-500">Payment Status:</span>
-                                    <span className={`font-bold uppercase ${activeSlip.payment_status === 'paid' ? 'text-emerald-600' : 'text-amber-600'}`}>
-                                        {activeSlip.payment_status === 'paid' ? 'PAID' : 'PAYMENT DUE'}
-                                    </span>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                                            Max token capacity
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            value={quickMaxTokens}
+                                            onChange={(e) => setQuickMaxTokens(Number(e.target.value))}
+                                            className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-slate-200"
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                                            Consultation room
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={quickRoom}
+                                            onChange={(e) => setQuickRoom(e.target.value)}
+                                            className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-slate-200"
+                                            required
+                                        />
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div className="pt-2 text-[9px] text-slate-400">
-                                Live Waiting Room Display:<br />
-                                https://{clinicInfo.subdomain}.medvisit.lk/queue/tv
-                            </div>
-                        </div>
-
-                        {/* Payment step if pending */}
-                        {activeSlip.payment_status !== 'paid' && activeSlip.bill_id && (
-                            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-2">
-                                <span className="text-xs font-bold text-amber-900 dark:text-amber-200 block">
-                                    Payment Pending: {activeSlip.total_fee_formatted}
-                                </span>
-                                <div className="flex items-center gap-2">
+                                <div className="flex justify-end gap-2 pt-3 border-t border-slate-200/60 dark:border-white/10">
                                     <button
                                         type="button"
-                                        onClick={() => handleRecordPayment('cash')}
-                                        className="flex-1 py-1.5 px-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+                                        onClick={() => setQuickSessionModalOpen(false)}
+                                        className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-700"
                                     >
-                                        Collect Cash
+                                        Cancel
                                     </button>
                                     <button
-                                        type="button"
-                                        onClick={() => handleRecordPayment('card')}
-                                        className="flex-1 py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs"
+                                        type="submit"
+                                        className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#1E6FD9] hover:bg-[#1859ae] shadow-xs"
                                     >
-                                        Card
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => handleRecordPayment('bank_transfer')}
-                                        className="flex-1 py-1.5 px-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs"
-                                    >
-                                        Bank
+                                        Create session
                                     </button>
                                 </div>
-                            </div>
-                        )}
-
-                        {/* Action Buttons */}
-                        <div className="grid grid-cols-2 gap-2 pt-1">
-                            <button
-                                type="button"
-                                onClick={() => window.print()}
-                                className="inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 shadow-md transition-all"
-                            >
-                                <Printer className="w-3.5 h-3.5" />
-                                <span>Print slip (80mm)</span>
-                            </button>
-
-                            <a
-                                href={generateWhatsAppUrl(activeSlip)}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md transition-all"
-                            >
-                                <Share2 className="w-3.5 h-3.5" />
-                                <span>Share WhatsApp</span>
-                            </a>
-
-                            <button
-                                type="button"
-                                onClick={() => setSlipModalOpen(false)}
-                                className="inline-flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 transition-all"
-                            >
-                                <Plus className="w-3.5 h-3.5" />
-                                <span>Issue another</span>
-                            </button>
-
-                            <Link
-                                href="/sessions/today"
-                                className="inline-flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 transition-all"
-                            >
-                                <span>Go to queue</span>
-                                <ArrowRight className="w-3.5 h-3.5" />
-                            </Link>
-                        </div>
+                            </form>
+                        </motion.div>
                     </div>
                 )}
-            </GlassModal>
+            </AnimatePresence>
 
-            {/* MODAL: INLINE CREATE SESSION FOR THIS DATE */}
-            <GlassModal
-                isOpen={quickSessionModalOpen}
-                onClose={() => setQuickSessionModalOpen(false)}
-                title={`Create Session for ${currentDate}`}
-                subtitle="Add a doctor channeling session on this date and auto-select it."
-                maxWidth="max-w-md"
-            >
-                <form onSubmit={handleCreateOneOffSession} className="space-y-3.5 text-xs">
-                    <div>
-                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                            Doctor *
-                        </label>
-                        <select
-                            required
-                            value={quickDocId}
-                            onChange={(e) => setQuickDocId(e.target.value)}
-                            className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary"
+            {/* KEYBOARD SHORTCUTS MODAL */}
+            <AnimatePresence>
+                {showShortcutsModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            className="w-full max-w-sm p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-white/10 shadow-2xl space-y-4"
                         >
-                            {doctors.map((d) => (
-                                <option key={d.id} value={d.id}>
-                                    {d.name} ({d.specialty}) • Fee: Rs. {d.total_fee_lkr.toLocaleString()}
-                                </option>
-                            ))}
-                        </select>
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                    <HelpCircle className="w-4 h-4 text-[#1E6FD9]" />
+                                    <span>Keyboard shortcuts</span>
+                                </h3>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowShortcutsModal(false)}
+                                    className="text-slate-400 hover:text-slate-600"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+
+                            <div className="space-y-2 text-xs">
+                                <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-white/5">
+                                    <span className="text-slate-600 dark:text-slate-300">Select session 1–9</span>
+                                    <kbd className="px-2 py-0.5 rounded bg-slate-100 dark:bg-white/10 font-mono">1 – 9</kbd>
+                                </div>
+                                <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-white/5">
+                                    <span className="text-slate-600 dark:text-slate-300">Issue token</span>
+                                    <kbd className="px-2 py-0.5 rounded bg-slate-100 dark:bg-white/10 font-mono">Ctrl + Enter</kbd>
+                                </div>
+                                <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-white/5">
+                                    <span className="text-slate-600 dark:text-slate-300">Previous step</span>
+                                    <kbd className="px-2 py-0.5 rounded bg-slate-100 dark:bg-white/10 font-mono">Esc</kbd>
+                                </div>
+                                <div className="flex items-center justify-between py-1">
+                                    <span className="text-slate-600 dark:text-slate-300">Select patient in search</span>
+                                    <kbd className="px-2 py-0.5 rounded bg-slate-100 dark:bg-white/10 font-mono">↓ / ↑ + Enter</kbd>
+                                </div>
+                            </div>
+                        </motion.div>
                     </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                Start Time *
-                            </label>
-                            <input
-                                type="time"
-                                required
-                                value={quickStartTime}
-                                onChange={(e) => setQuickStartTime(e.target.value)}
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-2 px-3 text-slate-800 dark:text-slate-200"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                End Time *
-                            </label>
-                            <input
-                                type="time"
-                                required
-                                value={quickEndTime}
-                                onChange={(e) => setQuickEndTime(e.target.value)}
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-2 px-3 text-slate-800 dark:text-slate-200"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                Maximum Tokens *
-                            </label>
-                            <input
-                                type="number"
-                                required
-                                min="1"
-                                max="200"
-                                value={quickMaxTokens}
-                                onChange={(e) => setQuickMaxTokens(parseInt(e.target.value) || 25)}
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-2 px-3 text-slate-800 dark:text-slate-200"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                Room / Suite
-                            </label>
-                            <input
-                                type="text"
-                                value={quickRoom}
-                                onChange={(e) => setQuickRoom(e.target.value)}
-                                placeholder="Consulting Room 1"
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-2 px-3 text-slate-800 dark:text-slate-200"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200/60 dark:border-white/5">
-                        <button
-                            type="button"
-                            onClick={() => setQuickSessionModalOpen(false)}
-                            className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:hover:bg-white/5"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={isSubmittingQuickSession}
-                            className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-md shadow-primary/20 disabled:opacity-50"
-                        >
-                            {isSubmittingQuickSession ? 'Creating...' : 'Save & Select Session'}
-                        </button>
-                    </div>
-                </form>
-            </GlassModal>
-
-            {/* ASSIGN DOCTOR & SESSION DRAWER (DOCTOR-FIRST CHANNELING PICKER) */}
-            <AssignDoctorDrawer
-                isOpen={doctorDrawerOpen}
-                onClose={() => setDoctorDrawerOpen(false)}
-                patient={selectedPatient}
-                doctors={doctors}
-                visitTypes={visitTypes}
-                onTokenIssued={(token) => {
-                    setDoctorDrawerOpen(false);
-                    if (token) {
-                        setActiveSlip(token);
-                        setSlipModalOpen(true);
-                    }
-                }}
-            />
+                )}
+            </AnimatePresence>
 
             {/* MOVE TOKEN MODAL */}
-            <MoveTokenModal
-                isOpen={moveModalOpen}
-                onClose={() => {
-                    setMoveModalOpen(false);
-                    setTokenToMove(null);
-                }}
-                token={tokenToMove}
-                doctors={doctors}
-                onSuccess={() => {
-                    setMoveModalOpen(false);
-                    setTokenToMove(null);
-                }}
-            />
+            {moveModalOpen && tokenToMove && (
+                <MoveTokenModal
+                    isOpen={moveModalOpen}
+                    onClose={() => setMoveModalOpen(false)}
+                    token={tokenToMove}
+                    doctors={doctors}
+                />
+            )}
+
+            {/* HIDDEN 80MM THERMAL RECEIPT SLIP FOR BROWSER PRINTING */}
+            <div id="printable-token-slip" className="hidden">
+                <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+                    <h2 style={{ fontSize: '16px', fontWeight: 'bold', margin: '0 0 2px 0' }}>
+                        {clinicInfo.name}
+                    </h2>
+                    <p style={{ fontSize: '11px', margin: 0 }}>{clinicInfo.address}</p>
+                    <p style={{ fontSize: '11px', margin: 0 }}>Tel: {clinicInfo.phone}</p>
+                    <hr style={{ border: 'none', borderTop: '1px dashed #000', margin: '8px 0' }} />
+                </div>
+
+                <div style={{ textAlign: 'center', margin: '8px 0' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' }}>Token Number</div>
+                    <div style={{ fontSize: '38px', fontWeight: 'bold', margin: '2px 0' }}>
+                        #{justIssuedTicket?.token_number || '—'}
+                    </div>
+                    <div style={{ fontSize: '12px' }}>
+                        Estimated Time: {justIssuedTicket?.estimated_time || 'Queue'}
+                    </div>
+                </div>
+
+                <hr style={{ border: 'none', borderTop: '1px dashed #000', margin: '8px 0' }} />
+
+                <div style={{ fontSize: '12px', lineHeight: '1.6' }}>
+                    <div><strong>Doctor:</strong> {justIssuedTicket?.doctor_name}</div>
+                    <div><strong>Room:</strong> {justIssuedTicket?.room_number || 'Room 1'}</div>
+                    <div><strong>Date:</strong> {justIssuedTicket?.session_date}</div>
+                    <div><strong>Patient:</strong> {justIssuedTicket?.patient_name}</div>
+                    <div><strong>Total:</strong> {justIssuedTicket?.total_fee_formatted}</div>
+                    <div><strong>Status:</strong> {justIssuedTicket?.payment_status === 'paid' ? 'PAID' : 'PAYMENT DUE'}</div>
+                </div>
+
+                <div style={{ textAlign: 'center', marginTop: '12px', fontSize: '10px' }}>
+                    <p style={{ margin: '0 0 2px 0' }}>Thank you for visiting {clinicInfo.name}!</p>
+                    <p style={{ margin: 0 }}>Live Queue TV: https://{clinicInfo.subdomain}.medvisit.lk/queue/tv</p>
+                </div>
+            </div>
         </AuthenticatedLayout>
     );
 }

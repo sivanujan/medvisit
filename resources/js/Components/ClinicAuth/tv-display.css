@@ -1,0 +1,304 @@
+/*
+ * Wall-mounted waiting-room TV on the clinic sign-in pages. Decorative only.
+ * The screen is always "on" (dark) in both themes; the wall shadow adapts.
+ */
+
+.tv-stage {
+    --mx: 0;
+    --my: 0;
+    --brand: #1e6fd9;
+    position: relative;
+    padding: 1.5rem 0.5rem 2.5rem;
+}
+
+@media (min-width: 1024px) {
+    .tv-stage {
+        perspective: 1700px;
+        padding: 3rem 1.5rem 3.5rem;
+    }
+}
+
+.tv-frame {
+    position: relative;
+    z-index: 1;
+    margin: 0 auto;
+    max-width: 34rem;
+    padding: 0.6rem;
+    border-radius: 1.4rem;
+    background: linear-gradient(160deg, #1d2433, #0a0e16 55%, #151b27);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 1px 2px rgba(15, 23, 42, 0.25),
+        0 30px 60px -28px rgba(15, 23, 42, 0.55);
+    transition: transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (min-width: 1024px) {
+    .tv-frame {
+        transform: rotateY(-10deg) rotateX(3deg)
+            translate(calc(var(--mx) * 8px), calc(var(--my) * 5px));
+    }
+}
+
+.tv-screen {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    aspect-ratio: 16 / 10;
+    border-radius: 0.9rem;
+    color: #eef4ff;
+    background:
+        radial-gradient(90% 70% at 100% 0%, color-mix(in srgb, var(--brand) 55%, transparent), transparent 65%),
+        radial-gradient(70% 60% at 0% 100%, rgba(14, 158, 143, 0.32), transparent 65%),
+        #0a1830;
+}
+
+.tv-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.85rem 1.1rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.06);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tv-logo {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 1.9rem;
+    height: 1.9rem;
+    overflow: hidden;
+    border-radius: 0.5rem;
+    background: #ffffff;
+    color: var(--brand);
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.tv-logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: 0.15rem;
+}
+
+.tv-clock {
+    flex-shrink: 0;
+    font-weight: 500;
+    color: rgba(238, 244, 255, 0.85);
+}
+
+.tv-body {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1.25fr 1fr;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.5rem 1.4rem 1rem;
+}
+
+.tv-label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    color: rgba(238, 244, 255, 0.72);
+}
+
+.tv-token {
+    display: inline-block;
+    margin-top: 0.25rem;
+    font-size: clamp(4rem, 9vw, 6.75rem);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: #ff9c82;
+}
+
+/* Glow as a filter on the whole number so the clipped digit columns don't show boxes. */
+.tv-now .tv-token {
+    filter: drop-shadow(0 0 18px rgba(255, 122, 89, 0.4));
+}
+
+.tv-room {
+    margin-top: 0.5rem;
+    display: flex;
+    width: fit-content;
+    padding: 0.2rem 0.65rem;
+    border-radius: 9999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.tv-ripple {
+    position: absolute;
+    left: 50%;
+    top: 55%;
+    width: 7rem;
+    height: 7rem;
+    margin: -3.5rem 0 0 -3.5rem;
+    border-radius: 9999px;
+    border: 2px solid rgba(255, 156, 130, 0.7);
+    opacity: 0;
+    pointer-events: none;
+    animation: tv-ripple 1.6s ease-out;
+}
+
+.tv-ripple-late {
+    animation-delay: 0.25s;
+}
+
+@keyframes tv-ripple {
+    0% {
+        transform: scale(0.55);
+        opacity: 0.85;
+    }
+    100% {
+        transform: scale(1.9);
+        opacity: 0;
+    }
+}
+
+.tv-next-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.6rem;
+}
+
+.tv-shift {
+    animation: tv-shift 650ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes tv-shift {
+    from {
+        transform: translateX(2.6rem);
+        opacity: 0.4;
+    }
+}
+
+.tv-chip {
+    display: grid;
+    place-items: center;
+    min-width: 2.9rem;
+    height: 2.5rem;
+    padding: 0 0.5rem;
+    border-radius: 0.6rem;
+    font-size: 1.05rem;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.tv-chip:first-child {
+    background: color-mix(in srgb, var(--brand) 45%, transparent);
+    border-color: color-mix(in srgb, var(--brand) 70%, white 10%);
+}
+
+.tv-progress-track {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.tv-progress {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, #0e9e8f, var(--brand));
+    transform-origin: left;
+    animation: tv-progress 4s linear forwards;
+}
+
+@keyframes tv-progress {
+    from {
+        transform: scaleX(0);
+    }
+    to {
+        transform: scaleX(1);
+    }
+}
+
+/* Screen reflection */
+.tv-glare {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(115deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.03) 28%, transparent 42%);
+}
+
+/* Soft shadow on the wall beneath the set */
+.tv-wall-shadow {
+    position: absolute;
+    left: 12%;
+    right: 12%;
+    bottom: 0.75rem;
+    height: 2.2rem;
+    border-radius: 9999px;
+    background: radial-gradient(closest-side, rgba(30, 64, 120, 0.28), transparent);
+    filter: blur(6px);
+}
+
+.dark .tv-wall-shadow {
+    background: radial-gradient(closest-side, rgba(0, 0, 0, 0.6), transparent);
+}
+
+.dark .tv-frame {
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 0 0 1px rgba(145, 188, 248, 0.08),
+        0 40px 80px -30px rgba(0, 0, 0, 0.75);
+}
+
+/* Small motionless version for the password pages */
+.tv-still {
+    padding-top: 0.5rem;
+}
+
+.tv-still .tv-frame {
+    max-width: 24rem;
+}
+
+.tv-still .tv-token {
+    font-size: 4.25rem;
+}
+
+/* Mobile: flat card */
+@media (max-width: 1023px) {
+    .tv-frame {
+        max-width: 30rem;
+    }
+    .tv-body {
+        padding: 0.25rem 1rem 0.85rem;
+    }
+    .tv-token {
+        font-size: 3.75rem;
+    }
+    .tv-chip {
+        min-width: 2.4rem;
+        height: 2.1rem;
+        font-size: 0.9rem;
+    }
+}
+
+[data-play='false'] .tv-ripple,
+[data-play='false'] .tv-progress {
+    animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tv-frame {
+        transition: none;
+    }
+    .tv-ripple,
+    .tv-shift,
+    .tv-progress {
+        animation: none;
+    }
+}

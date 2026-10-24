@@ -150,7 +150,7 @@ export function registerBlocks(editor: Editor, doctors: DoctorItem[] = []): void
                 </details>
                 <details style="padding: 16px 20px; background: #ffffff;">
                     <summary style="font-weight: 700; color: #0f172a; cursor: pointer;">What payment methods are accepted at cashier?</summary>
-                    <p style="margin: 8px 0 0 0; color: #64748b; font-size: 0.9rem;">We accept Cash, LankaQR, Visa, MasterCard, and direct insurance claims.</p>
+                    <p style="margin: 8px 0 0 0; color: #64748b; font-size: 0.9rem;">Please check with the clinic reception for accepted payment methods and billing information.</p>
                 </details>
             </div>
         `,

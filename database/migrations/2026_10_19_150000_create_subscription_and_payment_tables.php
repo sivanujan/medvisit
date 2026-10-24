@@ -93,7 +93,7 @@ return new class extends Migration
                 'Prescription Management & Direct Clinic Dispensing',
                 'Complete Financial Settlements & Doctor Payouts',
             ]),
-            'is_active' => true,
+            'is_active' => false,
             'created_at' => $now,
             'updated_at' => $now,
         ]);

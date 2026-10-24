@@ -37,3 +37,8 @@ Schedule::command('subscriptions:check-expirations')
     ->hourly()
     ->before(fn () => SchedulerHeartbeat::updateOrCreate(['command' => 'subscriptions:check-expirations'], ['last_started_at' => now()]))
     ->after(fn () => SchedulerHeartbeat::updateOrCreate(['command' => 'subscriptions:check-expirations'], ['last_finished_at' => now(), 'status' => 'success']));
+
+Schedule::command('medvisit:check-refund-slas')
+    ->dailyAt('08:00')
+    ->before(fn () => SchedulerHeartbeat::updateOrCreate(['command' => 'medvisit:check-refund-slas'], ['last_started_at' => now()]))
+    ->after(fn () => SchedulerHeartbeat::updateOrCreate(['command' => 'medvisit:check-refund-slas'], ['last_finished_at' => now(), 'status' => 'success']));

@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Support\SiteKit;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Stancl\Tenancy\Database\Concerns\HasDomains;
 use Stancl\Tenancy\Database\Models\Tenant as BaseTenant;
 
@@ -20,6 +22,11 @@ class Tenant extends BaseTenant
         'subdomain',
         'phone',
         'address',
+        'address_line',
+        'city',
+        'district',
+        'postal_code',
+        'legacy_address',
         'plan',
         'status',
         'trial_ends_at',
@@ -32,6 +39,7 @@ class Tenant extends BaseTenant
         'logo_url',
         'logo_png_path',
         'favicon_path',
+        'data',
     ];
 
     protected $casts = [
@@ -51,6 +59,11 @@ class Tenant extends BaseTenant
             'subdomain',
             'phone',
             'address',
+            'address_line',
+            'city',
+            'district',
+            'postal_code',
+            'legacy_address',
             'logo_path',
             'logo_url',
             'logo_png_path',
@@ -64,6 +77,77 @@ class Tenant extends BaseTenant
     }
 
     /**
+     * Formatted clinic address from structured parts, with fallback to raw/legacy address.
+     */
+    public function getFormattedAddressAttribute(): string
+    {
+        $parts = array_filter([
+            $this->address_line,
+            $this->city,
+            $this->district,
+            $this->postal_code,
+        ]);
+
+        if (! empty($parts)) {
+            return implode(', ', $parts);
+        }
+
+        return (string) ($this->address ?: $this->legacy_address ?: '');
+    }
+
+    /**
+     * Public clinic identity shown on the signed-out auth pages (login, password reset).
+     * Contains no patient, queue or session data.
+     *
+     * @return array{name: string, subdomain: string, logo_url: ?string, phone: string, address: string, city: string, brand_color: ?string, public_domain: string}
+     */
+    public function authBranding(): array
+    {
+        $address = trim((string) ($this->formatted_address ?: $this->address ?: ''));
+        // If city column is set, use it; otherwise fallback to the last address segment.
+        $parts = array_values(array_filter(
+            array_map('trim', explode(',', $address)),
+            fn (string $part) => $part !== '' && strcasecmp($part, 'Sri Lanka') !== 0,
+        ));
+        $city = $this->city ?: ($parts ? trim((string) preg_replace('/\b\d{4,6}\b/', '', end($parts))) : '');
+
+        return [
+            'name' => (string) ($this->name ?? 'Clinic'),
+            'subdomain' => (string) ($this->subdomain ?? $this->id),
+            'logo_url' => $this->logo_url,
+            'phone' => (string) ($this->phone ?? ''),
+            // Title case for display only; the stored address is untouched.
+            'address' => self::displayCase($address),
+            'city' => self::displayCase($city),
+            'brand_color' => $this->brandColor(),
+            'public_domain' => (string) config('medvisit.public_domain', 'medvisit.lk'),
+        ];
+    }
+
+    /**
+     * The clinic's own brand colour, or null when it never chose one: the primary colour
+     * of a saved website kit, else of an explicitly chosen website theme.
+     */
+    public function brandColor(): ?string
+    {
+        $kit = $this->website_kit;
+        $color = null;
+        if (is_array($kit) && ! empty($kit['colors'])) {
+            $primary = collect($kit['colors'])->firstWhere('id', 'primary');
+            $color = is_array($primary) ? ($primary['value'] ?? null) : null;
+        } elseif (! empty($this->website_theme)) {
+            $color = SiteKit::THEME_COLORS[$this->website_theme]['primary'] ?? null;
+        }
+
+        return is_string($color) && preg_match('/^#[0-9a-fA-F]{6}$/', $color) ? strtoupper($color) : null;
+    }
+
+    private static function displayCase(string $value): string
+    {
+        return $value === '' ? '' : Str::title(Str::lower($value));
+    }
+
+    /**
      * Get the clinic logo URL.
      */
     public function getLogoUrlAttribute(): ?string
@@ -73,6 +157,10 @@ class Tenant extends BaseTenant
         }
         if (! empty($this->attributes['logo_path'])) {
             $disk = config('filesystems.media_disk', env('MEDIA_DISK', 'public'));
+
+            if (! Storage::disk($disk)->exists($this->attributes['logo_path'])) {
+                return null;
+            }
 
             return Storage::disk($disk)->url($this->attributes['logo_path']).'?v='.($this->updated_at?->timestamp ?? time());
         }
@@ -87,6 +175,10 @@ class Tenant extends BaseTenant
     {
         if (! empty($this->attributes['logo_png_path'])) {
             $disk = config('filesystems.media_disk', env('MEDIA_DISK', 'public'));
+
+            if (! Storage::disk($disk)->exists($this->attributes['logo_png_path'])) {
+                return $this->logo_url;
+            }
 
             return Storage::disk($disk)->url($this->attributes['logo_png_path']).'?v='.($this->updated_at?->timestamp ?? time());
         }
@@ -241,9 +333,65 @@ class Tenant extends BaseTenant
         $scheme = parse_url((string) $appUrl, PHP_URL_SCHEME) ?: 'http';
         $port = parse_url((string) $appUrl, PHP_URL_PORT);
         $portSuffix = ($port && ! in_array($port, [80, 443])) ? ":{$port}" : '';
-        $path = ltrim($path, '/');
-        $pathString = $path !== '' ? "/{$path}" : '';
+        $cleanPath = ltrim($path, '/');
+        $pathString = $cleanPath !== '' ? "/{$cleanPath}" : '';
 
         return "{$scheme}://{$subdomain}.{$baseDomain}{$portSuffix}{$pathString}";
+    }
+
+    /**
+     * Get the clean display name of the clinic's current subscription plan.
+     */
+    public function currentPlanDisplayName(): string
+    {
+        $sub = $this->subscription;
+        if ($sub && $sub->plan && ! empty($sub->plan->name)) {
+            if ($sub->plan->slug === 'medvisit-standard') {
+                return 'Standard';
+            }
+
+            return $sub->plan->name;
+        }
+
+        $raw = (string) ($this->plan ?? 'pro');
+        if ($raw === 'medvisit-standard' || $raw === 'standard') {
+            return 'Standard';
+        }
+
+        $plansConfig = config('plans.plans', []);
+        $slug = strtolower($raw);
+        if (isset($plansConfig[$slug]['name'])) {
+            return $plansConfig[$slug]['name'];
+        }
+
+        return Str::title(str_replace(['-', '_'], ' ', $raw));
+    }
+
+    /**
+     * Get a setting from the tenant data store.
+     */
+    public function getSetting(string $key, mixed $default = null): mixed
+    {
+        $data = $this->data ?? [];
+        if (is_string($data)) {
+            $data = json_decode($data, true) ?? [];
+        }
+
+        return $data[$key] ?? $default;
+    }
+
+    /**
+     * Set a setting in the tenant data store.
+     */
+    public function setSetting(string $key, mixed $value): void
+    {
+        $data = $this->data ?? [];
+        if (is_string($data)) {
+            $data = json_decode($data, true) ?? [];
+        }
+
+        $data[$key] = $value;
+        $this->data = $data;
+        $this->save();
     }
 }

@@ -80,6 +80,7 @@ interface Props {
         receptionist_can_discount: boolean;
         receptionist_max_discount_type: 'percent' | 'amount';
         receptionist_max_discount_value: number;
+        show_clinic_share_to_doctors?: boolean;
         fee_setup_completed: boolean;
     };
     components: FeeComponentData[];
@@ -121,6 +122,7 @@ export default function FeesAndPayouts({ settings, components, visitTypes }: Pro
         receptionist_max_discount_value: settings.receptionist_max_discount_type === 'amount'
             ? settings.receptionist_max_discount_value / 100
             : settings.receptionist_max_discount_value,
+        show_clinic_share_to_doctors: settings.show_clinic_share_to_doctors ?? false,
     });
 
     // Component Form
@@ -743,6 +745,34 @@ export default function FeesAndPayouts({ settings, components, visitTypes }: Pro
                                     </div>
                                 </div>
                             )}
+                        </GlassCard>
+
+                        {/* DOCTOR VISIBILITY & TRANSPARENCY */}
+                        <GlassCard className="p-6 space-y-4">
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                    <Users className="w-4 h-4 text-primary" />
+                                    Doctor Portal Transparency
+                                </h3>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                    Control whether doctors can see clinic fees, clinic gross earnings, and clinic margins in their Doctor Payouts hub and slips.
+                                </p>
+                            </div>
+
+                            <label className="flex items-start gap-3 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                <input
+                                    type="checkbox"
+                                    checked={defaultsForm.data.show_clinic_share_to_doctors}
+                                    onChange={(e) => defaultsForm.setData('show_clinic_share_to_doctors', e.target.checked)}
+                                    className="mt-0.5 rounded border-slate-300 text-primary focus:ring-primary w-4 h-4"
+                                />
+                                <div>
+                                    <span className="font-bold">Show clinic share to doctors</span>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 font-normal mt-0.5">
+                                        Default is off. When disabled, doctors only see their doctor payout amount, patient counts, paid status, and slips without clinic margins or collection splits.
+                                    </p>
+                                </div>
+                            </label>
                         </GlassCard>
 
                         <div className="flex justify-end">

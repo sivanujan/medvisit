@@ -3,6 +3,8 @@ import { Head } from '@inertiajs/react';
 import LegalFooter from '@/Components/Public/LegalFooter';
 import PublicHeader from '@/Components/Public/PublicHeader';
 
+import SupportChatWidget from '@/Components/SupportChat/SupportChatWidget';
+
 interface Props {
     title: string;
     description?: string;
@@ -59,7 +61,7 @@ export default function PublicLegalLayout({
             <PublicHeader progressPercent={progressPercent} />
 
             {/* Main Page Body */}
-            <main className="flex-1 w-full py-6 sm:py-10 px-4 sm:px-6 lg:px-8">
+            <main className="flex-1 w-full pt-24 sm:pt-28 pb-10 px-4 sm:px-6 lg:px-8">
                 <div className={`mx-auto ${isWide ? 'max-w-6xl' : 'max-w-3xl'}`}>
                     {children}
                 </div>
@@ -67,6 +69,7 @@ export default function PublicLegalLayout({
 
             {/* Public Legal Footer */}
             <LegalFooter />
+            <SupportChatWidget />
         </div>
     );
 }

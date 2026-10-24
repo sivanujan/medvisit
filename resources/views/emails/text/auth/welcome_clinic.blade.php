@@ -5,7 +5,9 @@ Hello {{ $adminName }},
 Clinic Workspace Details:
 - Portal URL: {{ $clinicUrl }}
 - Subdomain: {{ $subdomain }}
-- 14-Day Free Trial Ends: {{ $trialEnd }}
+@if(!empty($trialEnd))
+- Free Trial Ends: {{ $trialEnd }}
+@endif
 
 3 Quick Next Steps to Get Started:
 1. Sign in to your portal & add doctors: Sign in to your dedicated portal and create doctor profiles.

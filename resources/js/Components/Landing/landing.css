@@ -175,32 +175,6 @@
     opacity: 0.06;
 }
 
-/* ---------- Rolling token digits ---------- */
-
-.lp-digit {
-    display: inline-block;
-    height: 1em;
-    overflow: hidden;
-    line-height: 1;
-}
-
-.lp-digit-strip {
-    display: flex;
-    flex-direction: column;
-    transition: transform 700ms cubic-bezier(0.22, 1.2, 0.36, 1);
-    will-change: transform;
-}
-
-.lp-digit-strip.is-snapping {
-    transition: none;
-}
-
-.lp-digit-strip > span {
-    height: 1em;
-    display: block;
-    text-align: center;
-}
-
 /* ---------- Token board (hero) ---------- */
 
 .lp-board {

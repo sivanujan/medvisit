@@ -47,6 +47,10 @@ class Doctor extends Model
     protected static function booted(): void
     {
         static::saving(function (Doctor $doctor) {
+            if ($doctor->slmc_number !== null) {
+                $doctor->slmc_number = static::stripSlmcPrefix((string) $doctor->slmc_number);
+            }
+
             if (empty($doctor->slug) && ! empty($doctor->name)) {
                 $base = Str::slug(($doctor->title ? $doctor->title.' ' : '').$doctor->name);
                 $slug = $base;
@@ -57,6 +61,32 @@ class Doctor extends Model
                 $doctor->slug = $slug;
             }
         });
+    }
+
+    /**
+     * Strip any duplicate 'SLMC', 'SLMC-', 'SLMC: ' prefix from a registration number.
+     */
+    public static function stripSlmcPrefix(string $slmc): string
+    {
+        return trim(preg_replace('/^(slmc[-:\s]*)+/i', '', trim($slmc)));
+    }
+
+    /**
+     * Get the clean SLMC number without any prefix.
+     */
+    public function getCleanSlmcAttribute(): string
+    {
+        return static::stripSlmcPrefix((string) ($this->attributes['slmc_number'] ?? ''));
+    }
+
+    /**
+     * Get the standard formatted SLMC string (e.g. 'SLMC 18429').
+     */
+    public function getSlmcDisplayAttribute(): string
+    {
+        $clean = $this->clean_slmc;
+
+        return $clean !== '' ? "SLMC {$clean}" : '';
     }
 
     protected function casts(): array
@@ -121,6 +151,44 @@ class Doctor extends Model
         $totalCents = $this->doctor_fee + $this->clinic_fee;
 
         return 'Rs. '.number_format($totalCents / 100, 2);
+    }
+
+    /**
+     * Deterministic color palette for doctor badges and indicators.
+     *
+     * @var array<int, string>
+     */
+    public const PALETTE = [
+        '#1E6FD9', // Ocean Blue
+        '#0E9E8F', // Teal
+        '#FF7A59', // Coral
+        '#7C3AED', // Purple
+        '#E11D48', // Rose
+        '#F59E0B', // Amber
+        '#10B981', // Emerald
+        '#6366F1', // Indigo
+    ];
+
+    /**
+     * Get deterministic hex color for a doctor ID.
+     */
+    public static function getDoctorColor(?int $id): string
+    {
+        if ($id === null || $id === 0) {
+            return self::PALETTE[0];
+        }
+
+        $index = abs($id) % count(self::PALETTE);
+
+        return self::PALETTE[$index];
+    }
+
+    /**
+     * Get the doctor's deterministic color.
+     */
+    public function getColorAttribute(): string
+    {
+        return static::getDoctorColor($this->id);
     }
 
     /**

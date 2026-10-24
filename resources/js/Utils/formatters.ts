@@ -82,3 +82,114 @@ export function formatTime(date: string | Date | null | undefined): string {
     }).format(d);
 }
 
+/**
+ * Format date for Sri Lanka UI: "23 Oct 2026"
+ */
+export function formatDateLK(date: string | Date | null | undefined): string {
+    if (!date) return '—';
+
+    let d: Date;
+    if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(date.trim())) {
+        const [y, m, day] = date.trim().slice(0, 10).split('-').map(Number);
+        d = new Date(Date.UTC(y, m - 1, day, 12, 0, 0));
+    } else {
+        d = typeof date === 'string' ? new Date(date) : date;
+    }
+    if (isNaN(d.getTime())) return '—';
+
+    return new Intl.DateTimeFormat('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'Asia/Colombo',
+    }).format(d);
+}
+
+/**
+ * Format datetime for Sri Lanka UI: "23 Oct 2026, 09:30 AM"
+ */
+export function formatDateTimeLK(date: string | Date | null | undefined): string {
+    if (!date) return '—';
+
+    const d = typeof date === 'string' ? new Date(date) : date;
+    if (isNaN(d.getTime())) return '—';
+
+    const datePart = new Intl.DateTimeFormat('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'Asia/Colombo',
+    }).format(d);
+
+    const timePart = new Intl.DateTimeFormat('en-LK', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: 'Asia/Colombo',
+    }).format(d);
+
+    return `${datePart}, ${timePart}`;
+}
+
+/**
+ * Format count with correct English plurals: "1 line", "2 lines", "1 unit", "160 units"
+ */
+export function pluralize(count: number, singular: string, plural?: string): string {
+    const word = count === 1 ? singular : (plural ?? `${singular}s`);
+    return `${count} ${word}`;
+}
+
+/**
+ * Normalise Sri Lankan and international phone numbers to E.164 (+94XXXXXXXXX).
+ */
+export function normalizePhone(phone: string | null | undefined): string | null {
+    if (!phone) return null;
+    const digits = phone.replace(/\D/g, '');
+    if (!digits) return null;
+
+    if (digits.startsWith('94') && digits.length >= 11) {
+        return `+94${digits.slice(2, 11)}`;
+    }
+    if (digits.startsWith('0') && digits.length >= 10) {
+        return `+94${digits.slice(1, 10)}`;
+    }
+    if (digits.length === 9 && ['7', '1', '2', '3', '4', '5', '6', '8'].includes(digits[0])) {
+        return `+94${digits}`;
+    }
+    return `+${digits}`;
+}
+
+/**
+ * Format phone for display as "077 123 4567" or international formatted string.
+ */
+export function formatPhoneLK(phone: string | null | undefined): string {
+    if (!phone) return '—';
+    const digits = phone.replace(/\D/g, '');
+    let local = digits;
+    if (local.startsWith('94')) {
+        local = local.slice(2);
+    } else if (local.startsWith('0')) {
+        local = local.slice(1);
+    }
+
+    if (local.length === 9) {
+        return `0${local.slice(0, 2)} ${local.slice(2, 5)} ${local.slice(5, 9)}`;
+    }
+    if (local.length === 10 && digits.startsWith('0')) {
+        return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 10)}`;
+    }
+    return phone;
+}
+
+/**
+ * Build WhatsApp click-to-chat URL (https://wa.me/947XXXXXXXX).
+ */
+export function getWhatsAppUrl(phone: string | null | undefined): string | null {
+    const normalized = normalizePhone(phone);
+    if (!normalized) return null;
+    const cleanDigits = normalized.replace(/\+/g, '');
+    return `https://wa.me/${cleanDigits}`;
+}
+
+
+

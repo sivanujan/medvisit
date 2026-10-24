@@ -35,24 +35,20 @@ class SubscriptionBillingController extends Controller
         }
 
         $subscription = $tenant->subscription()->with('plan')->first();
-        $standardPlan = Plan::where('slug', 'medvisit-standard')->first();
 
-        // Find or generate unpaid invoice
-        $unpaidInvoice = $subscription?->latestUnpaidInvoice();
+        // Single source of truth for plans and shared features from config
+        $plansConfig = config('medvisit_public.plans', []);
+        $sharedFeatures = config('medvisit_public.shared_features', []);
 
-        if (! $unpaidInvoice && $subscription && ! $subscription->isActive()) {
-            $now = Carbon::now();
-            $unpaidInvoice = SubscriptionInvoice::create([
-                'tenant_id' => $tenant->id,
-                'subscription_id' => $subscription->id,
-                'invoice_number' => SubscriptionInvoice::generateInvoiceNumber(),
-                'amount_cents' => $standardPlan?->price_cents ?? (int) config('medvisit.subscription.default_price_cents', 500000),
-                'period_start' => $now,
-                'period_end' => $now->copy()->addMonth(),
-                'due_date' => $now->copy()->addDays(3),
-                'status' => SubscriptionInvoice::STATUS_UNPAID,
-            ]);
+        // Determine preselected plan slug (default to 'pro')
+        $currentPlanSlug = $subscription?->plan?->slug ?? $tenant->plan ?? 'pro';
+        if (! isset($plansConfig[$currentPlanSlug])) {
+            $currentPlanSlug = 'pro';
         }
+
+        // NOTE: We do NOT generate an invoice on page view/refresh!
+        // The invoice number is generated ONLY when the user clicks "Pay".
+        $statusParam = $request->query('status');
 
         return Inertia::render('Subscription/Subscribe', [
             'tenant' => [
@@ -60,6 +56,7 @@ class SubscriptionBillingController extends Controller
                 'name' => $tenant->name,
                 'email' => $tenant->email,
                 'phone' => $tenant->phone,
+                'logo_url' => $tenant->logo_url,
             ],
             'subscription' => $subscription ? [
                 'id' => $subscription->id,
@@ -69,29 +66,15 @@ class SubscriptionBillingController extends Controller
                 'is_trialing' => $subscription->isTrialing(),
                 'trial_ends_at' => $subscription->trial_ends_at?->toDateString(),
                 'current_period_end' => $subscription->current_period_end?->toDateString(),
-                'plan' => $subscription->plan ? [
-                    'name' => $subscription->plan->name,
-                    'price_cents' => $subscription->plan->price_cents,
-                    'formatted_price' => $subscription->plan->formatted_price,
-                    'billing_interval' => $subscription->plan->billing_interval,
-                    'features' => $subscription->plan->features,
-                ] : null,
+                'plan_slug' => $currentPlanSlug,
             ] : null,
-            'invoice' => $unpaidInvoice ? [
-                'id' => $unpaidInvoice->id,
-                'invoice_number' => $unpaidInvoice->invoice_number,
-                'amount_cents' => $unpaidInvoice->amount_cents,
-                'formatted_amount' => $unpaidInvoice->formatted_amount,
-                'due_date' => $unpaidInvoice->due_date?->toDateString(),
-                'period_start' => $unpaidInvoice->period_start?->toDateString(),
-                'period_end' => $unpaidInvoice->period_end?->toDateString(),
-            ] : null,
-            'standardPlan' => $standardPlan ? [
-                'name' => $standardPlan->name,
-                'price_cents' => $standardPlan->price_cents,
-                'formatted_price' => $standardPlan->formatted_price,
-                'features' => $standardPlan->features,
-            ] : null,
+            'plans' => array_values($plansConfig),
+            'sharedFeatures' => $sharedFeatures,
+            'defaultPlanSlug' => $currentPlanSlug,
+            'currency' => config('medvisit.currency', 'LKR'),
+            'currencySymbol' => config('medvisit.currency_symbol', 'Rs.'),
+            'renewsOn' => Carbon::now()->addMonth()->format('d M Y'),
+            'statusParam' => $statusParam,
         ]);
     }
 
@@ -109,6 +92,7 @@ class SubscriptionBillingController extends Controller
 
         $request->validate([
             'terms_accepted' => ['required', 'accepted'],
+            'plan_slug' => ['nullable', 'string', 'in:basic,pro,advanced'],
         ], [
             'terms_accepted.accepted' => 'You must accept the Terms and Conditions and Refund Policy to proceed.',
         ]);
@@ -118,38 +102,54 @@ class SubscriptionBillingController extends Controller
             abort(404, 'Subscription record not found.');
         }
 
+        // Resolve the selected plan from config
+        $plansConfig = config('medvisit_public.plans', []);
+        $selectedPlanSlug = (string) $request->input('plan_slug', 'pro');
+        if (! isset($plansConfig[$selectedPlanSlug])) {
+            $selectedPlanSlug = 'pro';
+        }
+
+        $plan = Plan::forSlug($selectedPlanSlug);
+        $planPriceCents = $plan ? $plan->price_cents : (int) ($plansConfig[$selectedPlanSlug]['price_cents'] ?? 900000);
+
         $now = Carbon::now();
         $termsVersion = (string) config('medvisit_public.policies.terms_version', '2026-10-21');
 
         $subscription->update([
+            'plan_id' => $plan?->id ?? $subscription->plan_id,
             'terms_accepted_at' => $now,
             'terms_version' => $termsVersion,
         ]);
 
+        $tenant->update(['plan' => $selectedPlanSlug]);
+
+        // Invoice is created/updated ONLY when the user clicks Pay
         $invoice = $subscription->latestUnpaidInvoice();
         if (! $invoice) {
-            // Generate invoice if missing
-            $standardPlan = Plan::where('slug', 'medvisit-standard')->first();
             $invoice = SubscriptionInvoice::create([
                 'tenant_id' => $tenant->id,
                 'subscription_id' => $subscription->id,
                 'invoice_number' => SubscriptionInvoice::generateInvoiceNumber(),
-                'amount_cents' => $standardPlan?->price_cents ?? (int) config('medvisit.subscription.default_price_cents', 500000),
+                'amount_cents' => $planPriceCents,
                 'period_start' => $now,
                 'period_end' => $now->copy()->addMonth(),
                 'due_date' => $now->copy()->addDays(3),
                 'status' => SubscriptionInvoice::STATUS_UNPAID,
             ]);
+        } else {
+            $invoice->update([
+                'amount_cents' => $planPriceCents,
+            ]);
         }
 
         $successUrl = route('tenant.subscription.return');
-        $cancelUrl = route('tenant.subscription.subscribe');
+        $cancelUrl = route('tenant.subscription.subscribe', ['status' => 'cancelled']);
         $idempotencyKey = "inv-chk-{$invoice->invoice_number}-{$tenant->id}-".time();
 
         try {
             $checkout = $gateway->createCheckout([
                 'amountCents' => $invoice->amount_cents,
-                'description' => "MedVisit Monthly Subscription ({$invoice->invoice_number})",
+                'description' => "MedVisit {$plan?->name} Monthly Subscription ({$invoice->invoice_number})",
                 'reference' => $invoice->invoice_number,
                 'successUrl' => $successUrl,
                 'cancelUrl' => $cancelUrl,

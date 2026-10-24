@@ -430,4 +430,151 @@ class SubscriptionPaymentTest extends TestCase
         ]);
         $extendResponse->assertSessionHas('success');
     }
+
+    public function test_plan_prices_come_from_config(): void
+    {
+        $configPlans = config('medvisit_public.plans');
+        $this->assertIsArray($configPlans);
+        $this->assertArrayHasKey('basic', $configPlans);
+        $this->assertArrayHasKey('pro', $configPlans);
+        $this->assertArrayHasKey('advanced', $configPlans);
+
+        foreach (['basic', 'pro', 'advanced'] as $slug) {
+            $plan = Plan::forSlug($slug);
+            $this->assertNotNull($plan, "Plan {$slug} must exist in database");
+            $this->assertSame(
+                $configPlans[$slug]['price_cents'],
+                $plan->price_cents,
+                "Plan {$slug} database price ({$plan->price_cents}) must match config ({$configPlans[$slug]['price_cents']})"
+            );
+        }
+    }
+
+    public function test_viewing_subscription_page_creates_no_invoice(): void
+    {
+        $tenant = Tenant::factory()->pendingPayment()->create([
+            'id' => 'no-invoice-clinic',
+            'name' => 'No Invoice Clinic',
+            'subdomain' => 'noinv',
+            'status' => 'pending_payment',
+        ]);
+
+        $admin = User::factory()->clinicAdmin()->create([
+            'tenant_id' => $tenant->id,
+            'email' => 'admin@noinv.lk',
+        ]);
+
+        $initialInvoiceCount = SubscriptionInvoice::where('tenant_id', $tenant->id)->count();
+        $this->assertSame(0, $initialInvoiceCount);
+
+        // View page multiple times / refresh
+        $response1 = $this->actingAs($admin)->get("http://noinv.{$this->baseDomain}/subscription/subscribe");
+        $response1->assertStatus(200);
+
+        $response2 = $this->actingAs($admin)->get("http://noinv.{$this->baseDomain}/subscription/subscribe");
+        $response2->assertStatus(200);
+
+        $this->assertSame(0, SubscriptionInvoice::where('tenant_id', $tenant->id)->count());
+    }
+
+    public function test_subscription_checkout_requires_consent(): void
+    {
+        $tenant = Tenant::factory()->pendingPayment()->create([
+            'id' => 'consent-clinic',
+            'name' => 'Consent Clinic',
+            'subdomain' => 'consent',
+            'status' => 'pending_payment',
+        ]);
+
+        $admin = User::factory()->clinicAdmin()->create([
+            'tenant_id' => $tenant->id,
+            'email' => 'admin@consent.lk',
+        ]);
+
+        // Missing terms_accepted
+        $response = $this->actingAs($admin)->post("http://consent.{$this->baseDomain}/subscription/checkout", [
+            'plan_slug' => 'pro',
+        ]);
+        $response->assertSessionHasErrors('terms_accepted');
+
+        // Unaccepted terms_accepted
+        $responseFalse = $this->actingAs($admin)->post("http://consent.{$this->baseDomain}/subscription/checkout", [
+            'plan_slug' => 'pro',
+            'terms_accepted' => false,
+        ]);
+        $responseFalse->assertSessionHasErrors('terms_accepted');
+
+        $this->assertSame(0, SubscriptionInvoice::where('tenant_id', $tenant->id)->count());
+    }
+
+    public function test_selected_plan_is_saved_on_subscription(): void
+    {
+        $tenant = Tenant::factory()->pendingPayment()->create([
+            'id' => 'plan-save-clinic',
+            'name' => 'Plan Save Clinic',
+            'subdomain' => 'plansave',
+            'status' => 'pending_payment',
+        ]);
+
+        $admin = User::factory()->clinicAdmin()->create([
+            'tenant_id' => $tenant->id,
+            'email' => 'admin@plansave.lk',
+        ]);
+
+        $response = $this->actingAs($admin)->post("http://plansave.{$this->baseDomain}/subscription/checkout", [
+            'plan_slug' => 'advanced',
+            'terms_accepted' => true,
+        ]);
+
+        $this->assertTrue(in_array($response->status(), [302, 409], true));
+
+        $tenant->refresh();
+        $subscription = $tenant->subscription->refresh();
+
+        $this->assertSame('advanced', $tenant->plan);
+        $this->assertSame('advanced', $subscription->plan->slug);
+    }
+
+    public function test_each_plan_checkout_amount_is_correct(): void
+    {
+        $fakeGateway = new FakeGateway;
+        $this->app->instance(PaymentGateway::class, $fakeGateway);
+
+        $plansToCheck = [
+            'basic' => config('medvisit_public.plans.basic.price_cents'),
+            'pro' => config('medvisit_public.plans.pro.price_cents'),
+            'advanced' => config('medvisit_public.plans.advanced.price_cents'),
+        ];
+
+        foreach ($plansToCheck as $slug => $expectedAmountCents) {
+            $tenant = Tenant::factory()->pendingPayment()->create([
+                'id' => "amt-clinic-{$slug}",
+                'name' => "Amount Clinic {$slug}",
+                'subdomain' => "amt{$slug}",
+                'status' => 'pending_payment',
+            ]);
+
+            $admin = User::factory()->clinicAdmin()->create([
+                'tenant_id' => $tenant->id,
+                'email' => "admin@amt{$slug}.lk",
+            ]);
+
+            $response = $this->actingAs($admin)->post("http://amt{$slug}.{$this->baseDomain}/subscription/checkout", [
+                'plan_slug' => $slug,
+                'terms_accepted' => true,
+            ]);
+
+            $this->assertTrue(in_array($response->status(), [302, 409], true));
+
+            $invoice = SubscriptionInvoice::where('tenant_id', $tenant->id)->latest('id')->first();
+            $this->assertNotNull($invoice, "Invoice should be created for {$slug} upon checkout");
+            $this->assertSame($expectedAmountCents, $invoice->amount_cents);
+
+            $lastCheckout = end($fakeGateway->createdCheckouts);
+            $this->assertIsArray($lastCheckout);
+            $this->assertSame($expectedAmountCents, $lastCheckout['amountCents']);
+            $this->assertSame($invoice->invoice_number, $lastCheckout['reference']);
+            $this->assertStringContainsString((string) $invoice->invoice_number, $lastCheckout['description']);
+        }
+    }
 }

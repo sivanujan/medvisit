@@ -14,11 +14,17 @@
         <strong>{{ $clinicName }}</strong> is officially registered. Your dedicated digital clinic portal has been provisioned and is ready for everyday operations.
     </x-email.text>
 
-    <x-email.info-card title="Clinic Workspace Details" :items="[
-        'Portal URL' => '<a href=\"' . $clinicUrl . '\" style=\"color: #1E6FD9; text-decoration: none; font-weight: 600;\">' . $subdomain . '.medvisit.lk</a>',
-        'Subdomain' => $subdomain,
-        '14-Day Free Trial Ends' => $trialEnd,
-    ]" />
+    @php
+        $infoItems = [
+            'Portal URL' => '<a href="' . $clinicUrl . '" style="color: #1E6FD9; text-decoration: none; font-weight: 600;">' . $subdomain . '.medvisit.lk</a>',
+            'Subdomain' => $subdomain,
+        ];
+        if (!empty($trialEnd)) {
+            $infoItems['Free Trial Ends'] = $trialEnd;
+        }
+    @endphp
+
+    <x-email.info-card title="Clinic Workspace Details" :items="$infoItems" />
 
     <x-email.heading level="h2" style="font-size: 17px; margin-top: 24px; margin-bottom: 12px;">
         3 Quick Next Steps to Get Started

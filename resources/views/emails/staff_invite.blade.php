@@ -14,6 +14,13 @@
         You have been invited to join the clinical management team at <strong>{{ $clinicName }}</strong> as a <strong>{{ $role }}</strong> on MedVisit.
     </x-email.text>
 
+    @if (! empty($personalMessage))
+        <x-email.alert type="info">
+            <strong>Personal message from {{ $invitedByName ?? 'Clinic Admin' }}:</strong><br>
+            "{{ $personalMessage }}"
+        </x-email.alert>
+    @endif
+
     <x-email.info-card title="Invitation Details" :items="[
         'Clinic' => $clinicName,
         'Assigned Role' => $role,

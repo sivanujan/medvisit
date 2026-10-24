@@ -23,10 +23,7 @@ class TenantPasswordResetLinkController extends Controller
 
         return Inertia::render('Auth/ForgotPassword', [
             'status' => session('status'),
-            'tenant' => [
-                'name' => $tenant->name,
-                'subdomain' => $tenant->subdomain,
-            ],
+            'tenant' => $tenant->authBranding(),
         ]);
     }
 

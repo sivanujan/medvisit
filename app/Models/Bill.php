@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Stancl\Tenancy\Database\Concerns\BelongsToTenant;
 
 class Bill extends Model
@@ -40,11 +41,13 @@ class Bill extends Model
         'total_amount',
         'payment_method',
         'payment_status',
+        'paid_at',
         'refunded_at',
         'refund_reason',
         'notes',
         'visit_type_id',
         'fee_snapshot',
+        'fee_snapshot_backup',
         'doctor_payout_amount',
         'clinic_net_amount',
         'third_party_amount',
@@ -63,8 +66,20 @@ class Bill extends Model
             'clinic_net_amount' => 'integer',
             'third_party_amount' => 'integer',
             'fee_snapshot' => 'array',
+            'fee_snapshot_backup' => 'array',
+            'paid_at' => 'datetime',
             'refunded_at' => 'datetime',
         ];
+    }
+
+    public function settlementItem(): HasOne
+    {
+        return $this->hasOne(PayoutSettlementItem::class, 'bill_id');
+    }
+
+    public function isSettled(): bool
+    {
+        return $this->settlementItem()->exists();
     }
 
     public function token(): BelongsTo
@@ -102,8 +117,18 @@ class Bill extends Model
         return $this->hasMany(BillAdjustment::class);
     }
 
+    public static function formatLKR(int|float|null $amount, bool $fromCents = true): string
+    {
+        if ($amount === null) {
+            return 'Rs. 0.00';
+        }
+        $rupees = $fromCents ? $amount / 100 : (float) $amount;
+
+        return 'Rs. '.number_format($rupees, 2, '.', ',');
+    }
+
     public function getFormattedTotalAttribute(): string
     {
-        return 'Rs. '.number_format($this->total_amount / 100, 2);
+        return self::formatLKR($this->total_amount, true);
     }
 }

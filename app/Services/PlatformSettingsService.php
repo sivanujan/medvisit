@@ -36,6 +36,13 @@ class PlatformSettingsService
         // Maintenance
         'maintenance.enabled' => false,
         'maintenance.banner_text' => 'MedVisit Platform will undergo routine scheduled maintenance on Sunday from 02:00 to 04:00 AM Colombo time.',
+        // Support Chat
+        'support.business_hours_days' => ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'],
+        'support.business_hours_start' => '08:30',
+        'support.business_hours_end' => '18:00',
+        'support.business_hours_timezone' => 'Asia/Colombo',
+        'support.offline_message' => 'Our team is currently offline. Please leave your message and email, and we will reply as soon as business hours resume.',
+        'support.response_time_text' => 'Usually replies within a few hours',
     ];
 
     /**

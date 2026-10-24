@@ -1,21 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { Head, Link } from '@inertiajs/react';
-import {
-    Calendar,
-    Clock,
-    Phone,
-    MapPin,
-    Stethoscope,
-    CheckCircle2,
-    ArrowRight,
-    Shield,
-    Sparkles,
-    User,
-    ChevronRight,
-    HeartPulse,
-    Award,
-    Activity,
-} from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Head } from '@inertiajs/react';
 
 import PublicSiteHeader, { HeaderConfig } from '@/Components/Public/PublicSiteHeader';
 import PublicSiteFooter, { FooterConfig } from '@/Components/Public/PublicSiteFooter';
@@ -23,84 +7,67 @@ import { kitToCss, type SiteKit } from '@/Components/PageBuilder/lib/kit';
 import { animationCss, initEntranceAnimations } from '@/Components/PageBuilder/lib/animations';
 import { initWidgets } from '@/Components/PageBuilder/lib/widgetsRuntime';
 import { googleFontsUrl, usedFontFamilies } from '@/Components/PageBuilder/lib/fonts';
-
-interface DoctorItem {
-    id: number;
-    name: string;
-    specialty: string;
-    slmc_number?: string;
-    bio?: string;
-    total_fee_formatted: string;
-}
-
-interface SessionItem {
-    id: number;
-    doctor_name: string;
-    doctor_specialty: string;
-    session_date: string;
-    start_time: string;
-    room_number: string;
-    available_tokens_count: number;
-    is_full: boolean;
-    total_fee_formatted: string;
-}
-
-interface Section {
-    id: string;
-    name: string;
-    enabled: boolean;
-    title?: string;
-    subtitle?: string;
-    description?: string;
-    cta_text?: string;
-    cta_link?: string;
-    badge?: string;
-    notice?: string;
-    [key: string]: any;
-}
+import ClinicSiteRenderer, { siteFontsHref } from '@/Components/ClinicSite/ClinicSiteRenderer';
+import type {
+    SiteClinic,
+    SiteDoctor,
+    SiteLook,
+    SiteSection,
+    SiteSession,
+    SiteStat,
+} from '@/Components/ClinicSite/types';
 
 interface Props {
-    clinic: {
-        name: string;
-        subdomain: string;
-        phone?: string;
-        address?: string;
-        logo_url?: string;
-        whatsapp_number?: string;
-        opening_hours?: string;
-    };
+    clinic: SiteClinic & { opening_hours?: string | null };
     headerConfig?: HeaderConfig;
     footerConfig?: FooterConfig;
-    sections: Section[];
+    sections: SiteSection[];
+    visibleSectionIds: string[];
+    look: SiteLook;
+    stats: SiteStat[];
     theme: string;
     isPublished: boolean;
-    doctors: DoctorItem[];
-    upcomingSessions: SessionItem[];
-    seo: {
-        title: string;
-        description: string;
-    };
+    isPreview?: boolean;
+    isEmbed?: boolean;
+    doctors: SiteDoctor[];
+    upcomingSessions: SiteSession[];
+    seo: { title: string; description: string; image?: string; url?: string };
     siteKit?: SiteKit | null;
-    customPage?: {
-        html: string;
-        css: string;
-        isPreview?: boolean;
-    } | null;
+    customPage?: { html: string; css: string; isPreview?: boolean } | null;
 }
 
-export default function ClinicLanding({
-    clinic,
-    headerConfig,
-    footerConfig,
-    sections,
-    theme,
-    isPublished,
-    doctors,
-    upcomingSessions,
-    seo,
-    siteKit,
-    customPage,
-}: Props) {
+/** Messages exchanged with the website editor when the page is shown inside its preview frame. */
+type EditorMessage =
+    | { source: 'mv-editor'; type: 'state'; sections: SiteSection[]; look: SiteLook; selectedId: string | null }
+    | { source: 'mv-editor'; type: 'scroll-to'; id: string };
+
+function SiteHead({ seo, clinic, look, extraFonts }: { seo: Props['seo']; clinic: Props['clinic']; look?: SiteLook; extraFonts?: string | null }) {
+    const fontHref = look ? siteFontsHref(look.font) : null;
+    return (
+        <Head>
+            <title>{seo.title || clinic.name}</title>
+            <meta name="description" content={seo.description} />
+            <meta property="og:type" content="website" />
+            <meta property="og:title" content={seo.title || clinic.name} />
+            <meta property="og:description" content={seo.description} />
+            {seo.image && <meta property="og:image" content={seo.image} />}
+            {seo.url && <meta property="og:url" content={seo.url} />}
+            <meta name="twitter:card" content="summary_large_image" />
+            {clinic.logo_url && <link rel="icon" href={clinic.logo_url} />}
+            {fontHref && <link rel="stylesheet" href={fontHref} />}
+            {extraFonts && <link rel="stylesheet" href={extraFonts} />}
+        </Head>
+    );
+}
+
+export default function ClinicLanding(props: Props) {
+    const { clinic, headerConfig, footerConfig, theme, doctors, upcomingSessions, seo, siteKit, customPage } = props;
+
+    // The shared header/footer take undefined (not null) for missing details.
+    const chromeClinic = Object.fromEntries(
+        Object.entries(clinic).map(([k, v]) => [k, v === null ? undefined : v]),
+    ) as { name: string; [key: string]: any };
+
     const customMainRef = useRef<HTMLElement>(null);
     const customHtml = customPage?.html;
     // Entrance animations, Tabs and Counters run once the builder HTML is mounted; cleanup removes them.
@@ -114,56 +81,66 @@ export default function ClinicLanding({
         };
     }, [customHtml]);
 
-    const enabledSections = sections.filter((s) => s.enabled);
-    const heroSection = sections.find((s) => s.id === 'hero' && s.enabled);
-    const aboutSection = sections.find((s) => s.id === 'about' && s.enabled);
-    const servicesSection = sections.find((s) => s.id === 'services' && s.enabled);
-    const hoursSection = sections.find((s) => s.id === 'hours' && s.enabled);
-    const contactSection = sections.find((s) => s.id === 'contact' && s.enabled);
-    const footerSection = sections.find((s) => s.id === 'footer' && s.enabled);
+    // ---- Editor preview frame: live draft state + click-to-select ----
+    const embed = !!props.isEmbed;
+    const [sections, setSections] = useState(props.sections);
+    const [look, setLook] = useState(props.look);
+    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [flashId, setFlashId] = useState<string | null>(null);
 
-    const fontsUrl = siteKit ? googleFontsUrl(usedFontFamilies(siteKit, customPage?.css ?? '')) : null;
+    useEffect(() => {
+        if (!embed) return;
+        const onMessage = (e: MessageEvent<EditorMessage>) => {
+            if (e.origin !== window.location.origin || e.data?.source !== 'mv-editor') return;
+            if (e.data.type === 'state') {
+                setSections(e.data.sections);
+                setLook(e.data.look);
+                setSelectedId(e.data.selectedId);
+            } else if (e.data.type === 'scroll-to') {
+                const el = document.getElementById(e.data.id);
+                const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                el?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+                setFlashId(null);
+                requestAnimationFrame(() => setFlashId(e.data.type === 'scroll-to' ? e.data.id : null));
+            }
+        };
+        // In the editor, clicks pick a section instead of following links.
+        const onClick = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            const section = target.closest<HTMLElement>('[data-section-id]');
+            if (target.closest('a, button, summary') || section) e.preventDefault();
+            if (section) {
+                window.parent.postMessage({ source: 'mv-preview', type: 'select', id: section.dataset.sectionId }, window.location.origin);
+            }
+        };
+        window.addEventListener('message', onMessage);
+        document.addEventListener('click', onClick, true);
+        window.parent.postMessage({ source: 'mv-preview', type: 'ready' }, window.location.origin);
+        return () => {
+            window.removeEventListener('message', onMessage);
+            document.removeEventListener('click', onClick, true);
+        };
+    }, [embed]);
 
     if (customPage?.html) {
+        const fontsUrl = siteKit ? googleFontsUrl(usedFontFamilies(siteKit, customPage.css ?? '')) : null;
         return (
             <div className="min-h-screen bg-white text-slate-900 font-sans flex flex-col">
-                <Head>
-                    <title>{seo.title || `${clinic.name} - Specialist Doctor Channeling`}</title>
-                    <meta
-                        name="description"
-                        content={
-                            seo.description ||
-                            `Book specialist doctor channeling appointments online at ${clinic.name}. Verified SLMC consultants.`
-                        }
-                    />
-                    {fontsUrl && <link rel="stylesheet" href={fontsUrl} />}
-                </Head>
+                <SiteHead seo={seo} clinic={clinic} extraFonts={fontsUrl} />
 
                 {customPage.isPreview && (
-                    <div className="sticky top-0 z-50 bg-amber-500 text-slate-950 px-4 py-2 text-xs font-bold flex items-center justify-between shadow-md">
-                        <span className="flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-slate-950 animate-ping" />
-                            Draft Preview Mode — You are viewing unpublished builder changes.
-                        </span>
-                        <a
-                            href="/website/builder"
-                            className="px-3 py-1 bg-slate-900 text-white rounded-lg hover:bg-slate-800 text-[11px] font-bold"
-                        >
-                            Return to Builder
+                    <div className="sticky top-0 z-50 bg-amber-400 text-slate-950 px-4 py-2 text-sm font-semibold flex items-center justify-between">
+                        <span>Preview: you are seeing unpublished changes.</span>
+                        <a href="/website/builder" className="px-3 py-1 bg-slate-900 text-white rounded-lg text-xs font-semibold">
+                            Back to the builder
                         </a>
                     </div>
                 )}
 
-                {/* Shared Public Header */}
-                <PublicSiteHeader
-                    clinic={clinic}
-                    headerConfig={headerConfig}
-                    themePreset={theme}
-                />
+                <PublicSiteHeader clinic={chromeClinic} headerConfig={headerConfig} themePreset={theme} />
 
                 {siteKit && <style dangerouslySetInnerHTML={{ __html: kitToCss(siteKit) }} />}
                 <style dangerouslySetInnerHTML={{ __html: animationCss() }} />
-
                 <style
                     dangerouslySetInnerHTML={{
                         __html: `
@@ -183,427 +160,43 @@ export default function ClinicLanding({
                     dangerouslySetInnerHTML={{ __html: customPage.html }}
                 />
 
-                {/* Shared Public Footer */}
-                <PublicSiteFooter
-                    clinic={clinic}
-                    footerConfig={footerConfig}
-                    themePreset={theme}
-                />
+                <PublicSiteFooter clinic={chromeClinic} footerConfig={footerConfig} themePreset={theme} />
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-teal-100 selection:text-teal-900 font-sans">
-            <Head>
-                <title>{seo.title || `${clinic.name} - Specialist Doctor Channeling`}</title>
-                <meta
-                    name="description"
-                    content={
-                        seo.description ||
-                        `Book specialist doctor channeling appointments online at ${clinic.name}. Verified SLMC consultants.`
-                    }
+        <div className={`min-h-screen flex flex-col ${look.mode === 'dark' ? 'bg-[#0b1220]' : 'bg-white'}`}>
+            <SiteHead seo={seo} clinic={clinic} look={look} />
+
+            {props.isPreview && !embed && (
+                <div className="sticky top-0 z-50 bg-amber-400 text-slate-950 px-4 py-2 text-sm font-semibold flex items-center justify-between gap-3">
+                    <span>Preview: this is your draft. Visitors still see the published site.</span>
+                    <a href="/website" className="shrink-0 px-3 py-1 bg-slate-900 text-white rounded-lg text-xs font-semibold">
+                        Back to the editor
+                    </a>
+                </div>
+            )}
+
+            <PublicSiteHeader clinic={chromeClinic} headerConfig={headerConfig} themePreset={look.theme || theme} />
+
+            <main id="main-content" className="flex-1">
+                <ClinicSiteRenderer
+                    clinic={clinic}
+                    sections={sections}
+                    look={look}
+                    stats={props.stats}
+                    doctors={doctors}
+                    sessions={upcomingSessions}
+                    preview={!!props.isPreview}
+                    embed={embed}
+                    selectedId={selectedId}
+                    flashId={flashId}
+                    visibleIds={props.visibleSectionIds}
                 />
-            </Head>
-
-            {/* Shared Public Header */}
-            <PublicSiteHeader
-                clinic={clinic}
-                headerConfig={headerConfig}
-                themePreset={theme}
-            />
-
-            <main id="main-content" className="space-y-16 pb-20">
-                {/* 1. Hero Section */}
-                {heroSection && (
-                    <section className="relative overflow-hidden bg-gradient-to-b from-teal-50/60 via-white to-slate-50 pt-16 pb-20 px-4 sm:px-6">
-                        <div className="max-w-5xl mx-auto text-center space-y-6">
-                            {heroSection.badge && (
-                                <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-100 text-teal-800 text-xs font-bold tracking-wide shadow-sm">
-                                    <Sparkles className="w-3.5 h-3.5" />
-                                    {heroSection.badge}
-                                </span>
-                            )}
-                            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-slate-900 tracking-tight leading-tight">
-                                {heroSection.title || 'Compassionate Care, Specialist Excellence'}
-                            </h1>
-                            <p className="text-base sm:text-lg text-slate-600 max-w-3xl mx-auto leading-relaxed">
-                                {heroSection.subtitle ||
-                                    'Book specialist channeling appointments with Sri Lanka’s leading medical practitioners. Zero waiting lounge delays with real-time digital queue updates.'}
-                            </p>
-                            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-                                <Link
-                                    href="/book"
-                                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-base shadow-xl shadow-teal-600/30 transition-all hover:-translate-y-0.5"
-                                >
-                                    {heroSection.cta_text || 'Book Appointment Online'}
-                                    <ArrowRight className="w-5 h-5" />
-                                </Link>
-                                <a
-                                    href="#sessions"
-                                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl bg-white hover:bg-slate-100 text-slate-800 font-bold text-base border border-slate-300 shadow-sm transition-all"
-                                >
-                                    View Doctors Roster
-                                </a>
-                            </div>
-
-                            {/* Trust badges */}
-                            <div className="pt-8 flex flex-wrap items-center justify-center gap-6 text-xs text-slate-500 font-medium">
-                                <span className="flex items-center gap-1.5">
-                                    <Shield className="w-4 h-4 text-teal-600" />
-                                    SLMC Certified Doctors
-                                </span>
-                                <span className="flex items-center gap-1.5">
-                                    <Clock className="w-4 h-4 text-teal-600" />
-                                    Approximate Consultation Times
-                                </span>
-                                <span className="flex items-center gap-1.5">
-                                    <HeartPulse className="w-4 h-4 text-teal-600" />
-                                    Instant Digital Queue Token
-                                </span>
-                            </div>
-                        </div>
-                    </section>
-                )}
-
-                {/* 2. Upcoming Sessions This Week */}
-                <section id="sessions" className="max-w-7xl mx-auto px-4 sm:px-6">
-                    <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
-                        <div>
-                            <span className="text-xs font-bold uppercase tracking-wider text-teal-700">
-                                Live Schedules
-                            </span>
-                            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
-                                Upcoming Channeling Sessions
-                            </h2>
-                            <p className="text-sm text-slate-600 mt-1">
-                                Real-time availability for consultations over the next 7 days.
-                            </p>
-                        </div>
-                        <Link
-                            href="/book"
-                            className="inline-flex items-center gap-1.5 text-xs font-bold text-teal-700 hover:text-teal-800 group"
-                        >
-                            Open Full Booking Desk
-                            <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-                        </Link>
-                    </div>
-
-                    {upcomingSessions.length === 0 ? (
-                        <div className="p-12 text-center bg-white rounded-3xl border border-slate-200">
-                            <Calendar className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                            <h3 className="text-base font-bold text-slate-800">No scheduled sessions this week</h3>
-                            <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                                New specialist channeling sessions will be announced shortly. Contact the clinic desk for special appointments.
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {upcomingSessions.map((session) => (
-                                <div
-                                    key={session.id}
-                                    className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between"
-                                >
-                                    <div className="space-y-4">
-                                        <div className="flex items-start justify-between gap-2">
-                                            <div>
-                                                <span className="inline-block px-2.5 py-1 rounded-lg bg-teal-50 text-teal-800 font-bold text-xs">
-                                                    {session.doctor_specialty}
-                                                </span>
-                                                <h3 className="text-lg font-bold text-slate-900 mt-2">
-                                                    {session.doctor_name}
-                                                </h3>
-                                            </div>
-                                            <span className="text-xs font-mono font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-md">
-                                                {session.room_number}
-                                            </span>
-                                        </div>
-
-                                        <div className="space-y-2 text-xs text-slate-600 bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-slate-500">Date</span>
-                                                <span className="font-bold text-slate-800">{session.session_date}</span>
-                                            </div>
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-slate-500">Start Time</span>
-                                                <span className="font-bold text-teal-700 font-mono">
-                                                    {session.start_time}
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-slate-500">Total Fee</span>
-                                                <span className="font-bold text-slate-900">
-                                                    {session.total_fee_formatted}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="pt-5 mt-4 border-t border-slate-100 flex items-center justify-between">
-                                        <div>
-                                            {session.is_full ? (
-                                                <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded-lg">
-                                                    Session Full
-                                                </span>
-                                            ) : (
-                                                <span className="text-xs font-medium text-emerald-700">
-                                                    <strong className="font-bold">{session.available_tokens_count}</strong> tokens available
-                                                </span>
-                                            )}
-                                        </div>
-
-                                        <Link
-                                            href={`/book?session=${session.id}`}
-                                            className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                                                session.is_full
-                                                    ? 'bg-slate-100 text-slate-400 pointer-events-none'
-                                                    : 'bg-teal-600 hover:bg-teal-500 text-white shadow-sm'
-                                            }`}
-                                        >
-                                            Book Token
-                                            <ArrowRight className="w-3.5 h-3.5" />
-                                        </Link>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </section>
-
-                {/* 3. Doctors Directory */}
-                <section id="doctors" className="max-w-7xl mx-auto px-4 sm:px-6">
-                    <div className="text-center max-w-2xl mx-auto mb-10 space-y-2">
-                        <span className="text-xs font-bold uppercase tracking-wider text-teal-700">
-                            Our Specialists
-                        </span>
-                        <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
-                            Meet Our Medical Specialists
-                        </h2>
-                        <p className="text-sm text-slate-600">
-                            Sri Lanka Medical Council verified consultants and physicians with decades of clinical excellence.
-                        </p>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {doctors.map((doctor) => (
-                            <div
-                                key={doctor.id}
-                                className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-sm space-y-4 hover:border-teal-200 transition-all"
-                            >
-                                <div className="flex items-center gap-4">
-                                    <div className="w-14 h-14 rounded-2xl bg-teal-100 text-teal-800 flex items-center justify-center font-extrabold text-xl shrink-0">
-                                        Dr
-                                    </div>
-                                    <div>
-                                        <h3 className="font-extrabold text-base text-slate-900">{doctor.name}</h3>
-                                        <p className="text-xs font-bold text-teal-700">{doctor.specialty}</p>
-                                        {doctor.slmc_number && (
-                                            <p className="text-[11px] text-slate-400 font-mono">
-                                                SLMC #{doctor.slmc_number}
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {doctor.bio && (
-                                    <p className="text-xs text-slate-600 leading-relaxed line-clamp-3">
-                                        {doctor.bio}
-                                    </p>
-                                )}
-
-                                <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                                    <span className="text-slate-500">Channeling Fee</span>
-                                    <span className="font-bold text-slate-900">{doctor.total_fee_formatted}</span>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </section>
-
-                {/* 4. About & Clinical Highlights */}
-                {aboutSection && (
-                    <section className="max-w-7xl mx-auto px-4 sm:px-6">
-                        <div className="bg-gradient-to-br from-teal-900 to-slate-900 rounded-3xl p-8 sm:p-12 text-white relative overflow-hidden shadow-xl">
-                            <div className="relative z-10 max-w-2xl space-y-4">
-                                <span className="inline-block px-3 py-1 rounded-full bg-teal-800/80 text-teal-200 text-xs font-bold tracking-wider uppercase">
-                                    About {clinic.name}
-                                </span>
-                                <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight">
-                                    {aboutSection.title || 'Your Family’s Trusted Medical Center'}
-                                </h2>
-                                <p className="text-sm sm:text-base text-teal-100/80 leading-relaxed">
-                                    {aboutSection.description ||
-                                        'Providing premier outpatient healthcare, specialist channeling, and diagnostic medical services with international safety protocols and Sri Lankan warmth.'}
-                                </p>
-                            </div>
-
-                            <div className="mt-8 pt-8 border-t border-white/10 grid grid-cols-1 sm:grid-cols-3 gap-6 text-center sm:text-left relative z-10">
-                                <div>
-                                    <div className="text-3xl font-black text-teal-300">
-                                        {aboutSection.stat_1_number || '15+'}
-                                    </div>
-                                    <div className="text-xs text-teal-100/70 mt-1 font-medium">
-                                        {aboutSection.stat_1_label || 'Medical Specialists'}
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="text-3xl font-black text-teal-300">
-                                        {aboutSection.stat_2_number || '25,000+'}
-                                    </div>
-                                    <div className="text-xs text-teal-100/70 mt-1 font-medium">
-                                        {aboutSection.stat_2_label || 'Satisfied Patients'}
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="text-3xl font-black text-teal-300">
-                                        {aboutSection.stat_3_number || '100%'}
-                                    </div>
-                                    <div className="text-xs text-teal-100/70 mt-1 font-medium">
-                                        {aboutSection.stat_3_label || 'Digital Queue Tracking'}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-                )}
-
-                {/* 5. Services Section */}
-                {servicesSection && servicesSection.items && (
-                    <section id="services" className="max-w-7xl mx-auto px-4 sm:px-6">
-                        <div className="text-center max-w-2xl mx-auto mb-10 space-y-2">
-                            <span className="text-xs font-bold uppercase tracking-wider text-teal-700">
-                                Comprehensive Care
-                            </span>
-                            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
-                                {servicesSection.title || 'Clinical Services'}
-                            </h2>
-                            <p className="text-sm text-slate-600">
-                                {servicesSection.subtitle || 'Modern outpatient healthcare facilities designed for convenience.'}
-                            </p>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            {servicesSection.items.map((svc: any, idx: number) => (
-                                <div
-                                    key={idx}
-                                    className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-sm hover:shadow-md transition-shadow space-y-2"
-                                >
-                                    <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center">
-                                        <Activity className="w-5 h-5" />
-                                    </div>
-                                    <h3 className="font-bold text-sm text-slate-900 pt-2">{svc.name}</h3>
-                                    <p className="text-xs text-slate-500 leading-relaxed">{svc.desc}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </section>
-                )}
-
-                {/* 6. Hours & Contact */}
-                <section id="contact" className="max-w-7xl mx-auto px-4 sm:px-6">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        {/* Operating Hours */}
-                        {hoursSection && (
-                            <div className="bg-white rounded-3xl border border-slate-200/90 p-8 shadow-sm space-y-6">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center">
-                                        <Clock className="w-5 h-5" />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-lg font-bold text-slate-900">
-                                            {hoursSection.title || 'Operating Hours'}
-                                        </h3>
-                                        <p className="text-xs text-slate-500">Open 7 days a week</p>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-3 text-xs">
-                                    <div className="flex justify-between py-2 border-b border-slate-100">
-                                        <span className="font-semibold text-slate-600">Monday – Friday</span>
-                                        <span className="font-bold text-slate-900">
-                                            {hoursSection.weekdays || '07:30 AM – 10:00 PM'}
-                                        </span>
-                                    </div>
-                                    <div className="flex justify-between py-2 border-b border-slate-100">
-                                        <span className="font-semibold text-slate-600">Saturday</span>
-                                        <span className="font-bold text-slate-900">
-                                            {hoursSection.saturday || '07:30 AM – 10:00 PM'}
-                                        </span>
-                                    </div>
-                                    <div className="flex justify-between py-2 border-b border-slate-100">
-                                        <span className="font-semibold text-slate-600">Sunday</span>
-                                        <span className="font-bold text-slate-900">
-                                            {hoursSection.sunday || '08:00 AM – 08:00 PM'}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {hoursSection.emergency_note && (
-                                    <p className="text-xs text-slate-500 italic bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                        {hoursSection.emergency_note}
-                                    </p>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Contact Information */}
-                        <div className="bg-white rounded-3xl border border-slate-200/90 p-8 shadow-sm space-y-6">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center">
-                                    <MapPin className="w-5 h-5" />
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-slate-900">
-                                        {contactSection?.title || 'Visit Our Medical Center'}
-                                    </h3>
-                                    <p className="text-xs text-slate-500">Easy access & convenient parking</p>
-                                </div>
-                            </div>
-
-                            <div className="space-y-4 text-xs">
-                                {clinic.address && (
-                                    <div className="flex items-start gap-3">
-                                        <MapPin className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
-                                        <div>
-                                            <strong className="block text-slate-800 font-semibold">Address</strong>
-                                            <span className="text-slate-600">{clinic.address}</span>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {clinic.phone && (
-                                    <div className="flex items-start gap-3">
-                                        <Phone className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
-                                        <div>
-                                            <strong className="block text-slate-800 font-semibold">Contact Desk</strong>
-                                            <a href={`tel:${clinic.phone}`} className="text-teal-700 font-bold hover:underline">
-                                                {clinic.phone}
-                                            </a>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="pt-2">
-                                <Link
-                                    href="/book"
-                                    className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs shadow-md shadow-teal-600/30"
-                                >
-                                    <Calendar className="w-4 h-4" />
-                                    Book Channeling Token Online
-                                </Link>
-                            </div>
-                        </div>
-                    </div>
-                </section>
             </main>
 
-            {/* Shared Public Footer */}
-            <PublicSiteFooter
-                clinic={clinic}
-                footerConfig={footerConfig}
-                themePreset={theme}
-            />
+            <PublicSiteFooter clinic={chromeClinic} footerConfig={footerConfig} themePreset={look.theme || theme} />
         </div>
     );
 }

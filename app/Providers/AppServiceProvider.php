@@ -5,10 +5,15 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Contracts\PaymentGateway;
+use App\Contracts\RefundProcessor;
+use App\Jobs\SyncClinicDirectoryListing;
 use App\Mail\Auth\ResetPasswordMail;
 use App\Mail\Auth\VerifyEmailMail;
+use App\Models\Doctor;
+use App\Models\SessionTemplate;
 use App\Models\Tenant;
 use App\Services\Payments\PaymentsLkGateway;
+use App\Services\Refunds\ManualRefundProcessor;
 use GuzzleHttp\Client;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
@@ -32,6 +37,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(PaymentGateway::class, function () {
             return new PaymentsLkGateway;
         });
+
+        $this->app->singleton(RefundProcessor::class, ManualRefundProcessor::class);
     }
 
     /**
@@ -88,6 +95,41 @@ class AppServiceProvider extends ServiceProvider
             $resendClient = new \Resend\Client($transporter);
 
             return new ResendTransport($resendClient);
+        });
+
+        // Synchronize central directory listing when clinic or active doctors change
+        Tenant::saved(function (Tenant $tenant) {
+            SyncClinicDirectoryListing::dispatch((string) $tenant->id);
+        });
+
+        Doctor::saved(function (Doctor $doctor) {
+            if ($doctor->tenant_id) {
+                SyncClinicDirectoryListing::dispatch((string) $doctor->tenant_id);
+            }
+        });
+
+        Doctor::deleted(function (Doctor $doctor) {
+            if ($doctor->tenant_id) {
+                SyncClinicDirectoryListing::dispatch((string) $doctor->tenant_id);
+            }
+        });
+
+        Doctor::restored(function (Doctor $doctor) {
+            if ($doctor->tenant_id) {
+                SyncClinicDirectoryListing::dispatch((string) $doctor->tenant_id);
+            }
+        });
+
+        SessionTemplate::saved(function (SessionTemplate $template) {
+            if ($template->tenant_id) {
+                SyncClinicDirectoryListing::dispatch((string) $template->tenant_id);
+            }
+        });
+
+        SessionTemplate::deleted(function (SessionTemplate $template) {
+            if ($template->tenant_id) {
+                SyncClinicDirectoryListing::dispatch((string) $template->tenant_id);
+            }
         });
     }
 }

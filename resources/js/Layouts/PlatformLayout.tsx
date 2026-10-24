@@ -25,6 +25,9 @@ import {
     Bell,
     CheckCircle2,
     AlertCircle,
+    Headphones,
+    RotateCcw,
+    AlertTriangle,
 } from 'lucide-react';
 import { MedVisitIcon } from '@/Components/ApplicationLogo';
 import ThemeToggle from '@/Components/Common/ThemeToggle';
@@ -46,6 +49,8 @@ const PLATFORM_BREADCRUMBS: Record<string, { group: string; page: string }> = {
     '/super-admin/dashboard': { group: 'Overview', page: 'Platform Dashboard' },
     '/super-admin/clinics': { group: 'Business', page: 'Clinics & Tenants' },
     '/super-admin/subscriptions': { group: 'Business', page: 'Subscriptions & Invoices' },
+    '/super-admin/refunds': { group: 'Business', page: 'Refund Requests' },
+    '/super-admin/incidents': { group: 'Business', page: 'Platform Incidents' },
     '/super-admin/plans': { group: 'Business', page: 'Subscription Plans' },
     '/super-admin/leads': { group: 'Business', page: 'Leads & Demos CRM' },
     '/super-admin/medicines': { group: 'Content', page: 'Global Medicine Catalog' },
@@ -57,13 +62,14 @@ const PLATFORM_BREADCRUMBS: Record<string, { group: string; page: string }> = {
     '/super-admin/audit-logs': { group: 'Admin', page: 'Platform Audit Log' },
     '/super-admin/settings': { group: 'Admin', page: 'Platform Settings' },
     '/super-admin/admins': { group: 'Admin', page: 'Admin Users & 2FA' },
+    '/super-admin/support': { group: 'Support', page: 'Support Inbox' },
 };
 
 export default function PlatformLayout({
     breadcrumbs: customBreadcrumbs,
     children,
 }: PlatformLayoutProps) {
-    const { auth, pendingMedicineReviewsCount = 0 } = usePage<{
+    const { auth, pendingMedicineReviewsCount = 0, waitingSupportCount = 0, pendingRefundsCount = 0 } = usePage<{
         auth: {
             user: {
                 id: number;
@@ -73,6 +79,8 @@ export default function PlatformLayout({
             };
         };
         pendingMedicineReviewsCount?: number;
+        waitingSupportCount?: number;
+        pendingRefundsCount?: number;
     }>().props;
 
     const user = auth?.user;
@@ -155,6 +163,18 @@ export default function PlatformLayout({
                     badge: undefined,
                 },
                 {
+                    name: 'Refund Requests',
+                    href: '/super-admin/refunds',
+                    icon: RotateCcw,
+                    badge: pendingRefundsCount > 0 ? `${pendingRefundsCount}` : undefined,
+                },
+                {
+                    name: 'Platform Incidents',
+                    href: '/super-admin/incidents',
+                    icon: AlertTriangle,
+                    badge: undefined,
+                },
+                {
                     name: 'Subscription Plans',
                     href: '/super-admin/plans',
                     icon: Layers,
@@ -205,6 +225,18 @@ export default function PlatformLayout({
                     href: '/super-admin/system-health',
                     icon: Activity,
                     badge: undefined,
+                },
+            ],
+        },
+        {
+            title: 'SUPPORT',
+            items: [
+                {
+                    name: 'Support Inbox',
+                    href: '/super-admin/support',
+                    icon: Headphones,
+                    badge: waitingSupportCount > 0 ? `${waitingSupportCount}` : undefined,
+                    badgeColor: 'coral',
                 },
             ],
         },
@@ -300,7 +332,9 @@ export default function PlatformLayout({
                                                     <span className="truncate flex-1">{item.name}</span>
                                                 )}
                                                 {!collapsed && item.badge && (
-                                                    <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-amber-500 text-white">
+                                                    <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded-full text-white ${
+                                                        (item as any).badgeColor === 'coral' ? 'bg-[#FF7A59]' : 'bg-amber-500'
+                                                    }`}>
                                                         {item.badge}
                                                     </span>
                                                 )}

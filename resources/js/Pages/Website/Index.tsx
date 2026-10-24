@@ -1,648 +1,425 @@
 import React, { useState } from 'react';
-import { Head, router } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { PageHeader } from '@/Components/UI/PageHeader';
-import PagesTable from '@/Components/PageBuilder/PagesTable';
-import type { PageSummary } from '@/Components/PageBuilder/types';
 import {
-    Globe,
+    Layout,
+    Palette,
+    FileText,
+    Search,
+    AlertCircle,
+    ExternalLink,
     Eye,
-    Save,
-    ChevronUp,
-    ChevronDown,
-    CheckCircle2,
-    XCircle,
-    Smartphone,
+    ChevronLeft,
     Monitor,
     Sparkles,
-    Sliders,
-    Layers,
-    Share2,
-    Calendar,
-    Stethoscope,
-    Phone,
-    MapPin,
-    Clock,
+    LayoutTemplate,
 } from 'lucide-react';
+import { useWebsiteDraft } from '@/Components/WebsiteEditor/useWebsiteDraft';
+import EditorTopBar from '@/Components/WebsiteEditor/EditorTopBar';
+import SectionList from '@/Components/WebsiteEditor/SectionList';
+import SectionEditor from '@/Components/WebsiteEditor/SectionEditor';
+import PreviewPane from '@/Components/WebsiteEditor/PreviewPane';
+import LookTab from '@/Components/WebsiteEditor/LookTab';
+import ExtraPagesTab from '@/Components/WebsiteEditor/ExtraPagesTab';
+import SeoTab from '@/Components/WebsiteEditor/SeoTab';
+import BuilderPromptModal from '@/Components/WebsiteEditor/BuilderPromptModal';
+import type { SiteLook, SiteSection } from '@/Components/ClinicSite/types';
+import type { SiteStatus } from '@/Components/WebsiteEditor/useWebsiteDraft';
+import type { PageSummary } from '@/Components/PageBuilder/types';
 
-interface Section {
-    id: string;
-    name: string;
-    enabled: boolean;
-    title?: string;
-    subtitle?: string;
-    description?: string;
-    cta_text?: string;
-    cta_link?: string;
-    badge?: string;
-    notice?: string;
-    [key: string]: any;
-}
-
-interface DoctorPreview {
-    id: number;
-    name: string;
-    specialty: string;
-    slmc_number?: string;
-}
-
-interface SessionPreview {
-    id: number;
-    session_date: string;
-    start_time: string;
-    doctor?: {
-        name: string;
-        specialty: string;
-    };
+interface PageItem extends PageSummary {
+    in_menu?: boolean;
 }
 
 interface Props {
-    sections: Section[];
-    theme: string;
-    isPublished: boolean;
+    sections: SiteSection[];
+    look: SiteLook;
+    status: SiteStatus;
     seo: {
         title: string;
         description: string;
+        default_title: string;
+        default_description: string;
+        share_image_url: string | null;
+        generated_share_image_url: string;
     };
     clinic: {
         name: string;
         subdomain: string;
+        site_url: string;
+        display_host: string;
         phone?: string;
         address?: string;
+        whatsapp?: string;
+        email?: string;
+        logo_url?: string | null;
+        latitude?: number | null;
+        longitude?: number | null;
     };
-    doctors: DoctorPreview[];
-    upcomingSessions: SessionPreview[];
-    pages: PageSummary[];
-    flash?: {
-        success?: string;
-        error?: string;
+    counts: {
+        doctors: number;
     };
+    homepageUsesBuilder: boolean;
+    pages: PageItem[];
 }
+
+type TabKey = 'home' | 'look' | 'pages' | 'seo';
+
+const defaultSection = (type: string, id: string): SiteSection => {
+    switch (type) {
+        case 'gallery':
+            return { id, type: 'gallery', enabled: true, title: 'Gallery', images: [] };
+        case 'faq':
+            return { id, type: 'faq', enabled: true, title: 'Questions', items: [] };
+        case 'announcement':
+            return { id, type: 'announcement', enabled: true, title: '', message: '', tone: 'info' };
+        case 'text':
+            return { id, type: 'text', enabled: true, title: '', body: '' };
+        default:
+            return { id, type: type as any, enabled: true };
+    }
+};
 
 export default function WebsiteIndex({
     sections: initialSections,
-    theme: initialTheme,
-    isPublished: initialPublished,
-    seo: initialSeo,
+    look: initialLook,
+    status: initialStatus,
+    seo,
     clinic,
-    doctors,
-    upcomingSessions,
+    counts,
+    homepageUsesBuilder,
     pages,
 }: Props) {
-    const [sections, setSections] = useState<Section[]>(initialSections);
-    const [selectedTheme, setSelectedTheme] = useState(initialTheme);
-    const [seo, setSeo] = useState(initialSeo);
-    const [previewDevice, setPreviewDevice] = useState<'desktop' | 'mobile'>('desktop');
-    const [saving, setSaving] = useState(false);
-    const [publishing, setPublishing] = useState(false);
+    const [activeTab, setActiveTab] = useState<TabKey>('home');
+    const [selectedId, setSelectedId] = useState<string | null>(initialSections[0]?.id || null);
+    const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
+    const [mobileViewingEditor, setMobileViewingEditor] = useState(false);
+    const [previewExpanded, setPreviewExpanded] = useState(false);
 
-    const themeColors: Record<string, { primary: string; bg: string; label: string }> = {
-        'medvisit-teal': { primary: '#0E9E8F', bg: 'from-teal-600 to-cyan-700', label: 'MedVisit Teal (Default)' },
-        'ocean-blue': { primary: '#1E6FD9', bg: 'from-blue-600 to-indigo-700', label: 'Ocean Blue' },
-        'emerald-health': { primary: '#059669', bg: 'from-emerald-600 to-teal-800', label: 'Emerald Health' },
-        'royal-purple': { primary: '#7C3AED', bg: 'from-purple-600 to-indigo-800', label: 'Royal Specialist' },
-        'slate-luxury': { primary: '#334155', bg: 'from-slate-700 to-slate-900', label: 'Slate Executive' },
+    // Draft state manager with autosave, undo, and navigation guards
+    const {
+        sections,
+        look,
+        status,
+        setStatus,
+        saveState,
+        update,
+        undo,
+        canUndo,
+    } = useWebsiteDraft({ sections: initialSections, look: initialLook }, initialStatus);
+
+    const selectedSection = sections.find((s) => s.id === selectedId) || sections[0] || null;
+
+    // Handlers for sections
+    const handleReorder = (newSections: SiteSection[]) => {
+        update((prev) => ({ ...prev, sections: newSections }));
     };
 
-    const toggleSection = (index: number) => {
-        const next = [...sections];
-        next[index].enabled = !next[index].enabled;
-        setSections(next);
+    const handleToggleEnable = (id: string, enabled: boolean) => {
+        update((prev) => ({
+            ...prev,
+            sections: prev.sections.map((s) => (s.id === id ? { ...s, enabled } : s)),
+        }));
     };
 
-    const moveSection = (index: number, direction: 'up' | 'down') => {
-        const targetIndex = direction === 'up' ? index - 1 : index + 1;
-        if (targetIndex < 0 || targetIndex >= sections.length) return;
-        const next = [...sections];
-        const [moved] = next.splice(index, 1);
-        next.splice(targetIndex, 0, moved);
-        setSections(next);
+    const handleAddSection = (type: string) => {
+        const id = `${type}-${Math.random().toString(36).substring(2, 8)}`;
+        const newSec = defaultSection(type, id);
+        update((prev) => ({
+            ...prev,
+            sections: [...prev.sections, newSec],
+        }));
+        setSelectedId(id);
+        setMobileViewingEditor(true);
     };
 
-    const updateSectionField = (index: number, field: string, value: string) => {
-        const next = [...sections];
-        next[index] = { ...next[index], [field]: value };
-        setSections(next);
+    const handleDeleteSection = (id: string) => {
+        update((prev) => ({
+            ...prev,
+            sections: prev.sections.filter((s) => s.id !== id),
+        }));
+        if (selectedId === id) {
+            setSelectedId(sections[0]?.id || null);
+        }
     };
 
-    const handleSaveSections = (e: React.FormEvent) => {
-        e.preventDefault();
-        setSaving(true);
-        router.put(
-            '/website/sections',
-            { sections },
-            {
-                onFinish: () => setSaving(false),
-            }
+    const handleUpdateSection = (updated: SiteSection) => {
+        update(
+            (prev) => ({
+                ...prev,
+                sections: prev.sections.map((s) => (s.id === updated.id ? updated : s)),
+            }),
+            `sec-${updated.id}`,
         );
     };
 
-    const handleSaveTheme = (e: React.FormEvent) => {
-        e.preventDefault();
-        router.put(
-            '/website/theme',
-            {
-                theme: selectedTheme,
-                seo_title: seo.title,
-                seo_description: seo.description,
-            },
-            {
-                preserveScroll: true,
-            }
-        );
-    };
-
-    const handleTogglePublish = (publish: boolean) => {
-        setPublishing(true);
-        router.post(
-            '/website/publish',
-            { published: publish },
-            {
-                onFinish: () => setPublishing(false),
-            }
+    const handleUpdateLook = (newLook: SiteLook) => {
+        update(
+            (prev) => ({
+                ...prev,
+                look: newLook,
+            }),
+            'look',
         );
     };
 
     return (
-        <AuthenticatedLayout>
-            <Head title="Clinic Website Builder - MedVisit" />
+        <AuthenticatedLayout
+            breadcrumbs={[
+                { label: 'Dashboard', href: '/dashboard' },
+                { label: 'Website Editor' },
+            ]}
+        >
+            <Head title="Website Editor" />
 
-            <div className="space-y-6">
-                <PageHeader
-                    breadcrumbs={[
-                        { label: 'Clinic Workspace', href: '/dashboard' },
-                        { label: 'Website & Public Booking' },
-                    ]}
-                    title="Clinic Website & Public Booking"
-                    subtitle="Customize your public patient landing portal, doctor channeling directory, and online token booking."
-                    actions={
-                        <div className="flex flex-wrap items-center gap-2">
-                            <span
-                                className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
-                                    initialPublished
-                                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
-                                        : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
-                                }`}
-                            >
-                                {initialPublished ? 'Live & Published' : 'Draft Mode'}
-                            </span>
+            <div className="min-h-[calc(100vh-64px)] flex flex-col bg-slate-50/60 dark:bg-slate-950/60 font-sans">
+                {/* 1. Sticky Top Bar */}
+                <EditorTopBar
+                    status={status}
+                    onStatusChange={setStatus}
+                    saveState={saveState}
+                    canUndo={canUndo}
+                    onUndo={undo}
+                    clinic={clinic}
+                />
 
+                {/* 2. Navigation Tabs Bar */}
+                <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/80 dark:border-white/10 px-4 sm:px-6">
+                    <div className="max-w-[1700px] mx-auto flex items-center justify-between">
+                        <nav className="flex space-x-1 sm:space-x-2 py-2" aria-label="Editor Tabs">
+                            {[
+                                { key: 'home', label: 'Home page', icon: Layout },
+                                { key: 'look', label: 'Look & feel', icon: Palette },
+                                { key: 'pages', label: 'Extra pages', icon: FileText, count: pages.length },
+                                { key: 'seo', label: 'SEO & sharing', icon: Search },
+                            ].map((tab) => {
+                                const TabIcon = tab.icon;
+                                const isActive = activeTab === tab.key;
+                                return (
+                                    <button
+                                        key={tab.key}
+                                        type="button"
+                                        onClick={() => {
+                                            setActiveTab(tab.key as TabKey);
+                                            setMobilePreviewOpen(false);
+                                        }}
+                                        className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition ${
+                                            isActive
+                                                ? 'bg-primary/10 text-primary dark:text-white dark:bg-primary/20 shadow-xs'
+                                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/60 dark:hover:bg-slate-800/50'
+                                        }`}
+                                    >
+                                        <TabIcon className="h-4 w-4" />
+                                        <span>{tab.label}</span>
+                                        {tab.count !== undefined && tab.count > 0 && (
+                                            <span
+                                                className={`ml-0.5 rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                                                    isActive
+                                                        ? 'bg-primary text-white'
+                                                        : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                                                }`}
+                                            >
+                                                {tab.count}
+                                            </span>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </nav>
+
+                        <div className="flex items-center gap-2">
+                            {/* Visual Page Builder link */}
                             <a
                                 href="/website/builder"
-                                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500 text-white shadow-md shadow-teal-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-primary/30 dark:border-primary/40 bg-primary/10 dark:bg-primary/20 hover:bg-primary/20 text-xs font-semibold text-primary dark:text-teal-300 transition shadow-xs"
+                                title="Open MedVisit visual drag-and-drop page builder"
                             >
-                                <Sparkles className="w-3.5 h-3.5" />
+                                <LayoutTemplate className="h-3.5 w-3.5" />
                                 <span>MedVisit Page Builder</span>
+                                <ExternalLink className="h-3 w-3 opacity-70" />
                             </a>
 
-                            <a
-                                href="/"
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-slate-850 text-slate-700 dark:text-slate-200 hover:bg-slate-50 shadow-xs transition-colors"
-                            >
-                                <Eye className="w-3.5 h-3.5" />
-                                <span>Open Live Site</span>
-                            </a>
-
-                            {initialPublished ? (
+                            {/* On tablet/mobile in Home tab: toggle preview button */}
+                            {activeTab === 'home' && (
                                 <button
                                     type="button"
-                                    disabled={publishing}
-                                    onClick={() => handleTogglePublish(false)}
-                                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-red-200/80 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-100 shadow-xs transition-colors"
+                                    onClick={() => setMobilePreviewOpen(!mobilePreviewOpen)}
+                                    className="lg:hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
                                 >
-                                    <XCircle className="w-3.5 h-3.5" />
-                                    <span>Unpublish</span>
-                                </button>
-                            ) : (
-                                <button
-                                    type="button"
-                                    disabled={publishing}
-                                    onClick={() => handleTogglePublish(true)}
-                                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs transition-colors"
-                                >
-                                    <CheckCircle2 className="w-3.5 h-3.5" />
-                                    <span>Publish Live</span>
+                                    <Eye className="h-3.5 w-3.5 text-primary" />
+                                    {mobilePreviewOpen ? 'Back to Editor' : 'Preview'}
                                 </button>
                             )}
                         </div>
-                    }
-                />
-
-                <PagesTable pages={pages} clinic={clinic} />
-
-                {/* Main 2-Column Grid: Builder on Left, Live Preview on Right */}
-                <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-                    {/* Left Column: Sections & Controls (5 Cols) */}
-                    <div className="xl:col-span-5 space-y-6">
-                        {/* Theme Preset & SEO Meta Card */}
-                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-white/10 p-5 shadow-sm">
-                            <div className="flex items-center gap-2 mb-4">
-                                <Sparkles className="w-4 h-4 text-primary-600 dark:text-primary-400" />
-                                <h2 className="text-sm font-bold text-slate-900 dark:text-white">
-                                    Theme Preset & Branding
-                                </h2>
-                            </div>
-
-                            <form onSubmit={handleSaveTheme} className="space-y-4">
-                                <div>
-                                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">
-                                        Color Palette
-                                    </label>
-                                    <div className="grid grid-cols-1 gap-2">
-                                        {Object.entries(themeColors).map(([key, item]) => (
-                                            <button
-                                                key={key}
-                                                type="button"
-                                                onClick={() => setSelectedTheme(key)}
-                                                className={`flex items-center justify-between p-2.5 rounded-xl border text-xs font-medium transition-all ${
-                                                    selectedTheme === key
-                                                        ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-950/20 text-primary-900 dark:text-primary-100'
-                                                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-600 dark:text-slate-400'
-                                                }`}
-                                            >
-                                                <div className="flex items-center gap-2.5">
-                                                    <span
-                                                        className={`w-4 h-4 rounded-full bg-gradient-to-tr ${item.bg} shadow-sm`}
-                                                    />
-                                                    <span>{item.label}</span>
-                                                </div>
-                                                {selectedTheme === key && (
-                                                    <CheckCircle2 className="w-4 h-4 text-primary-600 dark:text-primary-400" />
-                                                )}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-                                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                        SEO Page Title
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={seo.title}
-                                        onChange={(e) => setSeo({ ...seo, title: e.target.value })}
-                                        className="w-full text-xs rounded-xl border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                                        placeholder="Clinic Name - Doctor Channeling & Outpatient Care"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                        Meta Description
-                                    </label>
-                                    <textarea
-                                        rows={2}
-                                        value={seo.description}
-                                        onChange={(e) => setSeo({ ...seo, description: e.target.value })}
-                                        className="w-full text-xs rounded-xl border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                                        placeholder="Book specialist channeling appointments online. Instant digital queue numbers."
-                                    />
-                                </div>
-
-                                <div className="flex justify-end pt-2">
-                                    <button
-                                        type="submit"
-                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 dark:bg-slate-700 text-white hover:bg-slate-900 dark:hover:bg-slate-600"
-                                    >
-                                        <Save className="w-3.5 h-3.5" />
-                                        Save Theme & SEO
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-
-                        {/* Section Order & Visibility Builder */}
-                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-white/10 p-5 shadow-sm space-y-4">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <Layers className="w-4 h-4 text-primary-600 dark:text-primary-400" />
-                                    <h2 className="text-sm font-bold text-slate-900 dark:text-white">
-                                        Section Organizer & Content
-                                    </h2>
-                                </div>
-                                <span className="text-[11px] text-slate-400 font-mono">
-                                    {sections.filter((s) => s.enabled).length} Active Sections
-                                </span>
-                            </div>
-
-                            <div className="space-y-3">
-                                {sections.map((section, idx) => (
-                                    <div
-                                        key={section.id}
-                                        className={`p-3 rounded-xl border transition-all ${
-                                            section.enabled
-                                                ? 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850'
-                                                : 'border-dashed border-slate-200 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50 opacity-60'
-                                        }`}
-                                    >
-                                        <div className="flex items-center justify-between gap-2">
-                                            <div className="flex items-center gap-2 min-w-0">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={section.enabled}
-                                                    onChange={() => toggleSection(idx)}
-                                                    className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                                                />
-                                                <span className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
-                                                    {section.name}
-                                                </span>
-                                            </div>
-
-                                            <div className="flex items-center gap-1">
-                                                <button
-                                                    type="button"
-                                                    disabled={idx === 0}
-                                                    onClick={() => moveSection(idx, 'up')}
-                                                    className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 disabled:opacity-30"
-                                                    title="Move Up"
-                                                >
-                                                    <ChevronUp className="w-3.5 h-3.5" />
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    disabled={idx === sections.length - 1}
-                                                    onClick={() => moveSection(idx, 'down')}
-                                                    className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 disabled:opacity-30"
-                                                    title="Move Down"
-                                                >
-                                                    <ChevronDown className="w-3.5 h-3.5" />
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        {/* Inline inputs for key text fields */}
-                                        {section.enabled && (
-                                            <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
-                                                {section.title !== undefined && (
-                                                    <div>
-                                                        <label className="text-[10px] uppercase font-bold text-slate-400">
-                                                            Headline
-                                                        </label>
-                                                        <input
-                                                            type="text"
-                                                            value={section.title}
-                                                            onChange={(e) =>
-                                                                updateSectionField(idx, 'title', e.target.value)
-                                                            }
-                                                            className="w-full text-xs py-1 px-2 rounded-lg border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200"
-                                                        />
-                                                    </div>
-                                                )}
-                                                {section.subtitle !== undefined && (
-                                                    <div>
-                                                        <label className="text-[10px] uppercase font-bold text-slate-400">
-                                                            Subheadline
-                                                        </label>
-                                                        <input
-                                                            type="text"
-                                                            value={section.subtitle}
-                                                            onChange={(e) =>
-                                                                updateSectionField(idx, 'subtitle', e.target.value)
-                                                            }
-                                                            className="w-full text-xs py-1 px-2 rounded-lg border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200"
-                                                        />
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-
-                            <button
-                                type="button"
-                                disabled={saving}
-                                onClick={handleSaveSections}
-                                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-500 text-white font-semibold text-xs shadow-md shadow-primary-600/30"
-                            >
-                                <Save className="w-3.5 h-3.5" />
-                                {saving ? 'Saving...' : 'Save Website Sections Layout'}
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Right Column: Live Interactive Preview Frame (7 Cols) */}
-                    <div className="xl:col-span-7 space-y-4">
-                        {/* Device Frame Bar */}
-                        <div className="flex items-center justify-between p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-white/10 shadow-sm">
-                            <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
-                                <Monitor className="w-4 h-4 text-slate-400" />
-                                <span>Live Responsive Preview</span>
-                            </div>
-
-                            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-                                <button
-                                    type="button"
-                                    onClick={() => setPreviewDevice('desktop')}
-                                    className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                                        previewDevice === 'desktop'
-                                            ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                                            : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                                    }`}
-                                >
-                                    <Monitor className="w-3.5 h-3.5" />
-                                    Desktop
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setPreviewDevice('mobile')}
-                                    className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                                        previewDevice === 'mobile'
-                                            ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                                            : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                                    }`}
-                                >
-                                    <Smartphone className="w-3.5 h-3.5" />
-                                    Mobile
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Preview Frame Wrapper */}
-                        <div className="flex justify-center bg-slate-100 dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 min-h-[700px] overflow-hidden">
-                            <div
-                                className={`transition-all duration-300 bg-white text-slate-900 rounded-2xl shadow-xl overflow-hidden border border-slate-300 flex flex-col ${
-                                    previewDevice === 'mobile'
-                                        ? 'w-[375px] max-w-full rounded-[32px] border-4 border-slate-800'
-                                        : 'w-full'
-                                }`}
-                            >
-                                {/* Browser mock titlebar */}
-                                <div className="h-8 bg-slate-100 border-b border-slate-200 px-3 flex items-center gap-2 shrink-0">
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="w-2.5 h-2.5 rounded-full bg-red-400" />
-                                        <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-                                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-                                    </div>
-                                    <span className="text-[10px] text-slate-400 font-mono mx-auto">
-                                        https://{clinic.subdomain}.medvisit.lk
-                                    </span>
-                                </div>
-
-                                {/* Simulated Clinic Website Content */}
-                                <div className="overflow-y-auto max-h-[650px] p-4 space-y-6">
-                                    {/* Mock Navigation */}
-                                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-7 h-7 rounded-lg bg-teal-600 text-white flex items-center justify-center font-bold text-xs">
-                                                {clinic.name.charAt(0)}
-                                            </div>
-                                            <span className="font-bold text-xs text-slate-900 truncate">
-                                                {clinic.name}
-                                            </span>
-                                        </div>
-                                        <span className="px-2.5 py-1 rounded-lg bg-teal-600 text-white text-[10px] font-bold">
-                                            Book Token
-                                        </span>
-                                    </div>
-
-                                    {/* Render enabled sections */}
-                                    {sections
-                                        .filter((s) => s.enabled)
-                                        .map((s) => {
-                                            if (s.id === 'hero') {
-                                                return (
-                                                    <div
-                                                        key="hero"
-                                                        className="p-5 rounded-2xl bg-gradient-to-br from-teal-50 to-cyan-50 border border-teal-100 text-center space-y-2"
-                                                    >
-                                                        <span className="inline-block px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 text-[10px] font-bold">
-                                                            {s.badge || 'Open Daily'}
-                                                        </span>
-                                                        <h3 className="text-sm font-extrabold text-slate-900">
-                                                            {s.title}
-                                                        </h3>
-                                                        <p className="text-[11px] text-slate-600 line-clamp-2">
-                                                            {s.subtitle}
-                                                        </p>
-                                                        <div className="pt-2">
-                                                            <span className="inline-block px-4 py-1.5 rounded-xl bg-teal-600 text-white text-[11px] font-bold shadow-sm">
-                                                                {s.cta_text || 'Book Appointment Online'}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            }
-
-                                            if (s.id === 'about') {
-                                                return (
-                                                    <div key="about" className="space-y-2 p-3 bg-slate-50 rounded-xl">
-                                                        <h4 className="text-xs font-bold text-slate-900">{s.title}</h4>
-                                                        <p className="text-[10px] text-slate-600">{s.description}</p>
-                                                        <div className="grid grid-cols-3 gap-2 pt-2 text-center">
-                                                            <div className="p-2 bg-white rounded-lg border border-slate-100">
-                                                                <div className="font-bold text-teal-700 text-xs">
-                                                                    {s.stat_1_number}
-                                                                </div>
-                                                                <div className="text-[9px] text-slate-500">
-                                                                    {s.stat_1_label}
-                                                                </div>
-                                                            </div>
-                                                            <div className="p-2 bg-white rounded-lg border border-slate-100">
-                                                                <div className="font-bold text-teal-700 text-xs">
-                                                                    {s.stat_2_number}
-                                                                </div>
-                                                                <div className="text-[9px] text-slate-500">
-                                                                    {s.stat_2_label}
-                                                                </div>
-                                                            </div>
-                                                            <div className="p-2 bg-white rounded-lg border border-slate-100">
-                                                                <div className="font-bold text-teal-700 text-xs">
-                                                                    {s.stat_3_number}
-                                                                </div>
-                                                                <div className="text-[9px] text-slate-500">
-                                                                    {s.stat_3_label}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            }
-
-                                            if (s.id === 'doctors') {
-                                                return (
-                                                    <div key="doctors" className="space-y-2">
-                                                        <div className="flex items-center justify-between">
-                                                            <h4 className="text-xs font-bold text-slate-900">{s.title}</h4>
-                                                            <span className="text-[10px] text-teal-600 font-semibold">
-                                                                {doctors.length} Doctors
-                                                            </span>
-                                                        </div>
-                                                        <div className="grid grid-cols-2 gap-2">
-                                                            {doctors.slice(0, 4).map((d) => (
-                                                                <div
-                                                                    key={d.id}
-                                                                    className="p-2 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-2"
-                                                                >
-                                                                    <div className="w-7 h-7 rounded-full bg-teal-100 text-teal-800 flex items-center justify-center font-bold text-[10px] shrink-0">
-                                                                        Dr
-                                                                    </div>
-                                                                    <div className="min-w-0">
-                                                                        <div className="text-[10px] font-bold text-slate-900 truncate">
-                                                                            {d.name}
-                                                                        </div>
-                                                                        <div className="text-[9px] text-slate-500 truncate">
-                                                                            {d.specialty}
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            }
-
-                                            if (s.id === 'sessions') {
-                                                return (
-                                                    <div key="sessions" className="space-y-2">
-                                                        <h4 className="text-xs font-bold text-slate-900">{s.title}</h4>
-                                                        <div className="space-y-1.5">
-                                                            {upcomingSessions.slice(0, 3).map((sess) => (
-                                                                <div
-                                                                    key={sess.id}
-                                                                    className="p-2 rounded-lg bg-teal-50/50 border border-teal-100 flex items-center justify-between text-[10px]"
-                                                                >
-                                                                    <div>
-                                                                        <span className="font-bold text-slate-900">
-                                                                            {sess.doctor?.name || 'Dr. Specialist'}
-                                                                        </span>
-                                                                        <span className="text-slate-500 ml-1">
-                                                                            • {sess.doctor?.specialty}
-                                                                        </span>
-                                                                    </div>
-                                                                    <span className="text-teal-700 font-semibold font-mono">
-                                                                        {sess.start_time}
-                                                                    </span>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            }
-
-                                            return (
-                                                <div
-                                                    key={s.id}
-                                                    className="p-2.5 rounded-xl border border-slate-100 bg-slate-50 text-[10px] text-slate-600"
-                                                >
-                                                    <span className="font-bold text-slate-800">{s.title || s.name}</span>
-                                                    {s.subtitle && <p className="text-[9px] mt-0.5">{s.subtitle}</p>}
-                                                </div>
-                                            );
-                                        })}
-
-                                    {/* Mock Footer */}
-                                    <div className="pt-4 border-t border-slate-100 text-center text-[9px] text-slate-400">
-                                        Powered by MedVisit Sri Lanka • Channeling Platform
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
+
+                {/* 3. Tab Content Area */}
+                <div className="flex-1 flex flex-col">
+                    {/* TAB: HOME PAGE (3 Panes) */}
+                    {activeTab === 'home' && (
+                        <div className="flex-1 flex flex-col">
+                            {/* Builder Notice if homepage is handled by page builder, or invite banner to use visual builder */}
+                            {homepageUsesBuilder ? (
+                                <div className="bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900/50 px-4 py-2.5 text-xs text-amber-900 dark:text-amber-200 flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-2">
+                                        <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                                        <span>
+                                            Notice: Your home page currently comes from the MedVisit Page Builder. Edits made to standard sections here will apply whenever standard sections are active.
+                                        </span>
+                                    </div>
+                                    <Link
+                                        href="/website/builder"
+                                        className="shrink-0 font-bold text-amber-900 dark:text-amber-100 underline hover:text-amber-700"
+                                    >
+                                        Open MedVisit Page Builder →
+                                    </Link>
+                                </div>
+                            ) : (
+                                <div className="bg-gradient-to-r from-sky-50 to-indigo-50/40 dark:from-slate-800/80 dark:to-slate-800/40 border-b border-sky-100 dark:border-slate-800 px-4 py-2 text-xs text-slate-700 dark:text-slate-300 flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-2">
+                                        <Sparkles className="h-4 w-4 text-primary shrink-0" />
+                                        <span>
+                                            Want to design with drag-and-drop? Use <strong>MedVisit Page Builder</strong> for free-form layouts, custom blocks, and live doctor widgets.
+                                        </span>
+                                    </div>
+                                    <a
+                                        href="/website/builder"
+                                        className="shrink-0 font-bold text-primary hover:underline inline-flex items-center gap-1"
+                                    >
+                                        Launch Visual Page Builder →
+                                    </a>
+                                </div>
+                            )}
+
+                            {/* Main 3-pane layout on Desktop, responsive on Tablet / Mobile */}
+                            <div className="flex-1 flex flex-col lg:flex-row min-h-[calc(100vh-160px)]">
+                                {/* Mobile/Tablet View: Either Preview or Editor */}
+                                {mobilePreviewOpen ? (
+                                    <div className="lg:hidden flex-1 h-[calc(100vh-170px)]">
+                                        <PreviewPane
+                                            sections={sections}
+                                            look={look}
+                                            selectedId={selectedId}
+                                            onSelect={(id) => {
+                                                setSelectedId(id);
+                                                setMobilePreviewOpen(false);
+                                                setMobileViewingEditor(true);
+                                            }}
+                                        />
+                                    </div>
+                                ) : (
+                                    <>
+                                        {/* LEFT PANE: Section list (~260px - 280px) */}
+                                        <div
+                                            className={`${
+                                                previewExpanded ? 'hidden' : 'block'
+                                            } lg:w-68 xl:w-72 shrink-0 border-b lg:border-b-0 lg:border-r border-slate-200/80 dark:border-white/10 ${
+                                                mobileViewingEditor ? 'hidden md:block' : 'block'
+                                            }`}
+                                        >
+                                            <SectionList
+                                                sections={sections}
+                                                selectedId={selectedId}
+                                                onSelect={(id) => {
+                                                    setSelectedId(id);
+                                                    setMobileViewingEditor(true);
+                                                }}
+                                                onReorder={handleReorder}
+                                                onToggleEnable={handleToggleEnable}
+                                                onAddSection={handleAddSection}
+                                                onDeleteSection={handleDeleteSection}
+                                            />
+                                        </div>
+
+                                        {/* CENTRE PANE: Selected section editor (~380px - 440px) */}
+                                        <div
+                                            className={`${
+                                                previewExpanded ? 'hidden' : 'flex'
+                                            } flex-1 md:w-96 lg:max-w-md xl:max-w-lg bg-white dark:bg-slate-900 border-b lg:border-b-0 lg:border-r border-slate-200/80 dark:border-white/10 flex flex-col ${
+                                                !mobileViewingEditor ? 'hidden md:flex' : 'flex'
+                                            }`}
+                                        >
+                                            {/* Mobile back to section list button */}
+                                            <div className="md:hidden p-3 border-b border-slate-200 dark:border-slate-800">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setMobileViewingEditor(false)}
+                                                    className="inline-flex items-center gap-1 text-xs font-semibold text-primary"
+                                                >
+                                                    <ChevronLeft className="h-4 w-4" />
+                                                    Back to section list
+                                                </button>
+                                            </div>
+
+                                            {selectedSection ? (
+                                                <SectionEditor
+                                                    key={selectedSection.id}
+                                                    section={selectedSection}
+                                                    onChange={handleUpdateSection}
+                                                    clinic={clinic}
+                                                />
+                                            ) : (
+                                                <div className="p-8 text-center text-xs text-slate-400">
+                                                    Select a section on the left to edit its settings.
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* RIGHT PANE: Sticky Preview Frame on Desktop */}
+                                        <div className={`hidden lg:flex ${previewExpanded ? 'w-full flex-1' : 'flex-1'} sticky top-[105px] h-[calc(100vh-105px)] overflow-hidden transition-all duration-200`}>
+                                            <PreviewPane
+                                                sections={sections}
+                                                look={look}
+                                                selectedId={selectedId}
+                                                onSelect={(id) => setSelectedId(id)}
+                                                isExpanded={previewExpanded}
+                                                onToggleExpand={() => setPreviewExpanded(!previewExpanded)}
+                                            />
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* TAB: LOOK & FEEL */}
+                    {activeTab === 'look' && (
+                        <div className="flex-1 bg-slate-50/50 dark:bg-slate-950/40">
+                            <LookTab
+                                look={look}
+                                onChange={handleUpdateLook}
+                                clinic={clinic}
+                                onLogoUpdate={(url) => {
+                                    clinic.logo_url = url;
+                                }}
+                            />
+                        </div>
+                    )}
+
+                    {/* TAB: EXTRA PAGES */}
+                    {activeTab === 'pages' && (
+                        <div className="flex-1 bg-slate-50/50 dark:bg-slate-950/40">
+                            <ExtraPagesTab
+                                pages={pages}
+                                clinic={clinic}
+                            />
+                        </div>
+                    )}
+
+                    {/* TAB: SEO & SHARING */}
+                    {activeTab === 'seo' && (
+                        <div className="flex-1 bg-slate-50/50 dark:bg-slate-950/40">
+                            <SeoTab
+                                seo={seo}
+                                clinic={clinic}
+                            />
+                        </div>
+                    )}
+                </div>
+
+                {/* Onboarding / Feature Discovery Modal: Customize Clinic with Page Builder */}
+                <BuilderPromptModal clinicName={clinic.name} />
             </div>
         </AuthenticatedLayout>
     );

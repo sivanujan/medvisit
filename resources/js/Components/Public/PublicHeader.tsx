@@ -19,7 +19,7 @@ const RESOURCES = [
     { label: 'Privacy Policy', path: '/privacy-policy' },
 ];
 
-type NavKey = 'features' | 'how-it-works' | 'pricing' | 'faq' | 'resources';
+type NavKey = 'find' | 'features' | 'how-it-works' | 'pricing' | 'faq' | 'resources';
 
 interface Props {
     /** Optional reading-progress bar under the header (policy pages). */
@@ -88,11 +88,13 @@ export default function PublicHeader({ progressPercent }: Props) {
     const onResourcePage = RESOURCES.some((r) => r.path === pathname);
     const active: NavKey | null = onLanding
         ? sectionActive
-        : pathname === '/pricing'
-          ? 'pricing'
-          : onResourcePage
-            ? 'resources'
-            : null;
+        : pathname === '/find' || pathname.startsWith('/clinics') || pathname.startsWith('/doctors')
+          ? 'find'
+          : pathname === '/pricing'
+            ? 'pricing'
+            : onResourcePage
+              ? 'resources'
+              : null;
 
     const anchor = (id: string) => (onLanding ? `#${id}` : `/#${id}`);
 
@@ -202,7 +204,7 @@ export default function PublicHeader({ progressPercent }: Props) {
     }, [mobileOpen]);
 
     useEffect(() => {
-        const mq = window.matchMedia('(min-width: 1024px)');
+        const mq = window.matchMedia('(min-width: 1280px)');
         const onChange = () => mq.matches && setMobileOpen(false);
         mq.addEventListener('change', onChange);
         return () => mq.removeEventListener('change', onChange);
@@ -211,7 +213,7 @@ export default function PublicHeader({ progressPercent }: Props) {
     const closeMobile = () => setMobileOpen(false);
 
     const itemClass = (key: NavKey) =>
-        `relative z-10 inline-flex items-center gap-1 rounded-full px-3.5 py-2 text-sm font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+        `relative z-10 inline-flex items-center gap-1 rounded-full px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
             active === key
                 ? 'text-primary-700 dark:text-white'
                 : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
@@ -222,24 +224,24 @@ export default function PublicHeader({ progressPercent }: Props) {
     return (
         <>
             <header
-                className={`sticky top-0 z-40 border-b transition-[background-color,border-color,backdrop-filter] duration-300 motion-reduce:transition-none print:hidden ${
+                className={`fixed top-0 left-0 right-0 z-50 h-[72px] w-full transition-[background-color,border-color,backdrop-filter] duration-300 motion-reduce:transition-none print:hidden ${
                     scrolled || mobileOpen
-                        ? 'border-slate-200/80 bg-white/75 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/70'
-                        : 'border-transparent bg-transparent'
+                        ? 'border-b border-slate-200/80 bg-white/70 backdrop-blur-md dark:border-white/10 dark:bg-slate-950/70'
+                        : 'border-b border-transparent bg-transparent'
                 }`}
             >
-                <div className="mx-auto grid max-w-6xl grid-cols-[auto_1fr] items-center gap-3 px-4 py-3 sm:px-6 lg:grid-cols-[1fr_auto_1fr] lg:py-3.5">
+                <div className="mx-auto flex h-[72px] max-w-6xl items-center justify-between px-4 sm:px-6">
                     <Link
                         href="/"
-                        className="group flex w-fit items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                        className="group flex shrink-0 items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                         aria-label="MedVisit home"
                     >
                         <ApplicationLogo className="h-8 w-auto transition-transform group-hover:scale-105 sm:h-9" />
                     </Link>
 
                     {/* Desktop navigation */}
-                    <nav aria-label="Main" className="hidden lg:block">
-                        <ul ref={navRef} className="relative flex items-center gap-0.5">
+                    <nav aria-label="Main" className="hidden xl:block">
+                        <ul ref={navRef} className="relative flex items-center gap-1 xl:gap-2">
                             <span
                                 aria-hidden="true"
                                 className="absolute inset-y-0 left-0 rounded-full bg-primary/10 ring-1 ring-primary/15 transition-[transform,width,opacity] duration-300 ease-out motion-reduce:transition-none dark:bg-white/10 dark:ring-white/15"
@@ -263,6 +265,16 @@ export default function PublicHeader({ progressPercent }: Props) {
                                     </NavAnchor>
                                 </li>
                             ))}
+                            <li>
+                                <Link
+                                    href="/find"
+                                    data-nav="find"
+                                    aria-current={active === 'find' ? 'page' : undefined}
+                                    className={itemClass('find')}
+                                >
+                                    Find Care
+                                </Link>
+                            </li>
                             <li>
                                 <Link
                                     href="/pricing"
@@ -319,7 +331,7 @@ export default function PublicHeader({ progressPercent }: Props) {
                                 >
                                     <div className="rounded-2xl border border-slate-200/80 bg-white/85 p-2 shadow-xl shadow-slate-900/10 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/85 dark:shadow-black/40">
                                         {RESOURCES.map((r) => (
-                                            <Link
+                                             <Link
                                                 key={r.path}
                                                 href={r.path}
                                                 role="menuitem"
@@ -350,24 +362,26 @@ export default function PublicHeader({ progressPercent }: Props) {
                     </nav>
 
                     {/* Actions */}
-                    <div className="flex items-center justify-end gap-1.5 sm:gap-2.5">
+                    <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-2.5">
                         <a
                             href={whatsappUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             aria-label="Chat on WhatsApp"
                             title="Chat on WhatsApp"
-                            className="hidden h-9 w-9 items-center justify-center rounded-xl border border-slate-200/80 bg-white/60 text-[#128c4b] transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:border-white/10 dark:bg-slate-800/60 dark:text-[#4ade80] dark:hover:bg-slate-800 lg:inline-flex"
+                            className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 bg-white/60 text-[#128c4b] transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:border-white/10 dark:bg-slate-800/60 dark:text-[#4ade80] dark:hover:bg-slate-800 xl:inline-flex"
                         >
                             <WhatsAppGlyph className="h-[18px] w-[18px]" />
                         </a>
 
-                        <ThemeToggle size="sm" />
+                        <div className="shrink-0 flex items-center">
+                            <ThemeToggle size="md" className="h-10 w-10 shrink-0" />
+                        </div>
 
                         {user ? (
                             <Link
                                 href={route('dashboard')}
-                                className="hidden rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-primary/30 transition hover:bg-primary-600 sm:inline-flex"
+                                className="hidden h-10 shrink-0 items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white whitespace-nowrap shadow-sm shadow-primary/30 transition hover:bg-primary-600 sm:inline-flex"
                             >
                                 Open dashboard
                             </Link>
@@ -375,13 +389,14 @@ export default function PublicHeader({ progressPercent }: Props) {
                             <>
                                 <Link
                                     href={route('login')}
-                                    className="hidden rounded-xl border border-slate-200/80 bg-white/60 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-white dark:border-white/10 dark:bg-slate-800/60 dark:text-slate-200 dark:hover:bg-slate-800 sm:inline-flex"
+                                    className="hidden h-10 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 bg-white/60 px-4 text-sm font-semibold text-slate-700 whitespace-nowrap transition hover:bg-white dark:border-white/10 dark:bg-slate-800/60 dark:text-slate-200 dark:hover:bg-slate-800 sm:inline-flex"
                                 >
-                                    Sign in
+                                    <span className="xl:hidden">Sign in</span>
+                                    <span className="hidden xl:inline">Sign in to your clinic</span>
                                 </Link>
                                 <Link
-                                    href={route('register')}
-                                    className="hidden rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-primary/30 transition hover:bg-primary-600 sm:inline-flex"
+                                    href={startHref}
+                                    className="hidden h-10 shrink-0 items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white whitespace-nowrap shadow-sm shadow-primary/30 transition hover:bg-primary-600 sm:inline-flex"
                                 >
                                     Get started
                                 </Link>
@@ -395,7 +410,7 @@ export default function PublicHeader({ progressPercent }: Props) {
                             aria-label="Open menu"
                             aria-expanded={mobileOpen}
                             aria-controls="public-mobile-menu"
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200/80 bg-white/60 text-slate-700 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:border-white/10 dark:bg-slate-800/60 dark:text-slate-200 lg:hidden"
+                            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 bg-white/60 text-slate-700 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:border-white/10 dark:bg-slate-800/60 dark:text-slate-200 xl:hidden"
                         >
                             <Menu className="h-5 w-5" aria-hidden="true" />
                         </button>
@@ -413,7 +428,7 @@ export default function PublicHeader({ progressPercent }: Props) {
             </header>
 
             {/* Mobile slide-in panel */}
-            <div className="lg:hidden">
+            <div className="xl:hidden">
                 <div
                     aria-hidden="true"
                     onClick={closeMobile}
@@ -450,6 +465,7 @@ export default function PublicHeader({ progressPercent }: Props) {
                     <nav aria-label="Mobile" className="flex-1 overflow-y-auto px-4 py-5 sm:px-6">
                         <ul className="space-y-1">
                             {[
+                                { key: 'find' as NavKey, label: 'Find Care', href: '/find' },
                                 { key: 'features' as NavKey, label: 'Features', href: anchor('features') },
                                 { key: 'how-it-works' as NavKey, label: 'How it works', href: anchor('how-it-works') },
                                 { key: 'pricing' as NavKey, label: 'Pricing', href: '/pricing' },
@@ -539,13 +555,13 @@ export default function PublicHeader({ progressPercent }: Props) {
                                 Open dashboard
                             </Link>
                         ) : (
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid gap-3">
                                 <Link
                                     href={route('login')}
                                     onClick={closeMobile}
                                     className="flex items-center justify-center rounded-2xl border border-slate-300 py-3.5 text-base font-semibold text-slate-800 dark:border-white/15 dark:text-slate-100"
                                 >
-                                    Sign in
+                                    Sign in to your clinic
                                 </Link>
                                 <Link
                                     href={startHref}

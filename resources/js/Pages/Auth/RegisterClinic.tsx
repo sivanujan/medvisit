@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, FormEventHandler } from 'react';
+import React, { useState, useEffect, useRef, FormEventHandler, KeyboardEvent } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -11,37 +11,27 @@ import {
     Lock,
     Eye,
     EyeOff,
-    Sparkles,
-    ShieldCheck,
-    Clock,
-    MapPin,
-    Phone,
     Mail,
     AlertCircle,
     Check,
-    ExternalLink,
-    Laptop,
+    Clock,
     RotateCw,
-    KeyRound,
+    Sparkles,
+    ChevronDown,
+    ChevronUp,
+    ShieldCheck,
 } from 'lucide-react';
-import ApplicationLogo from '@/Components/ApplicationLogo';
-import AuthHeader from '@/Components/AuthHeader';
-import ThemeToggle from '@/Components/Common/ThemeToggle';
+import RegistrationHeader from '@/Components/Registration/RegistrationHeader';
+import LiveClinicPreview from '@/Components/Registration/LiveClinicPreview';
 import LegalFooter from '@/Components/Public/LegalFooter';
-import {
-    GlassLabel,
-    GlassInput,
-    GlassSelect,
-    GlassCheckbox,
-    GlassError,
-} from '@/Components/UI/FormControls';
-import { PhoneInput } from '@/Components/UI/PhoneInput';
 import { useDebounce } from '@/Hooks/useDebounce';
+import '@/Components/Registration/registration.css';
 
 interface Props {
     districts: string[];
     clinicTypes: string[];
     centralDomain: string;
+    publicDomain?: string;
 }
 
 interface SubdomainCheckResult {
@@ -51,10 +41,28 @@ interface SubdomainCheckResult {
     url?: string;
 }
 
-export default function RegisterClinic({ districts, clinicTypes, centralDomain }: Props) {
+const STORAGE_KEY = 'medvisit.registration_draft';
+
+// Steps definition for the one and only stepper
+const STEPS = [
+    { num: 1, label: 'Clinic', icon: Building2 },
+    { num: 2, label: 'Web address', icon: Globe },
+    { num: 3, label: 'Admin', icon: UserCheck },
+    { num: 4, label: 'Verify', icon: Mail },
+    { num: 5, label: 'Launch', icon: CheckCircle2 },
+] as const;
+
+export default function RegisterClinic({
+    districts,
+    clinicTypes,
+    centralDomain,
+    publicDomain = 'medvisit.lk',
+}: Props) {
     const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
     const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [subdomainManuallyEdited, setSubdomainManuallyEdited] = useState(false);
+    const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
 
     // Subdomain checking state
     const [checkingSubdomain, setCheckingSubdomain] = useState(false);
@@ -74,30 +82,103 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
     const [resendCooldown, setResendCooldown] = useState(60);
     const [devCode, setDevCode] = useState<string | null>(null);
 
+    // Field refs for programmatic focus on validation failure
+    const clinicNameRef = useRef<HTMLInputElement>(null);
+    const clinicTypeRef = useRef<HTMLSelectElement>(null);
+    const districtRef = useRef<HTMLSelectElement>(null);
+    const cityRef = useRef<HTMLInputElement>(null);
+    const clinicPhoneRef = useRef<HTMLInputElement>(null);
+    const addressRef = useRef<HTMLInputElement>(null);
+    const subdomainRef = useRef<HTMLInputElement>(null);
+    const adminNameRef = useRef<HTMLInputElement>(null);
+    const emailRef = useRef<HTMLInputElement>(null);
+    const mobileRef = useRef<HTMLInputElement>(null);
+    const passwordRef = useRef<HTMLInputElement>(null);
+    const passwordConfirmRef = useRef<HTMLInputElement>(null);
+    const termsRef = useRef<HTMLInputElement>(null);
+
     const { data, setData, post, processing, errors, setError, clearErrors } = useForm({
-        // Honeypot field
         honeypot: '',
-        // Step 1: Clinic
         clinic_name: '',
         clinic_type: 'medical centre',
         district: 'Colombo',
         city: '',
         address: '',
-        clinic_phone: '+94',
-        // Step 2: Web Address
+        clinic_phone: '',
         subdomain: '',
-        // Step 3: Admin User
         name: '',
         email: '',
-        mobile: '+94',
+        mobile: '',
         password: '',
         password_confirmation: '',
         terms: false as boolean,
-        // Step 4: OTP Verification
         registration_token: '',
     });
 
-    // Auto-generate subdomain from clinic name until user manually types subdomain
+    // Restore draft from sessionStorage on mount (excluding passwords & tokens)
+    useEffect(() => {
+        try {
+            const raw = sessionStorage.getItem(STORAGE_KEY);
+            if (!raw) return;
+            const draft = JSON.parse(raw);
+            if (draft && typeof draft === 'object') {
+                if (draft.clinic_name) setData('clinic_name', draft.clinic_name);
+                if (draft.clinic_type) setData('clinic_type', draft.clinic_type);
+                if (draft.district) setData('district', draft.district);
+                if (draft.city) setData('city', draft.city);
+                if (draft.address) setData('address', draft.address);
+                if (draft.clinic_phone) setData('clinic_phone', draft.clinic_phone);
+                if (draft.subdomain) {
+                    setData('subdomain', draft.subdomain);
+                    setSubdomainManuallyEdited(true);
+                }
+                if (draft.name) setData('name', draft.name);
+                if (draft.email) setData('email', draft.email);
+                if (draft.mobile) setData('mobile', draft.mobile);
+                if (draft.step && draft.step >= 1 && draft.step <= 3) {
+                    setStep(draft.step as 1 | 2 | 3);
+                }
+            }
+        } catch {
+            // Storage unavailable in private browsing or blocked site data; graceful fallback
+        }
+    }, []);
+
+    // Save non-sensitive draft on change
+    useEffect(() => {
+        try {
+            const draft = {
+                clinic_name: data.clinic_name,
+                clinic_type: data.clinic_type,
+                district: data.district,
+                city: data.city,
+                address: data.address,
+                clinic_phone: data.clinic_phone,
+                subdomain: data.subdomain,
+                name: data.name,
+                email: data.email,
+                mobile: data.mobile,
+                step: step <= 3 ? step : 3, // Steps 4 & 5 require token session
+            };
+            sessionStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+        } catch {
+            // Ignore storage write issues
+        }
+    }, [
+        data.clinic_name,
+        data.clinic_type,
+        data.district,
+        data.city,
+        data.address,
+        data.clinic_phone,
+        data.subdomain,
+        data.name,
+        data.email,
+        data.mobile,
+        step,
+    ]);
+
+    // Auto-generate subdomain from clinic name until user edits it
     useEffect(() => {
         if (!subdomainManuallyEdited && data.clinic_name) {
             const slug = data.clinic_name
@@ -111,7 +192,7 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
 
     const debouncedSubdomain = useDebounce(data.subdomain, 400);
 
-    // Live availability check
+    // Live availability check (debounced 400ms)
     useEffect(() => {
         if (!debouncedSubdomain || debouncedSubdomain.length < 3) {
             setSubdomainResult(null);
@@ -122,7 +203,8 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
         let isMounted = true;
         setCheckingSubdomain(true);
 
-        const csrfToken = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
+        const csrfToken =
+            (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
 
         fetch(route('subdomain.check'), {
             method: 'POST',
@@ -134,9 +216,7 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
             body: JSON.stringify({ subdomain: debouncedSubdomain }),
         })
             .then((res) => {
-                if (!res.ok) {
-                    throw new Error(`Status ${res.status}`);
-                }
+                if (!res.ok) throw new Error(`Status ${res.status}`);
                 return res.json();
             })
             .then((resData: SubdomainCheckResult) => {
@@ -174,42 +254,139 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
         return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     };
 
-    // Step validation helpers
-    const canProceedStep1 = useMemo(() => {
-        return (
-            data.clinic_name.trim().length >= 2 &&
-            data.city.trim().length >= 2 &&
-            data.address.trim().length >= 3 &&
-            data.clinic_phone.trim().length >= 9
-        );
-    }, [data.clinic_name, data.city, data.address, data.clinic_phone]);
+    // Phone normalizer helper: accepts & strips leading 0
+    const handlePhoneChange = (field: 'clinic_phone' | 'mobile', raw: string) => {
+        // Strip non-digits
+        let digitsOnly = raw.replace(/\D/g, '');
+        // If typed with international 94 prefix
+        if (digitsOnly.startsWith('94')) {
+            digitsOnly = digitsOnly.slice(2);
+        }
+        // Accept and strip leading 0
+        if (digitsOnly.startsWith('0')) {
+            digitsOnly = digitsOnly.slice(1);
+        }
+        digitsOnly = digitsOnly.slice(0, 9);
 
-    const canProceedStep2 = useMemo(() => {
-        return (
-            data.subdomain.length >= 3 &&
-            data.subdomain.length <= 30 &&
-            subdomainResult?.available === true
-        );
-    }, [data.subdomain, subdomainResult]);
+        // Format for display: "77 123 4567"
+        let formatted = digitsOnly;
+        if (digitsOnly.length > 5) {
+            formatted = `${digitsOnly.slice(0, 2)} ${digitsOnly.slice(2, 5)} ${digitsOnly.slice(5)}`;
+        } else if (digitsOnly.length > 2) {
+            formatted = `${digitsOnly.slice(0, 2)} ${digitsOnly.slice(2)}`;
+        }
 
-    const canProceedStep3 = useMemo(() => {
-        return (
-            data.name.trim().length >= 2 &&
-            data.email.includes('@') &&
-            data.mobile.trim().length >= 9 &&
-            data.password.length >= 8 &&
-            data.password === data.password_confirmation &&
-            data.terms === true
-        );
-    }, [data.name, data.email, data.mobile, data.password, data.password_confirmation, data.terms]);
+        setData(field, formatted);
+        clearErrors(field);
+    };
 
-    // Send OTP code (Transition from Step 3 -> Step 4)
+    // Navigation and validation: Step 1 -> Step 2
+    const handleProceedStep1 = () => {
+        clearErrors();
+        const errs: Record<string, string> = {};
+
+        if (!data.clinic_name.trim()) {
+            errs.clinic_name = 'Please enter your clinic name.';
+            clinicNameRef.current?.focus();
+        } else if (data.clinic_name.trim().length < 2) {
+            errs.clinic_name = 'Clinic name must be at least 2 characters.';
+            clinicNameRef.current?.focus();
+        } else if (!data.city.trim()) {
+            errs.city = 'Please enter your town or city.';
+            cityRef.current?.focus();
+        } else if (!data.clinic_phone.trim() || data.clinic_phone.replace(/\D/g, '').length < 9) {
+            errs.clinic_phone = 'Please enter a valid 9-digit Sri Lankan phone number.';
+            clinicPhoneRef.current?.focus();
+        } else if (!data.address.trim()) {
+            errs.address = 'Please enter your street address.';
+            addressRef.current?.focus();
+        }
+
+        if (Object.keys(errs).length > 0) {
+            Object.entries(errs).forEach(([k, v]) => setError(k as any, v));
+            return;
+        }
+
+        setStep(2);
+        requestAnimationFrame(() => subdomainRef.current?.focus());
+    };
+
+    // Navigation and validation: Step 2 -> Step 3
+    const handleProceedStep2 = () => {
+        clearErrors('subdomain');
+        const sub = data.subdomain.trim();
+
+        if (!sub) {
+            setError('subdomain', 'Please enter a clinic web address.');
+            subdomainRef.current?.focus();
+            return;
+        }
+
+        if (sub.length < 3 || sub.length > 30) {
+            setError('subdomain', 'Web address must be between 3 and 30 characters.');
+            subdomainRef.current?.focus();
+            return;
+        }
+
+        if (!/^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/.test(sub)) {
+            setError(
+                'subdomain',
+                'Use only lowercase letters, numbers, and hyphens (no hyphens at start or end).'
+            );
+            subdomainRef.current?.focus();
+            return;
+        }
+
+        if (subdomainResult && !subdomainResult.available) {
+            setError('subdomain', subdomainResult.reason || 'This address is already taken.');
+            subdomainRef.current?.focus();
+            return;
+        }
+
+        if (checkingSubdomain) {
+            setError('subdomain', 'Please wait while we check address availability.');
+            return;
+        }
+
+        setStep(3);
+        requestAnimationFrame(() => adminNameRef.current?.focus());
+    };
+
+    // Navigation and validation: Step 3 -> Step 4 (Send Verification Code)
     const handleSendCode = async () => {
         clearErrors();
         setOtpError(null);
-        setSendingCode(true);
 
-        const csrfToken = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
+        const errs: Record<string, string> = {};
+
+        if (!data.name.trim()) {
+            errs.name = 'Please enter your full name.';
+            adminNameRef.current?.focus();
+        } else if (!data.email.trim() || !data.email.includes('@')) {
+            errs.email = 'Please enter a valid email address.';
+            emailRef.current?.focus();
+        } else if (!data.mobile.trim() || data.mobile.replace(/\D/g, '').length < 9) {
+            errs.mobile = 'Please enter a valid 9-digit mobile number.';
+            mobileRef.current?.focus();
+        } else if (data.password.length < 8) {
+            errs.password = 'Password must be at least 8 characters with numbers & uppercase.';
+            passwordRef.current?.focus();
+        } else if (data.password !== data.password_confirmation) {
+            errs.password_confirmation = 'Passwords do not match.';
+            passwordConfirmRef.current?.focus();
+        } else if (!data.terms) {
+            errs.terms = 'You must accept the Terms and Privacy Policy to continue.';
+            termsRef.current?.focus();
+        }
+
+        if (Object.keys(errs).length > 0) {
+            Object.entries(errs).forEach(([k, v]) => setError(k as any, v));
+            return;
+        }
+
+        setSendingCode(true);
+        const csrfToken =
+            (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
 
         try {
             const res = await fetch(route('register.send_code'), {
@@ -231,7 +408,7 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                         setError(field as any, firstMsg);
                     });
                 } else {
-                    setOtpError(resData.message || 'Failed to send verification code. Please check your details.');
+                    setOtpError(resData.message || 'Failed to send verification code.');
                 }
                 setSendingCode(false);
                 return;
@@ -258,7 +435,7 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
         }
     };
 
-    // Verify OTP code
+    // Verify OTP code (Step 4 -> Step 5)
     const handleVerifyCode = async (codeToVerify?: string) => {
         const code = codeToVerify || digits.join('');
         if (code.length !== 6 || verifyingCode) return;
@@ -266,7 +443,8 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
         setVerifyingCode(true);
         setOtpError(null);
 
-        const csrfToken = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
+        const csrfToken =
+            (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
 
         try {
             const res = await fetch(route('register.verify_code'), {
@@ -297,7 +475,7 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
             setOtpSuccess('Email verified successfully!');
             setVerifyingCode(false);
 
-            // Auto-advance to Step 5 (Review & Create) after 600ms
+            // Auto-advance to Step 5
             setTimeout(() => {
                 setStep(5);
             }, 600);
@@ -307,14 +485,14 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
         }
     };
 
-    // Resend OTP code
+    // Resend verification code
     const handleResendCode = async () => {
         if (resendCooldown > 0 || resendingCode || !data.registration_token) return;
 
         setResendingCode(true);
         setOtpError(null);
-
-        const csrfToken = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
+        const csrfToken =
+            (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
 
         try {
             const res = await fetch(route('register.resend_code'), {
@@ -352,7 +530,7 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                 inputRefs.current[0]?.focus();
             }, 100);
         } catch {
-            setOtpError('Network error while resending verification code.');
+            setOtpError('Network error while resending code.');
             setResendingCode(false);
         }
     };
@@ -371,7 +549,6 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
             inputRefs.current[index + 1]?.focus();
         }
 
-        // Auto submit on 6th digit
         if (cleanDigit && index === 5) {
             const fullCode = newDigits.join('');
             if (fullCode.length === 6) {
@@ -380,7 +557,7 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
         }
     };
 
-    const handleDigitKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    const handleDigitKeyDown = (index: number, e: KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Backspace') {
             if (!digits[index] && index > 0) {
                 inputRefs.current[index - 1]?.focus();
@@ -389,6 +566,9 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
             inputRefs.current[index - 1]?.focus();
         } else if (e.key === 'ArrowRight' && index < 5) {
             inputRefs.current[index + 1]?.focus();
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            handleVerifyCode();
         }
     };
 
@@ -415,100 +595,186 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
         }
     };
 
-    const submit: FormEventHandler = (e) => {
-        e.preventDefault();
-        post(route('register'));
+    // Enter key handling on forms
+    const handleKeyDownOnForm = (e: KeyboardEvent<HTMLFormElement>) => {
+        if (e.key === 'Enter') {
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'TEXTAREA' || target.getAttribute('type') === 'checkbox') return;
+            e.preventDefault();
+            if (step === 1) handleProceedStep1();
+            else if (step === 2) handleProceedStep2();
+            else if (step === 3) handleSendCode();
+            else if (step === 4) handleVerifyCode();
+            else if (step === 5) submit();
+        }
     };
 
-    const displaySubdomain = data.subdomain ? data.subdomain.toLowerCase() : 'your-clinic';
+    // Final submission
+    const submit = (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        post(route('register'), {
+            onSuccess: () => {
+                try {
+                    sessionStorage.removeItem(STORAGE_KEY);
+                } catch {
+                    // Ignore
+                }
+            },
+        });
+    };
+
+    // Password Strength & Match helpers
+    const passwordStrength = React.useMemo(() => {
+        const pass = data.password || '';
+        if (!pass) {
+            return {
+                score: 0,
+                label: '',
+                color: 'bg-slate-200 dark:bg-slate-800',
+                textColor: 'text-slate-400',
+            };
+        }
+
+        let score = 0;
+        if (pass.length >= 8) score += 1;
+        if (/[a-z]/.test(pass) && /[A-Z]/.test(pass)) score += 1;
+        if (/\d/.test(pass)) score += 1;
+        if (/[^a-zA-Z0-9]/.test(pass) || pass.length >= 12) score += 1;
+
+        if (pass.length < 6) {
+            score = Math.min(score, 1);
+        }
+
+        switch (score) {
+            case 1:
+                return { score: 1, label: 'Weak', color: 'bg-rose-500', textColor: 'text-rose-500 dark:text-rose-400' };
+            case 2:
+                return { score: 2, label: 'Fair', color: 'bg-amber-500', textColor: 'text-amber-500 dark:text-amber-400' };
+            case 3:
+                return { score: 3, label: 'Good', color: 'bg-sky-500', textColor: 'text-sky-500 dark:text-sky-400' };
+            case 4:
+                return { score: 4, label: 'Strong', color: 'bg-emerald-500', textColor: 'text-emerald-500 dark:text-emerald-400' };
+            default:
+                return { score: 1, label: 'Weak', color: 'bg-rose-500', textColor: 'text-rose-500 dark:text-rose-400' };
+        }
+    }, [data.password]);
+
+    const hasTypedConfirm = (data.password_confirmation || '').length > 0;
+    const passwordsMatch = hasTypedConfirm && data.password.length > 0 && data.password === data.password_confirmation;
+    const passwordsMismatch = hasTypedConfirm && data.password !== data.password_confirmation;
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col relative selection:bg-primary-100 selection:text-primary-800">
-            {/* Subtle Ambient Background Glows */}
-            <div aria-hidden="true" className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
-                <div className="absolute -top-32 left-1/4 w-[42rem] h-[32rem] rounded-full bg-primary-500/10 dark:bg-primary-500/15 blur-[120px]" />
-                <div className="absolute top-1/3 -right-20 w-[36rem] h-[36rem] rounded-full bg-secondary-500/10 dark:bg-secondary-500/15 blur-[130px]" />
-                <div className="absolute -bottom-24 left-1/3 w-[32rem] h-[32rem] rounded-full bg-primary-500/5 dark:bg-primary-500/10 blur-[100px]" />
-            </div>
+        <div className="reg-root min-h-[100dvh] flex flex-col justify-between selection:bg-primary-100 selection:text-primary-800 antialiased overflow-x-hidden">
+            <Head title="Create your clinic — MedVisit" />
 
-            {/* Redesigned Shared Header */}
-            <AuthHeader
-                subtitle="Create your clinic"
-                step={step}
-                totalSteps={5}
-                stepLabel={
-                    step === 1
-                        ? 'Clinic details'
-                        : step === 2
-                        ? 'Web address'
-                        : step === 3
-                        ? 'Admin account'
-                        : step === 4
-                        ? 'Verify email'
-                        : 'Review & create'
-                }
-                rightAction="signin"
-            />
+            {/* Dotted grid + radial glow backdrop */}
+            <div className="reg-backdrop fixed inset-0 pointer-events-none -z-10" aria-hidden="true" />
 
-            {/* Mobile Live URL Preview Header Strip */}
-            <div className="lg:hidden px-4 py-2.5 bg-slate-900 text-white flex items-center justify-between text-xs border-b border-slate-800">
-                <div className="flex items-center gap-2 truncate">
-                    <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                    <span className="font-mono text-slate-300 truncate">
-                        http://<span className="text-white font-bold">{displaySubdomain}</span>.{centralDomain}:8000
+            {/* Header: transparent, minimal, no bottom border line */}
+            <RegistrationHeader />
+
+            {/* Mobile Collapsible Preview Bar (<1024px) */}
+            <div className="lg:hidden px-4 py-2.5 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-y border-slate-200/80 dark:border-white/10 z-20">
+                <button
+                    type="button"
+                    onClick={() => setMobilePreviewOpen(!mobilePreviewOpen)}
+                    className="w-full flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                >
+                    <div className="flex items-center gap-2 truncate">
+                        <span className="w-5 h-5 rounded-md bg-[#1E6FD9] text-white flex items-center justify-center font-bold text-[10px] shrink-0">
+                            {data.clinic_name ? data.clinic_name.charAt(0).toUpperCase() : 'M'}
+                        </span>
+                        <span className="truncate font-bold text-slate-900 dark:text-white">
+                            {data.clinic_name || 'Your Clinic'}
+                        </span>
+                        <span className="text-slate-400 font-mono text-[11px] truncate">
+                            ({data.subdomain || 'yourclinic'}.{publicDomain})
+                        </span>
+                    </div>
+                    <span className="flex items-center gap-1 text-primary shrink-0 font-bold text-[11px]">
+                        <span>{mobilePreviewOpen ? 'Hide' : 'Preview'}</span>
+                        {mobilePreviewOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                     </span>
-                </div>
-                <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-primary/30 text-primary-300">
-                    Live Preview
-                </span>
+                </button>
+
+                {mobilePreviewOpen && (
+                    <div className="pt-3 pb-1">
+                        <LiveClinicPreview
+                            step={step}
+                            clinicName={data.clinic_name}
+                            clinicType={data.clinic_type}
+                            district={data.district}
+                            city={data.city}
+                            clinicPhone={data.clinic_phone}
+                            subdomain={data.subdomain}
+                            adminName={data.name}
+                            adminEmail={data.email}
+                            adminMobile={data.mobile}
+                            checkingSubdomain={checkingSubdomain}
+                            subdomainResult={subdomainResult}
+                            isVerified={isVerified}
+                            publicDomain={publicDomain}
+                            isMobileCollapsible={true}
+                        />
+                    </div>
+                )}
             </div>
 
-            {/* Main Content: Split Desktop Layout */}
-            <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                {/* Left Column: Multi-Step Wizard Form */}
-                <div className="lg:col-span-7 space-y-4">
-                    {/* Step Form Container */}
-                    <div className="p-6 sm:p-8 rounded-3xl bg-white/80 dark:bg-slate-900/70 backdrop-blur-2xl border border-slate-200/80 dark:border-white/10 shadow-xl dark:shadow-2xl">
-                        {/* 5-Step Indicator Inside Form Card */}
+            {/* Main Split Layout: Left Form (~50%), Right Preview (~50%) */}
+            <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                {/* Left Column: Form Card */}
+                <div className="lg:col-span-6 xl:col-span-6 w-full space-y-4">
+                    <div className="rounded-3xl bg-white/85 dark:bg-slate-900/80 backdrop-blur-2xl border border-slate-200/90 dark:border-white/10 shadow-xl dark:shadow-2xl p-6 sm:p-8">
+                        {/* Stepper Header (Inside Card Only) */}
                         <div className="pb-6 mb-6 border-b border-slate-200/80 dark:border-white/10">
+                            <div className="flex items-center justify-between mb-4">
+                                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                                    Step {step} of 5
+                                </span>
+                                <span className="text-xs font-bold text-primary">
+                                    {STEPS[step - 1].label}
+                                </span>
+                            </div>
+
+                            {/* Slim Horizontal Stepper */}
                             <div className="flex items-center justify-between">
-                                {[
-                                    { num: 1, label: 'Clinic', icon: Building2 },
-                                    { num: 2, label: 'Web Address', icon: Globe },
-                                    { num: 3, label: 'Admin', icon: UserCheck },
-                                    { num: 4, label: 'Verify', icon: Mail },
-                                    { num: 5, label: 'Launch', icon: CheckCircle2 },
-                                ].map((s, idx) => {
+                                {STEPS.map((s, idx) => {
                                     const Icon = s.icon;
                                     const isCurrent = step === s.num;
                                     const isDone = step > s.num;
+                                    const isClickable = isDone;
+
                                     return (
                                         <React.Fragment key={s.num}>
-                                            <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
+                                            <div
+                                                className="flex flex-col items-center gap-1.5 flex-1 min-w-0"
+                                                title={`Step ${s.num}: ${s.label}`}
+                                            >
                                                 <button
                                                     type="button"
                                                     onClick={() => {
-                                                        if (isDone) setStep(s.num as any);
+                                                        if (isClickable) setStep(s.num as any);
                                                     }}
-                                                    disabled={!isDone && !isCurrent}
-                                                    className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-300 ${
+                                                    disabled={!isClickable}
+                                                    aria-label={`Step ${s.num}: ${s.label}`}
+                                                    className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-300 ${
                                                         isCurrent
-                                                            ? 'bg-primary text-white shadow-lg shadow-primary/30 ring-4 ring-primary/20 scale-105'
+                                                            ? 'bg-primary text-white shadow-md shadow-primary/30 ring-4 ring-primary/20 scale-105'
                                                             : isDone
-                                                            ? 'bg-secondary/15 text-secondary border border-secondary/40 hover:bg-secondary/25 cursor-pointer'
+                                                            ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 cursor-pointer'
                                                             : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed'
                                                     }`}
-                                                    aria-label={`Step ${s.num}: ${s.label}`}
-                                                    title={`Step ${s.num}: ${s.label}`}
                                                 >
                                                     {isDone ? (
-                                                        <Check className="w-4 h-4 text-secondary stroke-[3]" />
+                                                        <Check className="w-4 h-4 stroke-[3]" />
                                                     ) : (
                                                         <Icon className="w-4 h-4" />
                                                     )}
                                                 </button>
+
+                                                {/* Full labels on xl screens; tooltip on smaller */}
                                                 <span
-                                                    className={`text-[10px] sm:text-xs font-semibold truncate max-w-full ${
+                                                    className={`hidden xl:inline text-xs font-semibold tracking-tight ${
                                                         isCurrent
                                                             ? 'text-primary dark:text-primary-400 font-bold'
                                                             : isDone
@@ -519,11 +785,12 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                                     {s.label}
                                                 </span>
                                             </div>
+
                                             {idx < 4 && (
                                                 <div
-                                                    className={`h-0.5 flex-1 mx-1 sm:mx-2 rounded transition-colors ${
+                                                    className={`h-0.5 flex-1 mx-1 sm:mx-2 rounded transition-colors duration-300 ${
                                                         step > idx + 1
-                                                            ? 'bg-secondary'
+                                                            ? 'bg-emerald-500'
                                                             : 'bg-slate-200 dark:bg-slate-800'
                                                     }`}
                                                 />
@@ -534,197 +801,230 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                             </div>
                         </div>
 
-                        <form onSubmit={submit}>
-                            {/* Honeypot field (hidden from real users) */}
-                            <div className="hidden" aria-hidden="true">
-                                <input
-                                    type="text"
-                                    name="honeypot"
-                                    value={data.honeypot}
-                                    tabIndex={-1}
-                                    autoComplete="off"
-                                    onChange={(e) => setData('honeypot', e.target.value)}
-                                />
-                            </div>
+                        {/* Wizard Form */}
+                        <form onSubmit={submit} onKeyDown={handleKeyDownOnForm} noValidate>
+                            {/* Honeypot field for bots */}
+                            <input
+                                type="text"
+                                name="honeypot"
+                                value={data.honeypot}
+                                tabIndex={-1}
+                                autoComplete="off"
+                                className="hidden"
+                                onChange={(e) => setData('honeypot', e.target.value)}
+                            />
 
                             <AnimatePresence mode="wait">
                                 {/* STEP 1: CLINIC PROFILE */}
                                 {step === 1 && (
                                     <motion.div
                                         key="step1"
-                                        initial={{ opacity: 0, x: -16 }}
+                                        initial={{ opacity: 0, x: -12 }}
                                         animate={{ opacity: 1, x: 0 }}
-                                        exit={{ opacity: 0, x: 16 }}
-                                        transition={{ duration: 0.25 }}
-                                        className="space-y-4 sm:space-y-5"
+                                        exit={{ opacity: 0, x: 12 }}
+                                        transition={{ duration: 0.2 }}
+                                        className="space-y-4"
                                     >
-                                        <div>
-                                            {/* Refined Teal Trial Chip in Hero Area */}
-                                            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold text-secondary-700 dark:text-secondary-300 bg-secondary-500/10 dark:bg-secondary-500/15 border border-secondary-500/30 backdrop-blur-md mb-2.5 shadow-xs">
-                                                <Sparkles className="w-3.5 h-3.5 text-secondary-500 dark:text-secondary-400 animate-pulse" />
-                                                <span>14 days free · No card needed</span>
-                                            </div>
-
-                                            <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                                        <div className="space-y-1">
+                                            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
                                                 <Building2 className="w-5 h-5 text-primary" />
-                                                Clinic Information
+                                                Clinic details
                                             </h2>
-                                            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-                                                Tell us about your healthcare practice in Sri Lanka.
+                                            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                                                Tell us about your medical practice in Sri Lanka.
                                             </p>
                                         </div>
 
+                                        {/* Clinic Name */}
                                         <div>
-                                            <GlassLabel htmlFor="clinic_name" required>
-                                                Clinic Name
-                                            </GlassLabel>
-                                            <GlassInput
+                                            <label htmlFor="clinic_name" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                                                Clinic name <span className="text-rose-500">*</span>
+                                            </label>
+                                            <input
+                                                ref={clinicNameRef}
                                                 id="clinic_name"
-                                                name="clinic_name"
+                                                type="text"
                                                 value={data.clinic_name}
                                                 placeholder="e.g. Ruhunu Medical Centre"
-                                                error={!!errors.clinic_name}
                                                 autoFocus
-                                                onChange={(e) => setData('clinic_name', e.target.value)}
+                                                onChange={(e) => {
+                                                    setData('clinic_name', e.target.value);
+                                                    clearErrors('clinic_name');
+                                                }}
+                                                className={`w-full h-12 px-3.5 rounded-xl border bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white outline-none transition-all duration-150 ${
+                                                    errors.clinic_name
+                                                        ? 'border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20'
+                                                        : 'border-slate-300 dark:border-slate-700 focus:border-primary focus:ring-2 focus:ring-primary/20'
+                                                }`}
                                             />
-                                            <GlassError message={errors.clinic_name} />
+                                            {errors.clinic_name && (
+                                                <p className="mt-1 text-xs text-rose-500 font-medium">{errors.clinic_name}</p>
+                                            )}
                                         </div>
 
+                                        {/* Clinic Type & District */}
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <div>
-                                                <GlassLabel htmlFor="clinic_type" required>
-                                                    Clinic Type
-                                                </GlassLabel>
-                                                <GlassSelect
+                                                <label htmlFor="clinic_type" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                                                    Clinic type <span className="text-rose-500">*</span>
+                                                </label>
+                                                <select
+                                                    ref={clinicTypeRef}
                                                     id="clinic_type"
-                                                    name="clinic_type"
                                                     value={data.clinic_type}
-                                                    error={!!errors.clinic_type}
                                                     onChange={(e) => setData('clinic_type', e.target.value)}
+                                                    className="w-full h-12 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                                                 >
                                                     {clinicTypes.map((type) => (
                                                         <option key={type} value={type}>
                                                             {type.charAt(0).toUpperCase() + type.slice(1)}
                                                         </option>
                                                     ))}
-                                                </GlassSelect>
-                                                <GlassError message={errors.clinic_type} />
+                                                </select>
                                             </div>
 
                                             <div>
-                                                <GlassLabel htmlFor="district" required>
-                                                    District
-                                                </GlassLabel>
-                                                <GlassSelect
+                                                <label htmlFor="district" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                                                    District <span className="text-rose-500">*</span>
+                                                </label>
+                                                <select
+                                                    ref={districtRef}
                                                     id="district"
-                                                    name="district"
                                                     value={data.district}
-                                                    error={!!errors.district}
                                                     onChange={(e) => setData('district', e.target.value)}
+                                                    className="w-full h-12 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                                                 >
                                                     {districts.map((d) => (
                                                         <option key={d} value={d}>
                                                             {d}
                                                         </option>
                                                     ))}
-                                                </GlassSelect>
-                                                <GlassError message={errors.district} />
+                                                </select>
                                             </div>
                                         </div>
 
+                                        {/* City & Phone */}
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <div>
-                                                <GlassLabel htmlFor="city" required>
-                                                    Town / City
-                                                </GlassLabel>
-                                                <GlassInput
+                                                <label htmlFor="city" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                                                    Town / City <span className="text-rose-500">*</span>
+                                                </label>
+                                                <input
+                                                    ref={cityRef}
                                                     id="city"
-                                                    name="city"
+                                                    type="text"
                                                     value={data.city}
                                                     placeholder="e.g. Matara"
-                                                    error={!!errors.city}
-                                                    onChange={(e) => setData('city', e.target.value)}
+                                                    onChange={(e) => {
+                                                        setData('city', e.target.value);
+                                                        clearErrors('city');
+                                                    }}
+                                                    className={`w-full h-12 px-3.5 rounded-xl border bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white outline-none transition-all duration-150 ${
+                                                        errors.city
+                                                            ? 'border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20'
+                                                            : 'border-slate-300 dark:border-slate-700 focus:border-primary focus:ring-2 focus:ring-primary/20'
+                                                    }`}
                                                 />
-                                                <GlassError message={errors.city} />
+                                                {errors.city && (
+                                                    <p className="mt-1 text-xs text-rose-500 font-medium">{errors.city}</p>
+                                                )}
                                             </div>
 
                                             <div>
-                                                <GlassLabel htmlFor="clinic_phone" required>
-                                                    Clinic Phone (+94)
-                                                </GlassLabel>
-                                                <PhoneInput
-                                                    id="clinic_phone"
-                                                    name="clinic_phone"
-                                                    value={data.clinic_phone}
-                                                    error={!!errors.clinic_phone}
-                                                    placeholder="041 222 3344"
-                                                    onChange={(val) => setData('clinic_phone', val)}
-                                                />
-                                                <GlassError message={errors.clinic_phone} />
+                                                <label htmlFor="clinic_phone" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                                                    Clinic phone <span className="text-rose-500">*</span>
+                                                </label>
+                                                <div className="flex h-12 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 overflow-hidden focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
+                                                    <span className="flex items-center px-3 bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 border-r border-slate-200 dark:border-slate-700 select-none">
+                                                        +94
+                                                    </span>
+                                                    <input
+                                                        ref={clinicPhoneRef}
+                                                        id="clinic_phone"
+                                                        type="tel"
+                                                        value={data.clinic_phone}
+                                                        placeholder="77 123 4567"
+                                                        onChange={(e) => handlePhoneChange('clinic_phone', e.target.value)}
+                                                        className="w-full px-3 text-sm font-medium text-slate-900 dark:text-white bg-transparent outline-none"
+                                                    />
+                                                </div>
+                                                {errors.clinic_phone && (
+                                                    <p className="mt-1 text-xs text-rose-500 font-medium">{errors.clinic_phone}</p>
+                                                )}
                                             </div>
                                         </div>
 
+                                        {/* Street Address */}
                                         <div>
-                                            <GlassLabel htmlFor="address" required>
-                                                Street Address
-                                            </GlassLabel>
-                                            <GlassInput
+                                            <label htmlFor="address" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                                                Street address <span className="text-rose-500">*</span>
+                                            </label>
+                                            <input
+                                                ref={addressRef}
                                                 id="address"
-                                                name="address"
+                                                type="text"
                                                 value={data.address}
                                                 placeholder="e.g. 45 Beach Road"
-                                                error={!!errors.address}
-                                                onChange={(e) => setData('address', e.target.value)}
+                                                onChange={(e) => {
+                                                    setData('address', e.target.value);
+                                                    clearErrors('address');
+                                                }}
+                                                className={`w-full h-12 px-3.5 rounded-xl border bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white outline-none transition-all duration-150 ${
+                                                    errors.address
+                                                        ? 'border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20'
+                                                        : 'border-slate-300 dark:border-slate-700 focus:border-primary focus:ring-2 focus:ring-primary/20'
+                                                }`}
                                             />
-                                            <GlassError message={errors.address} />
+                                            {errors.address && (
+                                                <p className="mt-1 text-xs text-rose-500 font-medium">{errors.address}</p>
+                                            )}
                                         </div>
 
+                                        {/* Continue Button */}
                                         <div className="pt-4 flex justify-end">
                                             <button
                                                 type="button"
-                                                disabled={!canProceedStep1}
-                                                onClick={() => {
-                                                    clearErrors();
-                                                    setStep(2);
-                                                }}
-                                                className="py-3 px-6 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-primary to-primary-600 hover:from-primary-600 hover:to-primary-700 shadow-md shadow-primary/25 hover:shadow-lg transition-all duration-200 flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                                onClick={handleProceedStep1}
+                                                className="w-full sm:w-auto h-12 px-7 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-primary to-primary-600 hover:from-primary-600 hover:to-primary-700 shadow-md shadow-primary/25 hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
                                             >
-                                                <span>Continue to Web Address</span>
+                                                <span>Continue</span>
                                                 <ArrowRight className="w-4 h-4" />
                                             </button>
                                         </div>
                                     </motion.div>
                                 )}
 
-                                {/* STEP 2: WEB ADDRESS / SUBDOMAIN */}
+                                {/* STEP 2: WEB ADDRESS */}
                                 {step === 2 && (
                                     <motion.div
                                         key="step2"
-                                        initial={{ opacity: 0, x: -16 }}
+                                        initial={{ opacity: 0, x: -12 }}
                                         animate={{ opacity: 1, x: 0 }}
-                                        exit={{ opacity: 0, x: 16 }}
-                                        transition={{ duration: 0.25 }}
-                                        className="space-y-4 sm:space-y-5"
+                                        exit={{ opacity: 0, x: 12 }}
+                                        transition={{ duration: 0.2 }}
+                                        className="space-y-4"
                                     >
-                                        <div>
-                                            <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                                        <div className="space-y-1">
+                                            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
                                                 <Globe className="w-5 h-5 text-primary" />
-                                                Choose Your Clinic Web Address
+                                                Web address
                                             </h2>
-                                            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-                                                Your staff and patients will use this direct address to access MedVisit.
+                                            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                                                Choose the dedicated address your clinic team and patients will use.
                                             </p>
                                         </div>
 
                                         <div>
-                                            <GlassLabel htmlFor="subdomain" required>
-                                                Subdomain
-                                            </GlassLabel>
-                                            <div className="relative flex rounded-xl border border-slate-300 dark:border-white/10 bg-white/90 dark:bg-slate-900/80 overflow-hidden focus-within:ring-2 focus-within:ring-primary/40 focus-within:border-primary transition-all">
-                                                <span className="px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800/80 text-xs font-mono text-slate-500 dark:text-slate-400 border-r border-slate-200 dark:border-white/10 flex items-center shrink-0">
+                                            <label htmlFor="subdomain" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                                                Clinic web address <span className="text-rose-500">*</span>
+                                            </label>
+
+                                            <div className="flex h-12 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 overflow-hidden focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
+                                                <span className="flex items-center px-3.5 bg-slate-100 dark:bg-slate-800 text-xs font-mono text-slate-500 dark:text-slate-400 border-r border-slate-200 dark:border-slate-700 select-none">
                                                     https://
                                                 </span>
                                                 <input
+                                                    ref={subdomainRef}
                                                     id="subdomain"
                                                     type="text"
                                                     value={data.subdomain}
@@ -736,20 +1036,21 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                                             'subdomain',
                                                             e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')
                                                         );
+                                                        clearErrors('subdomain');
                                                     }}
-                                                    className="w-full px-3.5 py-2.5 text-sm font-semibold text-slate-900 dark:text-white outline-none bg-transparent"
+                                                    className="w-full px-3 text-sm font-semibold text-slate-900 dark:text-white bg-transparent outline-none"
                                                 />
-                                                <span className="px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800/80 text-xs font-mono text-slate-500 dark:text-slate-400 border-l border-slate-200 dark:border-white/10 flex items-center shrink-0">
-                                                    .medvisit.lk
+                                                <span className="flex items-center px-3.5 bg-slate-100 dark:bg-slate-800 text-xs font-mono text-slate-500 dark:text-slate-400 border-l border-slate-200 dark:border-slate-700 select-none">
+                                                    .{publicDomain}
                                                 </span>
                                             </div>
 
-                                            {/* Subdomain status indicator */}
-                                            <div className="mt-2.5 flex items-center gap-2 text-xs">
+                                            {/* Subdomain status / suggestions */}
+                                            <div className="mt-2 text-xs">
                                                 {checkingSubdomain && (
-                                                    <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                                                    <span className="text-slate-500 flex items-center gap-1.5">
                                                         <Clock className="w-3.5 h-3.5 animate-spin" />
-                                                        Checking availability...
+                                                        Checking address availability...
                                                     </span>
                                                 )}
 
@@ -757,28 +1058,28 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                                     <>
                                                         {subdomainResult.available ? (
                                                             <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                                                                <Check className="w-3.5 h-3.5 text-emerald-500" />
-                                                                <strong>{data.subdomain}</strong> is available!
+                                                                <Check className="w-3.5 h-3.5" />
+                                                                <strong>{data.subdomain}.{publicDomain}</strong> is available!
                                                             </span>
                                                         ) : (
                                                             <div className="space-y-1.5">
-                                                                <span className="text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1">
+                                                                <span className="text-rose-500 font-medium flex items-center gap-1">
                                                                     <AlertCircle className="w-3.5 h-3.5" />
                                                                     {subdomainResult.reason || 'Address unavailable.'}
                                                                 </span>
 
-                                                                {/* Suggestions */}
                                                                 {subdomainResult.suggestions && subdomainResult.suggestions.length > 0 && (
                                                                     <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                                                                        <span className="text-slate-500 dark:text-slate-400 text-[11px]">
-                                                                            Try instead:
-                                                                        </span>
+                                                                        <span className="text-slate-500 text-[11px]">Try instead:</span>
                                                                         {subdomainResult.suggestions.map((sug) => (
                                                                             <button
                                                                                 key={sug}
                                                                                 type="button"
-                                                                                onClick={() => setData('subdomain', sug)}
-                                                                                className="px-2 py-0.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-mono text-[11px] font-bold border border-primary/20 transition-colors cursor-pointer"
+                                                                                onClick={() => {
+                                                                                    setData('subdomain', sug);
+                                                                                    clearErrors('subdomain');
+                                                                                }}
+                                                                                className="px-2 py-0.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-mono text-xs font-semibold cursor-pointer"
                                                                             >
                                                                                 {sug}
                                                                             </button>
@@ -789,19 +1090,23 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                                         )}
                                                     </>
                                                 )}
+
+                                                {errors.subdomain && (
+                                                    <p className="mt-1 text-rose-500 font-medium">{errors.subdomain}</p>
+                                                )}
                                             </div>
 
-                                            <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
-                                                Rules: 3 to 30 characters. Use lowercase letters, numbers, and hyphens (no hyphens at start or end).
+                                            <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+                                                3 to 30 characters. Use lowercase letters, numbers, and hyphens.
                                             </p>
-                                            <GlassError message={errors.subdomain} />
                                         </div>
 
+                                        {/* Actions */}
                                         <div className="pt-4 flex items-center justify-between">
                                             <button
                                                 type="button"
                                                 onClick={() => setStep(1)}
-                                                className="py-3 px-5 rounded-xl font-semibold text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer"
+                                                className="h-12 px-4 rounded-xl font-semibold text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer"
                                             >
                                                 <ArrowLeft className="w-4 h-4" />
                                                 <span>Back</span>
@@ -809,14 +1114,10 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
 
                                             <button
                                                 type="button"
-                                                disabled={!canProceedStep2}
-                                                onClick={() => {
-                                                    clearErrors();
-                                                    setStep(3);
-                                                }}
-                                                className="py-3 px-6 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-primary to-primary-600 hover:from-primary-600 hover:to-primary-700 shadow-md shadow-primary/25 hover:shadow-lg transition-all duration-200 flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                                onClick={handleProceedStep2}
+                                                className="h-12 px-7 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-primary to-primary-600 hover:from-primary-600 hover:to-primary-700 shadow-md shadow-primary/25 hover:shadow-lg transition-all duration-200 flex items-center gap-2 cursor-pointer"
                                             >
-                                                <span>Continue to Admin Account</span>
+                                                <span>Continue</span>
                                                 <ArrowRight className="w-4 h-4" />
                                             </button>
                                         </div>
@@ -827,270 +1128,320 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                 {step === 3 && (
                                     <motion.div
                                         key="step3"
-                                        initial={{ opacity: 0, x: -16 }}
+                                        initial={{ opacity: 0, x: -12 }}
                                         animate={{ opacity: 1, x: 0 }}
-                                        exit={{ opacity: 0, x: 16 }}
-                                        transition={{ duration: 0.25 }}
-                                        className="space-y-4 sm:space-y-5"
+                                        exit={{ opacity: 0, x: 12 }}
+                                        transition={{ duration: 0.2 }}
+                                        className="space-y-4"
                                     >
-                                        <div>
-                                            <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                                        <div className="space-y-1">
+                                            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
                                                 <UserCheck className="w-5 h-5 text-primary" />
-                                                Clinic Administrator Account
+                                                Admin account
                                             </h2>
-                                            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-                                                This account will have primary administrative access to manage staff, doctors, and clinic settings.
+                                            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                                                Create your clinic administrator login credentials.
                                             </p>
                                         </div>
 
+                                        {/* Admin Name */}
                                         <div>
-                                            <GlassLabel htmlFor="admin_name" required>
-                                                Administrator Full Name
-                                            </GlassLabel>
-                                            <GlassInput
-                                                id="admin_name"
-                                                name="name"
+                                            <label htmlFor="name" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                                                Administrator name <span className="text-rose-500">*</span>
+                                            </label>
+                                            <input
+                                                ref={adminNameRef}
+                                                id="name"
+                                                type="text"
                                                 value={data.name}
                                                 placeholder="e.g. Dr. Kasun Bandara"
-                                                error={!!errors.name}
                                                 autoFocus
-                                                onChange={(e) => setData('name', e.target.value)}
+                                                onChange={(e) => {
+                                                    setData('name', e.target.value);
+                                                    clearErrors('name');
+                                                }}
+                                                className={`w-full h-12 px-3.5 rounded-xl border bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white outline-none transition-all duration-150 ${
+                                                    errors.name
+                                                        ? 'border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20'
+                                                        : 'border-slate-300 dark:border-slate-700 focus:border-primary focus:ring-2 focus:ring-primary/20'
+                                                }`}
                                             />
-                                            <GlassError message={errors.name} />
+                                            {errors.name && (
+                                                <p className="mt-1 text-xs text-rose-500 font-medium">{errors.name}</p>
+                                            )}
                                         </div>
 
+                                        {/* Email & Mobile */}
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <div>
-                                                <GlassLabel htmlFor="email" required>
-                                                    Work Email
-                                                </GlassLabel>
-                                                <GlassInput
+                                                <label htmlFor="email" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                                                    Work email <span className="text-rose-500">*</span>
+                                                </label>
+                                                <input
+                                                    ref={emailRef}
                                                     id="email"
                                                     type="email"
-                                                    name="email"
                                                     value={data.email}
-                                                    placeholder="doctor@ruhunuclinic.lk"
-                                                    error={!!errors.email}
-                                                    icon={<Mail className="w-4 h-4" />}
-                                                    onChange={(e) => setData('email', e.target.value)}
+                                                    placeholder="doctor@clinic.lk"
+                                                    onChange={(e) => {
+                                                        setData('email', e.target.value);
+                                                        clearErrors('email');
+                                                    }}
+                                                    className={`w-full h-12 px-3.5 rounded-xl border bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white outline-none transition-all duration-150 ${
+                                                        errors.email
+                                                            ? 'border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20'
+                                                            : 'border-slate-300 dark:border-slate-700 focus:border-primary focus:ring-2 focus:ring-primary/20'
+                                                    }`}
                                                 />
-                                                <GlassError message={errors.email} />
+                                                {errors.email && (
+                                                    <p className="mt-1 text-xs text-rose-500 font-medium">{errors.email}</p>
+                                                )}
                                             </div>
 
                                             <div>
-                                                <GlassLabel htmlFor="mobile" required>
-                                                    Mobile Number (+94)
-                                                </GlassLabel>
-                                                <PhoneInput
-                                                    id="mobile"
-                                                    name="mobile"
-                                                    value={data.mobile}
-                                                    error={!!errors.mobile}
-                                                    placeholder="077 123 4567"
-                                                    onChange={(val) => setData('mobile', val)}
-                                                />
-                                                <GlassError message={errors.mobile} />
+                                                <label htmlFor="mobile" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                                                    Mobile phone <span className="text-rose-500">*</span>
+                                                </label>
+                                                <div className="flex h-12 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 overflow-hidden focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
+                                                    <span className="flex items-center px-3 bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 border-r border-slate-200 dark:border-slate-700 select-none">
+                                                        +94
+                                                    </span>
+                                                    <input
+                                                        ref={mobileRef}
+                                                        id="mobile"
+                                                        type="tel"
+                                                        value={data.mobile}
+                                                        placeholder="77 123 4567"
+                                                        onChange={(e) => handlePhoneChange('mobile', e.target.value)}
+                                                        className="w-full px-3 text-sm font-medium text-slate-900 dark:text-white bg-transparent outline-none"
+                                                    />
+                                                </div>
+                                                {errors.mobile && (
+                                                    <p className="mt-1 text-xs text-rose-500 font-medium">{errors.mobile}</p>
+                                                )}
                                             </div>
                                         </div>
 
+                                        {/* Password & Confirm */}
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <div>
-                                                <GlassLabel htmlFor="password" required>
-                                                    Password (min 8 chars)
-                                                </GlassLabel>
+                                                <label htmlFor="password" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                                                    Password <span className="text-rose-500">*</span>
+                                                </label>
                                                 <div className="relative">
-                                                    <GlassInput
+                                                    <input
+                                                        ref={passwordRef}
                                                         id="password"
                                                         type={showPassword ? 'text' : 'password'}
-                                                        name="password"
                                                         value={data.password}
                                                         placeholder="••••••••••••"
-                                                        error={!!errors.password}
-                                                        icon={<Lock className="w-4 h-4" />}
-                                                        onChange={(e) => setData('password', e.target.value)}
+                                                        onChange={(e) => {
+                                                            setData('password', e.target.value);
+                                                            clearErrors('password');
+                                                        }}
+                                                        className={`w-full h-12 pl-3.5 pr-10 rounded-xl border bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white outline-none transition-all duration-150 ${
+                                                            errors.password
+                                                                ? 'border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20'
+                                                                : 'border-slate-300 dark:border-slate-700 focus:border-primary focus:ring-2 focus:ring-primary/20'
+                                                        }`}
                                                     />
                                                     <button
                                                         type="button"
                                                         onClick={() => setShowPassword(!showPassword)}
-                                                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
                                                         title={showPassword ? 'Hide password' : 'Show password'}
                                                     >
-                                                        {showPassword ? (
-                                                            <EyeOff className="w-4 h-4" />
-                                                        ) : (
-                                                            <Eye className="w-4 h-4" />
-                                                        )}
+                                                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                                     </button>
                                                 </div>
-                                                {data.password.length > 0 && data.password.length < 8 && (
-                                                    <p className="mt-1 text-xs text-amber-600 dark:text-amber-400 font-medium">
-                                                        Must be at least 8 characters (has {data.password.length}).
+
+                                                {/* Password Strength Meter */}
+                                                {data.password ? (
+                                                    <div className="mt-2 space-y-1">
+                                                        <div className="flex items-center gap-1.5 h-1.5 w-full">
+                                                            {[1, 2, 3, 4].map((seg) => (
+                                                                <div
+                                                                    key={seg}
+                                                                    className={`h-full flex-1 rounded-full transition-all duration-300 ${
+                                                                        seg <= passwordStrength.score
+                                                                            ? passwordStrength.color
+                                                                            : 'bg-slate-200 dark:bg-slate-800'
+                                                                    }`}
+                                                                />
+                                                            ))}
+                                                        </div>
+                                                        <div className="flex items-center justify-between text-[11px] pt-0.5">
+                                                            <span className="text-slate-500 dark:text-slate-400 font-medium">
+                                                                Strength:{' '}
+                                                                <strong className={`font-bold ${passwordStrength.textColor}`}>
+                                                                    {passwordStrength.label}
+                                                                </strong>
+                                                            </span>
+                                                            <span className="text-slate-400 dark:text-slate-500 text-[10px]">
+                                                                Min 8 chars, mixed case & numbers
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                                                        Min 8 characters with numbers & mixed case.
                                                     </p>
                                                 )}
-                                                <GlassError message={errors.password} />
-                                                <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                                                    Requires uppercase, lowercase & numbers.
-                                                </p>
+
+                                                {errors.password && (
+                                                    <p className="mt-1 text-xs text-rose-500 font-medium">{errors.password}</p>
+                                                )}
                                             </div>
 
                                             <div>
-                                                <GlassLabel htmlFor="password_confirmation" required>
-                                                    Confirm Password
-                                                </GlassLabel>
+                                                <label htmlFor="password_confirmation" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                                                    Confirm password <span className="text-rose-500">*</span>
+                                                </label>
                                                 <div className="relative">
-                                                    <GlassInput
+                                                    <input
+                                                        ref={passwordConfirmRef}
                                                         id="password_confirmation"
-                                                        type={showPassword ? 'text' : 'password'}
-                                                        name="password_confirmation"
+                                                        type={showConfirmPassword ? 'text' : 'password'}
                                                         value={data.password_confirmation}
                                                         placeholder="••••••••••••"
-                                                        error={!!errors.password_confirmation}
-                                                        icon={<Lock className="w-4 h-4" />}
-                                                        onChange={(e) => setData('password_confirmation', e.target.value)}
+                                                        onChange={(e) => {
+                                                            setData('password_confirmation', e.target.value);
+                                                            clearErrors('password_confirmation');
+                                                        }}
+                                                        className={`w-full h-12 pl-3.5 pr-10 rounded-xl border bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white outline-none transition-all duration-150 ${
+                                                            passwordsMismatch || errors.password_confirmation
+                                                                ? 'border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20'
+                                                                : passwordsMatch
+                                                                ? 'border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20'
+                                                                : 'border-slate-300 dark:border-slate-700 focus:border-primary focus:ring-2 focus:ring-primary/20'
+                                                        }`}
                                                     />
                                                     <button
                                                         type="button"
-                                                        onClick={() => setShowPassword(!showPassword)}
-                                                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                                                        title={showPassword ? 'Hide password' : 'Show password'}
+                                                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                                                        title={showConfirmPassword ? 'Hide password' : 'Show password'}
                                                     >
-                                                        {showPassword ? (
-                                                            <EyeOff className="w-4 h-4" />
-                                                        ) : (
-                                                            <Eye className="w-4 h-4" />
-                                                        )}
+                                                        {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                                     </button>
                                                 </div>
-                                                {data.password_confirmation.length > 0 && (
-                                                    data.password !== data.password_confirmation ? (
-                                                        <p className="mt-1 text-xs text-rose-500 dark:text-rose-400 font-medium flex items-center gap-1">
-                                                            <AlertCircle className="w-3.5 h-3.5" />
-                                                            Passwords do not match
-                                                        </p>
-                                                    ) : (
-                                                        <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
-                                                            <Check className="w-3.5 h-3.5" />
-                                                            Passwords match
-                                                        </p>
-                                                    )
+
+                                                {/* Password Matching Warning / Success */}
+                                                {passwordsMismatch && (
+                                                    <div className="flex items-center gap-1.5 mt-2 text-xs text-rose-500 font-semibold">
+                                                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                                        <span>Passwords do not match</span>
+                                                    </div>
                                                 )}
-                                                <GlassError message={errors.password_confirmation} />
+                                                {passwordsMatch && (
+                                                    <div className="flex items-center gap-1.5 mt-2 text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
+                                                        <Check className="w-3.5 h-3.5 shrink-0" />
+                                                        <span>Passwords match</span>
+                                                    </div>
+                                                )}
+                                                {!hasTypedConfirm && errors.password_confirmation && (
+                                                    <p className="mt-1 text-xs text-rose-500 font-medium">{errors.password_confirmation}</p>
+                                                )}
                                             </div>
                                         </div>
 
+                                        {/* Terms Checkbox */}
                                         <div className="pt-1">
-                                            <GlassCheckbox
-                                                id="terms"
-                                                name="terms"
-                                                checked={data.terms}
-                                                onChange={(e) => setData('terms', e.target.checked)}
-                                                label={
-                                                    <span className="text-xs text-slate-600 dark:text-slate-300">
-                                                        I accept the{' '}
-                                                        <a
-                                                            href="#"
-                                                            onClick={(e) => {
-                                                                e.preventDefault();
-                                                                alert('MedVisit Terms of Service: Standard healthcare data protection, Sri Lanka privacy compliance, and 14-day trial agreement.');
-                                                            }}
-                                                            className="text-primary font-bold hover:underline"
-                                                        >
-                                                            Terms of Service
-                                                        </a>{' '}
-                                                        and{' '}
-                                                        <a
-                                                            href="#"
-                                                            onClick={(e) => {
-                                                                e.preventDefault();
-                                                                alert('MedVisit Privacy Policy: Patient medical records and doctor notes remain encrypted and isolated to your tenant workspace.');
-                                                            }}
-                                                            className="text-primary font-bold hover:underline"
-                                                        >
-                                                            Privacy Policy
-                                                        </a>
-                                                        .
-                                                    </span>
-                                                }
-                                            />
-                                            <GlassError message={errors.terms} />
+                                            <label className="flex items-start gap-2.5 cursor-pointer">
+                                                <input
+                                                    ref={termsRef}
+                                                    type="checkbox"
+                                                    checked={data.terms}
+                                                    onChange={(e) => {
+                                                        setData('terms', e.target.checked);
+                                                        clearErrors('terms');
+                                                    }}
+                                                    className="w-4 h-4 mt-0.5 rounded border-slate-300 text-primary focus:ring-primary/20"
+                                                />
+                                                <span className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                                                    I accept the{' '}
+                                                    <Link href="/terms" target="_blank" className="text-primary font-bold hover:underline">
+                                                        Terms and Conditions
+                                                    </Link>{' '}
+                                                    and{' '}
+                                                    <Link href="/privacy-policy" target="_blank" className="text-primary font-bold hover:underline">
+                                                        Privacy Policy
+                                                    </Link>
+                                                    .
+                                                </span>
+                                            </label>
+                                            {errors.terms && (
+                                                <p className="mt-1 text-xs text-rose-500 font-medium">{errors.terms}</p>
+                                            )}
                                         </div>
 
                                         {otpError && (
-                                            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/40 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
+                                            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
                                                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
                                                 <span>{otpError}</span>
                                             </div>
                                         )}
 
+                                        {/* Actions */}
                                         <div className="pt-4 flex items-center justify-between">
                                             <button
                                                 type="button"
                                                 onClick={() => setStep(2)}
-                                                className="py-3 px-5 rounded-xl font-semibold text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer"
+                                                className="h-12 px-4 rounded-xl font-semibold text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer"
                                             >
                                                 <ArrowLeft className="w-4 h-4" />
                                                 <span>Back</span>
                                             </button>
 
-                                            <div className="flex items-center gap-3">
-                                                {!canProceedStep3 && data.password_confirmation.length > 0 && data.password !== data.password_confirmation && (
-                                                    <span className="text-xs text-rose-500 hidden sm:inline">
-                                                        Passwords must match
-                                                    </span>
+                                            <button
+                                                type="button"
+                                                disabled={sendingCode}
+                                                onClick={handleSendCode}
+                                                className="h-12 px-7 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-primary to-primary-600 hover:from-primary-600 hover:to-primary-700 shadow-md shadow-primary/25 hover:shadow-lg transition-all duration-200 flex items-center gap-2 cursor-pointer disabled:opacity-60"
+                                            >
+                                                {sendingCode ? (
+                                                    <>
+                                                        <RotateCw className="w-4 h-4 animate-spin" />
+                                                        <span>Sending Code...</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <span>Continue to Verification</span>
+                                                        <ArrowRight className="w-4 h-4" />
+                                                    </>
                                                 )}
-
-                                                <button
-                                                    type="button"
-                                                    disabled={!canProceedStep3 || sendingCode}
-                                                    onClick={handleSendCode}
-                                                    className="py-3 px-6 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-primary to-primary-600 hover:from-primary-600 hover:to-primary-700 shadow-md shadow-primary/25 hover:shadow-lg transition-all duration-200 flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                                >
-                                                    {sendingCode ? (
-                                                        <>
-                                                            <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                                                            <span>Sending Verification Code...</span>
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <span>Verify Email</span>
-                                                            <ArrowRight className="w-4 h-4" />
-                                                        </>
-                                                    )}
-                                                </button>
-                                            </div>
+                                            </button>
                                         </div>
                                     </motion.div>
                                 )}
 
-                                {/* STEP 4: VERIFY EMAIL (NEW OTP STEP) */}
+                                {/* STEP 4: VERIFY EMAIL */}
                                 {step === 4 && (
                                     <motion.div
                                         key="step4"
-                                        initial={{ opacity: 0, x: -16 }}
+                                        initial={{ opacity: 0, x: -12 }}
                                         animate={{ opacity: 1, x: 0 }}
-                                        exit={{ opacity: 0, x: 16 }}
-                                        transition={{ duration: 0.25 }}
-                                        className="space-y-5"
+                                        exit={{ opacity: 0, x: 12 }}
+                                        transition={{ duration: 0.2 }}
+                                        className="space-y-4"
                                     >
-                                        <div className="text-center space-y-1">
-                                            <div className="inline-flex w-12 h-12 rounded-2xl bg-primary/10 dark:bg-primary-500/20 text-primary items-center justify-center mb-2">
-                                                <Mail className="w-6 h-6" />
-                                            </div>
-                                            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-                                                Verify Your Admin Email
+                                        <div className="space-y-1">
+                                            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                                                <Mail className="w-5 h-5 text-primary" />
+                                                Verify email
                                             </h2>
-                                            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 max-w-sm mx-auto">
-                                                We sent a 6-digit verification code to{' '}
-                                                <strong className="text-primary-700 dark:text-primary-300 font-bold break-all">
+                                            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                                                We sent a 6-digit confirmation code to{' '}
+                                                <strong className="text-slate-900 dark:text-white font-mono font-bold">
                                                     {data.email}
                                                 </strong>
-                                                . Enter it below to confirm your account.
+                                                .
                                             </p>
                                         </div>
 
                                         {devCode && (
-                                            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs flex items-center justify-between gap-2 max-w-sm mx-auto">
-                                                <span>Dev Code: <strong className="font-mono font-bold tracking-wider">{devCode}</strong></span>
+                                            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs flex items-center justify-between gap-2">
+                                                <span>Dev Code: <strong className="font-mono font-bold">{devCode}</strong></span>
                                                 <button
                                                     type="button"
                                                     onClick={() => {
@@ -1098,14 +1449,14 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                                         setDigits(parts);
                                                         handleVerifyCode(devCode);
                                                     }}
-                                                    className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 font-semibold cursor-pointer text-[11px] transition-colors"
+                                                    className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 font-semibold cursor-pointer text-[11px]"
                                                 >
-                                                    Auto-fill & Confirm
+                                                    Auto-fill
                                                 </button>
                                             </div>
                                         )}
 
-                                        {/* 6 Digit Input Boxes */}
+                                        {/* 6-Digit OTP Boxes */}
                                         <div className="py-2">
                                             <div
                                                 className="flex items-center justify-center gap-2 sm:gap-3"
@@ -1117,20 +1468,17 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                                         ref={(el) => (inputRefs.current[idx] = el)}
                                                         type="text"
                                                         inputMode="numeric"
-                                                        autoComplete={idx === 0 ? 'one-time-code' : 'off'}
                                                         maxLength={1}
                                                         value={digit}
                                                         disabled={isLocked || isVerified}
                                                         onChange={(e) => handleDigitChange(idx, e.target.value)}
                                                         onKeyDown={(e) => handleDigitKeyDown(idx, e)}
-                                                        className={`w-11 h-14 sm:w-13 sm:h-16 text-center font-mono font-extrabold text-2xl sm:text-3xl rounded-2xl border transition-all duration-200 outline-none select-all ${
+                                                        className={`w-11 h-14 sm:w-13 sm:h-16 text-center font-mono font-black text-2xl sm:text-3xl rounded-2xl border transition-all duration-200 outline-none select-all ${
                                                             digit
-                                                                ? 'border-primary bg-primary/5 dark:bg-primary-950/40 text-primary-700 dark:text-primary-300 ring-2 ring-primary/20'
-                                                                : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white'
+                                                                ? 'border-primary bg-primary/5 text-primary-700 dark:text-primary-300 ring-2 ring-primary/20'
+                                                                : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white'
                                                         } ${
-                                                            isLocked
-                                                                ? 'border-rose-400 bg-rose-50/50 dark:bg-rose-950/20 cursor-not-allowed opacity-60'
-                                                                : 'focus:border-primary focus:ring-4 focus:ring-primary/20'
+                                                            isLocked ? 'opacity-50 cursor-not-allowed' : 'focus:border-primary focus:ring-4 focus:ring-primary/20'
                                                         }`}
                                                         aria-label={`Digit ${idx + 1}`}
                                                     />
@@ -1138,9 +1486,9 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                             </div>
                                         </div>
 
-                                        {/* Status / Error Messages */}
+                                        {/* OTP status messages */}
                                         {otpError && (
-                                            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs flex items-center justify-between gap-2">
+                                            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs flex items-center justify-between gap-2">
                                                 <div className="flex items-center gap-2">
                                                     <AlertCircle className="w-4 h-4 shrink-0" />
                                                     <span>{otpError}</span>
@@ -1149,7 +1497,7 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                                     <button
                                                         type="button"
                                                         onClick={handleResendCode}
-                                                        className="font-bold underline hover:no-underline cursor-pointer shrink-0"
+                                                        className="font-bold underline cursor-pointer shrink-0"
                                                     >
                                                         Request new code
                                                     </button>
@@ -1158,14 +1506,14 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                         )}
 
                                         {otpSuccess && (
-                                            <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2 justify-center">
+                                            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2 justify-center">
                                                 <Check className="w-4 h-4 text-emerald-500" />
                                                 <span className="font-semibold">{otpSuccess}</span>
                                             </div>
                                         )}
 
-                                        {/* Timer & Resend Controls */}
-                                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 text-xs text-slate-500 dark:text-slate-400">
+                                        {/* Timer countdown & Resend */}
+                                        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
                                             <div className="flex items-center gap-1.5 font-medium">
                                                 <Clock className="w-3.5 h-3.5 text-slate-400" />
                                                 {expirySeconds > 0 ? (
@@ -1176,41 +1524,24 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                                         </strong>
                                                     </span>
                                                 ) : (
-                                                    <span className="text-rose-500 font-bold">
-                                                        Code has expired
-                                                    </span>
+                                                    <span className="text-rose-500 font-bold">Code has expired</span>
                                                 )}
                                             </div>
 
-                                            <div className="flex items-center gap-4">
-                                                <button
-                                                    type="button"
-                                                    disabled={resendCooldown > 0 || resendingCode}
-                                                    onClick={handleResendCode}
-                                                    className="font-bold text-xs text-primary hover:underline disabled:text-slate-400 disabled:no-underline disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer"
-                                                >
-                                                    {resendingCode ? (
-                                                        <>
-                                                            <RotateCw className="w-3.5 h-3.5 animate-spin" />
-                                                            <span>Resending...</span>
-                                                        </>
-                                                    ) : resendCooldown > 0 ? (
-                                                        <span>Resend code in {resendCooldown}s</span>
-                                                    ) : (
-                                                        <span>Resend code</span>
-                                                    )}
-                                                </button>
-
-                                                <span className="text-slate-300 dark:text-slate-700">•</span>
-
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setStep(3)}
-                                                    className="font-medium text-xs text-slate-600 dark:text-slate-300 hover:text-primary hover:underline cursor-pointer"
-                                                >
-                                                    Change email
-                                                </button>
-                                            </div>
+                                            <button
+                                                type="button"
+                                                disabled={resendCooldown > 0 || resendingCode}
+                                                onClick={handleResendCode}
+                                                className="font-bold text-xs text-primary hover:underline disabled:text-slate-400 disabled:no-underline disabled:cursor-not-allowed cursor-pointer"
+                                            >
+                                                {resendingCode ? (
+                                                    <span>Resending...</span>
+                                                ) : resendCooldown > 0 ? (
+                                                    <span>Resend code in {resendCooldown}s</span>
+                                                ) : (
+                                                    <span>Resend code</span>
+                                                )}
+                                            </button>
                                         </div>
 
                                         {/* Actions */}
@@ -1218,7 +1549,7 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                             <button
                                                 type="button"
                                                 onClick={() => setStep(3)}
-                                                className="py-3 px-5 rounded-xl font-semibold text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer"
+                                                className="h-12 px-4 rounded-xl font-semibold text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer"
                                             >
                                                 <ArrowLeft className="w-4 h-4" />
                                                 <span>Back</span>
@@ -1228,17 +1559,17 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                                 type="button"
                                                 disabled={digits.join('').length !== 6 || verifyingCode || isLocked}
                                                 onClick={() => handleVerifyCode()}
-                                                className="py-3 px-6 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-primary to-primary-600 hover:from-primary-600 hover:to-primary-700 shadow-md shadow-primary/25 hover:shadow-lg transition-all duration-200 flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                                className="h-12 px-7 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-primary to-primary-600 hover:from-primary-600 hover:to-primary-700 shadow-md shadow-primary/25 hover:shadow-lg transition-all duration-200 flex items-center gap-2 cursor-pointer disabled:opacity-50"
                                             >
                                                 {verifyingCode ? (
                                                     <>
-                                                        <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                                                        <RotateCw className="w-4 h-4 animate-spin" />
                                                         <span>Verifying...</span>
                                                     </>
                                                 ) : isVerified ? (
                                                     <>
                                                         <Check className="w-4 h-4" />
-                                                        <span>Verified • Continue</span>
+                                                        <span>Verified</span>
                                                     </>
                                                 ) : (
                                                     <>
@@ -1251,33 +1582,33 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                     </motion.div>
                                 )}
 
-                                {/* STEP 5: REVIEW & CREATE */}
+                                {/* STEP 5: REVIEW & LAUNCH */}
                                 {step === 5 && (
                                     <motion.div
                                         key="step5"
-                                        initial={{ opacity: 0, x: -16 }}
+                                        initial={{ opacity: 0, x: -12 }}
                                         animate={{ opacity: 1, x: 0 }}
-                                        exit={{ opacity: 0, x: 16 }}
-                                        transition={{ duration: 0.25 }}
-                                        className="space-y-5"
+                                        exit={{ opacity: 0, x: 12 }}
+                                        transition={{ duration: 0.2 }}
+                                        className="space-y-4"
                                     >
-                                        <div>
-                                            <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-                                                <CheckCircle2 className="w-5 h-5 text-secondary" />
-                                                Review & Launch Clinic
+                                        <div className="space-y-1">
+                                            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                                                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                                                Launch clinic
                                             </h2>
-                                            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-                                                Your email is confirmed. Please review your details before creating your clinic workspace.
+                                            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                                                Your email is confirmed. Review your clinic details and launch your workspace.
                                             </p>
                                         </div>
 
-                                        {/* Review Cards */}
-                                        <div className="space-y-3">
-                                            {/* Clinic Summary */}
-                                            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-white/10 flex items-start justify-between">
-                                                <div className="space-y-1 text-xs">
+                                        {/* Summary Cards with Edit Actions */}
+                                        <div className="space-y-2.5">
+                                            {/* Clinic Details */}
+                                            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-white/10 flex items-start justify-between">
+                                                <div className="space-y-0.5 text-xs">
                                                     <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
-                                                        1. Clinic Profile
+                                                        1. Clinic details
                                                     </span>
                                                     <p className="font-bold text-sm text-slate-900 dark:text-white">
                                                         {data.clinic_name}
@@ -1286,7 +1617,7 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                                         {data.clinic_type} • {data.district} District
                                                     </p>
                                                     <p className="text-slate-500 dark:text-slate-400">
-                                                        {data.address}, {data.city} ({data.clinic_phone})
+                                                        {data.address}, {data.city} (+94 {data.clinic_phone})
                                                     </p>
                                                 </div>
                                                 <button
@@ -1298,17 +1629,14 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                                 </button>
                                             </div>
 
-                                            {/* Subdomain Summary */}
-                                            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-white/10 flex items-start justify-between">
-                                                <div className="space-y-1 text-xs">
-                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-secondary">
-                                                        2. Web Address
+                                            {/* Web Address */}
+                                            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-white/10 flex items-start justify-between">
+                                                <div className="space-y-0.5 text-xs">
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#0E9E8F]">
+                                                        2. Web address
                                                     </span>
                                                     <p className="font-mono font-bold text-sm text-primary">
-                                                        https://{data.subdomain}.medvisit.lk
-                                                    </p>
-                                                    <p className="text-slate-500 dark:text-slate-400">
-                                                        Local URL: http://{data.subdomain}.{centralDomain}:8000
+                                                        https://{data.subdomain}.{publicDomain}
                                                     </p>
                                                 </div>
                                                 <button
@@ -1320,23 +1648,23 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                                 </button>
                                             </div>
 
-                                            {/* Admin Summary with Verified Badge */}
-                                            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-white/10 flex items-start justify-between">
-                                                <div className="space-y-1 text-xs">
+                                            {/* Admin Details */}
+                                            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-white/10 flex items-start justify-between">
+                                                <div className="space-y-0.5 text-xs">
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-[10px] font-bold uppercase tracking-wider text-accent">
-                                                            3. Administrator Account
+                                                            3. Admin account
                                                         </span>
-                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
                                                             <Check className="w-3 h-3 text-emerald-600" />
-                                                            Email Verified
+                                                            Verified
                                                         </span>
                                                     </div>
                                                     <p className="font-bold text-sm text-slate-900 dark:text-white">
                                                         {data.name}
                                                     </p>
                                                     <p className="text-slate-500 dark:text-slate-400">
-                                                        {data.email} • {data.mobile}
+                                                        {data.email} • +94 {data.mobile}
                                                     </p>
                                                 </div>
                                                 <button
@@ -1349,20 +1677,13 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                             </div>
                                         </div>
 
-                                        {/* Security & Trial Reassurance */}
-                                        <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-xs flex items-center gap-2.5">
-                                            <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
-                                            <span>
-                                                Includes 14 days of full MedVisit Pro features. No credit card required. Auto-initialized with Sri Lanka LKR tokens and queue management.
-                                            </span>
-                                        </div>
-
+                                        {/* Actions */}
                                         <div className="pt-4 flex items-center justify-between">
                                             <button
                                                 type="button"
                                                 disabled={processing}
                                                 onClick={() => setStep(4)}
-                                                className="py-3 px-5 rounded-xl font-semibold text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer"
+                                                className="h-12 px-4 rounded-xl font-semibold text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer"
                                             >
                                                 <ArrowLeft className="w-4 h-4" />
                                                 <span>Back</span>
@@ -1371,10 +1692,13 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                                             <button
                                                 type="submit"
                                                 disabled={processing || !data.registration_token}
-                                                className="py-3.5 px-8 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-primary via-primary-600 to-secondary hover:shadow-xl shadow-lg shadow-primary/30 transition-all duration-200 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                                                className="h-12 px-8 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-primary via-primary-600 to-secondary hover:shadow-xl shadow-lg shadow-primary/30 transition-all duration-200 flex items-center gap-2 cursor-pointer disabled:opacity-50"
                                             >
                                                 {processing ? (
-                                                    <span>Building Your Clinic...</span>
+                                                    <>
+                                                        <RotateCw className="w-4 h-4 animate-spin" />
+                                                        <span>Creating Clinic...</span>
+                                                    </>
                                                 ) : (
                                                     <>
                                                         <Sparkles className="w-4 h-4" />
@@ -1389,150 +1713,37 @@ export default function RegisterClinic({ districts, clinicTypes, centralDomain }
                         </form>
                     </div>
 
-                    {/* Small Trust Line Under Form */}
-                    <div className="pt-1 px-2 flex flex-col sm:flex-row items-center justify-between gap-2.5 text-xs text-slate-500 dark:text-slate-400">
-                        <div className="flex items-center gap-1.5">
-                            <Lock className="w-3.5 h-3.5 text-secondary shrink-0" />
-                            <span>Your clinic data is isolated and encrypted</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500">
-                            <Clock className="w-3.5 h-3.5 text-primary shrink-0" />
-                            <span>Setup in under 60 seconds</span>
-                        </div>
+                    {/* Friendly One-line Reassurance Under Form */}
+                    <div className="px-2 text-center">
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                            You can change these details later in Settings.
+                        </p>
                     </div>
                 </div>
 
-                {/* Right Column: Live Animated Clinic Preview Panel (5 cols on desktop) */}
-                <div className="hidden lg:block lg:col-span-5 sticky top-24">
-                    <div className="p-6 rounded-3xl bg-slate-900 text-white shadow-2xl border border-slate-800 relative overflow-hidden">
-                        {/* Ambient glow inside browser container */}
-                        <div className="absolute -top-20 -right-20 w-56 h-56 rounded-full bg-primary-500/20 blur-3xl pointer-events-none" />
-                        <div className="absolute -bottom-20 -left-20 w-56 h-56 rounded-full bg-secondary-500/20 blur-3xl pointer-events-none" />
-
-                        {/* Browser Window Mockup Frame */}
-                        <div className="rounded-2xl bg-slate-950/90 border border-slate-800 shadow-inner overflow-hidden">
-                            {/* Browser Top Bar with macOS Window Dots */}
-                            <div className="px-4 py-3 bg-slate-900/90 border-b border-slate-800/80 flex items-center gap-3">
-                                <div className="flex items-center gap-1.5">
-                                    <div className="w-3 h-3 rounded-full bg-rose-500/80" />
-                                    <div className="w-3 h-3 rounded-full bg-amber-500/80" />
-                                    <div className="w-3 h-3 rounded-full bg-emerald-500/80" />
-                                </div>
-
-                                {/* Live Address Bar */}
-                                <div className="flex-1 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800/80 flex items-center gap-2 text-xs font-mono text-slate-300">
-                                    <Lock className="w-3 h-3 text-emerald-400 shrink-0" />
-                                    <span className="text-slate-500">https://</span>
-                                    <span className="font-bold text-white transition-all">
-                                        {displaySubdomain}
-                                    </span>
-                                    <span className="text-slate-500">.medvisit.lk</span>
-                                    <div className="w-1.5 h-3.5 bg-primary animate-pulse ml-auto" />
-                                </div>
-                            </div>
-
-                            {/* Clinic Live Workspace Canvas */}
-                            <div className="p-5 space-y-4">
-                                {/* Mini Dashboard Header */}
-                                <div className="flex items-start justify-between pb-3 border-b border-slate-800/80">
-                                    <div className="space-y-1">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-7 h-7 rounded-lg bg-primary/20 text-primary-300 font-bold text-xs flex items-center justify-center">
-                                                {data.clinic_name ? data.clinic_name.charAt(0).toUpperCase() : 'M'}
-                                            </div>
-                                            <h3 className="font-bold text-sm text-white tracking-tight truncate max-w-[180px]">
-                                                {data.clinic_name || 'Your Clinic Name'}
-                                            </h3>
-                                        </div>
-                                        <div className="flex items-center gap-1.5 text-[10px] text-slate-400 capitalize">
-                                            <MapPin className="w-3 h-3 text-slate-500" />
-                                            <span>
-                                                {data.city || 'City'} • {data.district} District
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                                        Live Trial
-                                    </span>
-                                </div>
-
-                                {/* Live Token-Queue Card (Animated gently) */}
-                                <motion.div
-                                    animate={{ y: [0, -4, 0] }}
-                                    transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut' }}
-                                    className="p-4 rounded-xl bg-gradient-to-br from-slate-900 to-slate-850 border border-slate-700/60 shadow-lg relative overflow-hidden"
-                                >
-                                    <div className="flex items-center justify-between mb-2">
-                                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                                            <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                                            Token Queue Monitor
-                                        </span>
-                                        <span className="text-[10px] font-semibold text-secondary-400">
-                                            Dr. Consulting
-                                        </span>
-                                    </div>
-
-                                    <div className="flex items-baseline justify-between">
-                                        <div>
-                                            <p className="text-[10px] text-slate-400 font-medium">Now Serving</p>
-                                            <div className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-secondary-400 tracking-tight">
-                                                07
-                                            </div>
-                                        </div>
-
-                                        <div className="text-right">
-                                            <p className="text-[10px] text-slate-400 font-medium">Next in line</p>
-                                            <div className="flex items-center gap-1.5 mt-0.5">
-                                                <span className="px-2 py-0.5 rounded bg-slate-800 text-xs font-bold text-slate-300">
-                                                    08
-                                                </span>
-                                                <span className="px-2 py-0.5 rounded bg-slate-800 text-xs font-bold text-slate-400">
-                                                    09
-                                                </span>
-                                                <span className="text-[10px] text-slate-500">+12</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </motion.div>
-
-                                {/* Feature Badges */}
-                                <div className="grid grid-cols-2 gap-2 pt-1 text-[11px]">
-                                    <div className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800 flex items-center gap-2">
-                                        <div className="w-2 h-2 rounded-full bg-primary-400 shrink-0" />
-                                        <div className="truncate">
-                                            <p className="text-[9px] text-slate-500 font-bold uppercase">Currency</p>
-                                            <p className="font-semibold text-slate-200">LKR (Rs.)</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800 flex items-center gap-2">
-                                        <div className="w-2 h-2 rounded-full bg-secondary-400 shrink-0" />
-                                        <div className="truncate">
-                                            <p className="text-[9px] text-slate-500 font-bold uppercase">Timezone</p>
-                                            <p className="font-semibold text-slate-200">Asia/Colombo</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Reassurance Footer */}
-                        <div className="mt-4 pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
-                            <span className="flex items-center gap-1.5 text-[11px]">
-                                <ShieldCheck className="w-3.5 h-3.5 text-secondary-400" />
-                                Isolated Tenant Workspace
-                            </span>
-                            <span className="text-[11px] text-slate-500">
-                                Setup in &lt; 60 seconds
-                            </span>
-                        </div>
-                    </div>
+                {/* Right Column: Evolving Interactive Live Preview (Desktop ≥1024px) */}
+                <div className="hidden lg:block lg:col-span-6 xl:col-span-6 sticky top-20">
+                    <LiveClinicPreview
+                        step={step}
+                        clinicName={data.clinic_name}
+                        clinicType={data.clinic_type}
+                        district={data.district}
+                        city={data.city}
+                        clinicPhone={data.clinic_phone}
+                        subdomain={data.subdomain}
+                        adminName={data.name}
+                        adminEmail={data.email}
+                        adminMobile={data.mobile}
+                        checkingSubdomain={checkingSubdomain}
+                        subdomainResult={subdomainResult}
+                        isVerified={isVerified}
+                        publicDomain={publicDomain}
+                    />
                 </div>
             </main>
 
-            <LegalFooter className="mt-12" />
+            {/* Footer */}
+            <LegalFooter className="mt-8 border-t border-slate-200/80 dark:border-white/10" />
         </div>
     );
 }

@@ -1,492 +1,408 @@
-import React, { FormEventHandler, useState } from 'react';
+import React, { FormEventHandler, useEffect, useState } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-    Mail,
-    Lock,
-    LogIn,
-    ArrowRight,
-    Globe,
-    Building2,
-    Shield,
-    CheckCircle2,
-    Search,
-    Send,
-    ArrowLeft,
-    Sparkles,
-} from 'lucide-react';
-import ApplicationLogo from '@/Components/ApplicationLogo';
-import AuthHeader from '@/Components/AuthHeader';
-import ThemeToggle from '@/Components/Common/ThemeToggle';
+import { ChevronRight, Globe, Mail, X } from 'lucide-react';
+import PublicHeader from '@/Components/Public/PublicHeader';
 import LegalFooter from '@/Components/Public/LegalFooter';
-import {
-    GlassLabel,
-    GlassInput,
-    GlassError,
-    GlassCheckbox,
-} from '@/Components/UI/FormControls';
+import { inOrder } from '@/Components/ClinicAuth/ClinicAuthLayout';
+import WorkspaceMockup from '@/Components/CentralLogin/WorkspaceMockup';
+import { usePrefersReducedMotion } from '@/Components/Landing/useLandingMotion';
+import { AuthAlert, AuthField, AuthSubmit } from '@/Components/ClinicAuth/AuthControls';
+import '@/Components/ClinicAuth/clinic-auth.css';
+
+interface ClinicCard {
+    name: string;
+    subdomain: string;
+    logo_url?: string | null;
+    login_url: string;
+    home_login_url?: string;
+}
 
 interface Props {
     status?: string;
-    canResetPassword?: boolean;
-    showDemoCredentials?: boolean;
-    matchedClinics?: Array<{
-        name: string;
-        subdomain: string;
-        login_url: string;
-    }>;
+    matchedClinics?: ClinicCard[];
     lookupEmail?: string;
-    initialMode?: 'find' | 'admin';
+    clinicRedirect?: ClinicCard;
+    publicDomain?: string;
 }
+
+interface RememberedClinic {
+    name: string;
+    subdomain: string;
+    logo_url?: string | null;
+    url: string;
+}
+
+const STORAGE_KEY = 'medvisit.lastClinic';
+const SUBDOMAIN_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
+
+function readRemembered(): RememberedClinic | null {
+    try {
+        const raw = window.localStorage.getItem(STORAGE_KEY);
+        const parsed = raw ? (JSON.parse(raw) as RememberedClinic) : null;
+        return parsed?.name && parsed.url ? parsed : null;
+    } catch {
+        return null;
+    }
+}
+
+/** Remembers the clinic (never the email) so the next visit can skip the lookup. */
+function remember(clinic: ClinicCard) {
+    try {
+        const entry: RememberedClinic = {
+            name: clinic.name,
+            subdomain: clinic.subdomain,
+            logo_url: clinic.logo_url,
+            url: clinic.home_login_url || clinic.login_url.split('?')[0],
+        };
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(entry));
+    } catch {
+        // Storage can be unavailable (private mode, blocked site data); the page works without it.
+    }
+}
+
+function forget() {
+    try {
+        window.localStorage.removeItem(STORAGE_KEY);
+    } catch {
+        // ignore
+    }
+}
+
+function ClinicLogo({ name, logoUrl }: { name: string; logoUrl?: string | null }) {
+    const [broken, setBroken] = useState(false);
+    return (
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[color:var(--ca-line)] bg-white p-1.5">
+            {logoUrl && !broken ? (
+                <img src={logoUrl} alt="" className="h-full w-full object-contain" onError={() => setBroken(true)} />
+            ) : (
+                <span aria-hidden="true" className="text-lg font-bold text-primary-700">
+                    {name.trim().charAt(0).toUpperCase()}
+                </span>
+            )}
+        </span>
+    );
+}
+
+function hostOf(url: string): string {
+    try {
+        return new URL(url).host;
+    } catch {
+        return url;
+    }
+}
+
+const linkClass = 'rounded font-medium text-primary-700 hover:underline dark:text-primary-300';
 
 export default function Login({
     status,
-    canResetPassword = false,
-    showDemoCredentials = false,
     matchedClinics,
     lookupEmail,
-    initialMode,
+    clinicRedirect,
+    publicDomain = 'medvisit.lk',
 }: Props) {
-    // Mode: 'find' (Find Your Clinic) vs 'admin' (Platform Admin Login)
-    const [mode, setMode] = useState<'find' | 'admin'>(() => {
-        if (initialMode) return initialMode;
-        if (typeof window !== 'undefined') {
-            const params = new URLSearchParams(window.location.search);
-            if (
-                params.get('admin') === '1' ||
-                params.get('mode') === 'admin' ||
-                window.location.pathname.includes('/admin/login')
-            ) {
-                return 'admin';
-            }
+    const [mode, setMode] = useState<'email' | 'address'>('email');
+    const [remembered, setRemembered] = useState<RememberedClinic | null>(null);
+    const [showChooser, setShowChooser] = useState(true);
+    const [addressError, setAddressError] = useState<string | undefined>();
+
+    const emailForm = useForm({ email: lookupEmail || '' });
+    const addressForm = useForm({ subdomain: '' });
+
+    useEffect(() => {
+        setRemembered(readRemembered());
+    }, []);
+
+    // A single match (or a found clinic address) comes back as `clinicRedirect`:
+    // remember it, then leave for the clinic's own sign-in page.
+    // The address-bar mockup types the real address first (max 600ms; none with reduced motion).
+    const reduced = usePrefersReducedMotion();
+    useEffect(() => {
+        if (!clinicRedirect) return;
+        remember(clinicRedirect);
+        if (reduced) {
+            window.location.assign(clinicRedirect.login_url);
+            return;
         }
-        return 'find';
-    });
+        const id = window.setTimeout(() => window.location.assign(clinicRedirect.login_url), 600);
+        return () => window.clearTimeout(id);
+    }, [clinicRedirect, reduced]);
 
-    // Subdomain form
-    const subdomainForm = useForm({
-        subdomain: '',
-    });
+    useEffect(() => setShowChooser(true), [matchedClinics]);
 
-    // Email lookup form
-    const emailLookupForm = useForm({
-        email: '',
-    });
+    const emailErrors = emailForm.errors as Record<string, string | undefined>;
+    const addressErrors = addressForm.errors as Record<string, string | undefined>;
+    const emailNotFound = emailErrors.lookup === 'not_found';
+    const chooser = showChooser && matchedClinics && matchedClinics.length > 1 ? matchedClinics : null;
 
-    // Admin login form
-    const adminForm = useForm({
-        email: '',
-        password: '',
-        remember: false as boolean,
-    });
-
-    const submitSubdomain: FormEventHandler = (e) => {
+    const submitEmail: FormEventHandler = (e) => {
         e.preventDefault();
-        subdomainForm.post(route('find.clinic.subdomain'));
+        emailForm.post(route('find.clinic.email'), { preserveScroll: true });
     };
 
-    const submitEmailLookup: FormEventHandler = (e) => {
+    const submitAddress: FormEventHandler = (e) => {
         e.preventDefault();
-        emailLookupForm.post(route('find.clinic.email'));
+        const value = addressForm.data.subdomain.trim();
+        if (!value) return setAddressError('Enter your clinic address.');
+        if (!SUBDOMAIN_PATTERN.test(value)) return setAddressError('Use lowercase letters, numbers and hyphens only.');
+        setAddressError(undefined);
+        addressForm.post(route('find.clinic.subdomain'), { preserveScroll: true });
     };
 
-    const submitAdmin: FormEventHandler = (e) => {
-        e.preventDefault();
-        adminForm.post(route('login'), {
-            onFinish: () => adminForm.reset('password'),
-        });
+    const switchMode = (next: 'email' | 'address') => {
+        setMode(next);
+        setAddressError(undefined);
+        emailForm.clearErrors();
+        addressForm.clearErrors();
+        requestAnimationFrame(() =>
+            document.getElementById(next === 'email' ? 'lookup_email' : 'clinic_address')?.focus(),
+        );
     };
 
-    const fillDemo = (email: string) => {
-        adminForm.setData({
-            email,
-            password: 'Password123!',
-            remember: false,
-        });
-    };
-
-    const currentSubdomain = subdomainForm.data.subdomain.trim().toLowerCase() || 'your-clinic';
+    const addressFieldError = addressError || addressErrors.subdomain;
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col relative selection:bg-primary-100 selection:text-primary-800">
-            <Head title={mode === 'find' ? 'Find Your Clinic • MedVisit' : 'Platform Admin Sign In'} />
+        <div className="ca-root cl-root flex min-h-[100dvh] flex-col antialiased">
+            <Head title="Sign in to your clinic" />
+            <PublicHeader />
 
-            {/* Subtle Ambient Background Glows */}
-            <div aria-hidden="true" className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
-                <div className="absolute -top-32 left-1/4 w-[42rem] h-[32rem] rounded-full bg-primary-500/10 dark:bg-primary-500/15 blur-[120px]" />
-                <div className="absolute top-1/3 -right-20 w-[36rem] h-[36rem] rounded-full bg-secondary-500/10 dark:bg-secondary-500/15 blur-[130px]" />
-                <div className="absolute -bottom-24 left-1/3 w-[32rem] h-[32rem] rounded-full bg-primary-500/5 dark:bg-primary-500/10 blur-[100px]" />
-            </div>
-
-            {/* Redesigned Shared Header */}
-            <AuthHeader
-                subtitle={mode === 'find' ? 'Find your clinic' : 'Platform admin'}
-                rightAction="register"
-            />
-
-            {/* Main Content: Split Desktop Layout */}
-            <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-                {/* Left Column: Forms */}
-                <div className="lg:col-span-7 max-w-lg mx-auto w-full">
-                    <motion.div
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                        className="p-6 sm:p-8 rounded-3xl bg-white/85 dark:bg-slate-900/75 backdrop-blur-2xl border border-slate-200/80 dark:border-white/10 shadow-xl dark:shadow-2xl space-y-6"
-                    >
-                        {/* Status Flash Messages */}
-                        {status && (
-                            <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs font-semibold text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
-                                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
-                                <span>{status}</span>
+            {/* The shared header is fixed and 72px tall. */}
+            <div className="cl-backdrop flex-1 pt-[72px]">
+                <div className="mx-auto grid min-h-[calc(100dvh-72px)] max-w-6xl grid-cols-[minmax(0,1fr)] items-center gap-6 px-4 py-12 sm:px-6 lg:grid-cols-[minmax(0,45fr)_minmax(0,55fr)] lg:gap-8 lg:py-16">
+                    <main className="w-full max-w-[440px] lg:min-h-[34rem]">
+                        {remembered && !clinicRedirect && (
+                            <div
+                                className="ca-in mb-8 flex items-center gap-2 rounded-2xl border border-[color:var(--ca-line)] bg-[color:var(--ca-field)] p-2 pr-2"
+                                style={inOrder(1)}
+                            >
+                                <a
+                                    href={remembered.url}
+                                    className="flex min-w-0 flex-1 items-center gap-3 rounded-xl p-1.5 transition-colors hover:bg-slate-50 dark:hover:bg-white/5"
+                                >
+                                    <ClinicLogo name={remembered.name} logoUrl={remembered.logo_url} />
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block truncate text-sm font-semibold">
+                                            Continue to {remembered.name}
+                                        </span>
+                                        <span className="block truncate text-xs text-[color:var(--ca-muted)]">
+                                            {hostOf(remembered.url)}
+                                        </span>
+                                    </span>
+                                    <ChevronRight className="ca-icon h-5 w-5 shrink-0" aria-hidden="true" />
+                                </a>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        forget();
+                                        setRemembered(null);
+                                    }}
+                                    aria-label={`Forget ${remembered.name}`}
+                                    title="Forget this clinic"
+                                    className="ca-icon inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-white/10"
+                                >
+                                    <X className="h-4 w-4" aria-hidden="true" />
+                                </button>
                             </div>
                         )}
 
-                        <AnimatePresence mode="wait">
-                            {/* MODE 1: FIND YOUR CLINIC */}
-                            {mode === 'find' && (
-                                <motion.div
-                                    key="find"
-                                    initial={{ opacity: 0, x: -16 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    exit={{ opacity: 0, x: 16 }}
-                                    transition={{ duration: 0.25 }}
-                                    className="space-y-6"
-                                >
-                                    <div>
-                                        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-                                            Find Your Clinic
-                                        </h1>
-                                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-                                            Enter your work email or clinic address to automatically access your clinic workspace.
-                                        </p>
-                                    </div>
+                        <p
+                            className="ca-in text-xs font-semibold tracking-[0.14em] text-primary-700 dark:text-primary-300"
+                            style={inOrder(1)}
+                        >
+                            CLINIC SIGN-IN
+                        </p>
+                        <h1
+                            className="ca-in mt-3 text-3xl font-semibold tracking-[-0.025em] sm:text-4xl"
+                            style={inOrder(2)}
+                        >
+                            Sign in to your clinic
+                        </h1>
+                        <p className="ca-in mt-2 text-base text-[color:var(--ca-muted)]" style={inOrder(3)}>
+                            {mode === 'email'
+                                ? "Enter your work email and we'll take you to your clinic's sign-in page."
+                                : "Enter your clinic's address to go to its sign-in page."}
+                        </p>
 
-                                    {/* Multiple Clinics Found Selector */}
-                                    {matchedClinics && matchedClinics.length > 0 && (
-                                        <motion.div
-                                            initial={{ opacity: 0, scale: 0.98 }}
-                                            animate={{ opacity: 1, scale: 1 }}
-                                            className="p-4 rounded-2xl bg-primary-500/10 border border-primary-500/20 space-y-3"
+                        <div className="mt-8">
+                            {clinicRedirect && <AuthAlert tone="success">Opening {clinicRedirect.name}…</AuthAlert>}
+                            {status && !clinicRedirect && !chooser && <AuthAlert tone="success">{status}</AuthAlert>}
+
+                            {chooser ? (
+                                <div className="ca-swap">
+                                    <h2 className="text-lg font-semibold">Choose your clinic</h2>
+                                    <p className="mt-1 text-sm text-[color:var(--ca-muted)]">
+                                        {lookupEmail} works at more than one clinic.
+                                    </p>
+                                    <ul className="mt-4 space-y-2.5">
+                                        {chooser.map((clinic) => (
+                                            <li key={clinic.subdomain}>
+                                                <a
+                                                    href={clinic.login_url}
+                                                    onClick={() => remember(clinic)}
+                                                    className="flex items-center gap-3 rounded-2xl border border-[color:var(--ca-line)] bg-[color:var(--ca-field)] p-3 transition hover:border-primary hover:shadow-md hover:shadow-primary/10"
+                                                >
+                                                    <ClinicLogo name={clinic.name} logoUrl={clinic.logo_url} />
+                                                    <span className="min-w-0 flex-1">
+                                                        <span className="block truncate font-semibold">
+                                                            {clinic.name}
+                                                        </span>
+                                                        <span className="block truncate text-sm text-[color:var(--ca-muted)]">
+                                                            {hostOf(clinic.login_url)}
+                                                        </span>
+                                                    </span>
+                                                    <ChevronRight
+                                                        className="ca-icon h-5 w-5 shrink-0"
+                                                        aria-hidden="true"
+                                                    />
+                                                </a>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowChooser(false)}
+                                        className={`mt-5 text-sm ${linkClass}`}
+                                    >
+                                        Use a different email
+                                    </button>
+                                </div>
+                            ) : mode === 'email' ? (
+                                <div key="email" className="ca-swap">
+                                    {emailNotFound && <AuthAlert tone="error">{emailForm.errors.email}</AuthAlert>}
+                                    <form onSubmit={submitEmail} noValidate className="space-y-5">
+                                        <AuthField
+                                            id="lookup_email"
+                                            label="Work email"
+                                            icon={Mail}
+                                            type="email"
+                                            name="email"
+                                            value={emailForm.data.email}
+                                            onChange={(e) => emailForm.setData('email', e.target.value)}
+                                            autoComplete="email"
+                                            inputMode="email"
+                                            autoFocus
+                                            placeholder="you@yourclinic.lk"
+                                            error={emailNotFound ? undefined : emailForm.errors.email}
+                                            wrapperStyle={inOrder(4)}
+                                        />
+                                        <AuthSubmit
+                                            busy={emailForm.processing}
+                                            busyLabel="Finding your clinic…"
+                                            style={inOrder(5)}
                                         >
-                                            <div className="flex items-center gap-2 text-xs font-semibold text-slate-800 dark:text-slate-100">
-                                                <Building2 className="w-4 h-4 text-primary shrink-0" />
-                                                <span>
-                                                    Multiple clinics found for <strong className="text-primary">{lookupEmail}</strong>. Select your clinic:
+                                            Continue
+                                        </AuthSubmit>
+                                    </form>
+                                    <p className="ca-in mt-5 text-sm" style={inOrder(6)}>
+                                        <button
+                                            type="button"
+                                            onClick={() => switchMode('address')}
+                                            className={linkClass}
+                                        >
+                                            Know your clinic address? Enter it instead
+                                        </button>
+                                    </p>
+                                </div>
+                            ) : (
+                                <div key="address" className="ca-swap">
+                                    <form onSubmit={submitAddress} noValidate className="space-y-5">
+                                        <div>
+                                            <label htmlFor="clinic_address" className="text-sm font-medium">
+                                                Clinic address
+                                            </label>
+                                            <div
+                                                className="ca-affix mt-2 pl-3.5"
+                                                data-invalid={addressFieldError ? 'true' : undefined}
+                                            >
+                                                <Globe className="ca-icon mr-2.5 h-5 w-5 shrink-0" aria-hidden="true" />
+                                                <input
+                                                    id="clinic_address"
+                                                    name="subdomain"
+                                                    value={addressForm.data.subdomain}
+                                                    onChange={(e) => {
+                                                        setAddressError(undefined);
+                                                        addressForm.setData(
+                                                            'subdomain',
+                                                            e.target.value.toLowerCase().replace(/\s+/g, ''),
+                                                        );
+                                                    }}
+                                                    autoComplete="off"
+                                                    autoCapitalize="none"
+                                                    spellCheck={false}
+                                                    placeholder="yourclinic"
+                                                    aria-invalid={addressFieldError ? true : undefined}
+                                                    aria-describedby={
+                                                        addressFieldError
+                                                            ? 'clinic_address-error'
+                                                            : 'clinic_address-hint'
+                                                    }
+                                                />
+                                                <span className="shrink-0 truncate pr-3.5 text-[0.95rem] text-[color:var(--ca-muted)]">
+                                                    .{publicDomain}
                                                 </span>
                                             </div>
-                                            <div className="space-y-2">
-                                                {matchedClinics.map((clinic) => (
-                                                    <a
-                                                        key={clinic.subdomain}
-                                                        href={clinic.login_url}
-                                                        className="flex items-center justify-between p-3 rounded-xl bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-white/10 hover:border-primary text-xs font-semibold text-slate-800 dark:text-white transition-all shadow-sm hover:shadow"
-                                                    >
-                                                        <div className="flex items-center gap-2.5">
-                                                            <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
-                                                                {clinic.name.charAt(0).toUpperCase()}
-                                                            </div>
-                                                            <div>
-                                                                <div className="font-bold">{clinic.name}</div>
-                                                                <div className="text-[10px] text-slate-400 font-mono">
-                                                                    {clinic.subdomain}.medvisit.lk
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <ArrowRight className="w-4 h-4 text-primary" />
-                                                    </a>
-                                                ))}
-                                            </div>
-                                        </motion.div>
-                                    )}
-
-                                    {/* Option 1: Search by Email (Primary) */}
-                                    <form onSubmit={submitEmailLookup} className="space-y-3">
-                                        <GlassLabel htmlFor="lookup_email" required>
-                                            Sign In with Your Work Email
-                                        </GlassLabel>
-                                        <GlassInput
-                                            id="lookup_email"
-                                            type="email"
-                                            value={emailLookupForm.data.email}
-                                            placeholder="doctor@hospital.lk"
-                                            icon={<Mail className="w-4 h-4" />}
-                                            error={!!emailLookupForm.errors.email}
-                                            autoFocus
-                                            onChange={(e) => emailLookupForm.setData('email', e.target.value)}
-                                        />
-                                        <GlassError message={emailLookupForm.errors.email} />
-                                        {emailLookupForm.errors.email?.toLowerCase().includes('platform admin') && (
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setMode('admin');
-                                                    adminForm.setData('email', emailLookupForm.data.email);
-                                                }}
-                                                className="w-full mt-2 py-2.5 px-3 rounded-xl font-bold text-xs bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm"
-                                            >
-                                                <Shield className="w-4 h-4 text-primary shrink-0" />
-                                                <span>Switch to Platform Admin Sign In &rarr;</span>
-                                            </button>
-                                        )}
-
-                                        <button
-                                            type="submit"
-                                            disabled={emailLookupForm.processing || !emailLookupForm.data.email}
-                                            className="w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-white bg-primary hover:bg-primary-600 shadow-md shadow-primary/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                                        >
-                                            <ArrowRight className="w-4 h-4" />
-                                            <span>
-                                                {emailLookupForm.processing
-                                                    ? 'Locating Clinic & Redirecting...'
-                                                    : 'Continue to Clinic'}
-                                            </span>
-                                        </button>
-                                        <p className="text-[11px] text-slate-400 dark:text-slate-500 text-center">
-                                            Enter your work email and we will automatically direct you to your clinic's workspace.
-                                        </p>
-                                    </form>
-
-                                    {/* Divider */}
-                                    <div className="relative flex items-center justify-center">
-                                        <div className="absolute inset-0 flex items-center">
-                                            <div className="w-full border-t border-slate-200 dark:border-white/10" />
-                                        </div>
-                                        <span className="relative px-3 bg-white dark:bg-slate-900 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                            Or enter clinic address directly
-                                        </span>
-                                    </div>
-
-                                    {/* Option 2: Enter Subdomain */}
-                                    <form onSubmit={submitSubdomain} className="space-y-3">
-                                        <GlassLabel htmlFor="subdomain">
-                                            Clinic Address / Subdomain
-                                        </GlassLabel>
-                                        <div className="relative flex rounded-xl border border-slate-300 dark:border-white/10 bg-white/90 dark:bg-slate-900/80 overflow-hidden focus-within:ring-2 focus-within:ring-primary/40 focus-within:border-primary transition-all">
-                                            <input
-                                                id="subdomain"
-                                                type="text"
-                                                value={subdomainForm.data.subdomain}
-                                                placeholder="e.g. ruhunu"
-                                                onChange={(e) =>
-                                                    subdomainForm.setData(
-                                                        'subdomain',
-                                                        e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')
-                                                    )
-                                                }
-                                                className="w-full px-3.5 py-2 text-sm font-semibold text-slate-900 dark:text-white outline-none bg-transparent"
-                                            />
-                                            <span className="px-3.5 py-2 bg-slate-100 dark:bg-slate-800/80 text-xs font-mono text-slate-500 dark:text-slate-400 border-l border-slate-200 dark:border-white/10 flex items-center shrink-0">
-                                                .medvisit.lk
-                                            </span>
-                                        </div>
-                                        <GlassError message={subdomainForm.errors.subdomain} />
-
-                                        <button
-                                            type="submit"
-                                            disabled={subdomainForm.processing || !subdomainForm.data.subdomain}
-                                            className="w-full py-2.5 px-4 rounded-xl font-semibold text-xs text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                                        >
-                                            <ArrowRight className="w-3.5 h-3.5" />
-                                            <span>
-                                                {subdomainForm.processing
-                                                    ? 'Locating Clinic...'
-                                                    : 'Go to Clinic Sign In'}
-                                            </span>
-                                        </button>
-                                    </form>
-
-                                    {/* Footer Switcher */}
-                                    <div className="pt-4 border-t border-slate-200/70 dark:border-white/10 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                                        <Link
-                                            href={route('register')}
-                                            className="font-bold text-primary hover:underline flex items-center gap-1"
-                                        >
-                                            <span>Register a Clinic</span>
-                                            <ArrowRight className="w-3 h-3" />
-                                        </Link>
-
-                                        <button
-                                            type="button"
-                                            onClick={() => setMode('admin')}
-                                            className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-slate-200/80 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-white/10 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-                                        >
-                                            <Shield className="w-3.5 h-3.5 text-primary" />
-                                            <span>Platform Admin Login &rarr;</span>
-                                        </button>
-                                    </div>
-                                </motion.div>
-                            )}
-
-                            {/* MODE 2: PLATFORM ADMIN LOGIN */}
-                            {mode === 'admin' && (
-                                <motion.div
-                                    key="admin"
-                                    initial={{ opacity: 0, x: 16 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    exit={{ opacity: 0, x: -16 }}
-                                    transition={{ duration: 0.25 }}
-                                    className="space-y-6"
-                                >
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-                                                <Shield className="w-5 h-5 text-primary" />
-                                                Platform Admin
-                                            </h1>
-                                            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-                                                Central MedVisit system administration access.
-                                            </p>
-                                        </div>
-
-                                        <button
-                                            type="button"
-                                            onClick={() => setMode('find')}
-                                            className="text-xs font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
-                                        >
-                                            <ArrowLeft className="w-3.5 h-3.5" />
-                                            <span>Find Clinic</span>
-                                        </button>
-                                    </div>
-
-                                    <form onSubmit={submitAdmin} className="space-y-4">
-                                        <div>
-                                            <GlassLabel htmlFor="admin_email" required>
-                                                Email Address
-                                            </GlassLabel>
-                                            <GlassInput
-                                                id="admin_email"
-                                                type="email"
-                                                name="email"
-                                                value={adminForm.data.email}
-                                                placeholder="superadmin@medvisit.test"
-                                                icon={<Mail className="w-4 h-4" />}
-                                                error={!!adminForm.errors.email}
-                                                autoComplete="username"
-                                                autoFocus
-                                                onChange={(e) => adminForm.setData('email', e.target.value)}
-                                            />
-                                            <GlassError message={adminForm.errors.email} />
-                                        </div>
-
-                                        <div>
-                                            <GlassLabel htmlFor="admin_password" required>
-                                                Password
-                                            </GlassLabel>
-                                            <GlassInput
-                                                id="admin_password"
-                                                type="password"
-                                                name="password"
-                                                value={adminForm.data.password}
-                                                placeholder="••••••••••••"
-                                                icon={<Lock className="w-4 h-4" />}
-                                                error={!!adminForm.errors.password}
-                                                autoComplete="current-password"
-                                                onChange={(e) => adminForm.setData('password', e.target.value)}
-                                            />
-                                            <GlassError message={adminForm.errors.password} />
-                                        </div>
-
-                                        <div className="flex items-center justify-between pt-1">
-                                            <GlassCheckbox
-                                                id="remember"
-                                                label="Remember this device"
-                                                checked={adminForm.data.remember}
-                                                onChange={(e) => adminForm.setData('remember', e.target.checked)}
-                                            />
-                                        </div>
-
-                                        <button
-                                            type="submit"
-                                            disabled={adminForm.processing}
-                                            className="w-full mt-2 py-3 px-4 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-primary to-primary-600 hover:from-primary-600 hover:to-primary-700 shadow-md shadow-primary/25 hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                                        >
-                                            <LogIn className="w-4 h-4" />
-                                            <span>{adminForm.processing ? 'Signing in...' : 'Sign In'}</span>
-                                        </button>
-                                    </form>
-
-                                    {/* Quick Demo Credentials Autofill (Strictly Local Environment) */}
-                                    {showDemoCredentials && (
-                                        <div className="pt-4 border-t border-slate-200/70 dark:border-white/10">
-                                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">
-                                                Local Dev Accounts (1-Click Fill)
-                                            </p>
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => fillDemo('superadmin@medvisit.test')}
-                                                    className="p-2 rounded-xl border border-slate-200/70 dark:border-white/10 bg-slate-50 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-800 text-[11px] font-semibold text-slate-700 dark:text-slate-300 text-left transition-colors cursor-pointer"
+                                            {addressFieldError ? (
+                                                <p
+                                                    id="clinic_address-error"
+                                                    className="mt-1.5 text-sm text-red-700 dark:text-red-300"
                                                 >
-                                                    <span className="block text-primary font-bold">Super Admin</span>
-                                                    <span className="block truncate text-[10px] text-slate-400">
-                                                        superadmin@medvisit.test
-                                                    </span>
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => fillDemo('clinicadmin@medvisit.test')}
-                                                    className="p-2 rounded-xl border border-slate-200/70 dark:border-white/10 bg-slate-50 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-800 text-[11px] font-semibold text-slate-700 dark:text-slate-300 text-left transition-colors cursor-pointer"
+                                                    {addressFieldError}
+                                                </p>
+                                            ) : (
+                                                <p
+                                                    id="clinic_address-hint"
+                                                    className="mt-1.5 text-sm text-[color:var(--ca-muted)]"
                                                 >
-                                                    <span className="block text-secondary font-bold">Clinic Admin</span>
-                                                    <span className="block truncate text-[10px] text-slate-400">
-                                                        clinicadmin@medvisit.test
-                                                    </span>
-                                                </button>
-                                            </div>
+                                                    The first part of your clinic's web address.
+                                                </p>
+                                            )}
                                         </div>
-                                    )}
-                                </motion.div>
+                                        <AuthSubmit busy={addressForm.processing} busyLabel="Opening…" style={{}}>
+                                            Go to clinic
+                                        </AuthSubmit>
+                                    </form>
+                                    <p className="mt-5 text-sm">
+                                        <button type="button" onClick={() => switchMode('email')} className={linkClass}>
+                                            Use email instead
+                                        </button>
+                                    </p>
+                                </div>
                             )}
-                        </AnimatePresence>
-                    </motion.div>
-                </div>
+                        </div>
 
-                {/* Right Column: Live Animated Clinic URL Preview */}
-                <div className="hidden lg:block lg:col-span-5">
-                    <motion.div
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-                        className="p-8 rounded-3xl bg-slate-900 text-white shadow-2xl border border-slate-800 space-y-6 relative overflow-hidden"
-                    >
-                        <div className="space-y-2">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-primary-400">
-                                Subdomain Routing
-                            </span>
-                            <h2 className="text-xl font-bold tracking-tight text-white">
-                                Dedicated Clinic Subdomain
-                            </h2>
-                            <p className="text-xs text-slate-400">
-                                Each healthcare provider operates in their own isolated tenant environment.
+                        <div
+                            className="ca-in mt-8 space-y-1.5 border-t border-[color:var(--ca-line)] pt-6 text-sm text-[color:var(--ca-muted)]"
+                            style={inOrder(7)}
+                        >
+                            <p>
+                                New clinic?{' '}
+                                <Link href={route('register')} className={linkClass}>
+                                    Register your clinic →
+                                </Link>
+                            </p>
+                            <p>
+                                Looking for a doctor?{' '}
+                                <Link href="/find" className={linkClass}>
+                                    Find Care →
+                                </Link>
                             </p>
                         </div>
+                    </main>
 
-                        {/* Browser Bar Mockup */}
-                        <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs text-slate-300 flex items-center gap-2">
-                            <Globe className="w-4 h-4 text-emerald-400 shrink-0" />
-                            <span className="text-slate-500">https://</span>
-                            <span className="text-white font-bold transition-all">
-                                {currentSubdomain}
-                            </span>
-                            <span className="text-slate-500">.medvisit.lk/login</span>
-                        </div>
-
-                        <div className="space-y-3 pt-2 text-xs text-slate-400 border-t border-slate-800">
-                            <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                                <span>Sri Lanka Data Compliance & Encrypted Medical Records</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-full bg-primary-400" />
-                                <span>Multi-Tenant Practice & Token Queue Isolation</span>
-                            </div>
-                        </div>
-                    </motion.div>
+                    <div className="ca-in max-[399px]:hidden" style={inOrder(3)}>
+                        <WorkspaceMockup
+                            baseHost={publicDomain}
+                            live={mode === 'address' && !chooser ? addressForm.data.subdomain : ''}
+                            opening={
+                                clinicRedirect
+                                    ? { subdomain: clinicRedirect.subdomain, name: clinicRedirect.name }
+                                    : null
+                            }
+                        />
+                    </div>
                 </div>
-            </main>
+            </div>
 
-            <LegalFooter className="mt-12" />
+            <LegalFooter />
         </div>
     );
 }

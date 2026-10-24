@@ -94,8 +94,57 @@ return [
     |--------------------------------------------------------------------------
     */
     'policies' => [
-        'last_updated' => '21 October 2026',
-        'terms_version' => '2026-10-21',
+        'last_updated' => '22 October 2026',
+        'terms_version' => '2026-10-22',
         'downtime_refund_clause' => 'If MedVisit is unavailable for more than 48 continuous hours due to a fault on our side, we will refund the amount for the affected days, calculated pro-rata from your monthly plan price (for example, 3 days of downtime on the Pro plan = Rs. 9,000 ÷ 30 × 3 = Rs. 900). This is a partial refund for the affected days only, not a full refund of the month. Downtime of 48 hours or less, and planned maintenance announced in advance, are not eligible for a refund. To request it, email support@medvisit.lk within 14 days of the outage.',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Public Clinic & Doctor Directory
+    |--------------------------------------------------------------------------
+    */
+    'directory' => [
+        // Allowed plans for directory listing ('*' or array of plan slugs)
+        'allowed_plans' => ['starter', 'growth', 'scale', 'medvisit-standard', 'basic', 'pro', 'advanced', '*'],
+        'fixed_services' => [
+            'OPD Consultation',
+            'Specialist Channeling',
+            'Pharmacy & Dispensing',
+            'Medical Laboratory',
+            'Dental Care',
+            'Minor Surgery',
+            'ECG & Diagnostics',
+            'Physiotherapy',
+            'Vaccination Center',
+            'Eye Care / Optometry',
+        ],
+        'districts' => [
+            'Ampara',
+            'Anuradhapura',
+            'Badulla',
+            'Batticaloa',
+            'Colombo',
+            'Galle',
+            'Gampaha',
+            'Hambantota',
+            'Jaffna',
+            'Kalutara',
+            'Kandy',
+            'Kegalle',
+            'Kilinochchi',
+            'Kurunegala',
+            'Mannar',
+            'Matale',
+            'Matara',
+            'Monaragala',
+            'Mullaitivu',
+            'Nuwara Eliya',
+            'Polonnaruwa',
+            'Puttalam',
+            'Ratnapura',
+            'Trincomalee',
+            'Vavuniya',
+        ],
     ],
 ];

@@ -12,7 +12,9 @@ class StaffInviteMail extends MedVisitMailable
     public function __construct(
         public StaffInvitation $invitation,
         public string $acceptUrl,
-        public string $clinicName
+        public string $clinicName,
+        public ?string $personalMessage = null,
+        public ?string $invitedByName = null
     ) {
         $this->tenantId = $invitation->tenant_id;
         $this->onBehalfOfClinicName = $clinicName;
@@ -51,7 +53,9 @@ class StaffInviteMail extends MedVisitMailable
             'clinicName' => $this->clinicName,
             'role' => ucwords(str_replace('_', ' ', $this->invitation->role)),
             'acceptUrl' => $this->acceptUrl,
-            'expiresAt' => $this->invitation->expires_at ? $this->invitation->expires_at->format('M d, Y h:i A') : 'in 48 hours',
+            'expiresAt' => $this->invitation->expires_at ? $this->invitation->expires_at->format('M d, Y h:i A') : 'in 7 days',
+            'personalMessage' => $this->personalMessage,
+            'invitedByName' => $this->invitedByName,
         ];
     }
 }

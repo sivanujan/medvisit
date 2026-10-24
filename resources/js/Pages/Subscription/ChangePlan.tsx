@@ -231,7 +231,7 @@ export default function ChangePlan({
                             </div>
                         </div>
 
-                        {/* Proration breakdown */}
+                        {/* Plan change breakdown */}
                         <div className="mt-5 p-4 rounded-2xl bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 space-y-3 text-xs">
                             <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
                                 <span>Current Plan:</span>
@@ -240,31 +240,37 @@ export default function ChangePlan({
                                 </span>
                             </div>
                             <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
-                                <span>Upgraded Plan:</span>
-                                <span className="font-semibold text-teal-600 dark:text-teal-400">
+                                <span>New Plan:</span>
+                                <span className="font-semibold text-[#1E6FD9] dark:text-blue-400">
                                     {selectedUpgradePlan.name} ({selectedUpgradePlan.formatted_price})
-                                </span>
-                            </div>
-                            <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
-                                <span>Remaining in Cycle:</span>
-                                <span className="font-semibold text-slate-800 dark:text-slate-200">
-                                    {selectedUpgradePlan.proration_preview?.remaining_days || 0} of{' '}
-                                    {selectedUpgradePlan.proration_preview?.total_period_days || 30} days
                                 </span>
                             </div>
                             <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center text-sm font-bold">
                                 <span className="text-slate-900 dark:text-white">Amount Due Today:</span>
-                                <span className="text-teal-600 dark:text-teal-400 text-base">
-                                    {selectedUpgradePlan.proration_preview?.formatted_proration || selectedUpgradePlan.formatted_price}
+                                <span className="text-[#1E6FD9] dark:text-blue-400 text-base">
+                                    {selectedUpgradePlan.formatted_price}
                                 </span>
                             </div>
                         </div>
 
-                        <div className="mt-4 p-3 rounded-xl bg-teal-500/10 border border-teal-500/20 text-xs text-teal-700 dark:text-teal-300 flex items-start gap-2">
-                            <Clock className="w-4 h-4 shrink-0 mt-0.5" />
+                        <div className="mt-4 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-slate-700 dark:text-slate-300 flex items-start gap-2">
+                            <Clock className="w-4 h-4 text-[#1E6FD9] shrink-0 mt-0.5" />
                             <span>
-                                Upgrades take effect immediately upon successful payment. Your next regular monthly renewal on {periodEnd} will be billed at {selectedUpgradePlan.formatted_price}.
+                                Upgrade takes effect immediately upon payment. A new 1-month billing period begins today.
                             </span>
+                        </div>
+
+                        <div className="mt-4">
+                            <label className="flex items-start gap-2.5 cursor-pointer text-xs text-slate-600 dark:text-slate-300">
+                                <input
+                                    type="checkbox"
+                                    required
+                                    className="mt-0.5 w-4 h-4 rounded text-[#1E6FD9] border-slate-300 dark:border-slate-700"
+                                />
+                                <span>
+                                    I agree to the Terms and Conditions and Refund Policy. My subscription is billed monthly in LKR. I will receive a reminder before each due date and can cancel anytime from the Billing page.
+                                </span>
+                            </label>
                         </div>
 
                         <div className="mt-6 flex items-center justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
@@ -278,10 +284,10 @@ export default function ChangePlan({
                             <button
                                 type="submit"
                                 disabled={isUpgrading}
-                                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold transition shadow-sm disabled:opacity-50"
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1E6FD9] hover:bg-[#1557b0] text-white text-xs font-semibold transition shadow-sm disabled:opacity-50"
                             >
                                 <CreditCard className="w-4 h-4" />
-                                <span>{isUpgrading ? 'Redirecting to checkout...' : 'Proceed to Checkout'}</span>
+                                <span>{isUpgrading ? 'Redirecting to checkout...' : `Pay ${selectedUpgradePlan.formatted_price}`}</span>
                             </button>
                         </div>
                     </form>

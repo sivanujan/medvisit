@@ -31,6 +31,7 @@ class PrescriptionTemplateItem extends Model
         'frequency_text',
         'duration_days',
         'timing',
+        'route',
         'quantity',
         'instructions',
         'sort_order',

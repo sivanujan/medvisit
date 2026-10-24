@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\ClinicAnnouncementController;
 use App\Http\Controllers\Auth\TwoFactorChallengeController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublicDirectoryController;
 use App\Http\Controllers\PublicLegalController;
 use App\Http\Controllers\SuperAdmin\AdminUserController;
 use App\Http\Controllers\SuperAdmin\AnnouncementManagementController;
@@ -15,9 +16,14 @@ use App\Http\Controllers\SuperAdmin\OtpAnalyticsController;
 use App\Http\Controllers\SuperAdmin\PlanManagementController;
 use App\Http\Controllers\SuperAdmin\PlatformAuditLogController;
 use App\Http\Controllers\SuperAdmin\PlatformDashboardController;
+use App\Http\Controllers\SuperAdmin\PlatformIncidentController;
 use App\Http\Controllers\SuperAdmin\PlatformSettingsController;
+use App\Http\Controllers\SuperAdmin\RefundManagementController;
 use App\Http\Controllers\SuperAdmin\SubscriptionManagementController;
+use App\Http\Controllers\SuperAdmin\SupportInboxController;
 use App\Http\Controllers\SuperAdmin\SystemHealthController;
+use App\Http\Controllers\Support\SupportBroadcastAuthController;
+use App\Http\Controllers\Support\SupportChatWidgetController;
 use App\Http\Controllers\Webhooks\PaymentsLkWebhookController;
 use App\Http\Controllers\Webhooks\WhatsAppWebhookController;
 use App\Models\Tenant;
@@ -39,6 +45,7 @@ Route::domain('{central_domain}')
     ->whereIn('central_domain', config('tenancy.central_domains', [
         config('medvisit.base_domain', 'medvisit.localhost'),
         'medvisit.localhost',
+        'medvisit.test',
         'localhost',
         '127.0.0.1',
     ]))
@@ -59,6 +66,22 @@ Route::domain('{central_domain}')
         Route::get('/refund-policy', [PublicLegalController::class, 'refundPolicy'])->name('refund_policy');
         Route::get('/dispute-policy', [PublicLegalController::class, 'disputePolicy'])->name('dispute_policy');
         Route::get('/privacy-policy', [PublicLegalController::class, 'privacyPolicy'])->name('privacy_policy');
+
+        // Public Clinic & Doctor Directory
+        Route::get('/find', [PublicDirectoryController::class, 'index'])->name('public.directory.index');
+        Route::get('/clinics/{slug}', [PublicDirectoryController::class, 'showClinic'])->name('public.directory.clinic');
+        Route::get('/doctors/{clinicSlug}/{doctorSlug}', [PublicDirectoryController::class, 'showDoctor'])->name('public.directory.doctor');
+        Route::get('/sitemap.xml', [PublicDirectoryController::class, 'sitemap'])->name('public.directory.sitemap');
+
+        // MedVisit Support Chat Widget API & Guest Broadcasting Auth
+        Route::get('/support/status', [SupportChatWidgetController::class, 'status'])->name('support.status');
+        Route::post('/support/conversations', [SupportChatWidgetController::class, 'store'])->name('support.conversations.store');
+        Route::get('/support/conversations/{publicId}', [SupportChatWidgetController::class, 'show'])->name('support.conversations.show');
+        Route::post('/support/conversations/{publicId}/messages', [SupportChatWidgetController::class, 'sendMessage'])->name('support.conversations.messages.send');
+        Route::post('/support/conversations/{publicId}/read', [SupportChatWidgetController::class, 'markRead'])->name('support.conversations.read');
+        Route::post('/support/conversations/{publicId}/typing', [SupportChatWidgetController::class, 'typing'])->name('support.conversations.typing');
+        Route::post('/support/conversations/{publicId}/close', [SupportChatWidgetController::class, 'close'])->name('support.conversations.close');
+        Route::post('/support/broadcasting/auth', [SupportBroadcastAuthController::class, 'authenticate'])->name('support.broadcasting.auth');
 
         Route::get('/dashboard', function () {
             $user = auth()->user();
@@ -186,6 +209,32 @@ Route::domain('{central_domain}')
                 Route::post('/super-admin/subscriptions/{subscription}/extend', [SubscriptionManagementController::class, 'extendPeriod'])
                     ->name('super_admin.subscriptions.extend');
 
+                // Refund Requests Management
+                Route::get('/super-admin/refunds', [RefundManagementController::class, 'index'])
+                    ->name('super_admin.refunds.index');
+                Route::get('/super-admin/refunds/{refundRequest}', [RefundManagementController::class, 'show'])
+                    ->name('super_admin.refunds.show');
+                Route::post('/super-admin/refunds/{refundRequest}/recheck', [RefundManagementController::class, 'recheck'])
+                    ->name('super_admin.refunds.recheck');
+                Route::post('/super-admin/refunds/{refundRequest}/approve', [RefundManagementController::class, 'approve'])
+                    ->name('super_admin.refunds.approve');
+                Route::post('/super-admin/refunds/{refundRequest}/reject', [RefundManagementController::class, 'reject'])
+                    ->name('super_admin.refunds.reject');
+                Route::post('/super-admin/refunds/{refundRequest}/process', [RefundManagementController::class, 'process'])
+                    ->name('super_admin.refunds.process');
+                Route::get('/super-admin/refunds/{refundRequest}/credit-note', [RefundManagementController::class, 'downloadCreditNote'])
+                    ->name('super_admin.refunds.credit_note');
+
+                // Platform Incidents & Downtime Management
+                Route::get('/super-admin/incidents', [PlatformIncidentController::class, 'index'])
+                    ->name('super_admin.incidents.index');
+                Route::post('/super-admin/incidents', [PlatformIncidentController::class, 'store'])
+                    ->name('super_admin.incidents.store');
+                Route::put('/super-admin/incidents/{incident}', [PlatformIncidentController::class, 'update'])
+                    ->name('super_admin.incidents.update');
+                Route::delete('/super-admin/incidents/{incident}', [PlatformIncidentController::class, 'destroy'])
+                    ->name('super_admin.incidents.destroy');
+
                 // Announcements (Broadcasts)
                 Route::get('/super-admin/announcements', [AnnouncementManagementController::class, 'index'])
                     ->name('super_admin.announcements.index');
@@ -267,6 +316,26 @@ Route::domain('{central_domain}')
                     ->name('super_admin.email_previews.render');
                 Route::post('/super-admin/email-previews/send-test', [EmailPreviewController::class, 'sendTest'])
                     ->name('super_admin.email_previews.send_test');
+
+                // Support Chat Inbox & Management
+                Route::get('/super-admin/support', [SupportInboxController::class, 'index'])
+                    ->name('super_admin.support.index');
+                Route::post('/super-admin/support/conversations/{publicId}/reply', [SupportInboxController::class, 'reply'])
+                    ->name('super_admin.support.reply');
+                Route::post('/super-admin/support/conversations/{publicId}/take-over', [SupportInboxController::class, 'takeOver'])
+                    ->name('super_admin.support.take_over');
+                Route::post('/super-admin/support/conversations/{publicId}/return-ai', [SupportInboxController::class, 'returnToAi'])
+                    ->name('super_admin.support.return_ai');
+                Route::post('/super-admin/support/conversations/{publicId}/close', [SupportInboxController::class, 'close'])
+                    ->name('super_admin.support.close');
+                Route::post('/super-admin/support/canned-replies', [SupportInboxController::class, 'storeCannedReply'])
+                    ->name('super_admin.support.canned_replies.store');
+                Route::put('/super-admin/support/canned-replies/{reply}', [SupportInboxController::class, 'updateCannedReply'])
+                    ->name('super_admin.support.canned_replies.update');
+                Route::delete('/super-admin/support/canned-replies/{reply}', [SupportInboxController::class, 'destroyCannedReply'])
+                    ->name('super_admin.support.canned_replies.destroy');
+                Route::post('/super-admin/support/settings', [SupportInboxController::class, 'updateSettings'])
+                    ->name('super_admin.support.settings.update');
             });
         });
 
@@ -288,8 +357,347 @@ Route::domain('{central_domain}')
             ->name('announcements.notifications');
         Route::post('/api/announcements/{id}/read', [ClinicAnnouncementController::class, 'markRead'])
             ->name('announcements.mark_read');
-        Route::post('/api/announcements/mark-all-read', [ClinicAnnouncementController::class, 'markAllRead'])
-            ->name('announcements.mark_all_read');
+        if (app()->environment('local')) {
+            Route::get('/dev/preview/register-success', function () {
+                return Inertia::render('Auth/RegisterClinicSuccess', [
+                    'registration' => [
+                        'clinic_name' => 'Apex Family Health',
+                        'subdomain' => 'apexfamily',
+                        'clinic_url' => 'http://apexfamily.medvisit.test',
+                        'admin_name' => 'Dr. Samantha Perera',
+                        'admin_email' => 'samantha@apexfamily.lk',
+                        'admin_phone' => '0771234567',
+                        'admin_role' => 'Clinic Admin',
+                        'login_url' => '/dev/preview/subscribe',
+                    ],
+                ]);
+            })->name('dev.preview.register-success');
+
+            Route::get('/dev/preview/subscribe', function () {
+                $configPlans = config('medvisit_public.plans', []);
+                $plans = [
+                    [
+                        'slug' => 'basic',
+                        'name' => 'Basic',
+                        'price_cents' => (int) ($configPlans['basic']['price_cents'] ?? 700000),
+                        'features' => (array) ($configPlans['basic']['features'] ?? []),
+                        'recommended' => false,
+                    ],
+                    [
+                        'slug' => 'pro',
+                        'name' => 'Pro',
+                        'price_cents' => (int) ($configPlans['pro']['price_cents'] ?? 900000),
+                        'features' => (array) ($configPlans['pro']['features'] ?? []),
+                        'recommended' => true,
+                    ],
+                    [
+                        'slug' => 'advanced',
+                        'name' => 'Advanced',
+                        'price_cents' => (int) ($configPlans['advanced']['price_cents'] ?? 1500000),
+                        'features' => (array) ($configPlans['advanced']['features'] ?? []),
+                        'recommended' => false,
+                    ],
+                ];
+
+                $sharedFeatures = [
+                    'Online appointments & channeling schedules',
+                    'Token numbers & live queue',
+                    'Live Queue TV Display',
+                    'Patient records & consultation history',
+                    'Prescriptions & dispensing / medicine catalog',
+                    'Fees & payouts calculation',
+                    'Dedicated email & WhatsApp support',
+                    'Automatic daily cloud backups',
+                ];
+
+                return Inertia::render('Subscription/Subscribe', [
+                    'tenant' => [
+                        'id' => 'preview-clinic',
+                        'name' => 'Apex Family Health',
+                        'subdomain' => 'apexfamily',
+                        'plan' => 'pro',
+                        'phone' => '+94 77 123 4567',
+                    ],
+                    'currentPlan' => 'pro',
+                    'plans' => $plans,
+                    'sharedFeatures' => $sharedFeatures,
+                    'renewalDate' => now()->addMonth()->format('F j, Y'),
+                    'termsVersion' => '2026-10-v1',
+                    'legalConsentText' => 'I agree to the MedVisit Terms of Service and Privacy Policy. I authorize MedVisit to charge the chosen plan amount monthly until cancelled.',
+                    'pendingInvoice' => null,
+                    'statusParam' => request()->query('status'),
+                ]);
+            })->name('dev.preview.subscribe');
+
+            Route::get('/dev/preview/dashboard', function () {
+                $isSetup = request()->query('mode') === 'setup';
+
+                if ($isSetup) {
+                    return Inertia::render('Dashboard', [
+                        'isSetupMode' => true,
+                        'isClinicAdmin' => true,
+                        'isDoctor' => false,
+                        'isReceptionist' => false,
+                        'canViewMoney' => true,
+                        'stats' => [
+                            'patients_today' => 0,
+                            'patients_sparkline' => [0, 0, 0, 0, 0, 0, 0],
+                            'patients_trend' => 0,
+                            'waiting_now' => 0,
+                            'sessions_today' => 0,
+                            'sessions_sparkline' => [0, 0, 0, 0, 0, 0, 0],
+                            'sessions_trend' => 0,
+                            'collections_today' => 0,
+                            'collections_sparkline' => [0, 0, 0, 0, 0, 0, 0],
+                            'collections_trend' => 0,
+                        ],
+                        'todaySessions' => [],
+                        'runningSessions' => [],
+                        'timelineSessions' => [],
+                        'upcomingSessions' => [],
+                        'alerts' => [],
+                        'setupChecklist' => [
+                            [
+                                'step' => 1,
+                                'title' => 'Add your doctors & channeling hours',
+                                'description' => 'Add at least one doctor profile and set their weekly channeling schedule so patients can book.',
+                                'action_label' => 'Add doctors & schedules',
+                                'action_url' => '/doctors',
+                                'completed' => true,
+                                'current' => false,
+                            ],
+                            [
+                                'step' => 2,
+                                'title' => 'Setup consultation & clinic fees',
+                                'description' => 'Define your doctor consultation fee, clinic facility charge, and visit types.',
+                                'action_label' => 'Configure fees',
+                                'action_url' => '/settings/fees',
+                                'completed' => true,
+                                'current' => false,
+                            ],
+                            [
+                                'step' => 3,
+                                'title' => 'Publish your online booking website',
+                                'description' => 'Customize your clinic hero banner, about section, contact info, and hit Publish.',
+                                'action_label' => 'Open website builder',
+                                'action_url' => '/website',
+                                'completed' => false,
+                                'current' => true,
+                            ],
+                            [
+                                'step' => 4,
+                                'title' => 'Test your patient booking link',
+                                'description' => 'Visit apexfamily.medvisit.lk to preview how patients will discover and book doctors online.',
+                                'action_label' => 'Open public booking link',
+                                'action_url' => 'http://apexfamily.medvisit.lk',
+                                'completed' => false,
+                                'current' => false,
+                            ],
+                            [
+                                'step' => 5,
+                                'title' => 'Issue your first clinic token',
+                                'description' => 'Walk through issuing a walk-in token at reception to see the live queue and TV display in action.',
+                                'action_label' => 'Issue test token',
+                                'action_url' => '/bookings',
+                                'completed' => false,
+                                'current' => false,
+                            ],
+                        ],
+                        'setupDismissed' => false,
+                    ]);
+                }
+
+                return Inertia::render('Dashboard', [
+                    'isSetupMode' => false,
+                    'isClinicAdmin' => true,
+                    'isDoctor' => false,
+                    'isReceptionist' => false,
+                    'canViewMoney' => true,
+                    'stats' => [
+                        'patients_today' => 42,
+                        'patients_sparkline' => [18, 24, 30, 28, 35, 38, 42],
+                        'patients_trend' => 10.5,
+                        'waiting_now' => 8,
+                        'sessions_today' => 4,
+                        'sessions_sparkline' => [2, 3, 3, 4, 3, 4, 4],
+                        'sessions_trend' => 0,
+                        'collections_today' => 128500,
+                        'collections_sparkline' => [45000, 60000, 78000, 92000, 85000, 110000, 128500],
+                        'collections_trend' => 16.8,
+                    ],
+                    'todaySessions' => [
+                        [
+                            'id' => 1,
+                            'doctor_name' => 'Dr. Samantha Perera',
+                            'specialty' => 'Cardiologist',
+                            'start_time' => '08:30 AM',
+                            'end_time' => '12:00 PM',
+                            'room' => 'Consultation Room 1',
+                            'status' => 'in_progress',
+                            'tokens_count' => 18,
+                            'waiting_count' => 5,
+                        ],
+                        [
+                            'id' => 2,
+                            'doctor_name' => 'Dr. Rohan De Silva',
+                            'specialty' => 'Pediatrician',
+                            'start_time' => '10:00 AM',
+                            'end_time' => '01:30 PM',
+                            'room' => 'Consultation Room 2',
+                            'status' => 'in_progress',
+                            'tokens_count' => 12,
+                            'waiting_count' => 3,
+                        ],
+                        [
+                            'id' => 3,
+                            'doctor_name' => 'Dr. Nimal Jayawardena',
+                            'specialty' => 'Dermatologist',
+                            'start_time' => '02:00 PM',
+                            'end_time' => '05:30 PM',
+                            'room' => 'Consultation Room 1',
+                            'status' => 'scheduled',
+                            'tokens_count' => 8,
+                            'waiting_count' => 0,
+                        ],
+                        [
+                            'id' => 4,
+                            'doctor_name' => 'Dr. Samantha Perera',
+                            'specialty' => 'Cardiologist',
+                            'start_time' => '05:30 PM',
+                            'end_time' => '08:30 PM',
+                            'room' => 'Consultation Room 3',
+                            'status' => 'scheduled',
+                            'tokens_count' => 14,
+                            'waiting_count' => 0,
+                        ],
+                    ],
+                    'runningSessions' => [
+                        [
+                            'id' => 1,
+                            'doctor_name' => 'Dr. Samantha Perera',
+                            'specialty' => 'Cardiologist',
+                            'room' => 'Room 1',
+                            'start_time' => '08:30 AM',
+                            'end_time' => '12:00 PM',
+                            'nowServing' => 9,
+                            'nextInLine' => [10, 11, 12],
+                            'waitingCount' => 5,
+                            'completedCount' => 8,
+                            'estimatedWaitMinutes' => 25,
+                        ],
+                        [
+                            'id' => 2,
+                            'doctor_name' => 'Dr. Rohan De Silva',
+                            'specialty' => 'Pediatrician',
+                            'room' => 'Room 2',
+                            'start_time' => '10:00 AM',
+                            'end_time' => '01:30 PM',
+                            'nowServing' => 4,
+                            'nextInLine' => [5, 6, 7],
+                            'waitingCount' => 3,
+                            'completedCount' => 3,
+                            'estimatedWaitMinutes' => 15,
+                        ],
+                    ],
+                    'timelineSessions' => [
+                        [
+                            'id' => 1,
+                            'doctor_name' => 'Dr. Samantha Perera',
+                            'specialty' => 'Cardiologist',
+                            'start_time' => '08:30',
+                            'end_time' => '12:00',
+                            'start_minutes' => 510,
+                            'end_minutes' => 720,
+                            'status' => 'in_progress',
+                            'tokens_count' => 18,
+                            'room' => 'Room 1',
+                        ],
+                        [
+                            'id' => 2,
+                            'doctor_name' => 'Dr. Rohan De Silva',
+                            'specialty' => 'Pediatrician',
+                            'start_time' => '10:00',
+                            'end_time' => '13:30',
+                            'start_minutes' => 600,
+                            'end_minutes' => 810,
+                            'status' => 'in_progress',
+                            'tokens_count' => 12,
+                            'room' => 'Room 2',
+                        ],
+                        [
+                            'id' => 3,
+                            'doctor_name' => 'Dr. Nimal Jayawardena',
+                            'specialty' => 'Dermatologist',
+                            'start_time' => '14:00',
+                            'end_time' => '17:30',
+                            'start_minutes' => 840,
+                            'end_minutes' => 1050,
+                            'status' => 'scheduled',
+                            'tokens_count' => 8,
+                            'room' => 'Room 1',
+                        ],
+                        [
+                            'id' => 4,
+                            'doctor_name' => 'Dr. Samantha Perera',
+                            'specialty' => 'Cardiologist',
+                            'start_time' => '17:30',
+                            'end_time' => '20:30',
+                            'start_minutes' => 1050,
+                            'end_minutes' => 1230,
+                            'status' => 'scheduled',
+                            'tokens_count' => 14,
+                            'room' => 'Room 3',
+                        ],
+                    ],
+                    'upcomingSessions' => [
+                        [
+                            'id' => 101,
+                            'doctor_name' => 'Dr. Samantha Perera',
+                            'specialty' => 'Cardiologist',
+                            'session_date' => now()->addDay()->format('Y-m-d'),
+                            'day_name' => now()->addDay()->format('l'),
+                            'date_formatted' => now()->addDay()->format('D, M j'),
+                            'start_time' => '08:30 AM',
+                            'end_time' => '12:00 PM',
+                            'tokens_count' => 11,
+                        ],
+                        [
+                            'id' => 102,
+                            'doctor_name' => 'Dr. Nimal Jayawardena',
+                            'specialty' => 'Dermatologist',
+                            'session_date' => now()->addDay()->format('Y-m-d'),
+                            'day_name' => now()->addDay()->format('l'),
+                            'date_formatted' => now()->addDay()->format('D, M j'),
+                            'start_time' => '02:00 PM',
+                            'end_time' => '05:30 PM',
+                            'tokens_count' => 6,
+                        ],
+                        [
+                            'id' => 103,
+                            'doctor_name' => 'Dr. Anoma Senanayake',
+                            'specialty' => 'Gynecologist',
+                            'session_date' => now()->addDays(2)->format('Y-m-d'),
+                            'day_name' => now()->addDays(2)->format('l'),
+                            'date_formatted' => now()->addDays(2)->format('D, M j'),
+                            'start_time' => '09:00 AM',
+                            'end_time' => '12:00 PM',
+                            'tokens_count' => 9,
+                        ],
+                    ],
+                    'alerts' => [
+                        [
+                            'type' => 'warning',
+                            'title' => 'Session starting in 35 mins with 0 bookings',
+                            'message' => 'Dr. Nimal Jayawardena (Dermatologist) session starts at 02:00 PM and has no confirmed tokens yet.',
+                            'action_label' => 'View Channeling Calendar',
+                            'action_url' => '/calendar',
+                        ],
+                    ],
+                    'setupChecklist' => [],
+                    'setupDismissed' => true,
+                ]);
+            })->name('dev.preview.dashboard');
+        }
 
         require __DIR__.'/auth.php';
     });

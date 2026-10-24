@@ -151,12 +151,12 @@ class PublicLegalPagesTest extends TestCase
         $subscription = $this->tenant->subscription()->first();
         $this->assertNotNull($subscription);
         $this->assertNotNull($subscription->terms_accepted_at);
-        $this->assertSame('2026-10-21', $subscription->terms_version);
+        $this->assertSame('2026-10-22', $subscription->terms_version);
 
         $transaction = $this->tenant->paymentTransactions()->latest('id')->first();
         $this->assertNotNull($transaction);
         $this->assertNotNull($transaction->terms_accepted_at);
-        $this->assertSame('2026-10-21', $transaction->terms_version);
+        $this->assertSame('2026-10-22', $transaction->terms_version);
     }
 
     /**

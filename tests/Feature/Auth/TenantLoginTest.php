@@ -102,6 +102,83 @@ class TenantLoginTest extends TestCase
         ]);
     }
 
+    public function test_failed_login_message_is_generic_whether_or_not_email_exists(): void
+    {
+        $tenant = Tenant::factory()->active()->create([
+            'id' => 'ruhunu',
+            'subdomain' => 'ruhunu',
+        ]);
+
+        User::factory()->create([
+            'tenant_id' => $tenant->id,
+            'email' => 'doctor@ruhunu.lk',
+            'password' => Hash::make('Secret123!'),
+        ]);
+
+        $wrongPassword = $this->post("http://ruhunu.{$this->baseDomain}/login", [
+            'email' => 'doctor@ruhunu.lk',
+            'password' => 'not-it',
+        ]);
+        $wrongPassword->assertSessionHasErrors([
+            'email' => 'Email or password is incorrect.',
+            'auth' => 'failed',
+        ]);
+
+        $this->flushSession();
+
+        $unknownEmail = $this->post("http://ruhunu.{$this->baseDomain}/login", [
+            'email' => 'nobody@ruhunu.lk',
+            'password' => 'not-it',
+        ]);
+        $unknownEmail->assertSessionHasErrors([
+            'email' => 'Email or password is incorrect.',
+            'auth' => 'failed',
+        ]);
+    }
+
+    public function test_login_page_exposes_branding_but_no_clinic_activity(): void
+    {
+        Tenant::factory()->create([
+            'id' => 'ruhunu',
+            'name' => 'Ruhunu Medical Centre',
+            'subdomain' => 'ruhunu',
+            'address' => '12 Main Street, Matara 81000',
+        ]);
+
+        $this->get("http://ruhunu.{$this->baseDomain}/login")
+            ->assertInertia(fn ($page) => $page
+                ->component('Auth/TenantLogin')
+                ->where('tenant.city', 'Matara')
+                ->has('tenant.logo_url')
+                ->has('findClinicUrl')
+                ->missing('tenant.queue')
+                ->missing('sessions')
+            );
+    }
+
+    public function test_login_branding_is_display_ready(): void
+    {
+        Tenant::factory()->create([
+            'id' => 'nallur',
+            'name' => 'Nallur Medical',
+            'subdomain' => 'nallur',
+            'address' => 'puliyankoodal south, KAYTS, jaffna',
+            'website_theme' => 'emerald-health',
+        ]);
+        config(['medvisit.public_domain' => 'medvisit.lk']);
+
+        $this->get("http://nallur.{$this->baseDomain}/login")
+            ->assertInertia(fn ($page) => $page
+                ->where('tenant.address', 'Puliyankoodal South, Kayts, Jaffna')
+                ->where('tenant.city', 'Jaffna')
+                ->where('tenant.brand_color', '#059669')
+                ->where('tenant.public_domain', 'medvisit.lk')
+            );
+
+        // Stored data is untouched; only the display copy is title-cased.
+        $this->assertSame('puliyankoodal south, KAYTS, jaffna', Tenant::find('nallur')->address);
+    }
+
     public function test_rate_limiting_on_failed_logins(): void
     {
         $tenant = Tenant::factory()->active()->create([
@@ -125,6 +202,7 @@ class TenantLoginTest extends TestCase
         $response->assertSessionHasErrors(['email']);
         $errors = session('errors')->get('email');
         $this->assertStringContainsString('Too many login attempts', $errors[0]);
+        $response->assertSessionHasErrors(['auth' => 'throttled', 'retry_after']);
     }
 
     public function test_suspended_tenant_redirects_to_notice_page(): void

@@ -6,20 +6,29 @@ namespace App\Http\Controllers\Tenant\Settings;
 
 use App\Contracts\PaymentGateway;
 use App\Http\Controllers\Controller;
+use App\Mail\Subscription\NewRefundRequestAdminMail;
+use App\Mail\Subscription\RefundRequestReceivedMail;
 use App\Models\PaymentTransaction;
 use App\Models\Plan;
+use App\Models\PlatformIncident;
+use App\Models\RefundRequest;
 use App\Models\Subscription;
 use App\Models\SubscriptionInvoice;
 use App\Models\TenantBillingDetail;
 use App\Services\AuditLogger;
+use App\Services\Billing\CreditNotePdfService;
 use App\Services\Billing\SubscriptionNotificationService;
 use App\Services\Billing\SubscriptionProrationService;
 use App\Services\Billing\SubscriptionReceiptPdfService;
+use App\Services\Refunds\RefundEligibilityService;
+use App\Services\TelegramNotificationService;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
@@ -71,10 +80,10 @@ class BillingCenterController extends Controller
 
         // Invoices / Payment History
         $invoices = $tenant->subscriptionInvoices()
-            ->with(['transactions' => fn ($q) => $q->orderByDesc('id')])
+            ->with(['transactions.refundRequests' => fn ($q) => $q->latest('id')])
             ->orderByDesc('id')
             ->get()
-            ->map(function (SubscriptionInvoice $inv) {
+            ->map(function (SubscriptionInvoice $inv) use ($subscription) {
                 $transaction = $inv->transactions->where('status', 'succeeded')->first() ?? $inv->transactions->first();
                 $methodLabel = 'Credit / Debit Card';
                 $cardDetails = null;
@@ -92,42 +101,130 @@ class BillingCenterController extends Controller
                     $methodLabel = 'Complimentary';
                 }
 
+                $invoicePlanName = $inv->billing_details['new_plan_name'] ?? ($subscription?->plan?->name ?? 'Pro');
+                $invoicePeriod = ($inv->period_start && $inv->period_end)
+                    ? $inv->period_start->setTimezone('Asia/Colombo')->format('j M Y').' – '.$inv->period_end->setTimezone('Asia/Colombo')->format('j M Y')
+                    : null;
+
+                $description = $inv->type === 'proration'
+                    ? "{$invoicePlanName} plan · Upgrade adjustment"
+                    : ($invoicePeriod
+                        ? "{$invoicePlanName} plan · {$invoicePeriod}"
+                        : "{$invoicePlanName} plan · 1 month");
+
+                $latestRefund = $transaction?->refundRequests->first();
+                $refundStatus = $transaction?->refund_status ?? 'none';
+                $canRequestRefund = $inv->status === SubscriptionInvoice::STATUS_PAID
+                    && $transaction
+                    && $transaction->refundable_amount_cents > 0
+                    && ! $transaction->openRefundRequest;
+
+                $refundSummary = $latestRefund ? [
+                    'id' => $latestRefund->id,
+                    'public_id' => $latestRefund->public_id,
+                    'reason_type' => $latestRefund->reason_type,
+                    'reason_label' => ucfirst(str_replace('_', ' ', $latestRefund->reason_type)),
+                    'status' => $latestRefund->status,
+                    'requested_amount_cents' => $latestRefund->requested_amount_cents,
+                    'formatted_requested_amount' => $latestRefund->formatted_requested_amount,
+                    'approved_amount_cents' => $latestRefund->approved_amount_cents,
+                    'formatted_approved_amount' => $latestRefund->formatted_approved_amount,
+                    'decision_reason' => $latestRefund->decision_reason,
+                    'credit_note_number' => $latestRefund->credit_note_number,
+                    'credit_note_url' => $latestRefund->credit_note_number ? route('tenant.settings.billing.refund.credit_note', $latestRefund->id) : null,
+                    'created_at' => $latestRefund->created_at->format('j M Y'),
+                    'decided_at' => $latestRefund->decided_at?->format('j M Y'),
+                    'refunded_at' => $latestRefund->refunded_at?->format('j M Y'),
+                    'can_cancel' => $latestRefund->canBeCancelledByClinic(),
+                ] : null;
+
                 return [
                     'id' => $inv->id,
                     'invoice_number' => $inv->invoice_number,
                     'receipt_number' => $inv->receipt_number,
                     'type' => $inv->type ?? 'subscription',
-                    'description' => $inv->type === 'proration'
-                        ? 'Plan Upgrade Proration Adjustment'
-                        : ($inv->period_start && $inv->period_end
-                            ? $inv->period_start->setTimezone('Asia/Colombo')->format('d/m/Y').' – '.$inv->period_end->setTimezone('Asia/Colombo')->format('d/m/Y')
-                            : '1 Month Subscription'),
+                    'description' => $description,
                     'amount_cents' => $inv->amount_cents,
                     'formatted_amount' => $inv->formatted_amount,
-                    'issue_date' => $inv->created_at?->setTimezone('Asia/Colombo')->format('d/m/Y'),
-                    'paid_at' => $inv->paid_at?->setTimezone('Asia/Colombo')->format('d/m/Y H:i'),
+                    'issue_date' => $inv->created_at?->setTimezone('Asia/Colombo')->format('j M Y'),
+                    'paid_at' => $inv->paid_at?->setTimezone('Asia/Colombo')->format('j M Y H:i'),
                     'status' => $inv->status,
                     'payment_method' => $methodLabel,
                     'card_details' => $cardDetails,
                     'download_url' => route('tenant.settings.billing.invoice.download', $inv->id),
                     'view_url' => route('tenant.settings.billing.invoice.view', $inv->id),
                     'pay_url' => $inv->status === SubscriptionInvoice::STATUS_UNPAID ? route('tenant.subscription.subscribe') : null,
+                    'payment_id' => $transaction?->id,
+                    'refund_status' => $refundStatus,
+                    'refunded_amount_cents' => $transaction?->refunded_amount_cents ?? 0,
+                    'refundable_amount_cents' => $transaction?->refundable_amount_cents ?? 0,
+                    'latest_refund' => $refundSummary,
+                    'can_request_refund' => $canRequestRefund,
                 ];
             });
 
-        // Upcoming renewal invoice preview
+        // Upcoming payment info (manual online payment due date)
         $upcomingInvoice = null;
         if ($subscription && ! $subscription->isComp() && ! $subscription->isCancelling() && $periodEnd) {
             $targetPlan = $subscription->pendingPlan ?? $subscription->plan;
             $upcomingInvoice = [
-                'date' => $periodEnd->format('d/m/Y'),
-                'plan_name' => $targetPlan?->name,
-                'amount' => $targetPlan?->formatted_price,
+                'date' => $periodEnd->format('j M Y'),
+                'plan_name' => $targetPlan?->name ?? 'Pro',
+                'amount' => $targetPlan?->formatted_price ?? 'Rs. 9,000',
                 'is_scheduled_downgrade' => (bool) $subscription->pending_plan_id,
             ];
         }
 
         $unpaidInvoice = $subscription?->latestUnpaidInvoice();
+
+        // Available plans for the change plan drawer / modal (only active plans from config)
+        $currentPlanModel = $subscription?->plan;
+        $activeConfigSlugs = array_keys(config('medvisit_public.plans', ['basic' => [], 'pro' => [], 'advanced' => []]));
+        $plans = Plan::where('is_active', true)
+            ->whereIn('slug', $activeConfigSlugs)
+            ->orderBy('price_cents', 'asc')
+            ->get()
+            ->map(function (Plan $plan) use ($subscription, $currentPlanModel) {
+                $isCurrent = $currentPlanModel && $currentPlanModel->id === $plan->id;
+                $isPending = $subscription && $subscription->pending_plan_id === $plan->id;
+                $configDef = config("medvisit_public.plans.{$plan->slug}", []);
+
+                return [
+                    'id' => $plan->id,
+                    'name' => $plan->name,
+                    'slug' => $plan->slug,
+                    'price_cents' => $plan->price_cents,
+                    'formatted_price' => $plan->formatted_price,
+                    'billing_interval' => $plan->billing_interval,
+                    'badge' => $configDef['badge'] ?? ($plan->slug === 'pro' ? 'Most popular' : null),
+                    'description' => $configDef['description'] ?? null,
+                    'features' => ! empty($plan->features) ? $plan->features : ($configDef['features'] ?? []),
+                    'is_current' => $isCurrent,
+                    'is_pending_downgrade' => $isPending,
+                    'is_upgrade' => $currentPlanModel && $plan->price_cents > $currentPlanModel->price_cents,
+                    'is_downgrade' => $currentPlanModel && $plan->price_cents < $currentPlanModel->price_cents,
+                ];
+            });
+
+        $formattedPeriodStart = $subscription?->current_period_start?->setTimezone('Asia/Colombo')->format('j M Y');
+        $formattedPeriodEnd = $periodEnd?->format('j M Y');
+        $formattedPeriod = ($formattedPeriodStart && $formattedPeriodEnd)
+            ? "{$formattedPeriodStart} – {$formattedPeriodEnd}"
+            : ($formattedPeriodEnd ? "Until {$formattedPeriodEnd}" : null);
+
+        $incidents = PlatformIncident::resolved()
+            ->orderByDesc('ended_at')
+            ->limit(20)
+            ->get()
+            ->filter(fn (PlatformIncident $inc) => $inc->affectsTenant($tenant->id))
+            ->values()
+            ->map(fn (PlatformIncident $inc) => [
+                'id' => $inc->id,
+                'title' => $inc->title,
+                'started_at' => $inc->started_at?->toIso8601String() ?? '',
+                'resolved_at' => $inc->ended_at?->toIso8601String() ?? '',
+                'duration_minutes' => $inc->duration_minutes,
+            ]);
 
         return Inertia::render('Subscription/BillingCenter', [
             'tenant' => [
@@ -147,15 +244,16 @@ class BillingCenterController extends Controller
                 'is_trialing' => $subscription->isTrialing(),
                 'is_cancelling' => $subscription->isCancelling(),
                 'cancels_at_period_end' => (bool) $subscription->cancels_at_period_end,
-                'period_start' => $subscription->current_period_start?->setTimezone('Asia/Colombo')->format('d/m/Y'),
-                'period_end' => $periodEnd?->format('d/m/Y'),
-                'trial_ends_at' => $subscription->trial_ends_at?->setTimezone('Asia/Colombo')->format('d/m/Y'),
+                'period_start' => $formattedPeriodStart ?? $subscription->current_period_start?->setTimezone('Asia/Colombo')->format('d/m/Y'),
+                'period_end' => $formattedPeriodEnd ?? $periodEnd?->format('d/m/Y'),
+                'formatted_period' => $formattedPeriod,
+                'trial_ends_at' => $subscription->trial_ends_at?->setTimezone('Asia/Colombo')->format('j M Y'),
                 'days_remaining' => $daysRemaining,
                 'features' => $subscription->plan?->features ?? [],
                 'pending_plan' => $subscription->pendingPlan ? [
                     'id' => $subscription->pendingPlan->id,
                     'name' => $subscription->pendingPlan->name,
-                    'effective_date' => $periodEnd?->format('d/m/Y'),
+                    'effective_date' => $formattedPeriodEnd ?? $periodEnd?->format('d/m/Y'),
                 ] : null,
             ] : null,
             'actions' => [
@@ -167,13 +265,17 @@ class BillingCenterController extends Controller
             ],
             'billingDetails' => [
                 'legal_name' => $billingDetail?->legal_name ?? $tenant->name,
-                'billing_email' => $billingDetail?->billing_email ?? $tenant->email,
+                'billing_email' => $billingDetail?->billing_email ?: ($tenant->email ?: ($user?->email ?? '')),
                 'phone' => $billingDetail?->phone ?? $tenant->phone,
                 'address' => $billingDetail?->address ?? $tenant->address,
                 'tax_id' => $billingDetail?->tax_id ?? '',
             ],
+            'plans' => $plans,
+            'sharedFeatures' => config('medvisit_public.shared_features', []),
+            'termsVersion' => config('medvisit_public.policies.terms_version', '2026-10-22'),
             'paymentHistory' => $invoices,
             'upcomingInvoice' => $upcomingInvoice,
+            'incidents' => $incidents,
         ]);
     }
 
@@ -191,7 +293,7 @@ class BillingCenterController extends Controller
 
         $validated = $request->validate([
             'legal_name' => ['nullable', 'string', 'max:255'],
-            'billing_email' => ['nullable', 'email', 'max:255'],
+            'billing_email' => ['required', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'address' => ['nullable', 'string', 'max:500'],
             'tax_id' => ['nullable', 'string', 'max:100'],
@@ -316,18 +418,15 @@ class BillingCenterController extends Controller
 
         $currentPlan = $subscription?->plan;
 
+        $activeConfigSlugs = array_keys(config('medvisit_public.plans', ['basic' => [], 'pro' => [], 'advanced' => []]));
         $plans = Plan::where('is_active', true)
-            ->where('slug', '!=', 'comp')
+            ->whereIn('slug', $activeConfigSlugs)
             ->orderBy('price_cents', 'asc')
             ->get()
-            ->map(function (Plan $plan) use ($subscription, $currentPlan, $prorationService) {
+            ->map(function (Plan $plan) use ($subscription, $currentPlan) {
                 $isCurrent = $currentPlan && $currentPlan->id === $plan->id;
                 $isPending = $subscription && $subscription->pending_plan_id === $plan->id;
-
-                $prorationPreview = null;
-                if ($subscription && ! $isCurrent && $plan->price_cents > ($currentPlan?->price_cents ?? 0)) {
-                    $prorationPreview = $prorationService->previewChange($subscription, $plan);
-                }
+                $configDef = config("medvisit_public.plans.{$plan->slug}", []);
 
                 return [
                     'id' => $plan->id,
@@ -336,12 +435,13 @@ class BillingCenterController extends Controller
                     'price_cents' => $plan->price_cents,
                     'formatted_price' => $plan->formatted_price,
                     'billing_interval' => $plan->billing_interval,
-                    'features' => $plan->features ?? [],
+                    'badge' => $configDef['badge'] ?? ($plan->slug === 'pro' ? 'Most popular' : null),
+                    'description' => $configDef['description'] ?? null,
+                    'features' => ! empty($plan->features) ? $plan->features : ($configDef['features'] ?? []),
                     'is_current' => $isCurrent,
                     'is_pending_downgrade' => $isPending,
                     'is_upgrade' => $currentPlan && $plan->price_cents > $currentPlan->price_cents,
                     'is_downgrade' => $currentPlan && $plan->price_cents < $currentPlan->price_cents,
-                    'proration_preview' => $prorationPreview,
                 ];
             });
 
@@ -362,6 +462,7 @@ class BillingCenterController extends Controller
             ] : null,
             'periodEnd' => $subscription?->current_period_end?->setTimezone('Asia/Colombo')->format('d/m/Y'),
             'plans' => $plans,
+            'sharedFeatures' => config('medvisit_public.shared_features', []),
         ]);
     }
 
@@ -397,8 +498,26 @@ class BillingCenterController extends Controller
             return redirect()->back()->with('error', 'Selected plan is not an upgrade.');
         }
 
-        // Get or create 24h price-locked proration invoice
-        $invoice = $prorationService->getOrCreateProrationInvoice($subscription, $newPlan);
+        // Create full new plan invoice with new 1-month period starting today
+        $now = Carbon::now('Asia/Colombo');
+        $invoice = SubscriptionInvoice::create([
+            'tenant_id' => $subscription->tenant_id,
+            'subscription_id' => $subscription->id,
+            'type' => SubscriptionInvoice::TYPE_SUBSCRIPTION,
+            'invoice_number' => SubscriptionInvoice::generateInvoiceNumber(),
+            'amount_cents' => $newPlan->price_cents,
+            'period_start' => $now,
+            'period_end' => $now->copy()->addMonth(),
+            'due_date' => $now,
+            'status' => SubscriptionInvoice::STATUS_UNPAID,
+            'billing_details' => [
+                'new_plan_id' => $newPlan->id,
+                'new_plan_name' => $newPlan->name,
+                'old_plan_id' => $subscription->plan_id,
+                'old_plan_name' => $subscription->plan?->name,
+            ],
+            'notes' => "Upgrade to {$newPlan->name} (new 1-month billing period starts immediately)",
+        ]);
 
         $successUrl = route('tenant.subscription.return');
         $cancelUrl = route('tenant.settings.billing.change_plan');
@@ -566,5 +685,235 @@ class BillingCenterController extends Controller
         }
 
         return $pdfService->streamResponse($invoice);
+    }
+
+    /**
+     * Preview refund eligibility for a specific payment and reason.
+     */
+    public function previewRefundEligibility(
+        Request $request,
+        RefundEligibilityService $eligibilityService
+    ): JsonResponse {
+        $tenant = tenant();
+        $user = $request->user();
+
+        if ($user && ! $user->hasRole('clinic_admin') && ! $user->hasRole('super_admin')) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'payment_id' => ['required', 'integer', 'exists:payment_transactions,id'],
+            'reason' => ['required', 'string'],
+            'platform_incident_id' => ['nullable', 'integer', 'exists:platform_incidents,id'],
+            'reason_details' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $payment = PaymentTransaction::where('tenant_id', $tenant->id)
+            ->with(['tenant', 'invoice'])
+            ->findOrFail($validated['payment_id']);
+
+        $evaluation = $eligibilityService->evaluate(
+            $payment,
+            $validated['reason'],
+            $validated['reason_details'] ?? null
+        );
+
+        $isEligible = $evaluation['eligibility'] === RefundRequest::ELIGIBILITY_ELIGIBLE || $evaluation['eligibility'] === RefundRequest::ELIGIBILITY_PARTIALLY_ELIGIBLE;
+        $requiresManualReview = $evaluation['eligibility'] === RefundRequest::ELIGIBILITY_NEEDS_REVIEW;
+
+        $reasons = [];
+        foreach ($evaluation['checks'] as $c) {
+            $reasons[] = ($c['passed'] ? '✓ ' : '✕ ').$c['message'];
+        }
+
+        return response()->json([
+            'eligible' => $isEligible,
+            'eligible_amount_cents' => $evaluation['eligible_amount_cents'],
+            'formatted_eligible_amount' => 'Rs. '.number_format($evaluation['eligible_amount_cents'] / 100, 2),
+            'currency' => 'LKR',
+            'rule_applied' => $evaluation['reason_summary'],
+            'reasons' => $reasons,
+            'breakdown' => $evaluation['checks'],
+            'requires_manual_review' => $requiresManualReview,
+        ]);
+    }
+
+    /**
+     * Submit a formal refund request.
+     */
+    public function requestRefund(
+        Request $request,
+        RefundEligibilityService $eligibilityService,
+        TelegramNotificationService $telegramService
+    ): RedirectResponse {
+        $tenant = tenant();
+        $user = $request->user();
+
+        if ($user && ! $user->hasRole('clinic_admin') && ! $user->hasRole('super_admin')) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'payment_id' => ['required', 'integer', 'exists:payment_transactions,id'],
+            'reason' => ['required', 'string'],
+            'requested_amount_cents' => ['nullable', 'integer', 'min:1'],
+            'reason_details' => ['required', 'string', 'min:10', 'max:1000'],
+            'platform_incident_id' => ['nullable', 'integer', 'exists:platform_incidents,id'],
+            'acknowledged_policy' => ['required', 'accepted'],
+        ]);
+
+        $payment = PaymentTransaction::where('tenant_id', $tenant->id)
+            ->with(['tenant', 'invoice'])
+            ->findOrFail($validated['payment_id']);
+
+        // Check if there is already an open refund request for this payment
+        if ($payment->openRefundRequest) {
+            return redirect()->back()->with('error', 'A refund request is already pending or approved for this payment.');
+        }
+
+        if ($payment->refundable_amount_cents <= 0) {
+            return redirect()->back()->with('error', 'This payment has already been fully refunded.');
+        }
+
+        // Rate limit: maximum 3 refund requests per clinic in last 30 days
+        $recentRequestsCount = RefundRequest::where('tenant_id', $tenant->id)
+            ->where('created_at', '>=', Carbon::now()->subDays(30))
+            ->count();
+
+        if ($recentRequestsCount >= 3) {
+            return redirect()->back()->with('error', 'You have reached the limit of 3 refund requests in a 30-day period. Please contact support.');
+        }
+
+        // Run policy evaluation
+        $evaluation = $eligibilityService->evaluate(
+            $payment,
+            $validated['reason'],
+            $validated['reason_details']
+        );
+
+        // Default requested amount to eligible amount (capped by refundable amount)
+        $requestedAmountCents = $validated['requested_amount_cents'] ?? $evaluation['eligible_amount_cents'];
+        $requestedAmountCents = min($requestedAmountCents, $payment->refundable_amount_cents);
+
+        if ($requestedAmountCents <= 0) {
+            $requestedAmountCents = $payment->refundable_amount_cents;
+        }
+
+        $refundRequest = RefundRequest::create([
+            'tenant_id' => $tenant->id,
+            'payment_id' => $payment->id,
+            'requested_by_user_id' => $user->id,
+            'reason_type' => $validated['reason'],
+            'description' => $validated['reason_details'],
+            'requested_amount_cents' => $requestedAmountCents,
+            'eligible_amount_cents' => $evaluation['eligible_amount_cents'],
+            'eligibility' => $evaluation['eligibility'],
+            'eligibility_checks' => $evaluation['checks'],
+            'status' => RefundRequest::STATUS_REQUESTED,
+        ]);
+
+        AuditLogger::log('refund.requested', [
+            'tenant_id' => $tenant->id,
+            'user_id' => $user->id,
+            'refund_request_id' => $refundRequest->id,
+            'public_id' => $refundRequest->public_id,
+            'amount_cents' => $requestedAmountCents,
+            'reason' => $refundRequest->reason_type,
+        ]);
+
+        $clinicName = $tenant->name ?? 'Clinic';
+        $billingUrl = route('tenant.settings.billing');
+        $adminReviewUrl = url("/super-admin/refunds/{$refundRequest->id}");
+
+        // Send confirmation email to clinic user
+        try {
+            Mail::to($user->email)->send(new RefundRequestReceivedMail($refundRequest, $clinicName, $billingUrl));
+        } catch (\Throwable $e) {
+            Log::warning('Failed sending RefundRequestReceivedMail', ['error' => $e->getMessage()]);
+        }
+
+        // Send alert email to super admin
+        try {
+            $adminEmail = config('medvisit_public.support_email', config('mail.admin_address', 'support@medvisit.lk'));
+            Mail::to($adminEmail)->send(new NewRefundRequestAdminMail($refundRequest, $clinicName, $adminReviewUrl));
+        } catch (\Throwable $e) {
+            Log::warning('Failed sending NewRefundRequestAdminMail', ['error' => $e->getMessage()]);
+        }
+
+        // Send telegram alert
+        try {
+            $telegramService->sendRefundAlert('New Refund Request', [
+                'Public ID' => $refundRequest->public_id,
+                'Clinic' => $tenant->name,
+                'Amount' => $refundRequest->formatted_requested_amount,
+                'Reason' => $refundRequest->reason_type,
+                'System Check' => $evaluation['eligibility'],
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Failed sending refund telegram alert', ['error' => $e->getMessage()]);
+        }
+
+        return redirect()->back()->with('success', "Refund request {$refundRequest->public_id} submitted. Our team reviews all requests within 2 business days.");
+    }
+
+    /**
+     * Cancel / withdraw a pending refund request.
+     */
+    public function cancelRefund(Request $request, RefundRequest $refundRequest): RedirectResponse
+    {
+        $tenant = tenant();
+        $user = $request->user();
+
+        if ($user && ! $user->hasRole('clinic_admin') && ! $user->hasRole('super_admin')) {
+            abort(403);
+        }
+
+        if ($refundRequest->tenant_id !== $tenant->id) {
+            abort(404);
+        }
+
+        if (! $refundRequest->canBeCancelledByClinic()) {
+            return redirect()->back()->with('error', 'This refund request can no longer be cancelled.');
+        }
+
+        $refundRequest->update([
+            'status' => RefundRequest::STATUS_CANCELLED_BY_CLINIC,
+            'decision_reason' => 'Withdrawn by clinic administrator.',
+        ]);
+
+        AuditLogger::log('refund.cancelled_by_clinic', [
+            'tenant_id' => $tenant->id,
+            'user_id' => $user->id,
+            'refund_request_id' => $refundRequest->id,
+            'public_id' => $refundRequest->public_id,
+        ]);
+
+        return redirect()->back()->with('success', "Refund request {$refundRequest->public_id} has been withdrawn.");
+    }
+
+    /**
+     * Download credit note PDF for a completed refund.
+     */
+    public function downloadCreditNote(
+        Request $request,
+        RefundRequest $refundRequest,
+        CreditNotePdfService $pdfService
+    ): Response {
+        $tenant = tenant();
+        $user = $request->user();
+
+        if ($refundRequest->tenant_id !== $tenant->id && (! $user || ! $user->hasRole('super_admin'))) {
+            abort(404);
+        }
+
+        if ($user && ! $user->hasRole('clinic_admin') && ! $user->hasRole('super_admin')) {
+            abort(403);
+        }
+
+        if (empty($refundRequest->credit_note_number)) {
+            abort(404, 'Credit note not found.');
+        }
+
+        return $pdfService->downloadResponse($refundRequest);
     }
 }

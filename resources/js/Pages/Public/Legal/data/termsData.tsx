@@ -74,11 +74,11 @@ export const termsData: PolicyPageData = {
             ),
         },
         {
-            id: 'payment-and-automatic-renewal',
-            title: 'Payment and automatic renewal',
+            id: 'payment-and-renewals',
+            title: 'Payment and renewals',
             render: () => (
                 <p>
-                    Subscriptions are paid monthly in advance by card through our secure payment gateway partner. By subscribing, you authorise us to charge the price of your selected plan to your card every month until you cancel. All amounts are charged in LKR. We do not store your full card details; card payments are processed securely. If a payment fails, we may retry it and may restrict access to the service until payment is made.
+                    Subscriptions are paid monthly in advance online in LKR through our secure payment gateway partner. Your subscription renews monthly; you pay each month online. You will receive reminder notices by email 7 days and 1 day before each due date. We do not store your full card details; payments are processed securely by our partner. If payment is not completed within 3 days after the due date, access to the clinic dashboard is paused until payment is made.
                 </p>
             ),
         },

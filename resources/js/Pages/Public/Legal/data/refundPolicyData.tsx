@@ -7,14 +7,14 @@ export const refundPolicyData: PolicyPageData = {
     title: 'Refund and Cancellation Policy',
     eyebrow: 'Merchant Policy',
     description: 'MedVisit Refund and Cancellation Policy for clinic subscriptions billed in LKR.',
-    lastUpdated: '21 October 2026',
+    lastUpdated: '22 October 2026',
     readingTime: '3 min read',
     tokenMotif: 'REF-02',
     keyPoints: [
         'Cancel anytime from Billing with zero penalties or lock-in contracts.',
-        'Full refund for duplicate/wrong charges or an unused first payment within 7 days.',
-        'Pro-rata refund for service downtime over 48 continuous hours.',
-        'Approved refunds returned to original card within 7–14 working days.',
+        'Submit refund requests directly from Settings → Billing or by emailing support.',
+        'Instant automated eligibility check against policy terms with admin review in 2 business days.',
+        'Approved refunds processed in 3–5 business days with official credit note (CN-YYYY-XXXXXX).',
     ],
     sections: [
         {
@@ -72,7 +72,7 @@ export const refundPolicyData: PolicyPageData = {
                             <a href={`mailto:${supportEmail}`} className="text-primary font-semibold underline">
                                 {supportEmail}
                             </a>{' '}
-                            within 14 days of the outage.
+                            within 14 days of the outage or select the verified outage directly from your Billing center.
                         </p>
                     </div>
                 );
@@ -109,13 +109,21 @@ export const refundPolicyData: PolicyPageData = {
             render: ({ business }) => {
                 const supportEmail = business.support_email || business.email || 'support@medvisit.lk';
                 return (
-                    <p>
-                        Email{' '}
-                        <a href={`mailto:${supportEmail}`} className="text-primary font-medium underline">
-                            {supportEmail}
-                        </a>{' '}
-                        from your registered email address with your clinic name, payment date, amount and the reason. We will reply within 2 working days.
-                    </p>
+                    <div className="space-y-3">
+                        <p>
+                            You can submit a refund request directly through your clinic dashboard by navigating to <strong>Settings → Billing → Payment History</strong> and clicking <strong>Request Refund</strong> next to any eligible paid charge. You will see an instant automated eligibility check and breakdown according to our policy terms before you submit.
+                        </p>
+                        <p>
+                            Alternatively, you may email{' '}
+                            <a href={`mailto:${supportEmail}`} className="text-primary font-medium underline">
+                                {supportEmail}
+                            </a>{' '}
+                            from your registered email address with your clinic name, invoice/receipt number, payment date, amount, and reason.
+                        </p>
+                        <Callout variant="info" title="Review and processing timelines">
+                            All requests undergo administrative review within <strong>2 business days</strong>. Once approved, the refund is executed within <strong>3–5 business days</strong> back to your original payment card or bank account, accompanied by an official Sri Lankan Credit Note (<code>CN-YYYY-XXXXXX</code>) accessible anytime from your Billing Center.
+                        </Callout>
+                    </div>
                 );
             },
         },

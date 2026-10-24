@@ -3,6 +3,9 @@
 namespace App\Http\Middleware;
 
 use App\Models\DoctorSession;
+use App\Models\RefundRequest;
+use App\Models\Subscription;
+use App\Models\SupportConversation;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -49,14 +52,24 @@ class HandleInertiaRequests extends Middleware
             ],
             'tenant' => $tenant ? [
                 'id' => $tenant->id,
-                'name' => ucwords((string) $tenant->name),
+                'name' => (string) ($tenant->name ?? ''),
                 'subdomain' => $tenant->subdomain,
                 'status' => $tenant->status,
                 'phone' => $tenant->phone,
-                'address' => $tenant->address,
-                'plan' => ucfirst((string) ($tenant->plan ?? 'Growth')),
+                'address' => (string) ($tenant->formatted_address ?: $tenant->address ?: ''),
+                'address_line' => (string) ($tenant->address_line ?? ''),
+                'city' => (string) ($tenant->city ?? ''),
+                'district' => (string) ($tenant->district ?? ''),
+                'postal_code' => (string) ($tenant->postal_code ?? ''),
+                'legacy_address' => (string) ($tenant->legacy_address ?? ''),
+                'plan' => rescue(fn () => $tenant->currentPlanDisplayName(), ucfirst((string) ($tenant->plan ?? 'Pro')), false),
                 'trial_days_left' => $tenant->trial_ends_at ? max(0, (int) now()->diffInDays($tenant->trial_ends_at, false)) : 14,
                 'is_trial' => $tenant->status === 'trialing' || ($tenant->trial_ends_at && now()->lt($tenant->trial_ends_at)),
+                'subscription_days_left' => rescue(function () use ($tenant) {
+                    $sub = Subscription::where('tenant_id', $tenant->id)->first();
+
+                    return ($sub && $sub->current_period_end) ? (int) now()->diffInDays($sub->current_period_end, false) : null;
+                }, null, false),
                 'base_domain' => config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost')),
                 'website_theme' => $tenant->website_theme ?? 'medvisit-teal',
                 'website_header' => $tenant->website_header ?? null,
@@ -74,8 +87,27 @@ class HandleInertiaRequests extends Middleware
                         return 0;
                     }
 
-                    return DoctorSession::where('session_date', Carbon::today('Asia/Colombo')->toDateString())
-                        ->whereIn('status', ['in_progress', 'scheduled'])
+                    $colomboNow = Carbon::now('Asia/Colombo');
+                    $today = $colomboNow->toDateString();
+                    $currentTime = $colomboNow->format('H:i:s');
+
+                    return DoctorSession::where('session_date', $today)
+                        ->where('status', 'in_progress')
+                        ->where('end_time', '>=', $currentTime)
+                        ->count();
+                }, 0, false),
+                'overrunning_sessions_count' => rescue(function () use ($tenant, $request) {
+                    if (! $tenant || ! $request->user()) {
+                        return 0;
+                    }
+
+                    $colomboNow = Carbon::now('Asia/Colombo');
+                    $today = $colomboNow->toDateString();
+                    $currentTime = $colomboNow->format('H:i:s');
+
+                    return DoctorSession::where('session_date', $today)
+                        ->where('status', 'in_progress')
+                        ->where('end_time', '<', $currentTime)
                         ->count();
                 }, 0, false),
             ] : null,
@@ -95,6 +127,30 @@ class HandleInertiaRequests extends Middleware
                 'return_url' => session('impersonation_return_url'),
             ] : null,
             'publicConfig' => config('medvisit_public'),
+            'waitingSupportCount' => rescue(function () use ($request) {
+                if ($request->user()?->hasRole('super_admin')) {
+                    return SupportConversation::where('status', 'waiting_human')->count();
+                }
+
+                return 0;
+            }, 0, false),
+            'pendingRefundsCount' => rescue(function () use ($request) {
+                if ($request->user()?->hasRole('super_admin')) {
+                    return RefundRequest::whereIn('status', [
+                        RefundRequest::STATUS_REQUESTED,
+                        RefundRequest::STATUS_UNDER_REVIEW,
+                    ])->count();
+                }
+
+                return 0;
+            }, 0, false),
+            'turnstileSiteKey' => config('services.turnstile.site_key'),
+            'reverb' => [
+                'key' => config('broadcasting.connections.reverb.key') ?? config('reverb.apps.apps.0.key'),
+                'host' => config('broadcasting.connections.reverb.options.host') ?? env('REVERB_HOST', 'localhost'),
+                'port' => config('broadcasting.connections.reverb.options.port') ?? env('REVERB_PORT', 8080),
+                'scheme' => config('broadcasting.connections.reverb.options.scheme') ?? env('REVERB_SCHEME', 'http'),
+            ],
         ];
     }
 }

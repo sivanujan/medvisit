@@ -63,6 +63,14 @@ class TenantSignedLoginController extends Controller
             return redirect()->route('tenant.suspended');
         }
 
+        if ($request->filled('redirect')) {
+            return redirect($request->query('redirect'));
+        }
+
+        if (! $tenant->hasActiveSubscription() && $user->hasRole('clinic_admin')) {
+            return redirect()->route('tenant.subscription.subscribe');
+        }
+
         return redirect()->intended(RoleRedirect::path($request));
     }
 }
