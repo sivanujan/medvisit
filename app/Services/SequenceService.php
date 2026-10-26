@@ -72,6 +72,19 @@ class SequenceService
     }
 
     /**
+     * Generate the next dedicated, gapless-per-tenant credit note number (e.g. CN-2026-000001).
+     */
+    public function nextCreditNoteNumber(string $tenantId, ?int $year = null): string
+    {
+        $year = $year ?? (int) date('Y');
+        $key = "credit_note_{$year}";
+
+        $seq = $this->next($tenantId, $key);
+
+        return sprintf('CN-%04d-%06d', $year, $seq);
+    }
+
+    /**
      * Ensure the payout sequence is initialized for this tenant based on existing settlements.
      */
     public function ensurePayoutSequenceSeeded(string $tenantId, int $year): void

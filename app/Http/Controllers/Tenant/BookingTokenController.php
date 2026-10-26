@@ -689,6 +689,8 @@ class BookingTokenController extends Controller
             'destination_session_id' => ['required', 'exists:doctor_sessions,id'],
             'reason' => ['nullable', 'string', 'max:255'],
             'notify_patient' => ['nullable', 'boolean'],
+            'fee_action' => ['nullable', 'string', 'in:keep_current_fee,collect_difference,record_refund'],
+            'payment_method' => ['nullable', 'string', 'in:cash,card,bank_transfer,online'],
         ]);
 
         if (in_array($token->status, [BookingToken::STATUS_IN_CONSULTATION, BookingToken::STATUS_COMPLETED], true)) {
@@ -797,48 +799,214 @@ class BookingTokenController extends Controller
                 'move_reason' => $moveReason,
             ]);
 
-            // 7. Handle Bill according to immutable paid bill rule
+            // 7. Handle Bill according to fee action rules
             $bill = $lockedToken->bill;
             $diffCents = 0;
             $differentialMessage = '';
+            $feeAction = $validated['fee_action'] ?? null;
+            $diffReceiptNumber = null;
+            $creditNoteNumber = null;
 
             if ($bill) {
                 if ($bill->payment_status === Bill::STATUS_PAID) {
-                    // Paid bills are immutable: Keep original amounts and payment.
-                    // Re-link bill to the new token and new doctor.
+                    $newTotal = (int) ($newSnapshot['patient_total'] ?? 0);
+                    $paidTotal = (int) $bill->total_amount;
+                    $diffCents = $newTotal - $paidTotal;
+
+                    // Re-link bill to the new token and new doctor
                     $bill->update([
                         'booking_token_id' => $newToken->id,
                         'doctor_id' => $destSession->doctor_id,
                     ]);
 
-                    $newTotal = (int) ($newSnapshot['patient_total'] ?? 0);
-                    $paidTotal = (int) $bill->total_amount;
-                    $diffCents = $newTotal - $paidTotal;
+                    if ($diffCents > 0 && $feeAction === 'collect_difference') {
+                        // PATH 3: "Collect difference": creates a separate paid bill line/receipt for the difference (gapless receipt number). The snapshot is updated to the new fee.
+                        $diffReceiptNumber = $this->sequenceService->nextReceiptNumber($tenantId);
 
-                    // Record separate adjustment entry via central BillCalculator
-                    $this->billCalculator->recordMoveAdjustment(
-                        bill: $bill,
-                        diffCents: $diffCents,
-                        reason: "Move adjustment from Dr. {$currentSession->doctor?->name} to Dr. {$destSession->doctor?->name}",
-                        metadata: [
-                            'old_token_id' => $lockedToken->id,
-                            'new_token_id' => $newToken->id,
-                            'old_session_id' => $currentSession->id,
-                            'new_session_id' => $destSession->id,
-                            'old_doctor_id' => $currentSession->doctor_id,
-                            'new_doctor_id' => $destSession->doctor_id,
-                            'paid_total_cents' => $paidTotal,
-                            'new_total_cents' => $newTotal,
-                            'differential_cents' => $diffCents,
-                        ]
-                    );
+                        Bill::create([
+                            'tenant_id' => $tenantId,
+                            'booking_token_id' => $newToken->id,
+                            'patient_id' => $lockedToken->patient_id,
+                            'doctor_id' => $destSession->doctor_id,
+                            'receipt_number' => $diffReceiptNumber,
+                            'payment_status' => Bill::STATUS_PAID,
+                            'payment_method' => $validated['payment_method'] ?? 'cash',
+                            'total_amount' => $diffCents,
+                            'clinic_fee' => $diffCents,
+                            'paid_at' => now(),
+                            'notes' => "Collected fee difference on move to Dr. {$destSession->doctor?->name}",
+                        ]);
 
-                    if ($diffCents > 0) {
-                        $differentialMessage = 'Balance due: Rs. '.number_format($diffCents / 100, 2);
-                    } elseif ($diffCents < 0) {
-                        $differentialMessage = 'Refund due: Rs. '.number_format(abs($diffCents) / 100, 2);
+                        $newDocShare = (int) ($newSnapshot['doctor_payout_amount'] ?? $newSnapshot['doctor_fee_portion']);
+                        $newClinicShare = (int) ($newSnapshot['clinic_net_amount'] ?? $newSnapshot['clinic_portion']);
+
+                        $bill->update([
+                            'total_amount' => $newTotal,
+                            'doctor_fee' => $newDocShare,
+                            'clinic_fee' => $newClinicShare,
+                            'doctor_payout_amount' => $newDocShare,
+                            'clinic_net_amount' => $newClinicShare,
+                            'fee_snapshot' => $newSnapshot,
+                        ]);
+
+                        $newToken->update(['fee_snapshot' => $newSnapshot]);
+
+                        $this->billCalculator->recordMoveAdjustment(
+                            bill: $bill,
+                            diffCents: $diffCents,
+                            reason: 'Collected fee difference of Rs. '.number_format($diffCents / 100, 2)." via {$diffReceiptNumber}",
+                            metadata: [
+                                'old_token_id' => $lockedToken->id,
+                                'new_token_id' => $newToken->id,
+                                'fee_action' => 'collect_difference',
+                                'difference_receipt_number' => $diffReceiptNumber,
+                                'paid_total_cents' => $paidTotal,
+                                'new_total_cents' => $newTotal,
+                                'diff_cents' => $diffCents,
+                            ]
+                        );
+
+                        $differentialMessage = 'Collected fee difference of Rs. '.number_format($diffCents / 100, 2)." (Receipt: {$diffReceiptNumber}).";
+                    } elseif ($diffCents < 0 && $feeAction === 'record_refund') {
+                        // PATH 4: "Record refund of difference": creates the refund record or credit note and reduces the snapshot.
+                        $creditNoteNumber = $this->sequenceService->nextCreditNoteNumber($tenantId);
+                        $refundAmountCents = abs($diffCents);
+
+                        $newDocShare = (int) ($newSnapshot['doctor_payout_amount'] ?? $newSnapshot['doctor_fee_portion']);
+                        $newClinicShare = (int) ($newSnapshot['clinic_net_amount'] ?? $newSnapshot['clinic_portion']);
+
+                        $bill->update([
+                            'total_amount' => $newTotal,
+                            'doctor_fee' => $newDocShare,
+                            'clinic_fee' => $newClinicShare,
+                            'doctor_payout_amount' => $newDocShare,
+                            'clinic_net_amount' => $newClinicShare,
+                            'fee_snapshot' => $newSnapshot,
+                        ]);
+
+                        $newToken->update(['fee_snapshot' => $newSnapshot]);
+
+                        $this->billCalculator->recordMoveAdjustment(
+                            bill: $bill,
+                            diffCents: $diffCents,
+                            reason: 'Refund difference of Rs. '.number_format($refundAmountCents / 100, 2)." credited ({$creditNoteNumber})",
+                            metadata: [
+                                'old_token_id' => $lockedToken->id,
+                                'new_token_id' => $newToken->id,
+                                'fee_action' => 'record_refund',
+                                'credit_note_number' => $creditNoteNumber,
+                                'refund_amount_cents' => $refundAmountCents,
+                                'paid_total_cents' => $paidTotal,
+                                'new_total_cents' => $newTotal,
+                            ]
+                        );
+
+                        $differentialMessage = "Refund recorded: Credit Note {$creditNoteNumber} for Rs. ".number_format($refundAmountCents / 100, 2).'.';
+                    } elseif ($diffCents > 0 && $feeAction === 'keep_current_fee') {
+                        // PATH 1: Higher fee + "Keep current fee": snapshot stays at the paid amount; the doctor share stays at the paid snapshot (e.g. 1,500).
+                        $originalDocShare = (int) ($lockedToken->fee_snapshot['doctor_payout_amount'] ?? $bill->doctor_fee);
+                        $retainedClinicNet = max(0, $paidTotal - $originalDocShare);
+
+                        $newSnapshot['patient_total'] = $paidTotal;
+                        $newSnapshot['gross_subtotal'] = $paidTotal;
+                        $newSnapshot['doctor_payout_amount'] = $originalDocShare;
+                        $newSnapshot['doctor_fee_portion'] = $originalDocShare;
+                        $newSnapshot['clinic_net_amount'] = $retainedClinicNet;
+                        $newSnapshot['clinic_portion'] = $retainedClinicNet;
+                        $newSnapshot['fee_action'] = 'keep_current_fee';
+                        $newSnapshot['retained_paid_amount'] = $paidTotal;
+
+                        $bill->update([
+                            'total_amount' => $paidTotal,
+                            'doctor_fee' => $originalDocShare,
+                            'clinic_fee' => $retainedClinicNet,
+                            'doctor_payout_amount' => $originalDocShare,
+                            'clinic_net_amount' => $retainedClinicNet,
+                            'fee_snapshot' => $newSnapshot,
+                        ]);
+
+                        $newToken->update(['fee_snapshot' => $newSnapshot]);
+
+                        $this->billCalculator->recordMoveAdjustment(
+                            bill: $bill,
+                            diffCents: 0,
+                            reason: 'Kept original fee (Rs. '.number_format($paidTotal / 100, 2).'). Doctor share maintained at Rs. '.number_format($originalDocShare / 100, 2).'.',
+                            metadata: [
+                                'old_token_id' => $lockedToken->id,
+                                'new_token_id' => $newToken->id,
+                                'fee_action' => 'keep_current_fee',
+                                'higher_fee_retained' => true,
+                                'paid_total_cents' => $paidTotal,
+                                'doctor_share_cents' => $originalDocShare,
+                            ]
+                        );
+
+                        $differentialMessage = 'Current fee maintained (Rs. '.number_format($paidTotal / 100, 2).'). Doctor share stays at paid snapshot.';
+                    } elseif ($diffCents < 0 && $feeAction === 'keep_current_fee') {
+                        // PATH 2: Lower fee + "Keep current fee": no refund. The doctor share = the NEW session's doctor fee (from the new fee config), and the remainder goes to the clinic share. The snapshot records both the paid total and the new split.
+                        $newDoctorShare = (int) ($newSnapshot['doctor_payout_amount'] ?? $newSnapshot['doctor_fee_portion'] ?? 0);
+                        $adjustedClinicShare = max(0, $paidTotal - $newDoctorShare);
+
+                        $newSnapshot['patient_total'] = $paidTotal;
+                        $newSnapshot['doctor_payout_amount'] = $newDoctorShare;
+                        $newSnapshot['doctor_fee_portion'] = $newDoctorShare;
+                        $newSnapshot['clinic_net_amount'] = $adjustedClinicShare;
+                        $newSnapshot['clinic_portion'] = $adjustedClinicShare;
+                        $newSnapshot['fee_action'] = 'keep_current_fee';
+                        $newSnapshot['split_adjusted'] = true;
+
+                        $bill->update([
+                            'total_amount' => $paidTotal,
+                            'doctor_fee' => $newDoctorShare,
+                            'clinic_fee' => $adjustedClinicShare,
+                            'doctor_payout_amount' => $newDoctorShare,
+                            'clinic_net_amount' => $adjustedClinicShare,
+                            'fee_snapshot' => $newSnapshot,
+                        ]);
+
+                        $newToken->update(['fee_snapshot' => $newSnapshot]);
+
+                        $this->billCalculator->recordMoveAdjustment(
+                            bill: $bill,
+                            diffCents: 0,
+                            reason: 'Lower fee retained: No refund. New doctor share: Rs. '.number_format($newDoctorShare / 100, 2).', Clinic share: Rs. '.number_format($adjustedClinicShare / 100, 2).'.',
+                            metadata: [
+                                'old_token_id' => $lockedToken->id,
+                                'new_token_id' => $newToken->id,
+                                'fee_action' => 'keep_current_fee',
+                                'paid_total_cents' => $paidTotal,
+                                'new_doctor_share_cents' => $newDoctorShare,
+                                'adjusted_clinic_share_cents' => $adjustedClinicShare,
+                            ]
+                        );
+
+                        $differentialMessage = 'No refund. Doctor share updated to Rs. '.number_format($newDoctorShare / 100, 2).', remainder allocated to clinic share.';
                     } else {
-                        $differentialMessage = 'No fee difference.';
+                        // Default / legacy move adjustment: record differential on bill
+                        $this->billCalculator->recordMoveAdjustment(
+                            bill: $bill,
+                            diffCents: $diffCents,
+                            reason: "Move adjustment from Dr. {$currentSession->doctor?->name} to Dr. {$destSession->doctor?->name}",
+                            metadata: [
+                                'old_token_id' => $lockedToken->id,
+                                'new_token_id' => $newToken->id,
+                                'old_session_id' => $currentSession->id,
+                                'new_session_id' => $destSession->id,
+                                'old_doctor_id' => $currentSession->doctor_id,
+                                'new_doctor_id' => $destSession->doctor_id,
+                                'paid_total_cents' => $paidTotal,
+                                'new_total_cents' => $newTotal,
+                                'differential_cents' => $diffCents,
+                            ]
+                        );
+
+                        if ($diffCents > 0) {
+                            $differentialMessage = 'Balance due: Rs. '.number_format($diffCents / 100, 2);
+                        } elseif ($diffCents < 0) {
+                            $differentialMessage = 'Refund due: Rs. '.number_format(abs($diffCents) / 100, 2);
+                        } else {
+                            $differentialMessage = 'No fee difference.';
+                        }
                     }
                 } else {
                     // Unpaid bills: simply recalculate with new fee snapshot
@@ -877,7 +1045,10 @@ class BookingTokenController extends Controller
                     'patient_id' => $lockedToken->patient_id,
                     'old_session_id' => $lockedToken->doctor_session_id,
                     'new_session_id' => $destSession->id,
+                    'fee_action' => $feeAction,
                     'diff_cents' => $diffCents,
+                    'difference_receipt_number' => $diffReceiptNumber,
+                    'credit_note_number' => $creditNoteNumber,
                     'reason' => $moveReason,
                 ],
                 'ip_address' => $request->ip(),
