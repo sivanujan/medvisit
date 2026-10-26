@@ -106,15 +106,20 @@ class BookingTokenController extends Controller
             ->where('is_active', true)
             ->orderBy('name')
             ->get(['id', 'title', 'name', 'specialty', 'doctor_fee', 'clinic_fee', 'avg_consultation_minutes'])
-            ->map(fn ($d) => [
-                'id' => $d->id,
-                'name' => trim(($d->title ?? 'Dr.').' '.$d->name),
-                'specialty' => $d->specialty,
-                'avg_consultation_minutes' => $d->avg_consultation_minutes,
-                'doctor_fee_lkr' => round($d->doctor_fee / 100, 2),
-                'clinic_fee_lkr' => round($d->clinic_fee / 100, 2),
-                'total_fee_lkr' => round(($d->doctor_fee + $d->clinic_fee) / 100, 2),
-            ]);
+            ->map(function ($d) {
+                $title = $d->title ?: 'Dr.';
+                $displayName = preg_match('/^(dr\.?|prof\.?)\s+/i', $d->name) ? $d->name : "{$title} {$d->name}";
+
+                return [
+                    'id' => $d->id,
+                    'name' => trim($displayName),
+                    'specialty' => $d->specialty,
+                    'avg_consultation_minutes' => $d->avg_consultation_minutes,
+                    'doctor_fee_lkr' => round($d->doctor_fee / 100, 2),
+                    'clinic_fee_lkr' => round($d->clinic_fee / 100, 2),
+                    'total_fee_lkr' => round(($d->doctor_fee + $d->clinic_fee) / 100, 2),
+                ];
+            });
 
         // 1. Fetch upcoming active sessions (for the next 30 days)
         $sessions = DoctorSession::with(['doctor'])
@@ -166,7 +171,7 @@ class BookingTokenController extends Controller
                 return [
                     'id' => $s->id,
                     'doctor_id' => $s->doctor_id,
-                    'doctor_name' => trim(($s->doctor?->title ?? 'Dr.').' '.($s->doctor?->name ?? 'Doctor')),
+                    'doctor_name' => trim(preg_match('/^(dr\.?|prof\.?)\s+/i', (string) ($s->doctor?->name ?? '')) ? ($s->doctor?->name ?? 'Doctor') : (($s->doctor?->title ?? 'Dr.').' '.($s->doctor?->name ?? 'Doctor'))),
                     'doctor_specialty' => $s->doctor?->specialty ?? 'General',
                     'doctor_photo_url' => $s->doctor?->photo_url,
                     'doctor_initials' => $initials,

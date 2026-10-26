@@ -1406,12 +1406,12 @@ Live Queue: https://${clinicInfo.subdomain}.medvisit.lk/queue/tv`;
                                                                 setData('discount_type', dt);
                                                                 if (dt === 'waiver') setData('discount_value', 100);
                                                             }}
-                                                            className="w-full px-3 py-2 rounded-xl text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-slate-200"
+                                                            className="w-full px-3 py-2 rounded-xl text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-slate-100 dark:[color-scheme:dark] focus:ring-2 focus:ring-[#1E6FD9] focus:outline-hidden"
                                                         >
-                                                            <option value="none">No discount</option>
-                                                            <option value="percent">Percentage (%)</option>
-                                                            <option value="amount">Fixed amount (Rs.)</option>
-                                                            <option value="waiver">Full fee waiver (100%)</option>
+                                                            <option value="none" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 py-1">No discount</option>
+                                                            <option value="percent" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 py-1">Percentage (%)</option>
+                                                            <option value="amount" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 py-1">Fixed amount (Rs.)</option>
+                                                            <option value="waiver" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 py-1">Full fee waiver (100%)</option>
                                                         </select>
                                                     </div>
 
@@ -1821,14 +1821,21 @@ Live Queue: https://${clinicInfo.subdomain}.medvisit.lk/queue/tv`;
                                     <select
                                         value={quickDocId}
                                         onChange={(e) => setQuickDocId(e.target.value)}
-                                        className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-slate-200"
+                                        className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 dark:[color-scheme:dark] focus:ring-2 focus:ring-[#1E6FD9] focus:outline-hidden"
                                         required
                                     >
-                                        {doctors.map((d) => (
-                                            <option key={d.id} value={String(d.id)}>
-                                                {d.name} ({d.specialty})
-                                            </option>
-                                        ))}
+                                        {doctors.map((d) => {
+                                            const cleanName = d.name.replace(/^(Dr\.?\s*)+/i, 'Dr. ');
+                                            return (
+                                                <option
+                                                    key={d.id}
+                                                    value={String(d.id)}
+                                                    className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 py-1"
+                                                >
+                                                    {cleanName} ({d.specialty})
+                                                </option>
+                                            );
+                                        })}
                                     </select>
                                 </div>
 

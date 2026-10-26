@@ -83,6 +83,21 @@ body {
     color: #0F172A !important;
 }
 
+/* High-contrast dropdown select & option styling across operating systems and browsers */
+select option {
+    background-color: #ffffff;
+    color: #0f172a;
+}
+
+.dark select {
+    color-scheme: dark;
+}
+
+.dark select option {
+    background-color: #0f172a;
+    color: #f8fafc;
+}
+
 .dark .public-booking-flow,
 .dark [data-public-booking="true"] {
     background-color: #F8FAFC !important;
