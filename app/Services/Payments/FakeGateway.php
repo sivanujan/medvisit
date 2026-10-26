@@ -73,7 +73,7 @@ class FakeGateway implements PaymentGateway
             'status' => 'completed',
             'payment_id' => 'pay_fake_default',
             'payment_status' => 'succeeded',
-            'amount_cents' => 500000,
+            'amount_cents' => (int) (config('medvisit_public.plans.pro.price_cents') ?? 900000),
             'currency' => 'LKR',
             'reference' => 'INV-2026-000001',
             'raw' => [],

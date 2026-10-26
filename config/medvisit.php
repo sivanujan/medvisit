@@ -35,7 +35,6 @@ return [
 
     'subscription' => [
         'trial_days' => (int) env('MEDVISIT_TRIAL_DAYS', 0),
-        'default_price_cents' => (int) env('MEDVISIT_PLAN_PRICE_CENTS', 900000), // Rs. 9,000 (Pro plan default)
         'grace_days' => (int) env('MEDVISIT_GRACE_DAYS', 3),
     ],
 ];

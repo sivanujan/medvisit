@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\SubscriptionInvoice;
 use Carbon\Carbon;
@@ -34,8 +33,10 @@ class CheckSubscriptionRenewalsCommand extends Command
     {
         $now = Carbon::now();
         $graceDays = (int) config('medvisit.subscription.grace_days', 3);
-        $standardPlan = Plan::where('slug', 'medvisit-standard')->first();
-        $defaultPriceCents = $standardPlan?->price_cents ?? (int) config('medvisit.subscription.default_price_cents', 500000);
+        $defaultPriceCents = (int) config('medvisit_public.plans.pro.price_cents');
+        if (! $defaultPriceCents) {
+            throw new \RuntimeException("Missing pricing configuration for 'pro' plan in config('medvisit_public.plans').");
+        }
 
         $this->info("Checking subscription renewals and expirations at {$now->toDateTimeString()}...");
 
@@ -64,7 +65,7 @@ class CheckSubscriptionRenewalsCommand extends Command
                     'tenant_id' => $sub->tenant_id,
                     'subscription_id' => $sub->id,
                     'invoice_number' => SubscriptionInvoice::generateInvoiceNumber(),
-                    'amount_cents' => $sub->plan?->price_cents ?? $defaultPriceCents,
+                    'amount_cents' => $sub->plan?->price_cents ?? ((int) config("medvisit_public.plans.{$sub->tenant?->plan}.price_cents") ?: $defaultPriceCents),
                     'period_start' => $periodStart,
                     'period_end' => $periodEnd,
                     'due_date' => $periodStart,

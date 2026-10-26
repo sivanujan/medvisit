@@ -102,15 +102,21 @@ class SubscriptionBillingController extends Controller
             abort(404, 'Subscription record not found.');
         }
 
-        // Resolve the selected plan from config
-        $plansConfig = config('medvisit_public.plans', []);
+        // Resolve the selected plan from config (single source of truth)
+        $plansConfig = config('medvisit_public.plans');
+        if (empty($plansConfig) || ! is_array($plansConfig)) {
+            throw new \RuntimeException("Plan configuration 'medvisit_public.plans' is missing.");
+        }
         $selectedPlanSlug = (string) $request->input('plan_slug', 'pro');
         if (! isset($plansConfig[$selectedPlanSlug])) {
-            $selectedPlanSlug = 'pro';
+            throw new \RuntimeException("Requested plan [{$selectedPlanSlug}] is not defined in config('medvisit_public.plans').");
         }
 
         $plan = Plan::forSlug($selectedPlanSlug);
-        $planPriceCents = $plan ? $plan->price_cents : (int) ($plansConfig[$selectedPlanSlug]['price_cents'] ?? 900000);
+        if (! $plan) {
+            throw new \RuntimeException("Unable to initialize plan [{$selectedPlanSlug}] from canonical config.");
+        }
+        $planPriceCents = (int) $plansConfig[$selectedPlanSlug]['price_cents'];
 
         $now = Carbon::now();
         $termsVersion = (string) config('medvisit_public.policies.terms_version', '2026-10-21');
@@ -193,10 +199,13 @@ class SubscriptionBillingController extends Controller
      */
     public function return(Request $request): Response
     {
+        $tenant = tenant();
+
         return Inertia::render('Subscription/Return', [
             'checkoutId' => $request->query('checkout'),
             'initialStatus' => $request->query('status'),
-            'clinicName' => tenant('name'),
+            'clinicName' => $tenant?->name,
+            'defaultRedirect' => ($tenant && $tenant->needsSetup()) ? route('tenant.setup') : route('tenant.dashboard'),
         ]);
     }
 
@@ -214,10 +223,12 @@ class SubscriptionBillingController extends Controller
         // 1. Check if invoice is already marked paid (e.g. by webhook)
         $latestInvoice = $tenant->subscriptionInvoices()->latest('id')->first();
         if ($latestInvoice && $latestInvoice->status === SubscriptionInvoice::STATUS_PAID) {
+            $redirectUrl = $tenant->needsSetup() ? route('tenant.setup') : route('tenant.dashboard');
+
             return response()->json([
                 'status' => 'succeeded',
                 'invoice_number' => $latestInvoice->invoice_number,
-                'redirect' => route('tenant.dashboard'),
+                'redirect' => $redirectUrl,
             ]);
         }
 
@@ -229,18 +240,24 @@ class SubscriptionBillingController extends Controller
                 $paymentStatus = $checkout['payment_status'] ?? null;
 
                 if ($status === 'succeeded' || $status === 'completed' || $paymentStatus === 'succeeded') {
+                    $invoiceAmount = (int) ($checkout['amount_cents'] ?? $latestInvoice?->amount_cents);
+                    if ($invoiceAmount <= 0) {
+                        throw new \RuntimeException("Unable to resolve valid amount for invoice [{$latestInvoice?->invoice_number}].");
+                    }
                     $paymentService->processSuccessfulPayment([
                         'reference' => (string) ($checkout['reference'] ?? ($latestInvoice?->invoice_number ?? '')),
-                        'amount_cents' => (int) ($checkout['amount_cents'] ?? ($latestInvoice?->amount_cents ?? 500000)),
+                        'amount_cents' => $invoiceAmount,
                         'currency' => (string) ($checkout['currency'] ?? 'LKR'),
                         'status' => 'succeeded',
                         'checkout_id' => $checkoutId,
                         'payment_id' => $checkout['payment_id'] ?? null,
                     ], $checkout['raw'] ?? []);
 
+                    $redirectUrl = $tenant->needsSetup() ? route('tenant.setup') : route('tenant.dashboard');
+
                     return response()->json([
                         'status' => 'succeeded',
-                        'redirect' => route('tenant.dashboard'),
+                        'redirect' => $redirectUrl,
                     ]);
                 }
 

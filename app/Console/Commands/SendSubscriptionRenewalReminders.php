@@ -60,12 +60,17 @@ class SendSubscriptionRenewalReminders extends Command
                 // Find or create unpaid renewal invoice
                 $invoice = $subscription->latestUnpaidInvoice();
                 if (! $invoice) {
+                    $planSlug = $subscription->plan?->slug ?? $subscription->tenant?->plan ?? 'pro';
+                    $planPriceCents = $subscription->plan?->price_cents ?? (int) config("medvisit_public.plans.{$planSlug}.price_cents");
+                    if (! $planPriceCents) {
+                        throw new \RuntimeException("Missing pricing configuration for plan [{$planSlug}].");
+                    }
                     $invoice = SubscriptionInvoice::create([
                         'tenant_id' => $subscription->tenant_id,
                         'subscription_id' => $subscription->id,
                         'type' => SubscriptionInvoice::TYPE_SUBSCRIPTION,
                         'invoice_number' => SubscriptionInvoice::generateInvoiceNumber(),
-                        'amount_cents' => $subscription->plan?->price_cents ?? 500000,
+                        'amount_cents' => $planPriceCents,
                         'period_start' => $subscription->current_period_end,
                         'period_end' => $subscription->current_period_end->copy()->addMonth(),
                         'due_date' => $subscription->current_period_end,

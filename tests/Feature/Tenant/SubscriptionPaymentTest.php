@@ -211,6 +211,9 @@ class SubscriptionPaymentTest extends TestCase
         $this->assertTrue($subscription->isActive());
         $this->assertNotNull($subscription->current_period_end);
 
+        $tenant->refresh();
+        $this->assertSame('active', $tenant->status);
+
         // Duplicate test: sending payment.succeeded again should NOT extend subscription further
         $periodEndFirst = $subscription->current_period_end;
 
@@ -576,5 +579,58 @@ class SubscriptionPaymentTest extends TestCase
             $this->assertSame($invoice->invoice_number, $lastCheckout['reference']);
             $this->assertStringContainsString((string) $invoice->invoice_number, $lastCheckout['description']);
         }
+    }
+
+    public function test_single_source_pricing_fails_loudly_if_plans_config_missing(): void
+    {
+        $tenant = Tenant::factory()->pendingPayment()->create([
+            'id' => 'loud-fail-clinic',
+            'name' => 'Loud Fail Clinic',
+            'subdomain' => 'loudfail',
+            'status' => 'pending_payment',
+        ]);
+
+        $admin = User::factory()->clinicAdmin()->create([
+            'tenant_id' => $tenant->id,
+            'email' => 'admin@loudfail.lk',
+        ]);
+
+        config(['medvisit_public.plans' => null]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage("Plan configuration 'medvisit_public.plans' is missing.");
+
+        $this->actingAs($admin)->withoutExceptionHandling()->post("http://loudfail.{$this->baseDomain}/subscription/checkout", [
+            'plan_slug' => 'pro',
+            'terms_accepted' => true,
+        ]);
+    }
+
+    public function test_single_source_pricing_fails_loudly_if_plan_not_in_config(): void
+    {
+        $tenant = Tenant::factory()->pendingPayment()->create([
+            'id' => 'loud-fail-clinic-2',
+            'name' => 'Loud Fail Clinic 2',
+            'subdomain' => 'loudfail2',
+            'status' => 'pending_payment',
+        ]);
+
+        $admin = User::factory()->clinicAdmin()->create([
+            'tenant_id' => $tenant->id,
+            'email' => 'admin@loudfail2.lk',
+        ]);
+
+        // Remove 'pro' from config
+        $plans = config('medvisit_public.plans');
+        unset($plans['pro']);
+        config(['medvisit_public.plans' => $plans]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage("Requested plan [pro] is not defined in config('medvisit_public.plans').");
+
+        $this->actingAs($admin)->withoutExceptionHandling()->post("http://loudfail2.{$this->baseDomain}/subscription/checkout", [
+            'plan_slug' => 'pro',
+            'terms_accepted' => true,
+        ]);
     }
 }

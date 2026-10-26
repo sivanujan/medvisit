@@ -376,7 +376,11 @@ class RefundEligibilityService
         array $checks
     ): array {
         $plan = $subscription?->plan;
-        $expectedPriceCents = $plan?->price_cents ?? (int) config('medvisit.subscription.default_price_cents', 900000);
+        $planSlug = $plan?->slug ?? $subscription?->tenant?->plan ?? 'pro';
+        $expectedPriceCents = $plan?->price_cents ?? (int) config("medvisit_public.plans.{$planSlug}.price_cents");
+        if (! $expectedPriceCents) {
+            throw new \RuntimeException("Missing pricing configuration for plan [{$planSlug}] in config('medvisit_public.plans').");
+        }
         $paidCents = $payment->amount_cents;
 
         $hasDiscrepancy = $paidCents !== $expectedPriceCents;
