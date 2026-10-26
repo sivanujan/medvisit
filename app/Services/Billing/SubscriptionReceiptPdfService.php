@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Billing;
 
 use App\Models\SubscriptionInvoice;
+use App\Services\Pdf\ChromiumPdfService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Response;
 
@@ -15,11 +16,7 @@ class SubscriptionReceiptPdfService
      */
     public function generatePdf(SubscriptionInvoice $invoice): string
     {
-        $data = $this->buildViewData($invoice);
-        $pdf = Pdf::loadView('pdf.subscription_receipt', $data);
-        $pdf->setPaper('a4', 'portrait');
-
-        return $pdf->output();
+        return app(ChromiumPdfService::class)->generateSubscriptionInvoicePdf($invoice);
     }
 
     /**

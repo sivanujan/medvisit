@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Billing;
 
 use App\Models\RefundRequest;
+use App\Services\Pdf\ChromiumPdfService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Response;
 
@@ -15,11 +16,7 @@ class CreditNotePdfService
      */
     public function generatePdf(RefundRequest $refundRequest): string
     {
-        $data = $this->buildViewData($refundRequest);
-        $pdf = Pdf::loadView('pdf.credit_note', $data);
-        $pdf->setPaper('a4', 'portrait');
-
-        return $pdf->output();
+        return app(ChromiumPdfService::class)->generateCreditNotePdf($refundRequest);
     }
 
     /**

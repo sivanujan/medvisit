@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <title>{{ $isReceipt ? 'Receipt ' . ($invoice->receipt_number ?? $invoice->invoice_number) : 'Invoice ' . $invoice->invoice_number }}</title>
+    @include('pdf.partials.fonts')
     <style>
         @page {
             margin: 28px 36px;
             size: a4 portrait;
         }
         body {
-            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-family: 'Poppins', 'Noto Sans Sinhala', 'Noto Sans Tamil', -apple-system, sans-serif;
             color: #1e293b;
             font-size: 12px;
             line-height: 1.45;
