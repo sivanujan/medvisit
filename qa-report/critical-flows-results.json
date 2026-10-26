@@ -1,0 +1,128 @@
+{
+  "summary": {
+    "total": 12,
+    "passed": 12,
+    "failed": 0,
+    "completedAt": "2026-10-26T10:32:26.448Z"
+  },
+  "journeys": [
+    {
+      "journeyNumber": 1,
+      "name": "Public Directory Search & Filter",
+      "status": "PASSED",
+      "timestamp": "2026-10-26T10:30:33.549Z",
+      "durationMs": 11053,
+      "screenshot": "01_public_directory.png"
+    },
+    {
+      "journeyNumber": 2,
+      "name": "Public Doctor Booking Flow",
+      "status": "PASSED",
+      "timestamp": "2026-10-26T10:30:43.031Z",
+      "durationMs": 9470,
+      "screenshot": "02_public_booking.png",
+      "verifyStatusHttp": 400
+    },
+    {
+      "journeyNumber": 3,
+      "name": "Clinic Staff Login",
+      "status": "PASSED",
+      "timestamp": "2026-10-26T10:30:48.573Z",
+      "durationMs": 5539,
+      "screenshot": "03_clinic_login.png",
+      "redirectedUrl": "http://cityhealth.medvisit.localhost:8000/dashboard"
+    },
+    {
+      "journeyNumber": 4,
+      "name": "Receptionist Token Issuance & Queue Management",
+      "status": "PASSED",
+      "timestamp": "2026-10-26T10:31:01.866Z",
+      "durationMs": 13290,
+      "screenshot": "04_receptionist_queue.png"
+    },
+    {
+      "journeyNumber": 5,
+      "name": "Token Move Between Sessions (Differential Prompts)",
+      "status": "PASSED",
+      "timestamp": "2026-10-26T10:31:13.580Z",
+      "durationMs": 11711,
+      "screenshot": "05_token_move.png"
+    },
+    {
+      "journeyNumber": 6,
+      "name": "Doctor Consultation Workspace",
+      "status": "PASSED",
+      "timestamp": "2026-10-26T10:31:20.863Z",
+      "durationMs": 7279,
+      "screenshot": "06_doctor_consultation.png"
+    },
+    {
+      "journeyNumber": 7,
+      "name": "Prescription Issuance & Chromium PDF Generation",
+      "status": "PASSED",
+      "timestamp": "2026-10-26T10:31:30.917Z",
+      "durationMs": 10051,
+      "screenshot": "07_prescription_workspace.png"
+    },
+    {
+      "journeyNumber": 8,
+      "name": "Pharmacy Dispensing & Batch Stock Reduction",
+      "status": "PASSED",
+      "timestamp": "2026-10-26T10:31:40.790Z",
+      "durationMs": 9871,
+      "screenshot": "08_pharmacy_dispense.png"
+    },
+    {
+      "journeyNumber": 9,
+      "name": "Goods Received Note (GRN) Creation",
+      "status": "PASSED",
+      "timestamp": "2026-10-26T10:31:48.980Z",
+      "durationMs": 8187,
+      "screenshot": "09_grn_creation.png"
+    },
+    {
+      "journeyNumber": 10,
+      "name": "Billing Payment Collection & Receipt Generation",
+      "status": "PASSED",
+      "timestamp": "2026-10-26T10:31:59.879Z",
+      "durationMs": 10897,
+      "screenshot": "10_billing_receipt.png"
+    },
+    {
+      "journeyNumber": 11,
+      "name": "Doctor Payout Settlement Record & Slip Download",
+      "status": "PASSED",
+      "timestamp": "2026-10-26T10:32:16.517Z",
+      "durationMs": 16635,
+      "screenshot": "11_doctor_payout.png"
+    },
+    {
+      "journeyNumber": 12,
+      "name": "Support Chat Widget Tenant & Guest Messaging",
+      "status": "PASSED",
+      "timestamp": "2026-10-26T10:32:26.363Z",
+      "durationMs": 9843,
+      "screenshot": "12_support_widget.png",
+      "widgetStatus": {
+        "is_online": true,
+        "response_time_text": "Usually replies within a few hours",
+        "offline_message": "Our team is currently offline. Please leave your message and email, and we will reply as soon as business hours resume.",
+        "business_hours": {
+          "days": [
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday"
+          ],
+          "start": "08:30",
+          "end": "18:00",
+          "timezone": "Asia/Colombo"
+        },
+        "turnstile_site_key": "1x00000000000000000000AA",
+        "active_conversation": null
+      }
+    }
+  ]
+}
