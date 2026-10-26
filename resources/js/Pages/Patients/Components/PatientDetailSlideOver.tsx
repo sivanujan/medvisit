@@ -613,7 +613,8 @@ export const PatientDetailSlideOver: React.FC<PatientDetailSlideOverProps> = ({
                                                         {rx.date}
                                                     </span>
                                                     <p className="text-xs text-slate-600 dark:text-slate-300">
-                                                        {rx.doctor_name} ({rx.doctor_specialty})
+                                                        {rx.doctor_name.replace(/^(Dr\.?\s*)+/i, 'Dr. ')}
+                                                        {rx.doctor_specialty ? ` (${rx.doctor_specialty})` : ''}
                                                     </p>
                                                     {rx.diagnosis && (
                                                         <p className="text-[11px] text-slate-500 dark:text-slate-400 italic mt-0.5">

@@ -479,10 +479,16 @@ class ConsultationController extends Controller
 
         abort_unless($prescription->isFinalized(), 400, 'Cannot print an unfinalized prescription.');
 
+        $lang = $request->query('lang', $tenant->prescription_print_language ?? 'en');
+        if (! in_array($lang, ['en', 'ta', 'si'], true)) {
+            $lang = 'en';
+        }
+        app()->setLocale($lang);
+
         // Support direct PDF download / view via ChromiumPdfService
         if ($request->query('format') === 'pdf') {
             $pdfService = app(ChromiumPdfService::class);
-            $binary = $pdfService->generatePrescriptionPdf($prescription, $tenant->prescription_print_language ?? 'en');
+            $binary = $pdfService->generatePrescriptionPdf($prescription, $lang);
 
             return response($binary, 200, [
                 'Content-Type' => 'application/pdf',
@@ -492,9 +498,6 @@ class ConsultationController extends Controller
 
         $prescription->load(['patient', 'doctor', 'token.doctorSession.doctor', 'items.clinicMedicine.brand', 'items.variant.medicine', 'diagnosisTags']);
         $rx = $prescription;
-
-        $lang = $tenant->prescription_print_language ?? 'en';
-        app()->setLocale($lang);
 
         $itemsFormatted = $rx->items->map(function ($it) use ($lang) {
             $timingKey = $it->timing ?? 'after_meals';
@@ -524,8 +527,13 @@ class ConsultationController extends Controller
         });
 
         $doctor = $rx->token?->doctorSession?->doctor ?? $rx->doctor;
+        $docRawName = trim($doctor?->name ?? 'Doctor');
+        $docFormattedName = preg_match('/^(dr\.?|prof\.?)\s+/i', $docRawName)
+            ? $docRawName
+            : trim(($doctor?->title ?? 'Dr.').' '.$docRawName);
 
         return Inertia::render('Tenant/Doctor/PrescriptionPrint', [
+            'current_lang' => $lang,
             'clinic' => [
                 'name' => $tenant->name,
                 'address' => $tenant->address,
@@ -533,7 +541,7 @@ class ConsultationController extends Controller
                 'logo_url' => $tenant->logo_url,
             ],
             'doctor' => [
-                'name' => $doctor ? trim(($doctor->title ?? 'Dr.').' '.$doctor->name) : 'Doctor',
+                'name' => $doctor ? $docFormattedName : 'Doctor',
                 'specialty' => $doctor?->specialty ?? 'General Practitioner',
                 'slmc_number' => $doctor?->slmc_number,
                 'show_slmc' => (bool) ($tenant->prescription_print_show_doctor_reg ?? true),

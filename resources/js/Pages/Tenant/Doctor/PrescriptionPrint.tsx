@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
-import { Head } from '@inertiajs/react';
-import { Printer } from 'lucide-react';
+import { Head, router } from '@inertiajs/react';
+import { Printer, Download } from 'lucide-react';
 
 interface FormattedItem {
     id: number;
@@ -20,6 +20,7 @@ interface FormattedItem {
 }
 
 interface Props {
+    current_lang?: 'en' | 'ta' | 'si';
     clinic: {
         name: string;
         address?: string;
@@ -62,6 +63,7 @@ interface Props {
 }
 
 export default function PrescriptionPrint({
+    current_lang = 'en',
     clinic,
     doctor,
     patient,
@@ -69,11 +71,14 @@ export default function PrescriptionPrint({
     labels,
 }: Props) {
     useEffect(() => {
-        // Auto trigger print dialog after document is ready
-        const timer = setTimeout(() => {
-            window.print();
-        }, 350);
-        return () => clearTimeout(timer);
+        // Auto trigger print dialog on first load unless user is switching languages
+        const params = new URLSearchParams(window.location.search);
+        if (!params.has('lang')) {
+            const timer = setTimeout(() => {
+                window.print();
+            }, 450);
+            return () => clearTimeout(timer);
+        }
     }, []);
 
     return (
@@ -81,18 +86,69 @@ export default function PrescriptionPrint({
             <Head title={`Prescription - ${prescription.prescription_number} - ${patient.name}`} />
 
             {/* Print toolbar (hidden during print) */}
-            <div className="max-w-[148mm] mx-auto mb-4 flex items-center justify-between print:hidden">
-                <span className="text-xs font-semibold text-slate-600">
-                    A5 Prescription Slip Preview
-                </span>
-                <button
-                    type="button"
-                    onClick={() => window.print()}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-primary-600 hover:bg-primary-500 shadow-md"
-                >
-                    <Printer className="w-3.5 h-3.5" />
-                    <span>Print (A5)</span>
-                </button>
+            <div className="max-w-[148mm] mx-auto mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
+                {/* 3-way Language Selector */}
+                <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-600">
+                        Language:
+                    </span>
+                    <div className="inline-flex rounded-xl border border-slate-300 bg-white p-1 shadow-xs">
+                        <button
+                            type="button"
+                            onClick={() => router.get(window.location.pathname, { lang: 'en' }, { preserveScroll: true })}
+                            className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors ${
+                                current_lang === 'en'
+                                    ? 'bg-[#1E6FD9] text-white shadow-xs'
+                                    : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                        >
+                            English
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => router.get(window.location.pathname, { lang: 'ta' }, { preserveScroll: true })}
+                            className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors ${
+                                current_lang === 'ta'
+                                    ? 'bg-[#1E6FD9] text-white shadow-xs'
+                                    : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                        >
+                            தமிழ்
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => router.get(window.location.pathname, { lang: 'si' }, { preserveScroll: true })}
+                            className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors ${
+                                current_lang === 'si'
+                                    ? 'bg-[#1E6FD9] text-white shadow-xs'
+                                    : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                        >
+                            සිංහල
+                        </button>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <a
+                        href={`${window.location.pathname}?format=pdf&lang=${current_lang}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 shadow-xs transition-colors"
+                        title="Download A4 official PDF"
+                    >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>PDF</span>
+                    </a>
+                    <button
+                        type="button"
+                        onClick={() => window.print()}
+                        className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-[#1E6FD9] hover:bg-[#1859ae] shadow-md shadow-[#1E6FD9]/20 transition-all hover:scale-[1.02]"
+                    >
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>Print (A5)</span>
+                    </button>
+                </div>
             </div>
 
             {/* A5 Printable Sheet */}

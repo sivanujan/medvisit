@@ -475,21 +475,29 @@ class PatientController extends Controller
                 ])
                 ->latest('finalized_at')
                 ->get()
-                ->map(fn ($p) => [
-                    'id' => $p->id,
-                    'prescription_number' => $p->prescription_number,
-                    'date' => $p->finalized_at?->format('d M Y') ?? $p->created_at->format('d M Y'),
-                    'doctor_name' => $p->doctor ? trim(($p->doctor->title ?? 'Dr.').' '.$p->doctor->name) : 'Doctor',
-                    'diagnosis' => $p->diagnosis,
-                    'print_url' => route('tenant.doctor.prescriptions.print', $p->id),
-                    'items' => $p->items->map(fn ($it) => [
-                        'display_name' => $it->display_name,
-                        'dose' => $it->dose_display,
-                        'frequency' => $it->frequency,
-                        'timing' => $it->timing,
-                        'duration_days' => $it->duration_days,
-                    ]),
-                ]);
+                ->map(function ($p) {
+                    $docRaw = trim($p->doctor?->name ?? 'Doctor');
+                    $docFormatted = preg_match('/^(dr\.?|prof\.?)\s+/i', $docRaw)
+                        ? $docRaw
+                        : trim(($p->doctor?->title ?? 'Dr.').' '.$docRaw);
+
+                    return [
+                        'id' => $p->id,
+                        'prescription_number' => $p->prescription_number,
+                        'date' => $p->finalized_at?->format('d M Y') ?? $p->created_at->format('d M Y'),
+                        'doctor_name' => $p->doctor ? $docFormatted : 'Doctor',
+                        'doctor_specialty' => $p->doctor?->specialty ?? '',
+                        'diagnosis' => $p->diagnosis,
+                        'print_url' => route('tenant.doctor.prescriptions.print', $p->id),
+                        'items' => $p->items->map(fn ($it) => [
+                            'display_name' => $it->display_name,
+                            'dose' => $it->dose_display,
+                            'frequency' => $it->frequency,
+                            'timing' => $it->timing,
+                            'duration_days' => $it->duration_days,
+                        ]),
+                    ];
+                });
         }
 
         // Bills
