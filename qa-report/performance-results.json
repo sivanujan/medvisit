@@ -1,0 +1,26 @@
+[
+  {
+    "page": "Landing (desktop)",
+    "loadTimeMs": 7514
+  },
+  {
+    "page": "Landing (tablet)",
+    "loadTimeMs": 1960
+  },
+  {
+    "page": "Landing (mobile)",
+    "loadTimeMs": 1345
+  },
+  {
+    "page": "Pricing",
+    "loadTimeMs": 1342
+  },
+  {
+    "page": "Find Directory",
+    "loadTimeMs": 2595
+  },
+  {
+    "page": "Clinic Booking (/book)",
+    "loadTimeMs": 1618
+  }
+]
