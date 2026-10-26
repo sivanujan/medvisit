@@ -47,6 +47,7 @@ class TenantFactory extends Factory
         return $this->state(fn () => [
             'status' => 'active',
             'plan' => 'standard',
+            'setup_completed_at' => now(),
         ]);
     }
 

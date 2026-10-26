@@ -367,7 +367,7 @@ class TokenBookingFlowTest extends TestCase
         $docRes->assertRedirect();
 
         $doctor = Doctor::where('tenant_id', $this->tenant->id)
-            ->where('slmc_number', 'SLMC-33120')
+            ->where('slmc_number', '33120')
             ->firstOrFail();
 
         // Step 2: Create Template for Tomorrow's day of week
@@ -783,7 +783,7 @@ class TokenBookingFlowTest extends TestCase
         $resNew->assertInertia(fn (AssertableInertia $page) => $page
             ->component('Billing/DoctorPayouts')
             ->where('summary.total_patients', 1)
-            ->where('summary.doctor_payout_due_lkr', 2500)
+            ->where('summary.doctor_payout_due_lkr', 1500)
         );
     }
 

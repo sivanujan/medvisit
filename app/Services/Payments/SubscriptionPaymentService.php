@@ -8,6 +8,7 @@ use App\Models\PaymentTransaction;
 use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\SubscriptionInvoice;
+use App\Models\Tenant;
 use App\Services\AuditLogger;
 use App\Services\Billing\SubscriptionNotificationService;
 use Carbon\Carbon;
@@ -144,6 +145,21 @@ class SubscriptionPaymentService
                         'status' => Subscription::STATUS_ACTIVE,
                     ]);
 
+                    // Sync tenant status and plan
+                    $tenant = Tenant::find($subscription->tenant_id);
+                    if ($tenant) {
+                        $tenantUpdates = [];
+                        if ($tenant->status !== 'active') {
+                            $tenantUpdates['status'] = 'active';
+                        }
+                        if ($newPlan && $tenant->plan !== $newPlan->slug) {
+                            $tenantUpdates['plan'] = $newPlan->slug;
+                        }
+                        if (! empty($tenantUpdates)) {
+                            $tenant->update($tenantUpdates);
+                        }
+                    }
+
                     AuditLogger::log('subscription.plan_upgraded', [
                         'tenant_id' => $subscription->tenant_id,
                         'old_plan' => $oldPlan?->name,
@@ -222,6 +238,21 @@ class SubscriptionPaymentService
                 'current_period_end' => $newEnd,
                 'activated_at' => $subscription->activated_at ?? $now,
             ]);
+
+            // Sync tenant status to active and update plan slug
+            $tenant = Tenant::find($subscription->tenant_id);
+            if ($tenant) {
+                $tenantUpdates = [];
+                if ($tenant->status !== 'active') {
+                    $tenantUpdates['status'] = 'active';
+                }
+                if ($subscription->plan && $tenant->plan !== $subscription->plan->slug) {
+                    $tenantUpdates['plan'] = $subscription->plan->slug;
+                }
+                if (! empty($tenantUpdates)) {
+                    $tenant->update($tenantUpdates);
+                }
+            }
 
             AuditLogger::log('subscription.payment_processed', [
                 'tenant_id' => $subscription->tenant_id,

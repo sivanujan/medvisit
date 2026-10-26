@@ -681,7 +681,7 @@ Route::middleware([
             });
 
             // Dispensing (Clinic Admin & Pharmacist only; Doctor denied)
-            Route::middleware(['role:clinic_admin|pharmacist|super_admin', 'permission:pharmacy.dispense'])->group(function () {
+            Route::middleware(['role:clinic_admin|pharmacist|pharmacy|super_admin', 'permission:pharmacy.dispense'])->group(function () {
                 Route::get('/pharmacy/dispense', [DispenseController::class, 'index'])
                     ->name('tenant.pharmacy.dispense');
                 Route::get('/pharmacy/dispense/history', [DispenseController::class, 'history'])

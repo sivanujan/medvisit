@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import {
     Building2,
@@ -238,6 +238,13 @@ export default function SettingsCentre({
                                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#1E6FD9]/10 text-[#1E6FD9]">
                                     {profile.subdomain}.medvisit.lk
                                 </span>
+                                <Link
+                                    href="/setup"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-[#1E6FD9]/10 to-[#0E9E8F]/10 hover:from-[#1E6FD9]/20 hover:to-[#0E9E8F]/20 text-[#1E6FD9] dark:text-[#5c9df4] border border-[#1E6FD9]/20 transition-all shadow-xs"
+                                >
+                                    <Sparkles className="w-3.5 h-3.5 text-[#0E9E8F]" />
+                                    <span>Run setup wizard</span>
+                                </Link>
                             </div>
                             <p className="text-xs text-slate-500 dark:text-slate-400">
                                 Manage how your clinic works in MedVisit.

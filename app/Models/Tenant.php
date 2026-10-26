@@ -39,6 +39,11 @@ class Tenant extends BaseTenant
         'logo_url',
         'logo_png_path',
         'favicon_path',
+        'setup_completed_at',
+        'setup_step',
+        'setup_version',
+        'setup_grace_until',
+        'setup_reminder_sent_at',
         'data',
     ];
 
@@ -49,6 +54,11 @@ class Tenant extends BaseTenant
         'fee_settings' => 'array',
         'require_phone_verification' => 'boolean',
         'phone_verification_methods' => 'array',
+        'setup_completed_at' => 'datetime',
+        'setup_step' => 'integer',
+        'setup_version' => 'integer',
+        'setup_grace_until' => 'datetime',
+        'setup_reminder_sent_at' => 'datetime',
     ];
 
     public static function getCustomColumns(): array
@@ -73,6 +83,11 @@ class Tenant extends BaseTenant
             'trial_ending_reminder_sent_at',
             'trial_ended_reminder_sent_at',
             'fee_settings',
+            'setup_completed_at',
+            'setup_step',
+            'setup_version',
+            'setup_grace_until',
+            'setup_reminder_sent_at',
         ];
     }
 
@@ -232,7 +247,7 @@ class Tenant extends BaseTenant
 
     public function subscription(): HasOne
     {
-        return $this->hasOne(Subscription::class, 'tenant_id')->latestOfMany();
+        return $this->hasOne(Subscription::class, 'tenant_id')->withoutGlobalScopes()->latestOfMany();
     }
 
     public function subscriptions(): HasMany
@@ -299,6 +314,36 @@ class Tenant extends BaseTenant
     public function isUsable(): bool
     {
         return ! $this->isSuspended() && ! $this->isTrialExpired();
+    }
+
+    /**
+     * Check if the clinic has completed initial setup.
+     */
+    public function needsSetup(): bool
+    {
+        return is_null($this->setup_completed_at);
+    }
+
+    /**
+     * Determine if the clinic is currently within its 7-day setup grace period.
+     */
+    public function inSetupGrace(): bool
+    {
+        return $this->needsSetup()
+            && $this->setup_grace_until !== null
+            && $this->setup_grace_until->isFuture();
+    }
+
+    /**
+     * Days remaining in setup grace period.
+     */
+    public function setupGraceDaysRemaining(): int
+    {
+        if (! $this->inSetupGrace() || ! $this->setup_grace_until) {
+            return 0;
+        }
+
+        return max(1, (int) ceil(now()->diffInHours($this->setup_grace_until, false) / 24));
     }
 
     /**

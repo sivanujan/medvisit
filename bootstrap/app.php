@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureClinicSetupComplete;
 use App\Http\Middleware\EnsurePharmacyEnabled;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Application;
@@ -43,6 +44,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,
             'pharmacy.enabled' => EnsurePharmacyEnabled::class,
+            'clinic.setup' => EnsureClinicSetupComplete::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

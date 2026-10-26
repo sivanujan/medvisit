@@ -38,6 +38,11 @@ Schedule::command('subscriptions:check-expirations')
     ->before(fn () => SchedulerHeartbeat::updateOrCreate(['command' => 'subscriptions:check-expirations'], ['last_started_at' => now()]))
     ->after(fn () => SchedulerHeartbeat::updateOrCreate(['command' => 'subscriptions:check-expirations'], ['last_finished_at' => now(), 'status' => 'success']));
 
+Schedule::command('clinic:send-setup-reminders')
+    ->hourly()
+    ->before(fn () => SchedulerHeartbeat::updateOrCreate(['command' => 'clinic:send-setup-reminders'], ['last_started_at' => now()]))
+    ->after(fn () => SchedulerHeartbeat::updateOrCreate(['command' => 'clinic:send-setup-reminders'], ['last_finished_at' => now(), 'status' => 'success']));
+
 Schedule::command('medvisit:check-refund-slas')
     ->dailyAt('08:00')
     ->before(fn () => SchedulerHeartbeat::updateOrCreate(['command' => 'medvisit:check-refund-slas'], ['last_started_at' => now()]))

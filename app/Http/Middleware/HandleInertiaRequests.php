@@ -6,6 +6,7 @@ use App\Models\DoctorSession;
 use App\Models\RefundRequest;
 use App\Models\Subscription;
 use App\Models\SupportConversation;
+use App\Support\PrintSettings;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -110,6 +111,15 @@ class HandleInertiaRequests extends Middleware
                         ->where('end_time', '<', $currentTime)
                         ->count();
                 }, 0, false),
+            ] : null,
+            'print_settings' => PrintSettings::forTenant($tenant),
+            'clinic_setup' => $tenant ? [
+                'needs_setup' => $tenant->needsSetup(),
+                'in_grace' => $tenant->inSetupGrace(),
+                'grace_days_remaining' => $tenant->setupGraceDaysRemaining(),
+                'grace_until' => $tenant->setup_grace_until?->toIso8601String(),
+                'banner_dismissed' => (bool) $request->session()->get('setup_banner_dismissed', false),
+                'current_step' => (int) ($tenant->setup_step ?: 1),
             ] : null,
             'flash' => [
                 'status' => session('status'),

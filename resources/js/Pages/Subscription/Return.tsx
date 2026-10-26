@@ -7,12 +7,13 @@ interface Props {
     checkoutId?: string;
     initialStatus?: string;
     clinicName: string;
+    defaultRedirect?: string;
 }
 
-export default function Return({ checkoutId, initialStatus, clinicName }: Props) {
+export default function Return({ checkoutId, initialStatus, clinicName, defaultRedirect }: Props) {
     const [state, setState] = useState<'verifying' | 'succeeded' | 'failed'>('verifying');
     const [message, setMessage] = useState<string>('Verifying transaction...');
-    const [redirectUrl, setRedirectUrl] = useState<string>(route('tenant.dashboard'));
+    const [redirectUrl, setRedirectUrl] = useState<string>(defaultRedirect || route('tenant.dashboard'));
 
     useEffect(() => {
         let isMounted = true;

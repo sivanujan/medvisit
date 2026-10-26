@@ -128,7 +128,7 @@ class DoctorSettlementController extends Controller
         $totalDisbursedPaidCents = (int) $allSettlements->where('is_voided', false)->sum('paid_amount');
         $totalAdjustmentsCents = (int) $allSettlements->where('is_voided', false)->sum('adjustments_total');
 
-        $settlementItems = $allSettlements->map(function ($s) {
+        $settlementItems = $allSettlements->map(function ($s) use ($hideClinicShare) {
             return [
                 'id' => $s->id,
                 'settlement_number' => $s->settlement_number,
