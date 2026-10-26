@@ -9,6 +9,8 @@ use App\Http\Requests\Auth\ClinicRegistrationRequest;
 use App\Jobs\SyncClinicDirectoryListing;
 use App\Models\AuditEvent;
 use App\Models\Doctor;
+use App\Models\TvDevice;
+use App\Support\TvDisplayHelper;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -186,6 +188,43 @@ class ClinicSettingsController extends Controller
             'is_owner' => $request->user()?->hasRole('clinic_admin') || $request->user()?->hasRole('super_admin'),
         ];
 
+        // 7. TV Display Settings & Paired Devices
+        $tvSettings = [
+            'name_display_mode' => (string) ($tenant->tv_name_display_mode ?? 'token_only'),
+            'languages' => $tenant->tv_languages ?? ['en', 'ta', 'si'],
+            'chime_enabled' => (bool) ($tenant->tv_chime_enabled ?? true),
+            'voice_language' => (string) ($tenant->tv_voice_language ?? 'off'),
+            'ticker_text' => (string) ($tenant->tv_ticker_text ?? 'Please have your token slip ready. Keep the waiting area quiet and comfortable for all patients.'),
+            'theme' => (string) ($tenant->tv_theme ?? 'dark'),
+            'reduced_motion' => (bool) ($tenant->tv_reduced_motion ?? false),
+        ];
+
+        $tvDevices = TvDevice::where('tenant_id', $tenant->id)
+            ->orderByDesc('last_seen_at')
+            ->get()
+            ->map(fn ($d) => [
+                'id' => $d->id,
+                'name' => $d->name,
+                'doctor_ids' => $d->doctor_ids,
+                'last_seen_at' => $d->last_seen_at?->diffForHumans() ?? 'Never',
+                'last_seen_timestamp' => $d->last_seen_at?->timestamp,
+                'is_online' => $d->last_seen_at ? $d->last_seen_at->gt(now()->subMinutes(2)) : false,
+                'is_revoked' => $d->isRevoked(),
+                'revoked_at' => $d->revoked_at?->toIso8601String(),
+                'created_at' => $d->created_at->format('M d, Y'),
+            ]);
+
+        $availableDoctors = Doctor::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->select('id', 'name', 'title', 'specialty')
+            ->orderBy('name')
+            ->get()
+            ->map(fn ($doc) => [
+                'id' => $doc->id,
+                'name' => TvDisplayHelper::formatDoctorName($doc->name, $doc->title),
+                'specialty' => $doc->specialty,
+            ]);
+
         return Inertia::render('Settings/Index', [
             'activeSection' => $section ?: 'profile',
             'profile' => $profile,
@@ -194,6 +233,9 @@ class ClinicSettingsController extends Controller
             'onlineBookingSettings' => $onlineBookingSettings,
             'pharmacySettings' => $pharmacySettings,
             'directorySettings' => $directorySettings,
+            'tvSettings' => $tvSettings,
+            'tvDevices' => $tvDevices,
+            'availableDoctors' => $availableDoctors,
             'auditLogs' => $auditLogs,
             'availableActions' => $availableActions,
             'districts' => ClinicRegistrationRequest::DISTRICTS,
@@ -612,5 +654,46 @@ class ClinicSettingsController extends Controller
         ]);
 
         return redirect()->back()->with('success', 'Public directory listing settings saved successfully.');
+    }
+
+    /**
+     * Update Waiting Room TV Display Settings.
+     */
+    public function updateTvDisplay(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name_display_mode' => ['required', 'string', 'in:token_only,initial_last,first_only,full_name'],
+            'languages' => ['required', 'array', 'min:1'],
+            'languages.*' => ['string', 'in:en,ta,si'],
+            'chime_enabled' => ['required', 'boolean'],
+            'voice_language' => ['required', 'string', 'in:off,en,ta,si'],
+            'ticker_text' => ['nullable', 'string', 'max:500'],
+            'theme' => ['required', 'string', 'in:dark,light'],
+            'reduced_motion' => ['required', 'boolean'],
+        ]);
+
+        $tenant = tenant();
+        $tenant->tv_name_display_mode = $validated['name_display_mode'];
+        $tenant->tv_languages = array_values($validated['languages']);
+        $tenant->tv_chime_enabled = (bool) $validated['chime_enabled'];
+        $tenant->tv_voice_language = $validated['voice_language'];
+        $tenant->tv_ticker_text = trim((string) ($validated['ticker_text'] ?? ''));
+        $tenant->tv_theme = $validated['theme'];
+        $tenant->tv_reduced_motion = (bool) $validated['reduced_motion'];
+        $tenant->save();
+
+        AuditEvent::create([
+            'tenant_id' => $tenant->id,
+            'user_id' => $request->user()?->id,
+            'action' => 'settings.tv_display_updated',
+            'resource_type' => 'tenant',
+            'resource_id' => $tenant->id,
+            'metadata' => $validated,
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'created_at' => Carbon::now('Asia/Colombo'),
+        ]);
+
+        return redirect()->back()->with('success', 'TV display settings saved successfully.');
     }
 }

@@ -37,6 +37,7 @@ import {
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { GlassCard } from '@/Components/UI/GlassCard';
 import { StatusBadge } from '@/Components/UI/StatusBadge';
+import TvPairingModal from '@/Pages/Queue/Components/TvPairingModal';
 
 // --- Lightweight Helpers & Hooks ---
 
@@ -315,6 +316,7 @@ export default function Dashboard({
 
     // Checklist / Setup state
     const isSetupIncomplete = (checklist?.completedCount ?? 5) < 5;
+    const [tvPairingOpen, setTvPairingOpen] = useState(false);
     const [dismissedSetup, setDismissedSetup] = useState<boolean>(() => {
         try {
             return (
@@ -1310,11 +1312,10 @@ export default function Dashboard({
                                 </Link>
 
                                 {/* 4. Open TV Display */}
-                                <a
-                                    href="/queue/tv"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-white/10 hover:border-emerald-500/50 hover:shadow-md transition-all group cursor-pointer"
+                                <button
+                                    type="button"
+                                    onClick={() => setTvPairingOpen(true)}
+                                    className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-white/10 hover:border-emerald-500/50 hover:shadow-md transition-all group cursor-pointer text-left w-full"
                                 >
                                     <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
                                         <Tv className="w-5 h-5" />
@@ -1324,9 +1325,9 @@ export default function Dashboard({
                                         <ExternalLink className="w-3 h-3 text-slate-400" />
                                     </div>
                                     <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                        Waiting room screen
+                                        Pair waiting-room screen
                                     </div>
-                                </a>
+                                </button>
 
                                 {/* 5. Today's Report */}
                                 <Link
@@ -1417,6 +1418,14 @@ export default function Dashboard({
                     </div>
                 )}
             </div>
+
+            {/* TV Pairing Modal */}
+            <TvPairingModal
+                isOpen={tvPairingOpen}
+                onClose={() => setTvPairingOpen(false)}
+                clinicName={tenant.name}
+                subdomain={tenant.subdomain}
+            />
         </AuthenticatedLayout>
     );
 }

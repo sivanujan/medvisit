@@ -140,6 +140,22 @@ Route::middleware([
     Route::post('/tokens/{token}/cancel', [ClinicWebsiteController::class, 'cancelPublicToken'])
         ->name('tenant.token.cancel');
 
+    // Waiting-Room TV Live Display & Device Pairing
+    Route::get('/queue/tv', [LiveQueueTvController::class, 'index'])
+        ->name('tenant.queue.tv');
+    Route::get('/tv', [LiveQueueTvController::class, 'index'])
+        ->name('tenant.tv');
+    Route::get('/queue/tv/data', [LiveQueueTvController::class, 'data'])
+        ->name('tenant.queue.tv.data');
+    Route::post('/queue/tv/pair', [LiveQueueTvController::class, 'pair'])
+        ->middleware('throttle:30,1')
+        ->name('tenant.queue.tv.pair');
+    Route::post('/tv/pair', [LiveQueueTvController::class, 'pair'])
+        ->middleware('throttle:30,1')
+        ->name('tenant.tv.pair');
+    Route::post('/queue/tv/unpair', [LiveQueueTvController::class, 'unpair'])
+        ->name('tenant.queue.tv.unpair');
+
     // 3. Guest Auth Routes
     Route::middleware('guest')->group(function () {
         Route::get('/login', [TenantAuthenticatedSessionController::class, 'create'])
@@ -323,10 +339,15 @@ Route::middleware([
         Route::delete('/doctor/templates/{template}', [PrescriptionTemplateController::class, 'destroy'])
             ->name('tenant.doctor.templates.destroy');
 
-        Route::get('/queue/tv', [LiveQueueTvController::class, 'index'])
-            ->name('tenant.queue.tv');
-        Route::get('/queue/tv/data', [LiveQueueTvController::class, 'data'])
-            ->name('tenant.queue.tv.data');
+        // TV Device Management & Pairing Code Generation (Staff API)
+        Route::post('/api/tv/pairing-code', [LiveQueueTvController::class, 'createPairingCode'])
+            ->name('tenant.api.tv.pairing_code');
+        Route::get('/api/tv/devices', [LiveQueueTvController::class, 'listDevices'])
+            ->name('tenant.api.tv.devices.index');
+        Route::put('/api/tv/devices/{device}', [LiveQueueTvController::class, 'updateDevice'])
+            ->name('tenant.api.tv.devices.update');
+        Route::delete('/api/tv/devices/{device}', [LiveQueueTvController::class, 'revokeDevice'])
+            ->name('tenant.api.tv.devices.revoke');
 
         // Global Search & Notification APIs
         Route::get('/api/search', [WorkspaceSearchController::class, 'search'])
@@ -560,7 +581,7 @@ Route::middleware([
             Route::get('/settings/audit/export', [ClinicSettingsController::class, 'exportAuditLogs'])
                 ->name('tenant.settings.audit.export');
             Route::get('/settings/{section}', [ClinicSettingsController::class, 'index'])
-                ->where('section', 'profile|branding|hours|sessions|booking|prescriptions|billing|receipts|pharmacy|directory|audit')
+                ->where('section', 'profile|branding|hours|sessions|booking|prescriptions|billing|receipts|pharmacy|directory|audit|tv')
                 ->name('tenant.settings.section');
             Route::put('/settings/profile', [ClinicSettingsController::class, 'updateProfile'])
                 ->name('tenant.settings.profile');
@@ -574,6 +595,8 @@ Route::middleware([
                 ->name('tenant.settings.pharmacy');
             Route::put('/settings/directory', [ClinicSettingsController::class, 'updateDirectory'])
                 ->name('tenant.settings.directory');
+            Route::put('/settings/tv', [ClinicSettingsController::class, 'updateTvDisplay'])
+                ->name('tenant.settings.tv');
             Route::post('/settings/branding/logo', [ClinicBrandingController::class, 'uploadLogo'])
                 ->name('tenant.settings.branding.logo.upload');
             Route::delete('/settings/branding/logo', [ClinicBrandingController::class, 'deleteLogo'])

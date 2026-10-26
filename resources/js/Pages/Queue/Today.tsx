@@ -38,6 +38,7 @@ import {
     Flame,
     Sparkles,
 } from 'lucide-react';
+import TvPairingModal from './Components/TvPairingModal';
 
 interface SessionItem {
     id: number;
@@ -211,6 +212,7 @@ export default function TodayQueueIndex({
 
     // Live TV connection status
     const [isTvConnected, setIsTvConnected] = useState(false);
+    const [tvPairingOpen, setTvPairingOpen] = useState(false);
     const lastTvHeartbeatRef = useRef<number>(0);
     const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
 
@@ -606,12 +608,11 @@ export default function TodayQueueIndex({
                     actions={
                         <div className="flex items-center gap-2">
                             {/* TV Display Button with Live Connection Indicator */}
-                            <a
-                                href="/queue/tv"
-                                target="_blank"
-                                rel="noreferrer"
-                                className="group inline-flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 shadow-xs transition-all hover:scale-[1.02]"
-                                title="Open Live TV Display in a new window or second monitor"
+                            <button
+                                type="button"
+                                onClick={() => setTvPairingOpen(true)}
+                                className="group inline-flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 shadow-xs transition-all hover:scale-[1.02] cursor-pointer"
+                                title="Open Live TV Display or pair waiting-room screen"
                             >
                                 <div className="relative flex items-center justify-center">
                                     <Tv className="w-4 h-4 text-[#1E6FD9]" />
@@ -631,7 +632,7 @@ export default function TodayQueueIndex({
                                         'Offline'
                                     )}
                                 </span>
-                            </a>
+                            </button>
                         </div>
                     }
                 />
@@ -1722,6 +1723,12 @@ export default function TodayQueueIndex({
                     </div>
                 )}
             </AnimatePresence>
+
+            {/* TV Pairing Modal */}
+            <TvPairingModal
+                isOpen={tvPairingOpen}
+                onClose={() => setTvPairingOpen(false)}
+            />
         </AuthenticatedLayout>
     );
 }

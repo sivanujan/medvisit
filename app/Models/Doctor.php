@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Support\TvDisplayHelper;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -181,6 +182,14 @@ class Doctor extends Model
         $index = abs($id) % count(self::PALETTE);
 
         return self::PALETTE[$index];
+    }
+
+    /**
+     * Get properly formatted doctor display name without duplicate titles.
+     */
+    public function getDisplayNameAttribute(): string
+    {
+        return TvDisplayHelper::formatDoctorName($this->name, $this->title);
     }
 
     /**

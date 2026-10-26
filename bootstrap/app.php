@@ -28,6 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->encryptCookies(except: [
             'support_visitor_token',
+            'tv_device_token',
         ]);
 
         $middleware->validateCsrfTokens(except: [

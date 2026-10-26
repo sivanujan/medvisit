@@ -27,7 +27,9 @@ use App\Http\Controllers\Support\SupportChatWidgetController;
 use App\Http\Controllers\Webhooks\PaymentsLkWebhookController;
 use App\Http\Controllers\Webhooks\WhatsAppWebhookController;
 use App\Models\Tenant;
+use App\Models\TvPairingCode;
 use Illuminate\Foundation\Application;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -72,6 +74,43 @@ Route::domain('{central_domain}')
         Route::get('/clinics/{slug}', [PublicDirectoryController::class, 'showClinic'])->name('public.directory.clinic');
         Route::get('/doctors/{clinicSlug}/{doctorSlug}', [PublicDirectoryController::class, 'showDoctor'])->name('public.directory.doctor');
         Route::get('/sitemap.xml', [PublicDirectoryController::class, 'sitemap'])->name('public.directory.sitemap');
+
+        // Central TV Pairing redirect helper
+        Route::get('/tv', function (Request $request) {
+            return Inertia::render('Queue/CentralTvPairing', [
+                'prefillCode' => (string) $request->query('code', ''),
+            ]);
+        })->name('central.tv');
+
+        Route::post('/tv/resolve-code', function (Request $request) {
+            $code = trim((string) $request->input('code'));
+            $pairing = TvPairingCode::where('code', $code)
+                ->where('expires_at', '>', now())
+                ->whereNull('used_at')
+                ->first();
+
+            if (! $pairing) {
+                return response()->json([
+                    'message' => 'Invalid or expired pairing code. Please check the code on your clinic dashboard.',
+                ], 422);
+            }
+
+            $tenant = Tenant::find($pairing->tenant_id);
+            if (! $tenant) {
+                return response()->json(['message' => 'Associated clinic not found.'], 404);
+            }
+
+            $scheme = config('app.env') === 'production' ? 'https://' : 'http://';
+            $baseDomain = config('medvisit.base_domain', 'medvisit.localhost');
+            $host = $tenant->subdomain.'.'.$baseDomain;
+            $redirectUrl = $scheme.$host.'/queue/tv?code='.$code;
+
+            return response()->json([
+                'success' => true,
+                'clinic_name' => $tenant->name,
+                'redirect_url' => $redirectUrl,
+            ]);
+        })->middleware('throttle:30,1')->name('central.tv.resolve');
 
         // MedVisit Support Chat Widget API & Guest Broadcasting Auth
         Route::get('/support/status', [SupportChatWidgetController::class, 'status'])->name('support.status');

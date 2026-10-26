@@ -95,11 +95,40 @@ export type SettingsSectionKey =
     | 'sessions'
     | 'booking'
     | 'prescriptions'
+    | 'tv'
     | 'billing'
     | 'receipts'
     | 'pharmacy'
     | 'directory'
     | 'audit';
+
+export interface TvSettingsData {
+    name_display_mode: 'token_only' | 'initial_last' | 'first_only' | 'full_name';
+    languages: ('en' | 'ta' | 'si')[];
+    chime_enabled: boolean;
+    voice_language: 'off' | 'en' | 'ta' | 'si';
+    ticker_text: string;
+    theme: 'dark' | 'light';
+    reduced_motion: boolean;
+}
+
+export interface TvDeviceItem {
+    id: number;
+    name: string;
+    doctor_ids: number[] | null;
+    last_seen_at: string;
+    last_seen_timestamp?: number;
+    is_online: boolean;
+    is_revoked: boolean;
+    revoked_at?: string;
+    created_at: string;
+}
+
+export interface AvailableDoctorItem {
+    id: number;
+    name: string;
+    specialty?: string;
+}
 
 export interface SettingsPageProps {
     activeSection?: SettingsSectionKey;
@@ -109,6 +138,9 @@ export interface SettingsPageProps {
     onlineBookingSettings: OnlineBookingSettingsData;
     pharmacySettings?: PharmacySettingsData;
     directorySettings?: DirectorySettingsData;
+    tvSettings?: TvSettingsData;
+    tvDevices?: TvDeviceItem[];
+    availableDoctors?: AvailableDoctorItem[];
     auditLogs: AuditLogItem[];
     availableActions: string[];
     districts?: string[];

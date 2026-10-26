@@ -33,6 +33,7 @@ import ReceiptsSection from './Sections/ReceiptsSection';
 import PharmacySection from './Sections/PharmacySection';
 import DirectorySection from './Sections/DirectorySection';
 import AuditSection from './Sections/AuditSection';
+import TvDisplaySection, { TvSettingsFormData } from './Sections/TvDisplaySection';
 
 export default function SettingsCentre({
     activeSection: initialActiveSection = 'profile',
@@ -42,6 +43,9 @@ export default function SettingsCentre({
     onlineBookingSettings,
     pharmacySettings,
     directorySettings,
+    tvSettings,
+    tvDevices = [],
+    availableDoctors = [],
     auditLogs,
     availableActions,
     districts = [],
@@ -109,6 +113,17 @@ export default function SettingsCentre({
         prescription_print_show_diagnosis: pharmacySettings?.prescription_print_show_diagnosis ?? false,
     });
 
+    // 6. TV Display Form
+    const tvForm = useForm<TvSettingsFormData>({
+        name_display_mode: (tvSettings?.name_display_mode as any) || 'token_only',
+        languages: (tvSettings?.languages as any) || ['en', 'ta', 'si'],
+        chime_enabled: tvSettings?.chime_enabled ?? true,
+        voice_language: (tvSettings?.voice_language as any) || 'off',
+        ticker_text: tvSettings?.ticker_text || '',
+        theme: (tvSettings?.theme as any) || 'dark',
+        reduced_motion: tvSettings?.reduced_motion ?? false,
+    });
+
     // Detect if current active section form has unsaved modifications
     const currentSectionDirty = useMemo(() => {
         switch (activeSection) {
@@ -124,10 +139,12 @@ export default function SettingsCentre({
             case 'pharmacy':
             case 'prescriptions':
                 return pharmacyForm.isDirty;
+            case 'tv':
+                return tvForm.isDirty;
             default:
                 return false;
         }
-    }, [activeSection, profileForm.isDirty, sessionForm.isDirty, billingForm.isDirty, onlineForm.isDirty, pharmacyForm.isDirty]);
+    }, [activeSection, profileForm.isDirty, sessionForm.isDirty, billingForm.isDirty, onlineForm.isDirty, pharmacyForm.isDirty, tvForm.isDirty]);
 
     const isCurrentFormSaving = useMemo(() => {
         switch (activeSection) {
@@ -143,10 +160,12 @@ export default function SettingsCentre({
             case 'pharmacy':
             case 'prescriptions':
                 return pharmacyForm.processing;
+            case 'tv':
+                return tvForm.processing;
             default:
                 return false;
         }
-    }, [activeSection, profileForm.processing, sessionForm.processing, billingForm.processing, onlineForm.processing, pharmacyForm.processing]);
+    }, [activeSection, profileForm.processing, sessionForm.processing, billingForm.processing, onlineForm.processing, pharmacyForm.processing, tvForm.processing]);
 
     // Save handler based on active section
     const handleSaveCurrentSection = () => {
@@ -167,6 +186,9 @@ export default function SettingsCentre({
             case 'pharmacy':
             case 'prescriptions':
                 pharmacyForm.put('/settings/pharmacy', { preserveScroll: true });
+                break;
+            case 'tv':
+                tvForm.put('/settings/tv', { preserveScroll: true });
                 break;
         }
     };
@@ -190,6 +212,9 @@ export default function SettingsCentre({
             case 'pharmacy':
             case 'prescriptions':
                 pharmacyForm.reset();
+                break;
+            case 'tv':
+                tvForm.reset();
                 break;
         }
     };
@@ -396,6 +421,16 @@ export default function SettingsCentre({
                                 settings={directorySettings}
                                 clinicName={profile.name}
                                 logoUrl={profile.logo_url}
+                            />
+                        )}
+
+                        {activeSection === 'tv' && (
+                            <TvDisplaySection
+                                form={tvForm}
+                                tvDevices={tvDevices}
+                                availableDoctors={availableDoctors}
+                                clinicName={profile.name}
+                                subdomain={profile.subdomain}
                             />
                         )}
 
