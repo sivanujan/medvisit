@@ -439,13 +439,13 @@ export default function AuthenticatedLayout({
                               name: 'Dispense Counter',
                               href: '/pharmacy/dispense',
                               icon: Pill,
-                              visible: can('pharmacy.dispense') || can('pharmacy.view'),
+                              visible: (can('pharmacy.dispense') || isClinicAdmin) && !isDoctor,
                           },
                           {
                               name: 'Dispense History',
                               href: '/pharmacy/dispense/history',
                               icon: History,
-                              visible: can('pharmacy.dispense') || can('pharmacy.view'),
+                              visible: (can('pharmacy.dispense') || isClinicAdmin) && !isDoctor,
                           },
                           {
                               name: 'Medicines & Stock',

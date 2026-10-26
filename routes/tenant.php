@@ -12,6 +12,7 @@ use App\Http\Controllers\Tenant\ChannelingCalendarController;
 use App\Http\Controllers\Tenant\ClinicBrandingController;
 use App\Http\Controllers\Tenant\ClinicPageController;
 use App\Http\Controllers\Tenant\ClinicSettingsController;
+use App\Http\Controllers\Tenant\ClinicSetupController;
 use App\Http\Controllers\Tenant\ClinicShareImageController;
 use App\Http\Controllers\Tenant\ClinicWebsiteController;
 use App\Http\Controllers\Tenant\Doctor\ConsultationController;
@@ -41,6 +42,7 @@ use App\Http\Controllers\Tenant\TenantSuspendedController;
 use App\Http\Controllers\Tenant\TodayQueueController;
 use App\Http\Controllers\Tenant\WorkspaceNotificationController;
 use App\Http\Controllers\Tenant\WorkspaceSearchController;
+use App\Http\Middleware\EnsureClinicSetupComplete;
 use App\Http\Middleware\EnsurePublicBookingAvailable;
 use App\Http\Middleware\EnsureSubscriptionActive;
 use App\Http\Middleware\EnsureTenantIsActive;
@@ -169,7 +171,19 @@ Route::middleware([
     });
 
     // 4. Authenticated & Active Tenant Routes
-    Route::middleware(['auth', EnsureTenantIsActive::class, EnsureSubscriptionActive::class])->group(function () {
+    Route::middleware(['auth', EnsureTenantIsActive::class, EnsureSubscriptionActive::class, EnsureClinicSetupComplete::class])->group(function () {
+        // Clinic Setup Wizard (guided first-time configuration)
+        Route::get('/setup', [ClinicSetupController::class, 'index'])
+            ->name('tenant.setup');
+        Route::post('/setup/step/{step}', [ClinicSetupController::class, 'saveStep'])
+            ->name('tenant.setup.save');
+        Route::post('/setup/complete', [ClinicSetupController::class, 'complete'])
+            ->name('tenant.setup.complete');
+        Route::post('/setup/upload-photo', [ClinicSetupController::class, 'uploadPhoto'])
+            ->name('tenant.setup.upload_photo');
+        Route::post('/setup/dismiss-banner', [ClinicSetupController::class, 'dismissBanner'])
+            ->name('tenant.setup.dismiss_banner');
+
         // Clinic Subscription & Payments.lk Billing
         Route::get('/subscription/subscribe', [SubscriptionBillingController::class, 'subscribe'])
             ->name('tenant.subscription.subscribe');
@@ -348,8 +362,8 @@ Route::middleware([
         Route::delete('/profile/avatar', [ProfileController::class, 'deleteAvatar'])
             ->name('tenant.profile.avatar.delete');
 
-        // Doctor Settlements (accessible to doctor, receptionist, clinic_admin)
-        Route::middleware(['role:clinic_admin|receptionist|doctor|super_admin'])->group(function () {
+        // Doctor Settlements (accessible to doctor, clinic_admin; receptionist and pharmacist denied)
+        Route::middleware(['role:clinic_admin|doctor|super_admin'])->group(function () {
             Route::get('/billing/payouts', [DoctorSettlementController::class, 'index'])
                 ->name('tenant.settlements');
             Route::get('/billing/payouts/slip/{settlement}', [DoctorSettlementController::class, 'slip'])
@@ -666,8 +680,8 @@ Route::middleware([
                     ->name('tenant.pharmacy.import.confirm');
             });
 
-            // Dispensing
-            Route::middleware(['permission:pharmacy.dispense|pharmacy.view'])->group(function () {
+            // Dispensing (Clinic Admin & Pharmacist only; Doctor denied)
+            Route::middleware(['role:clinic_admin|pharmacist|super_admin', 'permission:pharmacy.dispense'])->group(function () {
                 Route::get('/pharmacy/dispense', [DispenseController::class, 'index'])
                     ->name('tenant.pharmacy.dispense');
                 Route::get('/pharmacy/dispense/history', [DispenseController::class, 'history'])

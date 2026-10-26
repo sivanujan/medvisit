@@ -153,8 +153,8 @@ class DoctorSettlementController extends Controller
                 'doctor_payout_amount_lkr' => round($s->doctor_payout_amount / 100, 2),
                 'doctor_payout_formatted' => Bill::formatLKR($s->doctor_payout_amount, true),
                 'adjustments_total_lkr' => round($s->adjustments_total / 100, 2),
-                'clinic_amount_lkr' => round($s->clinic_amount / 100, 2),
-                'clinic_amount_formatted' => Bill::formatLKR($s->clinic_amount, true),
+                'clinic_amount_lkr' => $hideClinicShare ? null : round($s->clinic_amount / 100, 2),
+                'clinic_amount_formatted' => $hideClinicShare ? null : Bill::formatLKR($s->clinic_amount, true),
                 'paid_amount_lkr' => round($s->paid_amount / 100, 2),
                 'paid_amount_formatted' => Bill::formatLKR($s->paid_amount, true),
                 'balance_due_lkr' => round(max(0, $s->doctor_payout_amount - $s->paid_amount) / 100, 2),
@@ -291,6 +291,21 @@ class DoctorSettlementController extends Controller
      */
     public function sessionBills(Request $request, DoctorSession $session): JsonResponse
     {
+        $tenant = tenant();
+        $user = $request->user();
+        $isDoctor = $user->hasRole('doctor') && ! $user->hasRole('clinic_admin') && ! $user->hasRole('super_admin');
+
+        if ($isDoctor) {
+            $linkedDoctor = Doctor::where('tenant_id', $tenant->id)->where('user_id', $user->id)->first();
+            if (! $linkedDoctor || $session->doctor_id !== $linkedDoctor->id) {
+                abort(403, 'Unauthorized access to session bills.');
+            }
+        }
+
+        $feeSettings = $this->feeService->getTenantSettings($tenant);
+        $showClinicShareToDoctors = (bool) ($feeSettings['show_clinic_share_to_doctors'] ?? false);
+        $hideClinicShare = $isDoctor && ! $showClinicShareToDoctors;
+
         $bills = Bill::with(['patient', 'items', 'settlementItem.settlement'])
             ->where('tenant_id', $session->tenant_id)
             ->whereHas('token', fn ($q) => $q->where('doctor_session_id', $session->id))
@@ -300,7 +315,7 @@ class DoctorSettlementController extends Controller
             ?? $session->doctor?->payout_rule
             ?? ['type' => 'full_doctor_fee'];
 
-        $billsList = $bills->map(function ($b) use ($payoutRule) {
+        $billsList = $bills->map(function ($b) use ($payoutRule, $hideClinicShare) {
             $pharmacyCents = (int) $b->items->sum('total_price_cents');
             $consultationCents = max(0, $b->total_amount - $pharmacyCents);
             $docShare = $this->payoutService->calculateBillDoctorShare($b, $consultationCents, $payoutRule);
@@ -317,7 +332,7 @@ class DoctorSettlementController extends Controller
                 'consultation_fee_lkr' => round($consultationCents / 100, 2),
                 'pharmacy_fee_lkr' => round($pharmacyCents / 100, 2),
                 'doctor_share_lkr' => round($docShare / 100, 2),
-                'clinic_share_lkr' => round(max(0, $consultationCents - $docShare) / 100, 2),
+                'clinic_share_lkr' => $hideClinicShare ? null : round(max(0, $consultationCents - $docShare) / 100, 2),
                 'is_settled' => $b->settlementItem !== null,
                 'settlement_number' => $b->settlementItem?->settlement?->settlement_number,
             ];
@@ -386,6 +401,20 @@ class DoctorSettlementController extends Controller
     public function slip(Request $request, DoctorSettlement $settlement): JsonResponse
     {
         $tenant = tenant();
+        $user = $request->user();
+        $isDoctor = $user->hasRole('doctor') && ! $user->hasRole('clinic_admin') && ! $user->hasRole('super_admin');
+
+        if ($isDoctor) {
+            $linkedDoctor = Doctor::where('tenant_id', $tenant->id)->where('user_id', $user->id)->first();
+            if (! $linkedDoctor || $settlement->doctor_id !== $linkedDoctor->id) {
+                abort(403, 'Unauthorized access to settlement slip.');
+            }
+        }
+
+        $feeSettings = $this->feeService->getTenantSettings($tenant);
+        $showClinicShareToDoctors = (bool) ($feeSettings['show_clinic_share_to_doctors'] ?? false);
+        $hideClinicShare = $isDoctor && ! $showClinicShareToDoctors;
+
         $settlement->load(['doctor', 'items.bill.patient', 'adjustments', 'creator', 'voidedByUser']);
 
         $billsBreakdown = $settlement->items->map(fn ($item) => [
@@ -396,7 +425,7 @@ class DoctorSettlementController extends Controller
             'paid_at' => $item->bill?->paid_at?->format('M d, Y') ?? $item->bill?->created_at->format('M d, Y'),
             'consultation_fee' => Bill::formatLKR($item->consultation_fee_cents, true),
             'doctor_share' => Bill::formatLKR($item->doctor_share_cents, true),
-            'clinic_share' => Bill::formatLKR($item->clinic_share_cents, true),
+            'clinic_share' => $hideClinicShare ? null : Bill::formatLKR($item->clinic_share_cents, true),
         ]);
 
         $adjustmentsBreakdown = $settlement->adjustments->map(fn ($adj) => [
@@ -431,7 +460,7 @@ class DoctorSettlementController extends Controller
                 'bills_count' => $billsBreakdown->count() > 0 ? $billsBreakdown->count() : $settlement->patients_seen,
                 'gross_collected_formatted' => Bill::formatLKR($settlement->gross_collected, true),
                 'doctor_payout_formatted' => Bill::formatLKR($settlement->doctor_payout_amount, true),
-                'clinic_amount_formatted' => Bill::formatLKR($settlement->clinic_amount, true),
+                'clinic_amount_formatted' => $hideClinicShare ? null : Bill::formatLKR($settlement->clinic_amount, true),
                 'paid_amount_formatted' => Bill::formatLKR($settlement->paid_amount, true),
                 'adjustments_total_formatted' => Bill::formatLKR($settlement->adjustments_total, true),
             ],

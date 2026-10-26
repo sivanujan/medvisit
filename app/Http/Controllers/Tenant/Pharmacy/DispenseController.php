@@ -44,6 +44,12 @@ class DispenseController extends Controller
             'Pharmacy module is currently disabled for this clinic.'
         );
 
+        abort_if(
+            $request->user()->hasRole('doctor') && ! $request->user()->hasRole('clinic_admin') && ! $request->user()->hasRole('super_admin'),
+            403,
+            'Doctor role is not authorized to access pharmacy dispensing.'
+        );
+
         $search = trim((string) $request->input('search', ''));
         $statusFilter = (string) $request->input('status', 'all');
         $doctorIdFilter = $request->input('doctor_id');
@@ -290,6 +296,12 @@ class DispenseController extends Controller
         $tenant = tenant();
         $tenantId = $tenant->id;
         abort_unless($prescription->tenant_id === $tenantId, 404);
+
+        abort_if(
+            $request->user()->hasRole('doctor') && ! $request->user()->hasRole('clinic_admin') && ! $request->user()->hasRole('super_admin'),
+            403,
+            'Doctor role is not authorized to access pharmacy dispensing.'
+        );
 
         $currentUser = $request->user();
         $lockKey = "dispense_lock:{$tenantId}:{$prescription->id}";
@@ -674,6 +686,12 @@ class DispenseController extends Controller
      */
     public function history(Request $request): Response
     {
+        abort_if(
+            $request->user()->hasRole('doctor') && ! $request->user()->hasRole('clinic_admin') && ! $request->user()->hasRole('super_admin'),
+            403,
+            'Doctor role is not authorized to access pharmacy dispensing.'
+        );
+
         $tenantId = tenant('id');
         $search = trim((string) $request->input('search', ''));
 
