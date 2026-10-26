@@ -62,7 +62,7 @@ export default function Pricing({ config = defaultPublicConfig }: Props) {
                     <span className="font-mono text-9xl font-black">LKR</span>
                 </div>
 
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary/10 dark:bg-primary/20 border border-primary/20 text-primary text-xs font-bold uppercase tracking-wider mb-4">
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary/10 dark:bg-primary/20 border border-primary/20 text-primary-700 dark:text-primary-300 text-xs font-bold uppercase tracking-wider mb-4">
                     <Sparkles className="w-3.5 h-3.5" />
                     <span>Transparent Sri Lankan Rupee Pricing</span>
                 </div>
@@ -129,7 +129,7 @@ export default function Pricing({ config = defaultPublicConfig }: Props) {
 
                                 {/* Plan Features & Included Limits */}
                                 <div className="mt-6 space-y-3">
-                                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
                                         Included with this plan:
                                     </p>
 

@@ -354,4 +354,33 @@ class CentralAndPublicQaTest extends TestCase
             $this->assertStringContainsString('urlset', $sitemapRes->getContent());
         }
     }
+
+    /**
+     * 10. Accessibility & contrast audit verification.
+     */
+    public function test_accessibility_labels_and_audit_clean(): void
+    {
+        $findFile = resource_path('js/Pages/Directory/Find.tsx');
+        $this->assertFileExists($findFile);
+        $findContent = file_get_contents($findFile);
+
+        $this->assertStringContainsString('id="filter-district"', $findContent);
+        $this->assertStringContainsString('htmlFor="filter-district"', $findContent);
+        $this->assertStringContainsString('id="filter-specialty"', $findContent);
+        $this->assertStringContainsString('htmlFor="filter-specialty"', $findContent);
+        $this->assertStringContainsString('id="filter-day"', $findContent);
+        $this->assertStringContainsString('htmlFor="filter-day"', $findContent);
+        $this->assertStringContainsString('id="filter-service"', $findContent);
+        $this->assertStringContainsString('htmlFor="filter-service"', $findContent);
+
+        $a11yReportPath = base_path('qa-report/a11y-results.json');
+        if (file_exists($a11yReportPath)) {
+            $a11yReport = json_decode(file_get_contents($a11yReportPath), true);
+            $totalViolations = 0;
+            foreach ($a11yReport as $pageResult) {
+                $totalViolations += $pageResult['violationsCount'] ?? 0;
+            }
+            $this->assertSame(0, $totalViolations, 'A11y violations found in automated audit report');
+        }
+    }
 }

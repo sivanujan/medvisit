@@ -76,7 +76,7 @@ export default function LegalFooter({ className = '', isTenantContext = false }:
                         <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-400">
                             Sri Lanka’s smart clinic operating system & live patient token management platform. Built for modern medical practices, doctors, and patient care.
                         </p>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-500 font-medium">
+                        <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium">
                             {business.name} — Clinic Operating System
                         </p>
                     </div>

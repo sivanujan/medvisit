@@ -51,7 +51,7 @@ export default function PolicyContactCard({ business = defaultPublicConfig.busin
                 {/* Support Email */}
                 <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between">
                     <div>
-                        <div className="flex items-center gap-2 text-primary font-bold mb-1">
+                        <div className="flex items-center gap-2 text-primary-700 dark:text-primary-300 font-bold mb-1">
                             <Mail className="w-4 h-4" />
                             <span>Support & Claims</span>
                         </div>
@@ -70,7 +70,7 @@ export default function PolicyContactCard({ business = defaultPublicConfig.busin
                 {/* General Email */}
                 <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between">
                     <div>
-                        <div className="flex items-center gap-2 text-secondary font-bold mb-1">
+                        <div className="flex items-center gap-2 text-secondary-700 dark:text-secondary-300 font-bold mb-1">
                             <Mail className="w-4 h-4" />
                             <span>General Enquiries</span>
                         </div>
@@ -120,7 +120,7 @@ export default function PolicyContactCard({ business = defaultPublicConfig.busin
                         href={whatsappUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-xs transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                        className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-xs transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                     >
                         <span>Chat on WhatsApp</span>
                         <ExternalLink className="w-3.5 h-3.5" />

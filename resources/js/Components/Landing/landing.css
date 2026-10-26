@@ -12,7 +12,8 @@
     --lp-line: rgba(15, 23, 42, 0.1);
     --lp-ink: #0f1b2d;
     --lp-muted: #475569;
-    --lp-blue: #1e6fd9;
+    --lp-blue: #165bb5;
+    --lp-step-num: #1459b3;
     --lp-teal: #0e9e8f;
     --lp-teal-ink: #0a7e73;
     --lp-coral: #ff7a59;
@@ -31,6 +32,8 @@
     --lp-line: rgba(255, 255, 255, 0.1);
     --lp-ink: #eef3fb;
     --lp-muted: #a7b4c8;
+    --lp-blue: #1d4ed8;
+    --lp-step-num: #93c5fd;
     --lp-teal-ink: #4fd1c3;
     --lp-coral-ink: #ff9c82;
     --lp-board: #0d2347;
@@ -337,7 +340,7 @@
 
 .lp-step-badge {
     background: color-mix(in srgb, var(--lp-blue) calc(var(--lit) * 100%), var(--lp-surface-solid));
-    color: color-mix(in srgb, #ffffff calc(var(--lit) * 100%), var(--lp-blue));
+    color: color-mix(in srgb, #ffffff calc(var(--lit) * 100%), var(--lp-step-num));
 }
 
 .lp-step-badge {

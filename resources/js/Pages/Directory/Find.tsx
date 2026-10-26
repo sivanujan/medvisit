@@ -411,10 +411,12 @@ export default function DirectoryFind({
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/80">
                     {/* District Dropdown */}
                     <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                        <label htmlFor="filter-district" className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">
                             District
                         </label>
                         <select
+                            id="filter-district"
+                            aria-label="Filter by district"
                             value={selectedDistrict}
                             onChange={(e) => {
                                 setSelectedDistrict(e.target.value);
@@ -433,10 +435,12 @@ export default function DirectoryFind({
 
                     {/* Specialty Dropdown */}
                     <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                        <label htmlFor="filter-specialty" className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">
                             Specialty
                         </label>
                         <select
+                            id="filter-specialty"
+                            aria-label="Filter by specialty"
                             value={selectedSpecialty}
                             onChange={(e) => {
                                 setSelectedSpecialty(e.target.value);
@@ -455,10 +459,12 @@ export default function DirectoryFind({
 
                     {/* Day of Week */}
                     <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                        <label htmlFor="filter-day" className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">
                             Available Day
                         </label>
                         <select
+                            id="filter-day"
+                            aria-label="Filter by available day"
                             value={selectedDay}
                             onChange={(e) => {
                                 const val = e.target.value !== '' ? parseInt(e.target.value, 10) : '';
@@ -478,10 +484,12 @@ export default function DirectoryFind({
 
                     {/* Facility / Service */}
                     <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                        <label htmlFor="filter-service" className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">
                             Clinic Service
                         </label>
                         <select
+                            id="filter-service"
+                            aria-label="Filter by clinic service"
                             value={selectedService}
                             onChange={(e) => {
                                 setSelectedService(e.target.value);
@@ -702,7 +710,7 @@ export default function DirectoryFind({
 
                                         {/* Upcoming / Weekly Schedules */}
                                         <div className="mb-4">
-                                            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1">
+                                            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5 flex items-center gap-1">
                                                 <Clock className="w-3 h-3" />
                                                 Consultation Schedule
                                             </div>
@@ -714,19 +722,19 @@ export default function DirectoryFind({
                                                             className="flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-slate-50 dark:bg-slate-800/40 text-slate-700 dark:text-slate-300"
                                                         >
                                                             <span className="font-semibold">{sched.day_name}</span>
-                                                            <span className="text-slate-500 dark:text-slate-400 text-[11px]">
+                                                            <span className="text-slate-600 dark:text-slate-400 text-[11px]">
                                                                 {sched.start_time} - {sched.end_time}
                                                             </span>
                                                         </div>
                                                     ))}
                                                     {doctor.session_schedules.length > 3 && (
-                                                        <div className="text-[10px] text-slate-400 text-right pr-1">
+                                                        <div className="text-[10px] text-slate-600 dark:text-slate-400 text-right pr-1">
                                                             +{doctor.session_schedules.length - 3} more days
                                                         </div>
                                                     )}
                                                 </div>
                                             ) : (
-                                                <span className="text-xs text-slate-400 italic">
+                                                <span className="text-xs text-slate-600 dark:text-slate-400 italic">
                                                     Sessions scheduled weekly
                                                 </span>
                                             )}
@@ -736,7 +744,7 @@ export default function DirectoryFind({
                                     {/* Card Footer: Fee & Book Button */}
                                     <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
                                         <div>
-                                            <span className="block text-[10px] uppercase font-bold text-slate-400">
+                                            <span className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400">
                                                 Consultation Fee
                                             </span>
                                             <span className="text-sm font-black text-slate-900 dark:text-white">
@@ -857,7 +865,7 @@ export default function DirectoryFind({
 
                                         {/* Active Doctors Roster Preview */}
                                         <div className="mb-4">
-                                            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center justify-between">
+                                            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-2 flex items-center justify-between">
                                                 <span>Active Doctors ({clinic.doctor_count})</span>
                                             </div>
                                             <div className="space-y-1.5">

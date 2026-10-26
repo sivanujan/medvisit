@@ -68,35 +68,35 @@ function formatPhoneNumber(rawPhone?: string): string {
     return cleaned;
 }
 
-// Primary theme styles mapping
+// Primary theme styles mapping (ensuring >= 4.5:1 contrast against white text)
 const THEME_CLASSES: Record<string, { bg: string; hover: string; text: string; ring: string }> = {
     'medvisit-teal': {
-        bg: 'bg-teal-600',
-        hover: 'hover:bg-teal-500',
+        bg: 'bg-teal-700',
+        hover: 'hover:bg-teal-800',
         text: 'text-teal-700',
         ring: 'focus-visible:ring-teal-500',
     },
     'ocean-blue': {
-        bg: 'bg-blue-600',
-        hover: 'hover:bg-blue-500',
+        bg: 'bg-blue-700',
+        hover: 'hover:bg-blue-800',
         text: 'text-blue-700',
         ring: 'focus-visible:ring-blue-500',
     },
     'emerald-health': {
-        bg: 'bg-emerald-600',
-        hover: 'hover:bg-emerald-500',
+        bg: 'bg-emerald-700',
+        hover: 'hover:bg-emerald-800',
         text: 'text-emerald-700',
         ring: 'focus-visible:ring-emerald-500',
     },
     'royal-purple': {
-        bg: 'bg-purple-600',
-        hover: 'hover:bg-purple-500',
+        bg: 'bg-purple-700',
+        hover: 'hover:bg-purple-800',
         text: 'text-purple-700',
         ring: 'focus-visible:ring-purple-500',
     },
     'warm-terracotta': {
-        bg: 'bg-amber-600',
-        hover: 'hover:bg-amber-500',
+        bg: 'bg-amber-700',
+        hover: 'hover:bg-amber-800',
         text: 'text-amber-700',
         ring: 'focus-visible:ring-amber-500',
     },
