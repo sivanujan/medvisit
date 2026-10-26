@@ -332,6 +332,11 @@ export default function TodayQueueIndex({
             } else if (key === 'S') {
                 e.preventDefault();
                 skip();
+            } else if (key === 'P') {
+                if (nowServingToken) {
+                    e.preventDefault();
+                    router.visit(`/doctor/consultation/${nowServingToken.id}`);
+                }
             } else if (key === 'X') {
                 e.preventDefault();
                 if (nowServingToken) {
@@ -828,7 +833,7 @@ export default function TodayQueueIndex({
                                         }`}
                                     >
                                         <span className={`w-2 h-2 rounded-full shrink-0 ${isSelected ? 'bg-white ring-2 ring-white/30' : dotClass}`} />
-                                        <span>{s.doctor_name}</span>
+                                        <span>{s.doctor_name.replace(/^(Dr\.?\s*)+/i, 'Dr. ')}</span>
                                         <span className={`text-[11px] ${isSelected ? 'text-white/80' : 'text-slate-400'}`}>
                                             · {s.start_time} · {s.room_number}
                                         </span>
@@ -1047,6 +1052,16 @@ export default function TodayQueueIndex({
                                                             <Timer className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '6s' }} />
                                                             <span>{formattedElapsed} in consult</span>
                                                         </div>
+
+                                                        {/* WRITE PRESCRIPTION / CONSULTATION WORKSPACE */}
+                                                        <Link
+                                                            href={`/doctor/consultation/${nowServingToken.id}`}
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-sm shadow-emerald-600/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                                            title="Open Consultation & Prescription Workspace to prescribe medicines (P)"
+                                                        >
+                                                            <Stethoscope className="w-3.5 h-3.5" />
+                                                            <span>Prescribe Medicines</span>
+                                                        </Link>
                                                     </div>
                                                 </div>
                                             </div>
@@ -1068,18 +1083,38 @@ export default function TodayQueueIndex({
 
                                     {/* LARGE ACTION BUTTONS (With Keyboard Shortcut Hints) */}
                                     <div className="mt-8 pt-5 border-t border-slate-200/60 dark:border-white/10 space-y-4">
-                                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
-                                            {/* CALL NEXT (Primary, Big, Space or N) */}
+                                        <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5">
+                                            {/* PRESCRIBE / CONSULTATION (Primary for Doctor, P) */}
+                                            {nowServingToken ? (
+                                                <Link
+                                                    href={`/doctor/consultation/${nowServingToken.id}`}
+                                                    className="col-span-2 sm:col-span-2 min-h-[48px] inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl text-xs font-bold text-white bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-500 shadow-lg shadow-emerald-600/25 transition-all hover:scale-[1.01] active:scale-[0.99]"
+                                                    title="Open Consultation workspace to prescribe medicines, record vitals, and issue prescription"
+                                                >
+                                                    <Stethoscope className="w-4 h-4" />
+                                                    <span>Prescribe (Rx)</span>
+                                                    <kbd className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded font-mono font-normal">
+                                                        P
+                                                    </kbd>
+                                                </Link>
+                                            ) : (
+                                                <div className="col-span-2 sm:col-span-2 min-h-[48px] inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl text-xs font-bold text-slate-400 bg-slate-100 dark:bg-white/5 opacity-50 cursor-not-allowed">
+                                                    <Stethoscope className="w-4 h-4" />
+                                                    <span>Prescribe (Rx)</span>
+                                                </div>
+                                            )}
+
+                                            {/* CALL NEXT (Space or N) */}
                                             <button
                                                 type="button"
                                                 onClick={callNext}
                                                 disabled={isActionLoading || stats.waiting === 0}
-                                                className="col-span-2 sm:col-span-2 min-h-[48px] inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-xs font-bold text-white bg-[#1E6FD9] hover:bg-[#1859ae] shadow-lg shadow-[#1E6FD9]/25 disabled:opacity-40 transition-all hover:scale-[1.01] active:scale-[0.99]"
+                                                className="min-h-[48px] inline-flex items-center justify-center gap-1.5 px-3 py-3 rounded-2xl text-xs font-bold text-white bg-[#1E6FD9] hover:bg-[#1859ae] shadow-lg shadow-[#1E6FD9]/25 disabled:opacity-40 transition-all hover:scale-[1.01] active:scale-[0.99]"
                                             >
-                                                <PhoneCall className="w-4 h-4" />
+                                                <PhoneCall className="w-3.5 h-3.5" />
                                                 <span>Call next</span>
-                                                <kbd className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded font-mono font-normal">
-                                                    N or Space
+                                                <kbd className="text-[9px] bg-white/20 px-1 py-0.5 rounded font-mono font-normal">
+                                                    N / Space
                                                 </kbd>
                                             </button>
 
@@ -1398,6 +1433,17 @@ export default function TodayQueueIndex({
                                                                     >
                                                                         <PhoneCall className="w-3.5 h-3.5" />
                                                                     </button>
+                                                                )}
+
+                                                                {/* Prescribe / Consultation for called or active tokens */}
+                                                                {['called', 'in_consultation', 'completed'].includes(token.status) && (
+                                                                    <Link
+                                                                        href={`/doctor/consultation/${token.id}`}
+                                                                        className="p-1.5 rounded-xl text-emerald-600 dark:text-emerald-400 hover:text-white hover:bg-emerald-600 transition-colors"
+                                                                        title="Open Consultation & Prescription Workspace"
+                                                                    >
+                                                                        <Stethoscope className="w-3.5 h-3.5" />
+                                                                    </Link>
                                                                 )}
 
                                                                 {/* Restore if skipped/no-show */}

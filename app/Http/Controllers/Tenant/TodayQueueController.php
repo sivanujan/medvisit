@@ -54,7 +54,7 @@ class TodayQueueController extends Controller
             return [
                 'id' => $s->id,
                 'doctor_id' => $s->doctor_id,
-                'doctor_name' => trim(($s->doctor?->title ?? 'Dr.').' '.($s->doctor?->name ?? 'Doctor')),
+                'doctor_name' => $this->formatDoctorName($s->doctor),
                 'doctor_specialty' => $s->doctor?->specialty ?? 'General',
                 'start_time' => Carbon::parse($s->start_time)->format('h:i A'),
                 'end_time' => Carbon::parse($s->end_time)->format('h:i A'),
@@ -227,7 +227,7 @@ class TodayQueueController extends Controller
             $activeSession = [
                 'id' => $activeSessionModel->id,
                 'doctor_id' => $activeSessionModel->doctor_id,
-                'doctor_name' => trim(($activeSessionModel->doctor?->title ?? 'Dr.').' '.($activeSessionModel->doctor?->name ?? 'Doctor')),
+                'doctor_name' => $this->formatDoctorName($activeSessionModel->doctor),
                 'doctor_specialty' => $activeSessionModel->doctor?->specialty ?? 'General',
                 'start_time' => Carbon::parse($activeSessionModel->start_time)->format('h:i A'),
                 'end_time' => Carbon::parse($activeSessionModel->end_time)->format('h:i A'),
@@ -255,7 +255,7 @@ class TodayQueueController extends Controller
 
                 return [
                     'id' => $s->id,
-                    'doctor_name' => trim(($s->doctor?->title ?? 'Dr.').' '.($s->doctor?->name ?? 'Doctor')),
+                    'doctor_name' => $this->formatDoctorName($s->doctor),
                     'doctor_specialty' => $s->doctor?->specialty ?? 'General',
                     'date_formatted' => $dateLabel,
                     'start_time' => Carbon::parse($s->start_time)->format('h:i A'),
@@ -279,7 +279,7 @@ class TodayQueueController extends Controller
 
                 $nextUpcomingSessionToday = [
                     'id' => $first->id,
-                    'doctor_name' => trim(($first->doctor?->title ?? 'Dr.').' '.($first->doctor?->name ?? 'Doctor')),
+                    'doctor_name' => $this->formatDoctorName($first->doctor),
                     'start_time' => Carbon::parse($first->start_time)->format('h:i A'),
                     'starts_in_minutes' => max(0, $diffMinutes),
                     'starts_in_text' => $diffMinutes > 0 ? "starts in {$diffMinutes} min" : 'starting now',
@@ -648,5 +648,24 @@ class TodayQueueController extends Controller
         $otherToken->update(['token_number' => $currentNum]);
 
         return redirect()->back()->with('success', "Token #{$currentNum} reordered to #{$otherNum}.");
+    }
+
+    /**
+     * Format doctor display name safely without duplicating title prefix.
+     */
+    private function formatDoctorName(?Doctor $doctor): string
+    {
+        if (! $doctor) {
+            return 'Doctor';
+        }
+
+        $rawName = trim($doctor->name ?? 'Doctor');
+        if (preg_match('/^(dr\.?|prof\.?)\s+/i', $rawName)) {
+            return $rawName;
+        }
+
+        $title = trim($doctor->title ?? 'Dr.');
+
+        return trim($title.' '.$rawName);
     }
 }
