@@ -21,6 +21,10 @@ class EnsurePublicBookingAvailable
         $tenant = tenant();
 
         if ($tenant) {
+            if ($tenant->isSuspended() || $tenant->status === 'suspended' || $tenant->status === 'inactive') {
+                abort(404);
+            }
+
             $isSubInactive = ! $tenant->hasActiveSubscription();
             $isBookingDisabled = ! (bool) ($tenant->online_booking_enabled ?? true);
 

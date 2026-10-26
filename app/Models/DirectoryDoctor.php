@@ -48,12 +48,16 @@ class DirectoryDoctor extends Model
 
     /**
      * Scope for active directory doctors.
+     * Excludes doctors whose parent directory listing or tenant is inactive.
      *
      * @param  Builder<DirectoryDoctor>  $query
      */
     public function scopeActive(Builder $query): Builder
     {
-        return $query->where('is_active', true);
+        return $query->where('is_active', true)
+            ->whereHas('listing', function (Builder $l) {
+                $l->active();
+            });
     }
 
     /**

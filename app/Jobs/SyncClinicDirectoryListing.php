@@ -51,7 +51,7 @@ class SyncClinicDirectoryListing implements ShouldBeUnique, ShouldQueue
         /** @var Tenant|null $tenant */
         $tenant = Tenant::find($this->tenantId);
 
-        if (! $tenant) {
+        if (! $tenant || $tenant->status === 'suspended' || $tenant->status === 'inactive' || $tenant->isSuspended() || ! $tenant->isUsable()) {
             DirectoryListing::where('tenant_id', $this->tenantId)->delete();
 
             return;

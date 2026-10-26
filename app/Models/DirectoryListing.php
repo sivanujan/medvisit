@@ -7,6 +7,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class DirectoryListing extends Model
@@ -68,13 +69,27 @@ class DirectoryListing extends Model
     }
 
     /**
+     * Parent tenant of this directory listing.
+     *
+     * @return BelongsTo<Tenant, $this>
+     */
+    public function tenant(): BelongsTo
+    {
+        return $this->belongsTo(Tenant::class, 'tenant_id');
+    }
+
+    /**
      * Scope for active directory listings.
+     * Excludes listings where is_active is false, or whose parent tenant is not active/is suspended.
      *
      * @param  Builder<DirectoryListing>  $query
      */
     public function scopeActive(Builder $query): Builder
     {
-        return $query->where('is_active', true);
+        return $query->where('is_active', true)
+            ->whereHas('tenant', function (Builder $t) {
+                $t->where('status', 'active');
+            });
     }
 
     /**
