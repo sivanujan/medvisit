@@ -80,7 +80,7 @@ class ClinicSettingsController extends Controller
             'default_reorder_level' => (int) ($tenant->pharmacy_default_reorder_level ?? 10),
             'expiring_soon_threshold_days' => (int) ($tenant->pharmacy_expiring_soon_days ?? 60),
             'stock_reduction_mode' => $tenant->pharmacy_stock_reduction_mode ?? 'dispense',
-            'prescription_print_enabled' => (bool) ($tenant->prescription_print_enabled ?? false),
+            'prescription_print_enabled' => (bool) ($tenant->prescription_print_enabled ?? true),
             'prescription_print_language' => $tenant->prescription_print_language ?? 'en',
             'prescription_print_show_doctor_reg' => (bool) ($tenant->prescription_print_show_doctor_reg ?? true),
             'prescription_print_show_diagnosis' => (bool) ($tenant->prescription_print_show_diagnosis ?? false),

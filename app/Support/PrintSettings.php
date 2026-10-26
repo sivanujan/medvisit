@@ -50,7 +50,7 @@ class PrintSettings
             'receipt_prefix' => (string) ($tenant->receipt_prefix ?? 'REC'),
             'token_slip_enabled' => (bool) ($tenant->print_token_slip_enabled ?? true),
             'token_slip_autoprint' => (bool) ($tenant->print_token_slip_autoprint ?? false),
-            'prescription_print_enabled' => (bool) ($tenant->prescription_print_enabled ?? false),
+            'prescription_print_enabled' => (bool) ($tenant->prescription_print_enabled ?? true),
             'prescription_print_language' => in_array($tenant->prescription_print_language, ['en', 'ta', 'si'], true)
                 ? $tenant->prescription_print_language
                 : 'en',
@@ -74,7 +74,7 @@ class PrintSettings
             'receipt_prefix' => 'REC',
             'token_slip_enabled' => true,
             'token_slip_autoprint' => false,
-            'prescription_print_enabled' => false,
+            'prescription_print_enabled' => true,
             'prescription_print_language' => 'en',
             'prescription_paper_size' => self::PAPER_A5,
             'show_logo' => true,

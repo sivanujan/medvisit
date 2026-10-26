@@ -15,6 +15,7 @@ use App\Models\Prescription;
 use App\Models\PrescriptionItem;
 use App\Models\PrescriptionTemplate;
 use App\Services\AuditLogger;
+use App\Services\Pdf\ChromiumPdfService;
 use App\Services\Pharmacy\DispenseService;
 use App\Services\Pharmacy\DoseCalculatorService;
 use App\Services\SequenceService;
@@ -173,7 +174,7 @@ class ConsultationController extends Controller
 
         // Pharmacy & printing settings
         $pharmacyEnabled = (bool) ($tenant->pharmacy_enabled ?? false);
-        $printEnabled = (bool) ($tenant->prescription_print_enabled ?? false);
+        $printEnabled = (bool) ($tenant->prescription_print_enabled ?? true);
         $stockMode = $tenant->pharmacy_stock_reduction_mode ?? Prescription::MODE_DISPENSE;
 
         // Check if consultation is locked (cannot be edited)
@@ -464,19 +465,30 @@ class ConsultationController extends Controller
     }
 
     /**
-     * Printable A5 layout for a finalized prescription.
+     * Printable A5 layout or downloadable PDF for a finalized prescription.
      */
-    public function print(Prescription $prescription): Response
+    public function print(Request $request, Prescription $prescription): Response|\Illuminate\Http\Response
     {
         $tenant = tenant();
         $tenantId = $tenant->id;
         abort_unless($prescription->tenant_id === $tenantId, 404);
 
-        // Guard: Printing must be enabled in settings
-        $printEnabled = (bool) ($tenant->prescription_print_enabled ?? false);
+        // Guard: Printing is enabled by default unless explicitly disabled in settings
+        $printEnabled = (bool) ($tenant->prescription_print_enabled ?? true);
         abort_unless($printEnabled, 404, 'Prescription printing is disabled for this clinic.');
 
         abort_unless($prescription->isFinalized(), 400, 'Cannot print an unfinalized prescription.');
+
+        // Support direct PDF download / view via ChromiumPdfService
+        if ($request->query('format') === 'pdf') {
+            $pdfService = app(ChromiumPdfService::class);
+            $binary = $pdfService->generatePrescriptionPdf($prescription, $tenant->prescription_print_language ?? 'en');
+
+            return response($binary, 200, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="prescription-'.$prescription->prescription_number.'.pdf"',
+            ]);
+        }
 
         $prescription->load(['patient', 'doctor', 'token.doctorSession.doctor', 'items.clinicMedicine.brand', 'items.variant.medicine', 'diagnosisTags']);
         $rx = $prescription;
