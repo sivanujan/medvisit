@@ -87,4 +87,33 @@ class CalendarWeekViewQaTest extends TestCase
         $this->assertContains($sessionInWeek->id, $sessionIds, 'Session inside week must be returned');
         $this->assertNotContains($sessionOutOfWeek->id, $sessionIds, 'Session outside week must be excluded');
     }
+
+    /**
+     * 2. Admin can cancel a session that has no paid bills.
+     */
+    public function test_admin_can_cancel_session_without_paid_bills(): void
+    {
+        $doctor = Doctor::where('tenant_id', $this->tenant->id)->firstOrFail();
+        $session = DoctorSession::create([
+            'tenant_id' => $this->tenant->id,
+            'doctor_id' => $doctor->id,
+            'session_date' => now()->addDay()->toDateString(),
+            'start_time' => '10:00:00',
+            'end_time' => '13:00:00',
+            'max_tokens' => 20,
+            'status' => 'scheduled',
+        ]);
+
+        $res = $this->actingAs($this->admin)
+            ->post("http://cityhealth.{$this->baseDomain}/calendar/sessions/{$session->id}/cancel", [
+                'reason' => 'Doctor unavailable due to emergency conference',
+            ]);
+
+        $res->assertRedirect();
+        $res->assertSessionHas('success');
+
+        $session->refresh();
+        $this->assertSame('cancelled', $session->status);
+        $this->assertSame('Doctor unavailable due to emergency conference', $session->cancellation_reason);
+    }
 }

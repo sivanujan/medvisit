@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
+use App\Models\Bill;
 use App\Models\BookingToken;
 use App\Models\Doctor;
 use App\Models\DoctorSession;
