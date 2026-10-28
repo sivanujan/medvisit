@@ -131,6 +131,16 @@ class TemplateService
      */
     public function checkout(Tenant $tenant, User $user, WebsiteTemplate $template, array $data): array
     {
+        // 0. Premium template sales gate (disabled until approved by owner)
+        if ($template->isPremium() && ! config('medvisit.premium_template_sales_enabled', false)) {
+            return [
+                'success' => false,
+                'is_demo' => false,
+                'checkout_url' => null,
+                'message' => 'Premium template sales are currently under development and disabled pending review of pricing and terms. You may preview and test templates freely in the editor.',
+            ];
+        }
+
         // 1. Double purchase prevention
         $existing = TemplatePurchase::where('tenant_id', $tenant->id)
             ->where('template_id', $template->id)

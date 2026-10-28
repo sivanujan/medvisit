@@ -13,6 +13,9 @@ return [
     // Templates under development mode: allows clinics to preview, test, and apply premium templates freely
     'templates_under_development' => env('TEMPLATES_UNDER_DEVELOPMENT', true),
 
+    // Premium website template sales enabled (disabled by default until pricing and refund policy are approved)
+    'premium_template_sales_enabled' => env('PREMIUM_TEMPLATE_SALES_ENABLED', false),
+
     'mail' => [
         'logo_url' => env('MAIL_LOGO_URL'),
         'icon_url' => env('MAIL_ICON_URL'),
