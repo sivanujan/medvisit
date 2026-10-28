@@ -160,22 +160,20 @@ export default function StepLocationContact({
                     </span>
                 </div>
 
-                <div className="rounded-2xl overflow-hidden border border-slate-200 dark:border-white/10 shadow-sm">
-                    <MapPinPicker
-                        latitude={form.latitude}
-                        longitude={form.longitude}
-                        onChange={(lat, lng) => {
-                            if (lat !== null && lng !== null) {
-                                onChange('latitude', lat);
-                                onChange('longitude', lng);
-                                onChange('has_pinned', true);
-                            }
-                        }}
-                    />
-                </div>
-                <p className="text-[11px] text-slate-400">
-                    Click anywhere on the map or drag the pin to your exact entrance.
-                </p>
+                <MapPinPicker
+                    latitude={form.latitude}
+                    longitude={form.longitude}
+                    district={form.district}
+                    city={form.city}
+                    onChange={(lat, lng) => {
+                        if (lat !== null && lng !== null) {
+                            onChange('latitude', lat);
+                            onChange('longitude', lng);
+                            onChange('has_pinned', true);
+                        }
+                    }}
+                />
+
                 {(errors.latitude || errors.longitude) && (
                     <p className="text-xs text-rose-500 mt-1">
                         {errors.latitude || errors.longitude}

@@ -828,7 +828,7 @@ export default function BillingCenter({
                                 type="text"
                                 value={billingForm.data.phone}
                                 onChange={(e) => billingForm.setData('phone', e.target.value)}
-                                placeholder="+94 77 123 4567"
+                                placeholder="070 129 1688"
                                 className="w-full px-3.5 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/60 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs focus:ring-2 focus:ring-[#1E6FD9] focus:outline-none transition"
                             />
                             {billingForm.errors.phone && (

@@ -7,7 +7,7 @@ export const termsData: PolicyPageData = {
     title: 'Terms and Conditions',
     eyebrow: 'Legal Agreement',
     description: 'Terms and Conditions governing the use of MedVisit healthcare operating software and patient token services in Sri Lanka.',
-    lastUpdated: '21 October 2026',
+    lastUpdated: '28 October 2026',
     readingTime: '6 min read',
     tokenMotif: 'TRM-01',
     keyPoints: [
@@ -68,6 +68,26 @@ export const termsData: PolicyPageData = {
                         Current prices are always shown on our{' '}
                         <Link href="/pricing" className="text-primary font-medium underline">
                             Pricing page
+                        </Link>.
+                    </p>
+                </div>
+            ),
+        },
+        {
+            id: 'website-templates',
+            title: 'Website templates (one-time purchases)',
+            render: () => (
+                <div className="space-y-3">
+                    <p>
+                        Clinics may purchase optional premium website templates for a one-time fee in LKR. A purchased template grants a non-exclusive, non-transferable license to apply and publish the design on the clinic's MedVisit website subdomain for as long as the clinic's MedVisit subscription remains active.
+                    </p>
+                    <p>
+                        Templates included with a plan are available only while the clinic is on that plan.
+                    </p>
+                    <p>
+                        Template refunds are governed by our{' '}
+                        <Link href="/refund-policy" className="text-primary font-medium underline">
+                            Refund Policy
                         </Link>.
                     </p>
                 </div>

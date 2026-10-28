@@ -20,5 +20,5 @@ Map: {{ $mapUrl }}
 Please arrive at the clinic 15 minutes before your consultation time.
 
 ---
-Powered by MedVisit · Clinic management for Sri Lanka
+Powered by MedVisit · https://medvisit.lk
 © {{ date('Y') }} {{ $clinicName }}. All rights reserved.

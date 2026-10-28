@@ -162,8 +162,7 @@
     </table>
 
     <div style="margin-top: 30px; font-size: 11px; color: #64748b; text-align: center;">
-        End-of-Day Financial Ledger generated automatically by MedVisit Cloud Health OS.<br>
-        <em>HarfBuzz Compliant PDF Engine</em>
+        End-of-Day Financial Ledger • Powered by MedVisit (<a href="https://medvisit.lk" style="color: inherit; text-decoration: none;">medvisit.lk</a>)
     </div>
 </div>
 </body>

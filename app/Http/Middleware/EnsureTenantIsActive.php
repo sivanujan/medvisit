@@ -21,8 +21,14 @@ class EnsureTenantIsActive
         $tenant = tenant();
 
         if ($tenant && (! $tenant->isUsable())) {
-            // Allow viewing the suspension page and logging out
-            if ($request->routeIs('tenant.suspended', 'tenant.logout')) {
+            // Allow viewing the suspension page, checkout, payment return/status, and logging out
+            if ($request->routeIs(
+                'tenant.suspended',
+                'tenant.logout',
+                'tenant.subscription.checkout',
+                'tenant.subscription.return',
+                'tenant.subscription.check_status'
+            )) {
                 return $next($request);
             }
 

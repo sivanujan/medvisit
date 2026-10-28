@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Support\TokenHelper;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -73,6 +74,22 @@ class BookingToken extends Model
             'fee_snapshot' => 'array',
             'fee_snapshot_backup' => 'array',
         ];
+    }
+
+    /**
+     * Get the formatted display token label (e.g. 'SV-01' or '01').
+     */
+    public function getDisplayTokenAttribute(): string
+    {
+        $session = $this->doctorSession ?: $this->session;
+        if ($session) {
+            return $session->formatToken($this->token_number);
+        }
+
+        $tenant = tenant();
+        $format = $tenant ? $tenant->getTokenNumberFormat() : 'with_doctor_code';
+
+        return TokenHelper::format($this->token_number, null, $format);
     }
 
     public function session(): BelongsTo

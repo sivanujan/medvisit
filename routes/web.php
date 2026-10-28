@@ -3,8 +3,10 @@
 use App\Http\Controllers\Api\ClinicAnnouncementController;
 use App\Http\Controllers\Auth\TwoFactorChallengeController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublicDemoController;
 use App\Http\Controllers\PublicDirectoryController;
 use App\Http\Controllers\PublicLegalController;
+use App\Http\Controllers\PublicTemplateShowcaseController;
 use App\Http\Controllers\SuperAdmin\AdminUserController;
 use App\Http\Controllers\SuperAdmin\AnnouncementManagementController;
 use App\Http\Controllers\SuperAdmin\ClinicManagementController;
@@ -22,6 +24,7 @@ use App\Http\Controllers\SuperAdmin\RefundManagementController;
 use App\Http\Controllers\SuperAdmin\SubscriptionManagementController;
 use App\Http\Controllers\SuperAdmin\SupportInboxController;
 use App\Http\Controllers\SuperAdmin\SystemHealthController;
+use App\Http\Controllers\SuperAdmin\TemplateManagementController;
 use App\Http\Controllers\Support\SupportBroadcastAuthController;
 use App\Http\Controllers\Support\SupportChatWidgetController;
 use App\Http\Controllers\Webhooks\PaymentsLkWebhookController;
@@ -62,8 +65,14 @@ Route::domain('{central_domain}')
             ]);
         })->name('home');
 
+        // Public Interactive Demo Hub (/demo)
+        Route::get('/demo', [PublicDemoController::class, 'index'])->name('public.demo');
+        Route::post('/demo/start', [PublicDemoController::class, 'launch'])->name('public.demo.launch');
+
         // Public Pricing & Legal Pages (Payment Gateway Compliance & Merchant Review)
         Route::get('/pricing', [PublicLegalController::class, 'pricing'])->name('pricing');
+        Route::get('/templates', [PublicTemplateShowcaseController::class, 'index'])->name('templates.index');
+        Route::get('/templates/{slug}/demo-preview', [PublicTemplateShowcaseController::class, 'demoPreview'])->name('templates.demo-preview');
         Route::get('/terms', [PublicLegalController::class, 'terms'])->name('terms');
         Route::get('/refund-policy', [PublicLegalController::class, 'refundPolicy'])->name('refund_policy');
         Route::get('/dispute-policy', [PublicLegalController::class, 'disputePolicy'])->name('dispute_policy');
@@ -219,6 +228,8 @@ Route::domain('{central_domain}')
                     ->name('super_admin.leads.convert');
                 Route::delete('/super-admin/leads/{lead}', [LeadManagementController::class, 'destroy'])
                     ->name('super_admin.leads.destroy');
+                Route::post('/super-admin/leads/reset-demo', [LeadManagementController::class, 'resetDemo'])
+                    ->name('super_admin.leads.reset_demo');
 
                 // Global Medicine Catalog & Review Queue
                 Route::get('/super-admin/medicines', [MedicineCatalogController::class, 'index'])
@@ -325,6 +336,20 @@ Route::domain('{central_domain}')
                     ->name('super_admin.settings.index');
                 Route::put('/super-admin/settings', [PlatformSettingsController::class, 'update'])
                     ->name('super_admin.settings.update');
+
+                // Website Template Marketplace Management & Sales
+                Route::get('/super-admin/templates', [TemplateManagementController::class, 'index'])
+                    ->name('super_admin.templates.index');
+                Route::put('/super-admin/templates/settings', [TemplateManagementController::class, 'updateSettings'])
+                    ->name('super_admin.templates.settings');
+                Route::put('/super-admin/templates/{template}', [TemplateManagementController::class, 'update'])
+                    ->name('super_admin.templates.update');
+                Route::get('/super-admin/template-sales', [TemplateManagementController::class, 'sales'])
+                    ->name('super_admin.template_sales.index');
+                Route::get('/super-admin/template-sales/export', [TemplateManagementController::class, 'exportSalesCsv'])
+                    ->name('super_admin.template_sales.export');
+                Route::post('/super-admin/clinics/{clinicId}/template-entitlement', [TemplateManagementController::class, 'overrideClinicEntitlement'])
+                    ->name('super_admin.clinics.template_entitlement');
 
                 // Admin Users & 2FA
                 Route::get('/super-admin/admins', [AdminUserController::class, 'index'])
@@ -455,7 +480,7 @@ Route::domain('{central_domain}')
                         'name' => 'Apex Family Health',
                         'subdomain' => 'apexfamily',
                         'plan' => 'pro',
-                        'phone' => '+94 77 123 4567',
+                        'phone' => '070 129 1688',
                     ],
                     'currentPlan' => 'pro',
                     'plans' => $plans,

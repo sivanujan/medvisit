@@ -161,7 +161,7 @@ export default function HeaderTab({ isActive, headerConfig, setHeaderConfig, set
                             setHeaderConfig((prev) => ({ ...prev, whatsapp_number: e.target.value }));
                             setIsDirty(true);
                         }}
-                        placeholder="+94 77 123 4567"
+                        placeholder="070 129 1688"
                         className="w-full text-xs rounded-xl bg-slate-900 border border-white/10 text-white px-3 py-1.5 focus:border-teal-500"
                     />
                 )}

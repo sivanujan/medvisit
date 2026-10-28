@@ -75,6 +75,18 @@ export default function PricingPreview({ config }: Props) {
                 })}
             </ul>
 
+            <div className="mt-8 text-center">
+                <p className="text-sm text-[color:var(--lp-muted)]">
+                    Not sure yet?{' '}
+                    <Link
+                        href="/demo"
+                        className="font-semibold text-primary-600 dark:text-primary-400 hover:underline inline-flex items-center gap-1"
+                    >
+                        <span>Try the live demo →</span>
+                    </Link>
+                </p>
+            </div>
+
             {config.shared_features?.length > 0 && (
                 <div className="mt-10">
                     <h3 className="text-base font-semibold">Every plan includes</h3>

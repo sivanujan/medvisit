@@ -6,6 +6,7 @@ use App\Models\DoctorSession;
 use App\Models\RefundRequest;
 use App\Models\Subscription;
 use App\Models\SupportConversation;
+use App\Services\Demo\DemoModeService;
 use App\Support\PrintSettings;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -55,6 +56,7 @@ class HandleInertiaRequests extends Middleware
                 'id' => $tenant->id,
                 'name' => (string) ($tenant->name ?? ''),
                 'subdomain' => $tenant->subdomain,
+                'is_demo' => (bool) ($tenant->is_demo ?? false),
                 'status' => $tenant->status,
                 'phone' => $tenant->phone,
                 'address' => (string) ($tenant->formatted_address ?: $tenant->address ?: ''),
@@ -136,6 +138,8 @@ class HandleInertiaRequests extends Middleware
                 'expires_at' => session('impersonation_expires_at'),
                 'return_url' => session('impersonation_return_url'),
             ] : null,
+            'is_demo' => (bool) ($tenant?->is_demo ?? false),
+            'demo_roles' => ($tenant && $tenant->is_demo) ? (new DemoModeService)->getDemoRoles() : null,
             'publicConfig' => config('medvisit_public'),
             'waitingSupportCount' => rescue(function () use ($request) {
                 if ($request->user()?->hasRole('super_admin')) {

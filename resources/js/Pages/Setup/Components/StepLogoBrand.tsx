@@ -25,9 +25,9 @@ const BRAND_PALETTES = [
     { label: 'MedVisit Teal', hex: '#0E9E8F', theme: 'medvisit-teal' },
     { label: 'Ocean Blue', hex: '#1E6FD9', theme: 'ocean-blue' },
     { label: 'Coral Health', hex: '#FF7A59', theme: 'coral-health' },
-    { label: 'Emerald Health', hex: '#10B981', theme: 'emerald-care' },
+    { label: 'Emerald Health', hex: '#059669', theme: 'emerald-health' },
     { label: 'Royal Violet', hex: '#7C3AED', theme: 'royal-purple' },
-    { label: 'Clean Slate', hex: '#334155', theme: 'slate-clean' },
+    { label: 'Clean Slate', hex: '#334155', theme: 'slate-luxury' },
 ];
 
 export default function StepLogoBrand({
@@ -204,11 +204,12 @@ export default function StepLogoBrand({
                             <button
                                 key={palette.hex}
                                 type="button"
+                                title={palette.label}
                                 onClick={() => {
                                     onChange('brand_color', palette.hex);
                                     onChange('theme', palette.theme);
                                 }}
-                                className={`p-3 rounded-2xl border text-left transition-all flex items-center gap-3 cursor-pointer ${
+                                className={`p-2.5 sm:p-3 rounded-2xl border text-left transition-all flex items-center gap-2.5 sm:gap-3 cursor-pointer ${
                                     isSelected
                                         ? 'border-slate-900 dark:border-white ring-2 ring-slate-900/10 dark:ring-white/20 bg-slate-50 dark:bg-white/5'
                                         : 'border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20'
@@ -220,11 +221,11 @@ export default function StepLogoBrand({
                                 >
                                     {isSelected && <Check className="w-3.5 h-3.5 text-white stroke-[3]" />}
                                 </span>
-                                <div className="min-w-0">
-                                    <div className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                                <div className="min-w-0 flex-1">
+                                    <div className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-snug break-words">
                                         {palette.label}
                                     </div>
-                                    <div className="text-[10px] font-mono text-slate-400 uppercase">
+                                    <div className="text-[10px] font-mono text-slate-400 uppercase mt-0.5">
                                         {palette.hex}
                                     </div>
                                 </div>

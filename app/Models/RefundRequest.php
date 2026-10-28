@@ -23,6 +23,8 @@ class RefundRequest extends Model
 
     public const REASON_DOWNTIME = 'downtime';
 
+    public const REASON_TEMPLATE_PURCHASE = 'template_purchase';
+
     public const REASON_OTHER = 'other';
 
     public const STATUS_REQUESTED = 'requested';

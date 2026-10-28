@@ -47,12 +47,15 @@
     ]" />
 
     @if(!empty($clinicAddress))
-        <x-email.info-card title="Clinic Location" :items="array_filter([
-            'Clinic' => $clinicName,
-            'Address' => $clinicAddress,
-            'Telephone' => !empty($clinicPhone) ? '<a href=\"tel:' . $clinicPhone . '\" style=\"color: #1E6FD9; text-decoration: none;\">' . $clinicPhone . '</a>' : null,
-            'Directions' => '<a href=\"' . $mapUrl . '\" target=\"_blank\" style=\"color: #0E9E8F; font-weight: 600; text-decoration: none;\">Open in Google Maps &rarr;</a>',
-        ])" />
+        @php
+            $locationItems = array_filter([
+                'Clinic' => $clinicName,
+                'Address' => $clinicAddress,
+                'Telephone' => !empty($clinicPhone) ? '<a href="tel:' . $clinicPhone . '" style="color: #1E6FD9; text-decoration: none;">' . $clinicPhone . '</a>' : null,
+                'Directions' => '<a href="' . $mapUrl . '" target="_blank" style="color: #0E9E8F; font-weight: 600; text-decoration: none;">Open in Google Maps →</a>',
+            ]);
+        @endphp
+        <x-email.info-card title="Clinic Location" :items="$locationItems" />
     @endif
 
     <x-email.alert type="warning">

@@ -39,6 +39,9 @@ export interface SessionDefaultsData {
     default_max_tokens: number;
     cancellation_window_hours: number;
     auto_generate_days: number;
+    token_number_format?: 'with_doctor_code' | 'number_only' | string;
+    active_doctors_count?: number;
+    has_overlapping_sessions?: boolean;
 }
 
 export interface BillingSettingsData {

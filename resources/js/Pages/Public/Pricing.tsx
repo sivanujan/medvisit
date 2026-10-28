@@ -44,6 +44,11 @@ export default function Pricing({ config = defaultPublicConfig }: Props) {
             answer:
                 'If we ever update plan prices, we provide at least 30 days prior advance notice via email to your clinic admin. You can choose to continue or cancel your subscription before any price adjustment takes effect.',
         },
+        {
+            question: 'Are clinic website templates included in plans?',
+            answer:
+                'All plans include 5 free website themes. You can also preview and purchase optional premium website templates for a one-time fee of Rs. 3,500 each with free live preview using your clinic\'s real data. The Advanced plan includes 1 premium template free of your choice.',
+        },
     ];
 
     return (
@@ -160,6 +165,12 @@ export default function Pricing({ config = defaultPublicConfig }: Props) {
                                                 <Check className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
                                                 <span>Dedicated secure clinic subdomain</span>
                                             </li>
+                                            {plan.id === 'advanced' && (
+                                                <li className="flex items-start gap-2.5 font-semibold text-primary dark:text-primary-300">
+                                                    <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                                                    <span>1 premium website template included free</span>
+                                                </li>
+                                            )}
                                         </ul>
                                     )}
                                 </div>
@@ -181,6 +192,44 @@ export default function Pricing({ config = defaultPublicConfig }: Props) {
                         </div>
                     );
                 })}
+            </div>
+
+            {/* Live demo prompt */}
+            <div className="text-center -mt-6 mb-8">
+                <p className="text-sm text-slate-600 dark:text-slate-400 font-medium">
+                    Not sure yet?{' '}
+                    <Link
+                        href="/demo"
+                        className="font-bold text-[#1E6FD9] dark:text-blue-400 hover:underline inline-flex items-center gap-1"
+                    >
+                        <span>Try the live demo →</span>
+                    </Link>
+                </p>
+            </div>
+
+            {/* Website Templates Add-on Banner */}
+            <div className="max-w-4xl mx-auto rounded-3xl p-6 sm:p-7 bg-gradient-to-r from-primary/10 via-white to-secondary/10 dark:from-primary-950/30 dark:via-slate-900/60 dark:to-secondary-950/30 border border-primary/20 dark:border-primary/30 backdrop-blur-xl shadow-sm mb-12 flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="space-y-1.5 text-center md:text-left">
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-primary/15 text-primary text-[11px] font-bold uppercase tracking-wider">
+                        <Sparkles className="w-3 h-3" />
+                        <span>Optional Add-On</span>
+                    </div>
+                    <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                        Premium Clinic Website Templates
+                    </h3>
+                    <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 max-w-2xl leading-relaxed">
+                        Optional premium website templates — one-time Rs. 3,500 each. Preview free with your clinic's real data. Buy once, use while your MedVisit subscription is active. Advanced plan includes 1 template free.
+                    </p>
+                </div>
+                <div className="shrink-0">
+                    <Link
+                        href="/templates"
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-primary text-white text-xs font-bold shadow-md hover:bg-primary-600 transition active:scale-95"
+                    >
+                        <span>Browse Templates</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                </div>
             </div>
 
             {/* Included in Every Plan Grid */}

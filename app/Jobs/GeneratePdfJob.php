@@ -45,7 +45,14 @@ class GeneratePdfJob implements ShouldQueue
         public mixed $targetModelOrData,
         public array $options = []
     ) {
-        $this->onQueue('pdfs');
+        $isDemo = ! empty($this->options['is_demo'])
+            || (is_object($this->targetModelOrData) && (
+                (($this->targetModelOrData->tenant_id ?? null) === config('demo.tenant_id', 'demo'))
+                || ($this->targetModelOrData->is_demo ?? false)
+                || ($this->targetModelOrData->tenant?->is_demo ?? false)
+            ));
+
+        $this->onQueue($isDemo ? 'low' : 'pdfs');
     }
 
     /**

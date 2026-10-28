@@ -30,6 +30,7 @@ import {
     Edit3,
     TrendingUp,
     Send,
+    RotateCcw,
 } from 'lucide-react';
 
 interface TenantSummary {
@@ -61,6 +62,9 @@ interface LeadItem {
     tenant?: TenantSummary | null;
     created_at?: string;
     created_date?: string;
+    roles_tried?: string[];
+    sessions_count?: number;
+    role?: string | null;
 }
 
 interface LeadsProps {
@@ -256,6 +260,17 @@ export default function LeadsIndex({
         router.delete(`/super-admin/leads/${lead.id}`, { preserveScroll: true });
     };
 
+    const [isResettingDemo, setIsResettingDemo] = useState(false);
+
+    const handleResetDemo = () => {
+        if (!confirm('Are you sure you want to reset the public sandbox demo? This will reseed Jaffna Demo Medical Centre with clean demo data immediately.')) return;
+        setIsResettingDemo(true);
+        router.post('/super-admin/leads/reset-demo', {}, {
+            preserveScroll: true,
+            onFinish: () => setIsResettingDemo(false),
+        });
+    };
+
     // Clean phone number for WhatsApp wa.me link
     const getWhatsAppLink = (phone: string) => {
         const cleaned = phone.replace(/[^0-9]/g, '');
@@ -273,6 +288,18 @@ export default function LeadsIndex({
                     subtitle="Track inbound demo requests, sales outreach, trial progression, and clinic conversions."
                     action={
                         <div className="flex items-center gap-2.5">
+                            {/* Reset Sandbox Button */}
+                            <button
+                                type="button"
+                                onClick={handleResetDemo}
+                                disabled={isResettingDemo}
+                                title="Reset Jaffna Demo Medical Centre to fresh state"
+                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-amber-300 dark:border-amber-700/60 bg-amber-50/80 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-800 dark:text-amber-300 font-semibold text-xs transition disabled:opacity-50 shadow-sm"
+                            >
+                                <RotateCcw className={`w-3.5 h-3.5 ${isResettingDemo ? 'animate-spin' : ''}`} />
+                                <span className="hidden md:inline">Reset Sandbox</span>
+                            </button>
+
                             {/* View Mode Toggle */}
                             <div className="flex items-center bg-slate-200/80 dark:bg-slate-800 p-1 rounded-xl">
                                 <button
@@ -518,9 +545,30 @@ export default function LeadsIndex({
 
                                                     {/* Follow-up / Source Badges */}
                                                     <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                                                        <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 dark:bg-slate-700/60 text-slate-500">
-                                                            {lead.source_label}
-                                                        </span>
+                                                        {lead.source === 'public_demo_sandbox' ? (
+                                                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 flex items-center gap-1">
+                                                                <Sparkles className="w-2.5 h-2.5 text-indigo-500" />
+                                                                Sandbox Demo
+                                                            </span>
+                                                        ) : lead.source === 'guided_demo_request' ? (
+                                                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-teal-500/15 text-teal-700 dark:text-teal-300 border border-teal-500/30 flex items-center gap-1">
+                                                                <Calendar className="w-2.5 h-2.5 text-teal-500" />
+                                                                Guided Demo
+                                                            </span>
+                                                        ) : (
+                                                            <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 dark:bg-slate-700/60 text-slate-500">
+                                                                {lead.source_label}
+                                                            </span>
+                                                        )}
+
+                                                        {lead.roles_tried && lead.roles_tried.length > 0 && (
+                                                            <span
+                                                                className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 capitalize"
+                                                                title={`Roles explored: ${lead.roles_tried.join(', ')} (${lead.sessions_count || 1} logins)`}
+                                                            >
+                                                                {lead.roles_tried.map(r => r.replace('_', ' ')).join(', ')} ({lead.sessions_count || 1}x)
+                                                            </span>
+                                                        )}
 
                                                         {lead.next_follow_up_at && (
                                                             <span
@@ -643,7 +691,21 @@ export default function LeadsIndex({
                                                         </span>
                                                     </td>
                                                     <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">
-                                                        {lead.source_label}
+                                                        {lead.source === 'public_demo_sandbox' ? (
+                                                            <div className="space-y-1">
+                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30">
+                                                                    <Sparkles className="w-2.5 h-2.5 text-indigo-500" />
+                                                                    Sandbox Demo
+                                                                </span>
+                                                                {lead.roles_tried && lead.roles_tried.length > 0 && (
+                                                                    <div className="text-[10px] text-slate-500 dark:text-slate-400 capitalize">
+                                                                        {lead.roles_tried.map(r => r.replace('_', ' ')).join(', ')} ({lead.sessions_count || 1}x)
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            lead.source_label
+                                                        )}
                                                     </td>
                                                     <td className="py-3.5 px-4">
                                                         {lead.next_follow_up_at ? (

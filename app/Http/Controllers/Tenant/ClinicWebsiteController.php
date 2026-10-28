@@ -15,7 +15,9 @@ use App\Models\DoctorSession;
 use App\Models\Patient;
 use App\Models\Tenant;
 use App\Models\VisitType;
+use App\Models\WebsiteTemplate;
 use App\Services\FeeResolutionService;
+use App\Services\Templates\TemplateService;
 use App\Support\ClinicWebsite;
 use App\Support\HtmlSanitizer;
 use App\Support\SiteKit;
@@ -313,7 +315,7 @@ class ClinicWebsiteController extends Controller
                 'id' => $tenant->id,
                 'name' => ucwords((string) ($tenant->name ?? 'Clinic')),
                 'subdomain' => $tenant->subdomain,
-                'phone' => $tenant->phone ?? '+94 11 234 5678',
+                'phone' => $tenant->phone ?? config('medvisit_public.business.phone_display', '070 129 1688'),
                 'address' => $tenant->address ?? 'Colombo, Sri Lanka',
                 'logo_url' => $tenant->logo_url ?? null,
                 'theme' => $page->theme_preset,
@@ -824,6 +826,15 @@ class ClinicWebsiteController extends Controller
 
         [$headerConfig, $footerConfig] = $this->resolvedChromeConfigs($tenant, $isPreview);
 
+        // Server-side entitlement check: if entitlement was lost (e.g. refunded/revoked), fall back gracefully
+        if (! $isPreview && $tenant->applied_template_id) {
+            $appliedTpl = WebsiteTemplate::find($tenant->applied_template_id);
+            if ($appliedTpl && ! config('medvisit.templates_under_development', true) && ! $tenant->isTemplateEntitled($appliedTpl)) {
+                app(TemplateService::class)->revertToPreviousDesign($tenant);
+                $look = ClinicWebsite::liveLook($tenant);
+            }
+        }
+
         // The editor preview shows the draft; visitors see the published copy.
         $sections = $isPreview ? ClinicWebsite::draftSections($tenant) : ClinicWebsite::liveSections($tenant);
         $look = $isPreview ? ClinicWebsite::draftLook($tenant) : ClinicWebsite::liveLook($tenant);
@@ -978,7 +989,7 @@ class ClinicWebsiteController extends Controller
         return Inertia::render('Public/BookToken', [
             'clinic' => [
                 'name' => ucwords((string) ($tenant->name ?? 'Clinic')),
-                'phone' => $tenant->phone ?? '+94 11 234 5678',
+                'phone' => $tenant->phone ?? config('medvisit_public.business.phone_display', '070 129 1688'),
                 'address' => $tenant->address ?? 'Colombo, Sri Lanka',
                 'subdomain' => $tenant->subdomain,
                 'logo_url' => $tenant->logo_url,
@@ -1174,7 +1185,7 @@ class ClinicWebsiteController extends Controller
             'clinic' => [
                 'name' => ucwords((string) ($tenant->name ?? 'Clinic')),
                 'subdomain' => $tenant->subdomain,
-                'phone' => $tenant->phone ?? '+94 11 234 5678',
+                'phone' => $tenant->phone ?? config('medvisit_public.business.phone_display', '070 129 1688'),
                 'address' => $tenant->address ?? 'Colombo, Sri Lanka',
                 'logo_url' => $tenant->logo_url,
                 'whatsapp_number' => $tenant->whatsapp_number,
@@ -1216,7 +1227,7 @@ class ClinicWebsiteController extends Controller
             'clinic' => [
                 'name' => ucwords((string) ($tenant->name ?? 'Clinic')),
                 'subdomain' => $tenant->subdomain,
-                'phone' => $tenant->phone ?? '+94 11 234 5678',
+                'phone' => $tenant->phone ?? config('medvisit_public.business.phone_display', '070 129 1688'),
                 'address' => $tenant->address ?? 'Colombo, Sri Lanka',
                 'logo_url' => $tenant->logo_url,
                 'whatsapp_number' => $tenant->whatsapp_number,

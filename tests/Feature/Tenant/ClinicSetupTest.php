@@ -160,6 +160,43 @@ class ClinicSetupTest extends TestCase
         $this->assertSame(3, (int) $fresh->setup_step);
     }
 
+    public function test_step_2_accepts_all_brand_palettes_including_coral_emerald_and_slate(): void
+    {
+        $palettes = [
+            ['brand_color' => '#FF7A59', 'theme' => 'coral-health', 'expected_theme' => 'coral-health'],
+            ['brand_color' => '#059669', 'theme' => 'emerald-health', 'expected_theme' => 'emerald-health'],
+            ['brand_color' => '#334155', 'theme' => 'slate-luxury', 'expected_theme' => 'slate-luxury'],
+            ['brand_color' => '#059669', 'theme' => 'emerald-care', 'expected_theme' => 'emerald-health'],
+            ['brand_color' => '#334155', 'theme' => 'slate-clean', 'expected_theme' => 'slate-luxury'],
+        ];
+
+        foreach ($palettes as $index => $case) {
+            $subdomain = 'palettecli'.$index;
+            $tenant = Tenant::factory()->active()->create([
+                'id' => 'palette-clinic-'.$index,
+                'subdomain' => $subdomain,
+                'setup_step' => 2,
+            ]);
+
+            $admin = User::factory()->clinicAdmin()->create([
+                'tenant_id' => $tenant->id,
+            ]);
+
+            $response = $this->actingAs($admin)->postJson("http://{$subdomain}.{$this->baseDomain}/setup/step/2", [
+                'brand_color' => $case['brand_color'],
+                'theme' => $case['theme'],
+                'use_initials' => true,
+            ]);
+
+            $response->assertStatus(200);
+            $response->assertJson(['success' => true, 'next_step' => 3]);
+
+            $fresh = $tenant->fresh();
+            $this->assertSame(strtoupper($case['brand_color']), $fresh->website_look['brand_color']);
+            $this->assertSame($case['expected_theme'], $fresh->website_theme);
+        }
+    }
+
     public function test_step_3_cover_photo_updates_hero_section(): void
     {
         $tenant = Tenant::factory()->active()->create([

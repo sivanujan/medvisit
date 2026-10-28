@@ -6,7 +6,7 @@ export const privacyPolicyData: PolicyPageData = {
     title: 'Privacy Policy',
     eyebrow: 'Data Protection & Compliance',
     description: "MedVisit Privacy Policy compliant with Sri Lanka's Personal Data Protection Act, No. 9 of 2022.",
-    lastUpdated: '21 October 2026',
+    lastUpdated: '27 October 2026',
     readingTime: '4 min read',
     tokenMotif: 'PRV-04',
     keyPoints: [
@@ -73,8 +73,22 @@ export const privacyPolicyData: PolicyPageData = {
             title: 'Sharing',
             render: () => (
                 <p>
-                    We share data only with service providers needed to run MedVisit — such as our hosting provider, email delivery provider, SMS/WhatsApp messaging providers and payment processing partners for billing — and only as needed for their service. We may disclose data when required by law.
+                    We share data only with service providers needed to run MedVisit — such as our hosting provider, email delivery provider, SMS/WhatsApp messaging providers, and payment processing partners for billing — and only as needed for their service. We may disclose data when required by law.
                 </p>
+            ),
+        },
+        {
+            id: 'support-chat',
+            title: 'Support chat and AI assistance',
+            render: () => (
+                <div className="space-y-3">
+                    <p>
+                        When you use our in-app support chat widget, inquiries are processed by an AI assistance service via OpenRouter and the underlying model provider (meta-llama/llama-3.3-70b-instruct) to provide immediate answers to general clinic operational and feature questions.
+                    </p>
+                    <p>
+                        Patient clinical records, consultation notes, and health data are never submitted to external AI services. Only the text explicitly typed into the support chat widget is processed.
+                    </p>
+                </div>
             ),
         },
         {

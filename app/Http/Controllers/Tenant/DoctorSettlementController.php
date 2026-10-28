@@ -266,7 +266,7 @@ class DoctorSettlementController extends Controller
             ],
             'clinicInfo' => [
                 'name' => ucwords((string) ($tenant->name ?? 'MedVisit Clinic')),
-                'phone' => $tenant->phone ?? '+94 11 234 5678',
+                'phone' => $tenant->phone ?? config('medvisit_public.business.phone_display', '070 129 1688'),
                 'address' => $tenant->address ?? 'Colombo, Sri Lanka',
             ],
         ]);
@@ -439,7 +439,7 @@ class DoctorSettlementController extends Controller
             'clinic' => [
                 'name' => ucwords((string) ($tenant->name ?? 'MedVisit Clinic')),
                 'address' => $tenant->address ?? 'Colombo, Sri Lanka',
-                'phone' => $tenant->phone ?? '+94 11 234 5678',
+                'phone' => $tenant->phone ?? config('medvisit_public.business.phone_display', '070 129 1688'),
                 'email' => $tenant->email ?? 'info@medvisit.lk',
             ],
             'settlement' => [

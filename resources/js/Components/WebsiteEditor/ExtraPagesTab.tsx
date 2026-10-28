@@ -52,6 +52,8 @@ const STARTER_LAYOUTS = [
         title: 'Blank page',
         description: 'Start with an empty canvas to design custom layouts with drag-and-drop blocks.',
         icon: FileText,
+        badge: 'Free',
+        isPremium: false,
     },
     {
         key: 'text-image',
@@ -59,6 +61,8 @@ const STARTER_LAYOUTS = [
         title: 'Text + image',
         description: 'Structured informational layout with headings, body paragraphs, and image placeholders.',
         icon: Image,
+        badge: 'Free',
+        isPremium: false,
     },
     {
         key: 'faq',
@@ -66,6 +70,53 @@ const STARTER_LAYOUTS = [
         title: 'FAQ questions',
         description: 'Interactive accordion layout answering common patient inquiries and policies.',
         icon: HelpCircle,
+        badge: 'Free',
+        isPremium: false,
+    },
+    {
+        key: 'serene',
+        source: 'template:serene',
+        title: 'Serene Medical Center',
+        description: 'Calm, airy elegance with floating cards and soft teal accents.',
+        icon: Sparkles,
+        badge: 'Premium (Rs. 3,500)',
+        isPremium: true,
+    },
+    {
+        key: 'specialist',
+        source: 'template:specialist',
+        title: 'Specialist Hospital Suite',
+        description: 'Commanding dark hero with interactive doctor grid & chamber booking.',
+        icon: Sparkles,
+        badge: 'Premium (Rs. 3,500)',
+        isPremium: true,
+    },
+    {
+        key: 'family-care',
+        source: 'template:family-care',
+        title: 'Family Care & Pediatric',
+        description: 'Friendly, community-first with warm honey accents & child health.',
+        icon: Sparkles,
+        badge: 'Premium (Rs. 3,500)',
+        isPremium: true,
+    },
+    {
+        key: 'heritage',
+        source: 'template:heritage',
+        title: 'Heritage Ayurvedic & Wellness',
+        description: 'Botanical serenity with deep green and gold tones for holistic care.',
+        icon: Sparkles,
+        badge: 'Premium (Rs. 3,500)',
+        isPremium: true,
+    },
+    {
+        key: 'dental-eye',
+        source: 'template:dental-eye',
+        title: 'Dental & Vision Specialty',
+        description: 'Crisp clinical precision with procedure comparison pricing.',
+        icon: Sparkles,
+        badge: 'Premium (Rs. 3,500)',
+        isPremium: true,
     },
 ];
 
@@ -349,13 +400,24 @@ export default function ExtraPagesTab({ pages: initialPages, clinic, onPagesChan
                                     }}
                                     className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900 hover:border-primary hover:bg-primary/5 dark:hover:bg-primary/10 transition group"
                                 >
-                                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary mb-3 group-hover:scale-105 transition">
-                                        <StarterIcon className="h-5 w-5" />
+                                    <div className="flex items-center justify-between gap-2 mb-3">
+                                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:scale-105 transition">
+                                            <StarterIcon className="h-5 w-5" />
+                                        </div>
+                                        <span
+                                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                                starter.isPremium
+                                                    ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                                            }`}
+                                        >
+                                            {starter.badge}
+                                        </span>
                                     </div>
                                     <div className="text-xs font-bold text-slate-900 dark:text-slate-100">
                                         {starter.title}
                                     </div>
-                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-3">
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
                                         {starter.description}
                                     </p>
                                 </button>
@@ -402,19 +464,20 @@ export default function ExtraPagesTab({ pages: initialPages, clinic, onPagesChan
                                 <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">
                                     Starter layout
                                 </label>
-                                <div className="grid grid-cols-3 gap-2">
+                                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
                                     {STARTER_LAYOUTS.map((s) => (
                                         <button
                                             key={s.key}
                                             type="button"
                                             onClick={() => setSelectedStarter(s.key)}
-                                            className={`p-2.5 rounded-xl border text-left text-xs transition ${
+                                            className={`p-2.5 rounded-xl border text-left text-xs transition flex flex-col justify-between ${
                                                 selectedStarter === s.key
                                                     ? 'border-primary bg-primary/10 font-bold text-primary dark:text-white'
                                                     : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 text-slate-700 dark:text-slate-300'
                                             }`}
                                         >
                                             <div className="font-semibold truncate">{s.title}</div>
+                                            <div className="text-[10px] text-slate-400 mt-1">{s.badge}</div>
                                         </button>
                                     ))}
                                 </div>

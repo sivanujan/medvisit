@@ -14,11 +14,15 @@
         This is a friendly reminder that your 14-day free trial for <strong>{{ $clinicName }}</strong> concludes on <strong>{{ $trialEnd }}</strong>.
     </x-email.text>
 
-    <x-email.info-card title="Trial Status" :items="[
-        'Clinic Workspace' => $clinicName,
-        'Trial Conclusion' => $trialEnd,
-        'Status' => '<span style=\"color: #FF7A59; font-weight: 700;\">Ending in 3 Days</span>',
-    ]" />
+    @php
+        $trialEndingItems = [
+            'Clinic Workspace' => $clinicName,
+            'Trial Conclusion' => $trialEnd,
+            'Status' => '<span style="color: #FF7A59; font-weight: 700;">Ending in 3 Days</span>',
+        ];
+    @endphp
+
+    <x-email.info-card title="Trial Status" :items="$trialEndingItems" />
 
     <x-email.heading level="h2" style="font-size: 16px; margin-top: 20px; margin-bottom: 8px;">
         Keep your clinic running seamlessly:

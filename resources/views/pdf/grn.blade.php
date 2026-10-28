@@ -208,7 +208,7 @@
 
     <div style="margin-top: 40px; font-size: 11px; color: #64748b; text-align: center;">
         Inventory stocked into MedVisit FEFO (First-Expired, First-Out) Dispensing Catalog.<br>
-        <em>Generated securely via MedVisit Cloud Health OS • HarfBuzz Trilingual Layout Engine</em>
+        <em>Powered by MedVisit • <a href="https://medvisit.lk" style="color: inherit; text-decoration: none;">medvisit.lk</a></em>
     </div>
 </div>
 </body>

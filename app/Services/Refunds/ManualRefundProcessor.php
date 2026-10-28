@@ -9,9 +9,12 @@ use App\Mail\Subscription\RefundCompletedMail;
 use App\Models\PaymentTransaction;
 use App\Models\RefundRequest;
 use App\Models\Subscription;
+use App\Models\TemplatePurchase;
 use App\Services\AuditLogger;
 use App\Services\Billing\CreditNotePdfService;
 use App\Services\SequenceService;
+use App\Services\Templates\TemplateService;
+use App\Support\ClinicWebsite;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -103,6 +106,26 @@ class ManualRefundProcessor implements RefundProcessor
                 }
                 if ($tenant) {
                     $tenant->update(['status' => 'expired']);
+                }
+            }
+
+            if ($lockedRequest->reason_type === RefundRequest::REASON_TEMPLATE_PURCHASE) {
+                $purchase = TemplatePurchase::where('payment_transaction_id', $payment->id)
+                    ->orWhere('invoice_id', $invoice?->id)
+                    ->first();
+
+                if ($purchase) {
+                    $purchase->update([
+                        'status' => TemplatePurchase::STATUS_REFUNDED,
+                        'refunded_at' => Carbon::now('Asia/Colombo'),
+                        'revoked_at' => Carbon::now('Asia/Colombo'),
+                        'revoked_reason' => 'Refund processed under 7-day unpublished guarantee',
+                    ]);
+
+                    if ($tenant && (int) $tenant->applied_template_id === (int) $purchase->template_id) {
+                        app(TemplateService::class)->revertToPreviousDesign($tenant);
+                        ClinicWebsite::publish($tenant);
+                    }
                 }
             }
 

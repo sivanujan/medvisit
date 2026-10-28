@@ -39,16 +39,22 @@ export default function HeroSection({ getStartedHref }: Props) {
                         screen the whole waiting room can see. Nobody crowds the door asking if it's their turn.
                     </p>
 
-                    <div className="mt-9 flex flex-col gap-3 min-[420px]:flex-row">
+                    <div className="mt-9 flex flex-wrap items-center gap-3.5">
                         <Link
                             href={getStartedHref}
-                            className="inline-flex items-center justify-center rounded-2xl bg-primary px-7 py-3.5 text-base font-semibold text-white shadow-lg shadow-primary/30 transition hover:bg-primary-600"
+                            className="inline-flex items-center justify-center rounded-2xl bg-primary px-7 py-3.5 text-base font-semibold text-white shadow-lg shadow-primary/30 transition hover:bg-primary-600 active:scale-98"
                         >
                             Get started
                         </Link>
                         <Link
+                            href="/demo"
+                            className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-r from-[#1E6FD9]/10 via-[#0E9E8F]/15 to-teal-500/10 hover:from-[#1E6FD9]/20 hover:to-[#0E9E8F]/25 border border-[#0E9E8F]/35 dark:border-teal-400/40 px-6 py-3.5 text-base font-bold text-slate-900 dark:text-white shadow-xs transition active:scale-98"
+                        >
+                            <span>Try the live demo →</span>
+                        </Link>
+                        <Link
                             href="/pricing"
-                            className="lp-glass inline-flex items-center justify-center rounded-2xl px-7 py-3.5 text-base font-semibold text-slate-800 dark:text-slate-100 transition hover:bg-white dark:hover:bg-slate-800"
+                            className="inline-flex items-center text-sm font-semibold text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary-300 underline underline-offset-4 transition ml-1"
                         >
                             View pricing
                         </Link>

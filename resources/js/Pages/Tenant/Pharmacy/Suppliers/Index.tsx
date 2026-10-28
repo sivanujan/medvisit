@@ -1619,7 +1619,7 @@ export default function SuppliersIndex({ suppliers, stats, tabCounts, filters }:
                                         <GlassLabel htmlFor="supPhone">Phone Number</GlassLabel>
                                         <GlassInput
                                             id="supPhone"
-                                            placeholder="077 123 4567 or +94 11 234 5678"
+                                            placeholder="077 123 4567 or 011 234 5678"
                                             value={phone}
                                             onChange={(e) => {
                                                 setPhone(e.target.value);

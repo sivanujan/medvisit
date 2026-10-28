@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\BookingToken;
 use App\Models\Doctor;
 use App\Models\Patient;
+use App\Support\TokenHelper;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -62,22 +63,31 @@ class WorkspaceSearchController extends Controller
             ]);
 
         // 3. Search Today's Tokens
+        $parsed = TokenHelper::parseSearchTerm($query);
         $tokens = BookingToken::with(['patient', 'session.doctor'])
             ->whereHas('session', fn ($q) => $q->where('session_date', $today))
-            ->where(function ($q) use ($query) {
-                if (is_numeric($query)) {
-                    $q->where('token_number', (int) $query);
+            ->where(function ($q) use ($query, $parsed) {
+                if ($parsed !== null) {
+                    $q->where(function ($tq) use ($parsed) {
+                        $tq->where('token_number', $parsed['number']);
+                        if ($parsed['code'] !== null) {
+                            $tq->whereHas('session', fn ($sq) => $sq->where('doctor_token_code', $parsed['code']));
+                        }
+                    });
+                } else {
+                    $q->whereRaw('1=0');
                 }
+
                 $q->orWhereHas('patient', function ($pq) use ($query) {
                     $pq->where('name', 'ilike', "%{$query}%")
                         ->orWhere('phone', 'like', "%{$query}%");
                 });
             })
-            ->limit(5)
+            ->limit(10)
             ->get()
             ->map(fn ($t) => [
                 'id' => $t->id,
-                'title' => "Token #{$t->token_number} - ".($t->patient?->name ?? 'Patient'),
+                'title' => "Token #{$t->display_token} - ".($t->patient?->name ?? 'Patient'),
                 'subtitle' => ($t->session?->doctor?->name ?? 'Doctor').' • Status: '.ucfirst(str_replace('_', ' ', $t->status)),
                 'url' => "/bookings?token_id={$t->id}",
                 'category' => 'Token',

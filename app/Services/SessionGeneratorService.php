@@ -109,6 +109,7 @@ class SessionGeneratorService
             DoctorSession::create([
                 'tenant_id' => $tenantId,
                 'doctor_id' => $template->doctor_id,
+                'doctor_token_code' => $template->doctor?->token_code,
                 'session_template_id' => $template->id,
                 'session_date' => $dateString,
                 'start_time' => $template->start_time,

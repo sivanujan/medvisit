@@ -327,6 +327,14 @@ class TenantDashboardController extends Controller
                 'name' => ucwords((string) (tenant('name') ?? 'Clinic Workspace')),
                 'subdomain' => tenant('subdomain') ?? 'clinic',
                 'logo_url' => tenant('logo_url') ?? null,
+                'plan' => $tenantModel->currentPlanDisplayName(),
+                'status' => $tenantModel->status,
+                'subscription_days_left' => rescue(function () use ($tenantModel) {
+                    $sub = $tenantModel->subscription;
+
+                    return ($sub && $sub->current_period_end) ? (int) now()->diffInDays($sub->current_period_end, false) : null;
+                }, null, false),
+                'pharmacy_enabled' => (bool) ($tenantModel->pharmacy_enabled ?? false),
                 'currency' => config('medvisit.currency', 'LKR'),
                 'currency_symbol' => config('medvisit.currency_symbol', 'Rs.'),
                 'base_domain' => config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost')),

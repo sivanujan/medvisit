@@ -14,18 +14,22 @@
         We were unable to process the subscription payment for <strong>{{ $clinicName }}</strong> for invoice <strong>{{ $invoiceNumber }}</strong>.
     </x-email.text>
 
-    <x-email.info-card title="Payment Attempt Details" :items="[
-        'Invoice Number' => $invoiceNumber,
-        'Amount Due' => '<strong style=\"color: #DC2626;\">' . $amount . '</strong>',
-        'Issue' => $failureMessage ?? 'Card was declined or session expired',
-    ]" />
+    @php
+        $failedItems = [
+            'Invoice Number' => $invoiceNumber,
+            'Amount Due' => '<strong style="color: #DC2626;">' . $amount . '</strong>',
+            'Issue' => $failureMessage ?? 'Card was declined or session expired',
+        ];
+    @endphp
+
+    <x-email.info-card title="Payment Attempt Details" :items="$failedItems" />
 
     <x-email.alert type="danger">
         <strong>Action Required:</strong> To avoid any interruption in queue management or patient bookings, please update your payment method or retry the transaction.
     </x-email.alert>
 
     <x-email.button :url="$retryUrl" align="left">
-        Retry Payment Now &rarr;
+        Retry Payment Now →
     </x-email.button>
 
     <x-email.signature />

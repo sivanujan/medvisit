@@ -15,6 +15,7 @@ import {
     RefreshCw,
     PanelTop,
     PanelBottom,
+    AlertTriangle,
 } from 'lucide-react';
 import type { SiteKit } from '@/Components/PageBuilder/lib/kit';
 import { applyKitToDocument } from '@/Components/PageBuilder/lib/kitCanvas';
@@ -55,7 +56,7 @@ import type {
     Revision,
     SaveState,
 } from '@/Components/PageBuilder/types';
-import { getTemplateHtml } from '@/Components/PageBuilder/templates';
+import { getTemplateHtml, PAGE_TEMPLATES } from '@/Components/PageBuilder/templates';
 
 // Remount the builder per page: GrapesJS is initialised once from the page's content.
 export default function PageBuilder(props: BuilderPageProps) {
@@ -173,6 +174,7 @@ function PageBuilderInner({
     const [revisionsList, setRevisionsList] = useState<Revision[]>(initialRevisions);
     const [revertingRevision, setRevertingRevision] = useState<number | null>(null);
     const [templatesModalOpen, setTemplatesModalOpen] = useState(false);
+    const [templateFilter, setTemplateFilter] = useState<'all' | 'premium' | 'free'>('all');
     const [exitModalOpen, setExitModalOpen] = useState(false);
 
     // Page settings state
@@ -182,6 +184,7 @@ function PageBuilderInner({
     const themePresets = [
         { id: 'medvisit-teal', name: 'MedVisit Teal', color: '#0E9E8F', desc: 'Standard clinical clarity & trusted medical tone' },
         { id: 'ocean-blue', name: 'Ocean Blue', color: '#1E6FD9', desc: 'Modern hospital, diagnostics & outpatient suites' },
+        { id: 'coral-health', name: 'Coral Health', color: '#FF7A59', desc: 'Maternity, pediatrics & warm community care' },
         { id: 'emerald-health', name: 'Emerald Health', color: '#059669', desc: 'Wellness, cardiology & holistic preventive care' },
         { id: 'royal-purple', name: 'Royal Specialist', color: '#7C3AED', desc: 'High-end consultant suites & private surgical rooms' },
         { id: 'slate-luxury', name: 'Slate Luxury', color: '#334155', desc: 'Corporate medical centers & executive executive screening' },
@@ -488,11 +491,22 @@ function PageBuilderInner({
         const editor = editorInstanceParam || editorInstance.current;
         if (!editor) return;
 
+        const targetTpl = PAGE_TEMPLATES.find((t) => t.key === templateId);
         const templateHtml = getTemplateHtml(templateId, tenant);
-        editor.setComponents(templateHtml);
+        loadGuardRef.current.run(() => {
+            editor.setComponents(templateHtml);
+        });
         editor.refresh();
         setIsDirty(true);
         setTemplatesModalOpen(false);
+
+        if (targetTpl?.tier === 'premium') {
+            setNotice(`⚠️ Notice: "${targetTpl.label}" is currently under development. Loaded into canvas for free preview and testing.`);
+            setTimeout(() => setNotice(null), 6000);
+        } else {
+            setNotice(`Template loaded into canvas.`);
+            setTimeout(() => setNotice(null), 3000);
+        }
     };
 
     // Save Page Draft (Manual or Autosave)
@@ -1075,16 +1089,17 @@ function PageBuilderInner({
 
             {/* 2. Ready-Made Templates Modal */}
             {templatesModalOpen && (
-                <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4">
-                    <div className="w-full max-w-3xl bg-slate-900 rounded-2xl border border-white/10 p-6 shadow-2xl space-y-4">
-                        <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="w-full max-w-4xl max-h-[90vh] bg-slate-900 rounded-2xl border border-white/10 p-6 shadow-2xl flex flex-col space-y-4 overflow-hidden">
+                        {/* Header */}
+                        <div className="flex items-center justify-between pb-3 border-b border-white/10 flex-shrink-0">
                             <div>
                                 <h3 className="text-base font-bold text-white flex items-center gap-2">
                                     <Sparkles className="w-4 h-4 text-teal-400" />
-                                    Choose Ready-Made Page Template
+                                    Clinic Website Templates Marketplace
                                 </h3>
                                 <p className="text-xs text-slate-400 mt-0.5">
-                                    Select a professional layout to instantly populate your clinic homepage.
+                                    Browse handcrafted premium templates and free starter presets for your clinic.
                                 </p>
                             </div>
                             <button
@@ -1096,66 +1111,113 @@ function PageBuilderInner({
                             </button>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-                            {/* Template 1 */}
-                            <div className="rounded-xl border border-white/10 bg-white/5 p-4 flex flex-col justify-between hover:border-teal-500 transition-colors">
-                                <div>
-                                    <div className="w-8 h-8 rounded-lg bg-teal-500/10 text-teal-400 flex items-center justify-center mb-2.5 font-bold">
-                                        01
-                                    </div>
-                                    <h4 className="font-bold text-sm text-white">Modern Clinic</h4>
-                                    <p className="text-xs text-slate-400 mt-1">
-                                        Full-featured layout with hero, announcement banner, live doctors roster, and services.
-                                    </p>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => loadTemplate('modern-clinic')}
-                                    className="mt-4 w-full py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-xs font-bold transition-colors"
-                                >
-                                    Load Template
-                                </button>
+                        {/* Marketplace Banner */}
+                        <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-500/15 via-teal-500/10 to-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 flex-shrink-0">
+                            <div className="text-xs text-slate-200 flex items-start sm:items-center gap-2">
+                                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5 sm:mt-0" />
+                                <span>
+                                    <strong className="text-amber-300">Templates Under Development:</strong> All premium templates are currently available for <strong className="text-white">free preview and testing</strong> without purchase.
+                                </span>
                             </div>
+                            <a
+                                href="/website"
+                                className="text-xs font-bold text-teal-400 hover:underline shrink-0"
+                            >
+                                Manage in Website Editor →
+                            </a>
+                        </div>
 
-                            {/* Template 2 */}
-                            <div className="rounded-xl border border-white/10 bg-white/5 p-4 flex flex-col justify-between hover:border-teal-500 transition-colors">
-                                <div>
-                                    <div className="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center mb-2.5 font-bold">
-                                        02
-                                    </div>
-                                    <h4 className="font-bold text-sm text-white">Specialist Center</h4>
-                                    <p className="text-xs text-slate-400 mt-1">
-                                        Focuses on consultant credentials, specialty chambers, and weekly channeling schedules.
-                                    </p>
-                                </div>
+                        {/* Filter tabs */}
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                            {[
+                                { key: 'all', label: 'All Templates' },
+                                { key: 'premium', label: 'Premium Templates (Under Dev · Free)' },
+                                { key: 'free', label: 'Free Starter Presets' },
+                            ].map((f) => (
                                 <button
+                                    key={f.key}
                                     type="button"
-                                    onClick={() => loadTemplate('specialist-center')}
-                                    className="mt-4 w-full py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-bold transition-colors"
+                                    onClick={() => setTemplateFilter(f.key as any)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                        templateFilter === f.key
+                                            ? 'bg-teal-600 text-white'
+                                            : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
+                                    }`}
                                 >
-                                    Load Template
+                                    {f.label}
                                 </button>
-                            </div>
+                            ))}
+                        </div>
 
-                            {/* Template 3 */}
-                            <div className="rounded-xl border border-white/10 bg-white/5 p-4 flex flex-col justify-between hover:border-teal-500 transition-colors">
-                                <div>
-                                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center mb-2.5 font-bold">
-                                        03
-                                    </div>
-                                    <h4 className="font-bold text-sm text-white">Family Practice</h4>
-                                    <p className="text-xs text-slate-400 mt-1">
-                                        Warm community medical center with pediatric, pharmacy, and laboratory features.
-                                    </p>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => loadTemplate('family-practice')}
-                                    className="mt-4 w-full py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-colors"
+                        {/* Templates Grid */}
+                        <div className="flex-1 overflow-y-auto pr-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                            {PAGE_TEMPLATES.filter((t) => {
+                                if (templateFilter === 'premium') return t.tier === 'premium';
+                                if (templateFilter === 'free') return t.tier === 'free';
+                                return true;
+                            }).map((t) => (
+                                <div
+                                    key={t.key}
+                                    className="rounded-xl border border-white/10 bg-white/5 p-4 flex flex-col justify-between hover:border-teal-500/50 hover:bg-white/[0.07] transition-all"
                                 >
-                                    Load Template
-                                </button>
-                            </div>
+                                    <div>
+                                        <div className="flex items-center justify-between gap-2 mb-2">
+                                            <span
+                                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                                                    t.tier === 'premium'
+                                                        ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                                                        : 'bg-slate-700/60 text-slate-300'
+                                                }`}
+                                            >
+                                                {t.badge}
+                                            </span>
+                                            <span className="text-xs font-bold text-teal-300">
+                                                {t.price_lkr}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2 mb-1.5">
+                                            <div
+                                                className="w-3.5 h-3.5 rounded-full shrink-0 shadow-xs"
+                                                style={{ backgroundColor: t.accent_color }}
+                                            />
+                                            <h4 className="font-bold text-sm text-white truncate">{t.label}</h4>
+                                        </div>
+                                        <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
+                                            {t.tagline}
+                                        </p>
+                                        {t.tier === 'premium' && (
+                                            <div className="mt-2 text-[10px] text-amber-300/90 flex items-center gap-1 font-medium bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-md">
+                                                <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />
+                                                <span>Under development · Free to test</span>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="mt-4 pt-3 border-t border-white/10 flex items-center gap-2">
+                                        {t.tier === 'premium' && (
+                                            <a
+                                                href={`/website/templates/${t.key}/preview`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex-1 py-1.5 text-center bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white rounded-lg text-xs font-semibold border border-white/10 transition-colors"
+                                            >
+                                                Live Preview
+                                            </a>
+                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={() => loadTemplate(t.key)}
+                                            className={`py-1.5 px-3 rounded-lg text-xs font-bold text-white transition-all ${
+                                                t.tier === 'premium'
+                                                    ? 'flex-1 bg-teal-600 hover:bg-teal-500 shadow-xs'
+                                                    : 'w-full bg-slate-800 hover:bg-slate-700'
+                                            }`}
+                                        >
+                                            Load into Canvas
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>

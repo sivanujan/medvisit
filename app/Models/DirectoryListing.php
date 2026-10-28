@@ -86,9 +86,13 @@ class DirectoryListing extends Model
      */
     public function scopeActive(Builder $query): Builder
     {
+        $demoTenantId = config('demo.tenant_id', 'demo');
+
         return $query->where('is_active', true)
-            ->whereHas('tenant', function (Builder $t) {
-                $t->where('status', 'active');
+            ->whereHas('tenant', function (Builder $t) use ($demoTenantId) {
+                $t->where('status', 'active')
+                    ->where('is_demo', false)
+                    ->where('id', '!=', $demoTenantId);
             });
     }
 

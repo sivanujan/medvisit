@@ -238,7 +238,7 @@ class PatientController extends Controller
                 'name' => $p->name,
                 // Normalized E.164 phone
                 'phone_normalized' => $p->phone_normalized ?: Patient::normalizePhone($p->phone),
-                // Formatted phone for display as "077 123 4567"
+                // Formatted phone for display (e.g. 070 129 1688)
                 'phone_display' => Patient::formatPhoneDisplay($p->phone_normalized ?: $p->phone),
                 'phone_raw' => $p->phone,
                 // Masked NIC in list response: full NIC is NEVER sent in directory list for privacy

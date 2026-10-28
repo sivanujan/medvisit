@@ -36,7 +36,10 @@ class LiveQueueTvController extends Controller
             'opening_hours' => (string) (tenant('opening_hours') ?? '8:00 AM - 8:00 PM'),
         ];
 
-        if (! $device && ! $isStaff) {
+        $tenant = tenant();
+        $isDemo = (bool) ($tenant && $tenant->is_demo);
+
+        if (! $device && ! $isStaff && ! $isDemo) {
             return Inertia::render('Queue/Tv', [
                 'isPaired' => false,
                 'isStaff' => false,
@@ -52,7 +55,7 @@ class LiveQueueTvController extends Controller
         return Inertia::render('Queue/Tv', [
             'isPaired' => true,
             'isStaff' => $isStaff,
-            'deviceName' => $device?->name ?? 'Staff Preview',
+            'deviceName' => $device?->name ?? ($isDemo ? 'Waiting Room TV (Demo)' : 'Staff Preview'),
             'tvData' => $tvData,
             'clinic' => $clinicInfo,
         ]);
@@ -66,7 +69,10 @@ class LiveQueueTvController extends Controller
         $device = $this->authenticateDevice($request);
         $isStaff = auth()->check();
 
-        if (! $device && ! $isStaff) {
+        $tenant = tenant();
+        $isDemo = (bool) ($tenant && $tenant->is_demo);
+
+        if (! $device && ! $isStaff && ! $isDemo) {
             return response()->json([
                 'isPaired' => false,
                 'error' => 'TV display is not paired or device token has been revoked.',
@@ -77,7 +83,7 @@ class LiveQueueTvController extends Controller
 
         return response()->json([
             'isPaired' => true,
-            'deviceName' => $device?->name ?? 'Staff Preview',
+            'deviceName' => $device?->name ?? ($isDemo ? 'Waiting Room TV (Demo)' : 'Staff Preview'),
             ...$tvData,
         ]);
     }
@@ -286,8 +292,9 @@ class LiveQueueTvController extends Controller
     protected function getTvData(Request $request, ?TvDevice $device = null): array
     {
         $tenant = tenant();
-        $today = Carbon::today('Asia/Colombo')->toDateString();
-        $nameDisplayMode = (string) ($tenant->tv_name_display_mode ?? 'token_only');
+        $nameDisplayMode = ($tenant && $tenant->is_demo)
+            ? 'token_only'
+            : (string) ($tenant->tv_name_display_mode ?? 'token_only');
 
         // Session/Doctor filter scoped to device or query override
         $filterDoctorIds = null;
@@ -296,6 +303,8 @@ class LiveQueueTvController extends Controller
         } elseif ($request->filled('doctor_ids')) {
             $filterDoctorIds = array_filter(array_map('intval', explode(',', (string) $request->query('doctor_ids'))));
         }
+
+        $today = Carbon::today('Asia/Colombo')->toDateString();
 
         // Fetch all today's sessions with relations
         $query = DoctorSession::with(['doctor', 'tokens.patient'])
@@ -326,6 +335,8 @@ class LiveQueueTvController extends Controller
                 $nowServing = [
                     'id' => $activeToken->id,
                     'token_number' => $activeToken->token_number,
+                    'token_display' => $session->formatToken($activeToken->token_number),
+                    'doctor_token_code' => $session->doctor_token_code ?: $doctor?->token_code,
                     'patient_name' => TvDisplayHelper::maskPatientName($activeToken->patient?->name, $nameDisplayMode),
                     'status' => $activeToken->status,
                     'called_at' => $activeToken->called_at ? Carbon::parse($activeToken->called_at)->timestamp : null,
@@ -343,6 +354,8 @@ class LiveQueueTvController extends Controller
             })->take(5)->map(fn ($t) => [
                 'id' => $t->id,
                 'token_number' => $t->token_number,
+                'token_display' => $session->formatToken($t->token_number),
+                'doctor_token_code' => $session->doctor_token_code ?: $doctor?->token_code,
                 'patient_name' => TvDisplayHelper::maskPatientName($t->patient?->name, $nameDisplayMode),
                 'status' => $t->status,
                 'estimated_time' => $t->estimated_time ? Carbon::parse($t->estimated_time)->format('h:i A') : '',
@@ -370,12 +383,14 @@ class LiveQueueTvController extends Controller
                 'doctor_specialty' => $doctor?->specialty ?? 'Specialist',
                 'doctor_photo_url' => $doctor?->photo_url ?? null,
                 'doctor_color' => $doctorColor,
+                'doctor_token_code' => $session->doctor_token_code ?: $doctor?->token_code,
                 'room_number' => $roomNumber,
                 'status' => $session->status,
                 'status_message' => $statusMessage,
                 'start_time' => $session->start_time ? Carbon::parse($session->start_time)->format('h:i A') : '',
                 'end_time' => $session->end_time ? Carbon::parse($session->end_time)->format('h:i A') : '',
                 'current_token_number' => $session->current_token_number > 0 ? $session->current_token_number : null,
+                'current_token_display' => $session->current_token_number > 0 ? $session->formatToken($session->current_token_number) : null,
                 'now_serving' => $nowServing,
                 'next_in_line' => $nextInLine,
                 'waiting_count' => $waitingCount,
@@ -413,7 +428,29 @@ class LiveQueueTvController extends Controller
         // For single hero layout compatibility
         $primarySession = $liveSessions->first() ?? $upcomingSessions->first() ?? null;
 
+        $clinic = [
+            'name' => ucwords((string) (tenant('name') ?? 'MedVisit Clinic')),
+            'subdomain' => (string) (tenant('subdomain') ?? 'clinic'),
+            'logo_url' => (string) (tenant('logo_url') ?: tenant('logo_png_url') ?: ''),
+            'phone' => (string) (tenant('phone') ?? ''),
+            'address' => (string) (tenant('formatted_address') ?: tenant('address') ?: ''),
+            'opening_hours' => (string) (tenant('opening_hours') ?? '8:00 AM - 8:00 PM'),
+        ];
+
+        $roomsOverview = $processedSessions->map(function ($s) {
+            return [
+                'id' => $s['id'],
+                'doctor_name' => $s['doctor_name'],
+                'room_number' => $s['room_number'],
+                'current_token_number' => $s['current_token_number'] ?: '—',
+                'current_token_display' => $s['current_token_display'] ?? null,
+                'status' => $s['status'],
+            ];
+        })->all();
+
         return [
+            'clinic' => $clinic,
+            'roomsOverview' => $roomsOverview,
             'layoutMode' => $layoutMode,
             'liveSessions' => $liveSessions->all(),
             'upcomingSessions' => $upcomingSessions->all(),

@@ -24,6 +24,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\RateLimiter;
 use Inertia\Inertia;
 use Inertia\Response;
 use InvalidArgumentException;
@@ -194,6 +195,7 @@ class ConsultationController extends Controller
             'token' => [
                 'id' => $token->id,
                 'token_number' => $token->token_number,
+                'token_display' => $token->display_token,
                 'status' => $token->status,
                 'estimated_time' => $token->estimated_time?->format('h:i A'),
                 'patient' => [
@@ -487,6 +489,16 @@ class ConsultationController extends Controller
 
         // Support direct PDF download / view via ChromiumPdfService
         if ($request->query('format') === 'pdf') {
+            if ($tenant && $tenant->is_demo) {
+                $identifier = (string) ($request->session()->getId() ?: $request->ip() ?: 'demo_user');
+                $rateKey = "demo_pdf_limit:{$identifier}";
+
+                if (RateLimiter::tooManyAttempts($rateKey, 10)) {
+                    abort(429, 'PDF generation rate limit reached in demo mode (max 10 downloads per 10 minutes).');
+                }
+                RateLimiter::hit($rateKey, 600);
+            }
+
             $pdfService = app(ChromiumPdfService::class);
             $binary = $pdfService->generatePrescriptionPdf($prescription, $lang);
 

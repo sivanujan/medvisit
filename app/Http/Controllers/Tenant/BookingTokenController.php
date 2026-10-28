@@ -189,6 +189,8 @@ class BookingTokenController extends Controller
                     'is_selectable' => $isSelectable,
                     'unselectable_reason' => $unselectableReason,
                     'next_token_number' => $nextToken,
+                    'next_token_display' => $s->formatToken($nextToken),
+                    'doctor_token_code' => $s->doctor_token_code ?: $s->doctor?->token_code,
                     'next_approx_time' => 'approx. '.$approxTime->format('g:i A'),
                     'doctor_fee_lkr' => round($resolved['doctor_fee_portion'] / 100, 2),
                     'clinic_fee_lkr' => round($resolved['clinic_portion'] / 100, 2),
@@ -215,6 +217,8 @@ class BookingTokenController extends Controller
                 return [
                     'id' => $b->id,
                     'token_number' => $b->token_number,
+                    'token_display' => $b->display_token,
+                    'doctor_token_code' => $b->session?->doctor_token_code ?: $b->session?->doctor?->token_code,
                     'doctor_id' => $b->session?->doctor_id,
                     'doctor_session_id' => $b->doctor_session_id,
                     'doctor_name' => trim(($b->session?->doctor?->title ?? 'Dr.').' '.($b->session?->doctor?->name ?? 'Doctor')),
@@ -242,7 +246,7 @@ class BookingTokenController extends Controller
         // Clinic info for slip printing & payment settings
         $clinicInfo = [
             'name' => ucwords((string) ($tenant->name ?? 'MedVisit Clinic')),
-            'phone' => $tenant->phone ?? '+94 11 234 5678',
+            'phone' => $tenant->phone ?? config('medvisit_public.business.phone_display', '070 129 1688'),
             'address' => $tenant->address ?? 'Colombo, Sri Lanka',
             'subdomain' => $tenant->subdomain ?? 'clinic',
             'collect_payment_at_issue' => (bool) ($feeSettings['collect_payment_at_issue'] ?? false),
@@ -521,6 +525,7 @@ class BookingTokenController extends Controller
                     'resource_id' => (string) $token->id,
                     'metadata' => [
                         'token_number' => $tokenNumber,
+                        'token_display' => $session->formatToken($tokenNumber),
                         'patient_name' => $patient->name,
                         'discount' => $snapshot['discount'],
                         'gross_subtotal' => $snapshot['gross_subtotal'],
@@ -541,14 +546,17 @@ class BookingTokenController extends Controller
         });
 
         $tokenNo = $tokenResult['token']->token_number;
+        $tokenDisplay = $tokenResult['session']->formatToken($tokenNo);
         $docName = $tokenResult['session']->doctor?->name ?? 'Doctor';
         $formattedTime = $tokenResult['token']->estimated_time ? Carbon::parse($tokenResult['token']->estimated_time)->format('g:i A') : '';
 
         return redirect()->back()
-            ->with('success', "Token #{$tokenNo} issued successfully for {$tokenResult['patient']->name} with Dr. {$docName}.")
+            ->with('success', "Token {$tokenDisplay} issued successfully for {$tokenResult['patient']->name} with Dr. {$docName}.")
             ->with('issuedToken', [
                 'id' => $tokenResult['token']->id,
                 'token_number' => $tokenNo,
+                'token_display' => $tokenDisplay,
+                'doctor_token_code' => $tokenResult['session']->doctor_token_code ?: $tokenResult['session']->doctor?->token_code,
                 'patient_id' => $tokenResult['patient']->id,
                 'patient_name' => $tokenResult['patient']->name,
                 'patient_phone' => $tokenResult['patient']->phone,

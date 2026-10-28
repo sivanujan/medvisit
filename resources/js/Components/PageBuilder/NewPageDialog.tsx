@@ -104,10 +104,17 @@ export default function NewPageDialog({ templates, pages, clinic, onClose, onCre
                     <label className={labelClass}>Start from</label>
                     <select className={inputClass} value={source} onChange={(e) => setSource(e.target.value)}>
                         <option value="blank">Blank page</option>
-                        <optgroup label="Template">
-                            {PAGE_TEMPLATES.filter((t) => templates.includes(t.key)).map((t) => (
+                        <optgroup label="✨ Premium Templates (Under Development · Free Preview)">
+                            {PAGE_TEMPLATES.filter((t) => t.tier === 'premium').map((t) => (
                                 <option key={t.key} value={`template:${t.key}`}>
-                                    {t.label}
+                                    {t.label} — {t.price_lkr}
+                                </option>
+                            ))}
+                        </optgroup>
+                        <optgroup label="Free Starter Presets">
+                            {PAGE_TEMPLATES.filter((t) => t.tier === 'free').map((t) => (
+                                <option key={t.key} value={`template:${t.key}`}>
+                                    {t.label} (Free)
                                 </option>
                             ))}
                         </optgroup>

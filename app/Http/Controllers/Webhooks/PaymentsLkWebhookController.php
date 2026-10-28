@@ -8,6 +8,7 @@ use App\Contracts\PaymentGateway;
 use App\Http\Controllers\Controller;
 use App\Models\WebhookEvent;
 use App\Services\Payments\SubscriptionPaymentService;
+use App\Services\Templates\TemplateService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -61,9 +62,23 @@ class PaymentsLkWebhookController extends Controller
             case 'payment.succeeded':
                 $data = $payload['data'] ?? [];
                 $payment = $data['payment'] ?? $data;
+                $ref = (string) ($payment['reference'] ?? '');
+
+                if (str_starts_with($ref, 'TPL-')) {
+                    app(TemplateService::class)->processSuccessfulPurchase([
+                        'reference' => $ref,
+                        'amount_cents' => isset($payment['amountCents']) ? (int) $payment['amountCents'] : (isset($payment['amount_cents']) ? (int) $payment['amount_cents'] : 0),
+                        'currency' => (string) ($payment['currency'] ?? 'LKR'),
+                        'status' => (string) ($payment['status'] ?? ''),
+                        'checkout_id' => $payment['checkoutId'] ?? $payment['checkout_id'] ?? null,
+                        'payment_id' => $payment['id'] ?? null,
+                        'method' => $payment['method'] ?? 'paymentslk',
+                    ], $payload);
+                    break;
+                }
 
                 $paymentService->processSuccessfulPayment([
-                    'reference' => (string) ($payment['reference'] ?? ''),
+                    'reference' => $ref,
                     'amount_cents' => isset($payment['amountCents']) ? (int) $payment['amountCents'] : (isset($payment['amount_cents']) ? (int) $payment['amount_cents'] : 0),
                     'currency' => (string) ($payment['currency'] ?? 'LKR'),
                     'status' => (string) ($payment['status'] ?? ''),

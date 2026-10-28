@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Services\PlatformSettingsService;
 use App\Support\SiteKit;
+use App\Support\TokenHelper;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -18,6 +20,7 @@ class Tenant extends BaseTenant
 
     protected $fillable = [
         'id',
+        'is_demo',
         'name',
         'subdomain',
         'phone',
@@ -33,6 +36,8 @@ class Tenant extends BaseTenant
         'trial_ending_reminder_sent_at',
         'trial_ended_reminder_sent_at',
         'fee_settings',
+        'token_number_format',
+        'online_booking_enabled',
         'require_phone_verification',
         'phone_verification_methods',
         'logo_path',
@@ -44,6 +49,11 @@ class Tenant extends BaseTenant
         'setup_version',
         'setup_grace_until',
         'setup_reminder_sent_at',
+        'applied_template_id',
+        'applied_template_version',
+        'previous_template_snapshot',
+        'free_template_changed_at',
+        'advanced_free_template_override',
         'data',
     ];
 
@@ -52,19 +62,24 @@ class Tenant extends BaseTenant
         'trial_ending_reminder_sent_at' => 'datetime',
         'trial_ended_reminder_sent_at' => 'datetime',
         'fee_settings' => 'array',
+        'is_demo' => 'boolean',
+        'online_booking_enabled' => 'boolean',
         'require_phone_verification' => 'boolean',
-        'phone_verification_methods' => 'array',
         'setup_completed_at' => 'datetime',
         'setup_step' => 'integer',
         'setup_version' => 'integer',
         'setup_grace_until' => 'datetime',
         'setup_reminder_sent_at' => 'datetime',
+        'previous_template_snapshot' => 'array',
+        'free_template_changed_at' => 'datetime',
+        'advanced_free_template_override' => 'integer',
     ];
 
     public static function getCustomColumns(): array
     {
         return [
             'id',
+            'is_demo',
             'name',
             'subdomain',
             'phone',
@@ -88,6 +103,11 @@ class Tenant extends BaseTenant
             'setup_version',
             'setup_grace_until',
             'setup_reminder_sent_at',
+            'applied_template_id',
+            'applied_template_version',
+            'previous_template_snapshot',
+            'free_template_changed_at',
+            'advanced_free_template_override',
         ];
     }
 
@@ -108,6 +128,64 @@ class Tenant extends BaseTenant
         }
 
         return (string) ($this->address ?: $this->legacy_address ?: '');
+    }
+
+    /**
+     * Safely resolve phone verification methods as an array without recursive encoding.
+     */
+    public function getPhoneVerificationMethodsAttribute($value): array
+    {
+        while (is_string($value)) {
+            $decoded = json_decode($value, true);
+            if ($decoded !== null && $decoded !== $value) {
+                $value = $decoded;
+            } else {
+                break;
+            }
+        }
+
+        return is_array($value) ? array_values($value) : ['whatsapp', 'textlk'];
+    }
+
+    /**
+     * Safely store phone verification methods without recursive encoding.
+     */
+    public function setPhoneVerificationMethodsAttribute($value): void
+    {
+        while (is_string($value)) {
+            $decoded = json_decode($value, true);
+            if ($decoded !== null && $decoded !== $value) {
+                $value = $decoded;
+            } else {
+                break;
+            }
+        }
+
+        $this->attributes['phone_verification_methods'] = is_array($value) ? array_values($value) : ['whatsapp', 'textlk'];
+    }
+
+    /**
+     * Get the configured token number display format for this clinic.
+     * Defaults to 'with_doctor_code' if the clinic has 2+ active doctors.
+     */
+    public function getTokenNumberFormat(): string
+    {
+        $custom = $this->token_number_format;
+        if (! empty($custom) && in_array($custom, ['with_doctor_code', 'number_only'], true)) {
+            return $custom;
+        }
+
+        $activeDoctorsCount = Doctor::where('tenant_id', $this->id)->where('is_active', true)->count();
+
+        return $activeDoctorsCount >= 2 ? 'with_doctor_code' : 'number_only';
+    }
+
+    /**
+     * Check if this clinic has overlapping sessions across different doctors today or upcoming.
+     */
+    public function hasOverlappingDoctorSessions(?string $date = null): bool
+    {
+        return TokenHelper::hasOverlappingDoctorSessions((string) $this->id, $date);
     }
 
     /**
@@ -294,9 +372,27 @@ class Tenant extends BaseTenant
 
     public function hasActiveSubscription(): bool
     {
+        if ((bool) $this->is_demo) {
+            return true;
+        }
+
         $sub = $this->subscription;
 
         return $sub ? $sub->isActive() : false;
+    }
+
+    public function getOpeningHoursAttribute(): ?string
+    {
+        if (! empty($this->attributes['opening_hours'])) {
+            return (string) $this->attributes['opening_hours'];
+        }
+
+        $footer = $this->website_footer;
+        if (is_array($footer) && ! empty($footer['opening_hours'])) {
+            return (string) $footer['opening_hours'];
+        }
+
+        return 'Mon – Sat: 08:00 AM – 08:00 PM | Sun: 08:00 AM – 02:00 PM';
     }
 
     public function isSuspended(): bool
@@ -438,5 +534,64 @@ class Tenant extends BaseTenant
         $data[$key] = $value;
         $this->data = $data;
         $this->save();
+    }
+
+    /**
+     * Currently applied website template.
+     *
+     * @return BelongsTo<WebsiteTemplate, $this>
+     */
+    public function appliedTemplate(): BelongsTo
+    {
+        return $this->belongsTo(WebsiteTemplate::class, 'applied_template_id');
+    }
+
+    /**
+     * Template purchases / entitlements.
+     *
+     * @return HasMany<TemplatePurchase, $this>
+     */
+    public function templatePurchases(): HasMany
+    {
+        return $this->hasMany(TemplatePurchase::class, 'tenant_id');
+    }
+
+    /**
+     * Check if this tenant is entitled to use/publish a given template.
+     */
+    public function isTemplateEntitled(WebsiteTemplate $template): bool
+    {
+        if ($template->tier === WebsiteTemplate::TIER_FREE || $template->price_cents === 0) {
+            return true;
+        }
+
+        // Demo tenant evaluates templates freely
+        if ((bool) $this->is_demo) {
+            return true;
+        }
+
+        return $this->templatePurchases()
+            ->where('template_id', $template->id)
+            ->where('status', TemplatePurchase::STATUS_PAID)
+            ->exists();
+    }
+
+    /**
+     * Free templates allowed for this clinic based on plan and overrides.
+     */
+    public function getFreeTemplatesLimit(): int
+    {
+        if ($this->advanced_free_template_override !== null) {
+            return max(0, (int) $this->advanced_free_template_override);
+        }
+
+        $planSlug = strtolower((string) ($this->plan ?? ''));
+        if ($planSlug === 'advanced') {
+            $settings = app(PlatformSettingsService::class)->all();
+
+            return (int) ($settings['templates.free_templates_included_with_advanced'] ?? 1);
+        }
+
+        return 0;
     }
 }

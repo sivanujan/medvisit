@@ -22,6 +22,7 @@ import PreviewPane from '@/Components/WebsiteEditor/PreviewPane';
 import LookTab from '@/Components/WebsiteEditor/LookTab';
 import ExtraPagesTab from '@/Components/WebsiteEditor/ExtraPagesTab';
 import SeoTab from '@/Components/WebsiteEditor/SeoTab';
+import TemplatesGallery from '@/Components/WebsiteEditor/TemplatesGallery';
 import BuilderPromptModal from '@/Components/WebsiteEditor/BuilderPromptModal';
 import type { SiteLook, SiteSection } from '@/Components/ClinicSite/types';
 import type { SiteStatus } from '@/Components/WebsiteEditor/useWebsiteDraft';
@@ -63,7 +64,7 @@ interface Props {
     pages: PageItem[];
 }
 
-type TabKey = 'home' | 'look' | 'pages' | 'seo';
+type TabKey = 'home' | 'templates' | 'look' | 'pages' | 'seo';
 
 const defaultSection = (type: string, id: string): SiteSection => {
     switch (type) {
@@ -189,6 +190,7 @@ export default function WebsiteIndex({
                         <nav className="flex space-x-1 sm:space-x-2 py-2" aria-label="Editor Tabs">
                             {[
                                 { key: 'home', label: 'Home page', icon: Layout },
+                                { key: 'templates', label: 'Templates Marketplace', icon: Sparkles, badge: '5 Premium' },
                                 { key: 'look', label: 'Look & feel', icon: Palette },
                                 { key: 'pages', label: 'Extra pages', icon: FileText, count: pages.length },
                                 { key: 'seo', label: 'SEO & sharing', icon: Search },
@@ -211,6 +213,11 @@ export default function WebsiteIndex({
                                     >
                                         <TabIcon className="h-4 w-4" />
                                         <span>{tab.label}</span>
+                                        {tab.badge && (
+                                            <span className="ml-0.5 rounded-full px-1.5 py-0.2 text-[10px] font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                                                {tab.badge}
+                                            </span>
+                                        )}
                                         {tab.count !== undefined && tab.count > 0 && (
                                             <span
                                                 className={`ml-0.5 rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
@@ -228,6 +235,19 @@ export default function WebsiteIndex({
                         </nav>
 
                         <div className="flex items-center gap-2">
+                            {/* Templates Marketplace Quick Button */}
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('templates')}
+                                className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-xs font-semibold text-amber-700 dark:text-amber-300 transition shadow-xs"
+                            >
+                                <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                                <span>Templates</span>
+                                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                                    Rs. 3,500
+                                </span>
+                            </button>
+
                             {/* Visual Page Builder link */}
                             <a
                                 href="/website/builder"
@@ -291,6 +311,31 @@ export default function WebsiteIndex({
                                     </a>
                                 </div>
                             )}
+
+                            {/* Templates Marketplace Banner on Home page */}
+                            <div className="bg-gradient-to-r from-teal-50 via-emerald-50/50 to-amber-50/60 dark:from-teal-950/40 dark:via-emerald-950/30 dark:to-amber-950/30 border-b border-teal-100 dark:border-teal-900/40 px-4 py-2 text-xs flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                    <div className="w-6 h-6 rounded-md bg-teal-500/15 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0">
+                                        <Sparkles className="h-3.5 w-3.5" />
+                                    </div>
+                                    <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                                        <span className="font-bold text-slate-900 dark:text-white">
+                                            Premium Website Templates:
+                                        </span>
+                                        <span className="text-slate-600 dark:text-slate-300">
+                                            Preview 5 handcrafted clinic designs (Serene, Specialist, Family Care, Heritage, Dental & Eye) with your clinic's real data. Rs. 3,500 one-time (1 included free on Advanced plan).
+                                        </span>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab('templates')}
+                                    className="shrink-0 px-3 py-1 rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-bold transition shadow-xs text-xs inline-flex items-center gap-1"
+                                >
+                                    <Sparkles className="h-3 w-3" />
+                                    Explore Templates →
+                                </button>
+                            </div>
 
                             {/* Main 3-pane layout on Desktop, responsive on Tablet / Mobile */}
                             <div className="flex-1 flex flex-col lg:flex-row min-h-[calc(100vh-160px)]">
@@ -380,6 +425,22 @@ export default function WebsiteIndex({
                                     </>
                                 )}
                             </div>
+                        </div>
+                    )}
+
+                    {/* TAB: TEMPLATES MARKETPLACE */}
+                    {activeTab === 'templates' && (
+                        <div className="flex-1 bg-slate-50/50 dark:bg-slate-950 p-4 lg:p-6 overflow-y-auto">
+                            <TemplatesGallery
+                                onTemplateApplied={(newLook, newSections) => {
+                                    update((prev) => ({
+                                        ...prev,
+                                        look: newLook || prev.look,
+                                        sections: newSections || prev.sections,
+                                    }));
+                                    setActiveTab('home');
+                                }}
+                            />
                         </div>
                     )}
 

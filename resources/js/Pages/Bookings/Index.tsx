@@ -77,6 +77,8 @@ interface SessionOption {
     is_selectable: boolean;
     unselectable_reason?: string | null;
     next_token_number: number;
+    next_token_display?: string;
+    doctor_token_code?: string;
     next_approx_time: string;
     doctor_fee_lkr: number;
     clinic_fee_lkr: number;
@@ -91,6 +93,8 @@ interface SessionOption {
 interface RecentBooking {
     id: number;
     token_number: number;
+    token_display?: string;
+    doctor_token_code?: string;
     doctor_id?: number;
     doctor_session_id?: number;
     doctor_name: string;
@@ -633,7 +637,7 @@ export default function BookingsIndex({
             : `94${cleanPhone}`;
 
         const msg = `*${clinicInfo.name}* - Appointment Confirmation
-Token: *#${slip.token_number}*
+Token: *#${slip.token_display || slip.token_number}*
 Doctor: ${slip.doctor_name} (${slip.doctor_specialty || ''})
 Date: ${slip.session_date}
 Time: ${slip.estimated_time || 'Queue'}
@@ -1551,7 +1555,7 @@ Live Queue: https://${clinicInfo.subdomain}.medvisit.lk/queue/tv`;
                                         Assigned token
                                     </span>
                                     <span className="text-5xl font-black text-slate-900 dark:text-white font-mono tracking-tight block leading-none mt-1">
-                                        #{justIssuedTicket?.token_number || (activeSession ? previewTokenNumber : '—')}
+                                        #{justIssuedTicket?.token_display || justIssuedTicket?.token_number || (activeSession ? (activeSession.next_token_display || previewTokenNumber) : '—')}
                                     </span>
                                     <span className="text-[11px] text-slate-500 font-medium mt-1.5 block">
                                         Est. {justIssuedTicket?.estimated_time || approximateTime}
@@ -1637,7 +1641,7 @@ Live Queue: https://${clinicInfo.subdomain}.medvisit.lk/queue/tv`;
                                 >
                                     <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-bold text-xs">
                                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                                        <span>Token #{justIssuedTicket.token_number} issued successfully!</span>
+                                        <span>Token #{justIssuedTicket.token_display || justIssuedTicket.token_number} issued successfully!</span>
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-2 pt-1">
@@ -1714,8 +1718,8 @@ Live Queue: https://${clinicInfo.subdomain}.medvisit.lk/queue/tv`;
                                             className="p-2.5 rounded-xl bg-slate-50/80 dark:bg-white/5 border border-slate-100 dark:border-white/5 flex items-center justify-between text-xs hover:border-[#1E6FD9]/30 transition-colors"
                                         >
                                             <div className="flex items-center gap-2.5 min-w-0">
-                                                <span className="w-7 h-7 rounded-lg bg-slate-200 dark:bg-white/10 text-slate-800 dark:text-white font-black font-mono flex items-center justify-center text-xs shrink-0">
-                                                    #{b.token_number}
+                                                <span className="px-2 h-7 rounded-lg bg-slate-200 dark:bg-white/10 text-slate-800 dark:text-white font-black font-mono flex items-center justify-center text-xs shrink-0">
+                                                    #{b.token_display || b.token_number}
                                                 </span>
                                                 <div className="min-w-0">
                                                     <span className="font-bold text-slate-900 dark:text-white block truncate">
@@ -1771,7 +1775,7 @@ Live Queue: https://${clinicInfo.subdomain}.medvisit.lk/queue/tv`;
                 <div className="xl:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-t border-slate-200/80 dark:border-white/10 p-3 shadow-2xl flex items-center justify-between gap-3">
                     <div className="min-w-0">
                         <span className="text-xs font-bold text-slate-900 dark:text-white block truncate">
-                            Token #{previewTokenNumber} · {selectedPatient ? selectedPatient.name : data.new_patient_name || 'Patient'}
+                            Token #{activeSession?.next_token_display || previewTokenNumber} · {selectedPatient ? selectedPatient.name : data.new_patient_name || 'Patient'}
                         </span>
                         <span className="text-[11px] font-mono text-[#1E6FD9] block">
                             Rs. {liveFeeCalculation.patientTotal.toLocaleString()}
@@ -1986,7 +1990,7 @@ Live Queue: https://${clinicInfo.subdomain}.medvisit.lk/queue/tv`;
                 <div style={{ textAlign: 'center', margin: '8px 0' }}>
                     <div style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' }}>Token Number</div>
                     <div style={{ fontSize: '38px', fontWeight: 'bold', margin: '2px 0' }}>
-                        #{justIssuedTicket?.token_number || '—'}
+                        #{justIssuedTicket?.token_display || justIssuedTicket?.token_number || '—'}
                     </div>
                     <div style={{ fontSize: '12px' }}>
                         Estimated Time: {justIssuedTicket?.estimated_time || 'Queue'}

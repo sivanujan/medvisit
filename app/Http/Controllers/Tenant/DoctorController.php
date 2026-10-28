@@ -16,6 +16,7 @@ use App\Services\AuditLogger;
 use App\Services\FeeResolutionService;
 use App\Services\Media\ImageProcessingService;
 use App\Services\SessionGeneratorService;
+use App\Support\TokenHelper;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -209,6 +210,8 @@ class DoctorController extends Controller
                     'photo_url' => $doc->photo_url,
                     'bio' => $doc->bio,
                     'color' => $color,
+                    'token_code' => $doc->token_code,
+                    'future_bookings_count' => $doc->future_bookings_count,
                     'use_clinic_default_fees' => $useDefault,
                     'pricing_mode' => $doc->pricing_mode ?? ($feeSettings['pricing_mode'] ?? 'split'),
                     'doctor_fee_cents' => $docFeeCents,
@@ -409,9 +412,33 @@ class DoctorController extends Controller
             'payout_rule' => ['nullable', 'array'],
             'visit_type_overrides' => ['nullable', 'array'],
             'avg_consultation_minutes' => ['required', 'integer', 'min:1', 'max:120'],
+            'token_code' => ['nullable', 'string', 'max:5', 'regex:/^[A-Za-z0-9]{2,5}$/'],
             'is_active' => ['boolean'],
             'user_id' => ['nullable', 'exists:users,id'],
         ]);
+
+        $tenantId = (string) tenant('id');
+
+        $tokenCode = ! empty($validated['token_code'])
+            ? strtoupper(trim($validated['token_code']))
+            : null;
+
+        if ($tokenCode) {
+            $exists = Doctor::where('tenant_id', $tenantId)
+                ->where('token_code', $tokenCode)
+                ->exists();
+            if ($exists) {
+                throw ValidationException::withMessages([
+                    'token_code' => "Doctor token code '{$tokenCode}' is already assigned to another doctor in this clinic.",
+                ]);
+            }
+        } else {
+            $tokenCode = TokenHelper::generateUniqueCode(
+                tenantId: $tenantId,
+                name: $validated['name'],
+                title: $validated['title'] ?? null
+            );
+        }
 
         $useDefault = $request->has('use_clinic_default_fees')
             ? (bool) $request->input('use_clinic_default_fees')
@@ -421,10 +448,11 @@ class DoctorController extends Controller
         $totalFeeCents = isset($validated['total_fee_lkr']) ? (int) round($validated['total_fee_lkr'] * 100) : ($docFeeCents + $clinicFeeCents);
 
         $doctor = Doctor::create([
-            'tenant_id' => tenant('id'),
+            'tenant_id' => $tenantId,
             'user_id' => $validated['user_id'] ?? null,
             'title' => $validated['title'],
             'name' => $validated['name'],
+            'token_code' => $tokenCode,
             'specialty' => $validated['specialty'],
             'slmc_number' => $validated['slmc_number'],
             'phone' => $validated['phone'] ?? null,
@@ -444,7 +472,7 @@ class DoctorController extends Controller
             'is_active' => $validated['is_active'] ?? true,
         ]);
 
-        return redirect()->back()->with('success', "Doctor {$doctor->name} added successfully.");
+        return redirect()->back()->with('success', "Doctor {$doctor->name} added successfully (Token Code: {$tokenCode}).");
     }
 
     /**
@@ -469,9 +497,31 @@ class DoctorController extends Controller
             'payout_rule' => ['nullable', 'array'],
             'visit_type_overrides' => ['nullable', 'array'],
             'avg_consultation_minutes' => ['required', 'integer', 'min:1', 'max:120'],
+            'token_code' => ['nullable', 'string', 'max:5', 'regex:/^[A-Za-z0-9]{2,5}$/'],
             'is_active' => ['boolean'],
             'user_id' => ['nullable', 'exists:users,id'],
         ]);
+
+        $tenantId = (string) $doctor->tenant_id;
+        $oldCode = $doctor->token_code;
+        $newCode = ! empty($validated['token_code'])
+            ? strtoupper(trim($validated['token_code']))
+            : $oldCode;
+
+        if ($newCode && $newCode !== $oldCode) {
+            $exists = Doctor::where('tenant_id', $tenantId)
+                ->where('id', '!=', $doctor->id)
+                ->where('token_code', $newCode)
+                ->exists();
+
+            if ($exists) {
+                throw ValidationException::withMessages([
+                    'token_code' => "Doctor token code '{$newCode}' is already in use by another doctor in this clinic.",
+                ]);
+            }
+        }
+
+        $futureBookingsCount = $doctor->future_bookings_count;
 
         $useDefault = $validated['use_clinic_default_fees'] ?? true;
         $docFeeCents = isset($validated['doctor_fee_lkr']) ? (int) round($validated['doctor_fee_lkr'] * 100) : 0;
@@ -482,6 +532,7 @@ class DoctorController extends Controller
             'user_id' => $validated['user_id'] ?? null,
             'title' => $validated['title'],
             'name' => $validated['name'],
+            'token_code' => $newCode,
             'specialty' => $validated['specialty'],
             'slmc_number' => $validated['slmc_number'],
             'phone' => $validated['phone'] ?? null,
@@ -501,7 +552,14 @@ class DoctorController extends Controller
             'is_active' => $validated['is_active'] ?? true,
         ]);
 
-        return redirect()->back()->with('success', "Doctor {$doctor->name} updated successfully.");
+        $successMsg = "Doctor {$doctor->name} updated successfully.";
+        if ($oldCode !== $newCode && $futureBookingsCount > 0) {
+            $warningMsg = "Doctor updated. Warning: {$futureBookingsCount} future booked tokens will keep their original code ({$oldCode}) snapshot. New sessions will use {$newCode}.";
+
+            return redirect()->back()->with('success', $warningMsg)->with('warning', $warningMsg);
+        }
+
+        return redirect()->back()->with('success', $successMsg);
     }
 
     /**
@@ -919,6 +977,7 @@ class DoctorController extends Controller
         $session = DoctorSession::create([
             'tenant_id' => tenant('id'),
             'doctor_id' => $doctor->id,
+            'doctor_token_code' => $doctor->token_code,
             'session_template_id' => null,
             'session_date' => $validated['session_date'],
             'start_time' => $validated['start_time'],

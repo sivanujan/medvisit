@@ -278,8 +278,9 @@ export default function PhoneVerificationSection({
                 setWaMessage(result.data.message || `VERIFY ${result.data.code}`);
             }
 
-            if (((channel as string) === 'textlk' || (channel as string) === 'log') && result.data?.dev_code) {
-                setDevCode(result.data.dev_code);
+            const code = result.data?.demo_code || result.data?.dev_code;
+            if (code) {
+                setDevCode(code);
             } else {
                 setDevCode(null);
             }
@@ -655,12 +656,17 @@ export default function PhoneVerificationSection({
                 )}
             </div>
 
-            {/* Dev Mode Banner if local */}
+            {/* On-screen OTP banner for Demo and Local */}
             {devCode && (
-                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-center justify-between">
-                    <span>
-                        <strong>[Local Dev]</strong> Verification code: <code className="font-mono font-bold bg-amber-100 px-1 py-0.5 rounded">{devCode}</code>
-                    </span>
+                <div className="p-3 bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800/60 rounded-xl text-xs text-teal-900 dark:text-teal-200 flex items-center justify-between gap-3 shadow-2xs">
+                    <div className="flex items-center gap-2">
+                        <span className="font-extrabold uppercase tracking-wider text-[11px] text-teal-800 dark:text-teal-300">
+                            Verification code:
+                        </span>
+                        <code className="font-mono font-extrabold bg-teal-100 dark:bg-teal-900/80 text-teal-950 dark:text-teal-100 px-2 py-0.5 rounded-lg text-sm tracking-widest border border-teal-300/50">
+                            {devCode}
+                        </code>
+                    </div>
                     <button
                         type="button"
                         onClick={() => {
@@ -668,7 +674,7 @@ export default function PhoneVerificationSection({
                             setDigits(arr);
                             submitSmsCode(devCode);
                         }}
-                        className="px-2 py-1 bg-amber-200/70 hover:bg-amber-200 rounded text-[11px] font-bold"
+                        className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 active:scale-95 text-white rounded-lg text-xs font-extrabold shadow-sm transition-all"
                     >
                         Auto-Fill & Verify
                     </button>

@@ -10,20 +10,24 @@
         A new clinic subscription refund request has been submitted and is awaiting your review.
     </x-email.text>
 
-    <x-email.info-card title="Request Details" :items="[
-        'Clinic' => $clinicName,
-        'Reason' => $reason,
-        'Requested Amount' => '<strong style=\"color: #1E6FD9;\">' . $amount . '</strong>',
-        'Automated Eligibility' => '<strong>' . $eligibility . '</strong>',
-        'Request Reference' => $refundRequest->public_id,
-    ]" />
+    @php
+        $requestItems = [
+            'Clinic' => $clinicName,
+            'Reason' => $reason,
+            'Requested Amount' => '<strong style="color: #1E6FD9;">' . $amount . '</strong>',
+            'Automated Eligibility' => '<strong>' . $eligibility . '</strong>',
+            'Request Reference' => $refundRequest->public_id,
+        ];
+    @endphp
+
+    <x-email.info-card title="Request Details" :items="$requestItems" />
 
     <x-email.alert type="warning">
         <strong>SLA Target:</strong> Acknowledge within 2 working days, decide within 7 working days.
     </x-email.alert>
 
     <x-email.button :url="$adminReviewUrl" align="left">
-        Review in Admin Console &rarr;
+        Review in Admin Console →
     </x-email.button>
 
     <x-email.signature />

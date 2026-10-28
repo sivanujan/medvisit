@@ -16,6 +16,7 @@ import {
 import { brandTokens, THEME_PRIMARY } from '@/Components/ClinicSite/color';
 import type { SiteLook } from '@/Components/ClinicSite/types';
 import ImageUploaderModal from '@/Components/Media/ImageUploaderModal';
+import TemplatesGallery from './TemplatesGallery';
 
 interface Props {
     look: SiteLook;
@@ -43,6 +44,14 @@ const THEMES = [
         bg: 'bg-blue-600',
         gradient: 'from-blue-600 to-indigo-700',
         description: 'Professional medical standard, calm & authoritative',
+    },
+    {
+        key: 'coral-health',
+        name: 'Coral Health',
+        color: '#FF7A59',
+        bg: 'bg-orange-500',
+        gradient: 'from-[#FF7A59] to-rose-600',
+        description: 'Warm & welcoming care for maternity, pediatric and family health',
     },
     {
         key: 'emerald-health',
@@ -86,6 +95,7 @@ const FONTS = [
 export default function LookTab({ look, onChange, clinic, onLogoUpdate }: Props) {
     const [logoModalOpen, setLogoModalOpen] = useState(false);
     const [logoUrl, setLogoUrl] = useState<string | null>(clinic.logo_url ?? null);
+    const [activeSubTab, setActiveSubTab] = useState<'templates' | 'customize'>('templates');
 
     const activePrimary = look.brand_color || THEME_PRIMARY[look.theme] || '#0E9E8F';
     const tokens = brandTokens(activePrimary, look.mode);
@@ -95,17 +105,59 @@ export default function LookTab({ look, onChange, clinic, onLogoUpdate }: Props)
     };
 
     return (
-        <div className="max-w-4xl mx-auto py-6 px-4 sm:px-6 space-y-8 animate-in fade-in duration-200">
-            {/* Header */}
-            <div>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                    <Palette className="h-5 w-5 text-primary" />
-                    Website Look & Feel
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    Customize your public website themes, brand colors, typography, and clinic logo.
-                </p>
+        <div className="max-w-5xl mx-auto py-6 px-4 sm:px-6 space-y-6 animate-in fade-in duration-200">
+            {/* Header & Sub-Tab Switcher */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200/80 dark:border-white/10 pb-4">
+                <div>
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                        <Palette className="h-5 w-5 text-primary" />
+                        Website Design & Templates
+                    </h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        Select an animated premium website template or customize your theme colors, fonts, and clinic emblem.
+                    </p>
+                </div>
+
+                <div className="inline-flex p-1 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 shrink-0">
+                    <button
+                        type="button"
+                        onClick={() => setActiveSubTab('templates')}
+                        className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition ${
+                            activeSubTab === 'templates'
+                                ? 'bg-white dark:bg-slate-900 text-primary dark:text-teal-300 shadow-xs'
+                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                        }`}
+                    >
+                        <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Templates Gallery</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setActiveSubTab('customize')}
+                        className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition ${
+                            activeSubTab === 'customize'
+                                ? 'bg-white dark:bg-slate-900 text-primary dark:text-teal-300 shadow-xs'
+                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                        }`}
+                    >
+                        <Palette className="w-3.5 h-3.5" />
+                        <span>Theme Presets & Styles</span>
+                    </button>
+                </div>
             </div>
+
+            {/* TAB 1: Templates Marketplace */}
+            {activeSubTab === 'templates' && (
+                <TemplatesGallery
+                    onTemplateApplied={(newLook) => {
+                        if (newLook) onChange(newLook);
+                    }}
+                />
+            )}
+
+            {/* TAB 2: Theme Presets & Detailed Customization */}
+            {activeSubTab === 'customize' && (
+                <div className="space-y-8">
 
             {/* 1. Theme Presets */}
             <div className="rounded-2xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-slate-900 p-5 sm:p-6 shadow-xs space-y-4">
@@ -463,6 +515,8 @@ export default function LookTab({ look, onChange, clinic, onLogoUpdate }: Props)
                     </div>
                 </div>
             </div>
+            </div>
+            )}
 
             {/* Logo Uploader Modal */}
             <ImageUploaderModal

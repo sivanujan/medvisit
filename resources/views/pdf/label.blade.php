@@ -66,8 +66,8 @@
 
     <div class="patient-row">
         <strong>Patient:</strong> {{ $label['patient_name'] ?? 'Patient' }}
-        @if(!empty($label['token_number']))
-            | <strong>Token #{{ $label['token_number'] }}</strong>
+        @if(!empty($label['token_number']) || !empty($label['display_token']))
+            | <strong>Token #{{ $label['display_token'] ?? $label['token_number'] }}</strong>
         @endif
     </div>
 

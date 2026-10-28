@@ -7,7 +7,7 @@ export const refundPolicyData: PolicyPageData = {
     title: 'Refund and Cancellation Policy',
     eyebrow: 'Merchant Policy',
     description: 'MedVisit Refund and Cancellation Policy for clinic subscriptions billed in LKR.',
-    lastUpdated: '22 October 2026',
+    lastUpdated: '28 October 2026',
     readingTime: '3 min read',
     tokenMotif: 'REF-02',
     keyPoints: [
@@ -57,6 +57,9 @@ export const refundPolicyData: PolicyPageData = {
                     <li>
                         <strong>Billing error:</strong> if you were charged an amount different from your selected plan's price.
                     </li>
+                    <li>
+                        <strong>Website templates:</strong> a full refund within 7 calendar days of purchase ONLY if the template has never been published to your live clinic website. Once a template has been published to your live site, it is non-refundable. Duplicate charge and billing error protections continue to apply.
+                    </li>
                 </ul>
             ),
         },
@@ -98,6 +101,9 @@ export const refundPolicyData: PolicyPageData = {
                             <Link href="/terms" className="text-primary font-medium underline">
                                 Terms and Conditions
                             </Link>.
+                        </li>
+                        <li>
+                            For website templates once published to your live website, or requested after 7 calendar days from purchase. Templates included free with a plan are not refundable.
                         </li>
                     </ul>
                 </>

@@ -106,8 +106,11 @@ interface DoctorData {
     templates_count: number;
     upcoming_sessions_count: number;
     next_session?: string | null;
-    template_days?: number[];
     has_history?: boolean;
+    token_code?: string;
+    future_bookings_count?: number;
+    template_days?: Array<number | string>;
+    is_demo?: boolean;
 }
 
 interface TemplateData {
@@ -238,6 +241,7 @@ interface DoctorFormData {
     avg_consultation_minutes: number;
     is_active: boolean;
     user_id: string | number;
+    token_code: string;
 }
 
 const WEEK_DAYS = [
@@ -345,6 +349,7 @@ export default function DoctorsIndex({
         avg_consultation_minutes: 10,
         is_active: true,
         user_id: '' as string | number,
+        token_code: '',
     });
 
     // Template Form
@@ -402,6 +407,7 @@ export default function DoctorsIndex({
             avg_consultation_minutes: 15,
             is_active: true,
             user_id: '',
+            token_code: '',
         });
         setIsDoctorModalOpen(true);
     };
@@ -432,6 +438,7 @@ export default function DoctorsIndex({
             avg_consultation_minutes: doc.avg_consultation_minutes || 15,
             is_active: doc.is_active,
             user_id: doc.user_id ? String(doc.user_id) : '',
+            token_code: doc.token_code || '',
         });
         setIsDoctorModalOpen(true);
     };
@@ -945,9 +952,27 @@ export default function DoctorsIndex({
                                                                 </div>
 
                                                                 <div className="min-w-0">
-                                                                    <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                                                                        {doc.full_title}
-                                                                    </h3>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                                                                            {doc.full_title}
+                                                                        </h3>
+                                                                        {doc.token_code && (
+                                                                            <span
+                                                                                className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-white/10 shrink-0"
+                                                                                title="Token prefix code for queue"
+                                                                            >
+                                                                                {doc.token_code}
+                                                                            </span>
+                                                                        )}
+                                                                        {(doc.is_demo || (doc.slmc_number && doc.slmc_number.includes('DEMO'))) && (
+                                                                            <span
+                                                                                className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 shrink-0"
+                                                                                title="Fictional doctor for demo sandbox"
+                                                                            >
+                                                                                Demo doctor
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
                                                                     <p className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate">
                                                                         {doc.specialty}
                                                                     </p>
@@ -1050,7 +1075,7 @@ export default function DoctorsIndex({
                                                             </span>
                                                             <div className="flex items-center gap-1.5">
                                                                 {WEEK_DAYS.map((d) => {
-                                                                    const isLit = activeDays.includes(d.id);
+                                                                    const isLit = (activeDays as Array<number | string>).map(String).includes(String(d.id));
                                                                     return (
                                                                         <div
                                                                             key={d.id}
@@ -1244,8 +1269,21 @@ export default function DoctorsIndex({
                                                                         </div>
                                                                     )}
                                                                     <div>
-                                                                        <div className="font-bold text-slate-900 dark:text-white">
-                                                                            {doc.full_title}
+                                                                        <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
+                                                                            <span>{doc.full_title}</span>
+                                                                            {doc.token_code && (
+                                                                                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-white/10">
+                                                                                    {doc.token_code}
+                                                                                </span>
+                                                                            )}
+                                                                            {(doc.is_demo || (doc.slmc_number && doc.slmc_number.includes('DEMO'))) && (
+                                                                                <span
+                                                                                    className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30"
+                                                                                    title="Fictional doctor for demo sandbox"
+                                                                                >
+                                                                                    Demo doctor
+                                                                                </span>
+                                                                            )}
                                                                         </div>
                                                                         {slmcDisplay && (
                                                                             <span className="text-[10px] text-[#0E9E8F] font-semibold flex items-center gap-1">
@@ -1273,7 +1311,7 @@ export default function DoctorsIndex({
                                                             <td className="py-3 px-4">
                                                                 <div className="flex items-center gap-1">
                                                                     {WEEK_DAYS.map((d) => {
-                                                                        const isLit = activeDays.includes(d.id);
+                                                                        const isLit = (activeDays as Array<number | string>).map(String).includes(String(d.id));
                                                                         return (
                                                                             <span
                                                                                 key={d.id}
@@ -1952,8 +1990,8 @@ export default function DoctorsIndex({
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="sm:col-span-1">
                             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                                 Medical Specialty *
                             </label>
@@ -1966,9 +2004,9 @@ export default function DoctorsIndex({
                             />
                         </div>
 
-                        <div>
+                        <div className="sm:col-span-1">
                             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                SLMC Registration Number
+                                SLMC Registration
                             </label>
                             <input
                                 type="text"
@@ -1978,10 +2016,40 @@ export default function DoctorsIndex({
                                 className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-[#1E6FD9] outline-none"
                             />
                             <span className="text-[10px] text-slate-400 mt-0.5 block">
-                                Enter registration number only (duplicate "SLMC" prefixes are automatically stripped).
+                                Numbers only
+                            </span>
+                        </div>
+
+                        <div className="sm:col-span-1">
+                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                Token Code (Prefix)
+                            </label>
+                            <input
+                                type="text"
+                                maxLength={5}
+                                value={doctorForm.data.token_code}
+                                onChange={(e) => doctorForm.setData('token_code', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                                placeholder="e.g. SV"
+                                className="w-full text-xs font-mono font-bold uppercase rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-[#1E6FD9] outline-none"
+                            />
+                            <span className="text-[10px] text-slate-400 mt-0.5 block">
+                                2–3 letters (e.g. SV-01)
                             </span>
                         </div>
                     </div>
+
+                    {/* Warning if editing token_code and future bookings exist */}
+                    {editingDoctor && (editingDoctor.future_bookings_count ?? 0) > 0 && doctorForm.data.token_code !== (editingDoctor.token_code || '') && (
+                        <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200 text-xs">
+                            <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                            <div>
+                                <span className="font-bold block">Future Bookings Notice</span>
+                                <span>
+                                    Dr. {editingDoctor.name} has <strong>{editingDoctor.future_bookings_count}</strong> upcoming booked tokens. Changing this code affects only new sessions created in the future; already booked tokens keep their snapshotted prefix.
+                                </span>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Fee Configuration Block */}
                     <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/40 border border-slate-200/80 dark:border-white/10 space-y-3">

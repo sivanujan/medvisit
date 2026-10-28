@@ -470,7 +470,7 @@ class QaScenarioSeeder extends Seeder
                         'name' => $doctor1->name,
                         'title' => 'Dr.',
                         'specialty' => $doctor1->specialty,
-                        'slug' => Str::slug($doctor1->name),
+                        'slug' => $doctor1->slug ?: Str::slug($doctor1->name),
                         'min_fee_cents' => $doctor1->doctor_fee + $doctor1->clinic_fee,
                         'is_active' => true,
                     ]

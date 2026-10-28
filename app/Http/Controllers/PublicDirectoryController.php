@@ -308,9 +308,17 @@ class PublicDirectoryController extends Controller
             ->where('slug', $clinicSlug)
             ->firstOrFail();
 
+        $normalizedDocSlug = preg_replace('/^(dr-)+/', '', $doctorSlug);
+
         $doctor = DirectoryDoctor::active()
             ->where('directory_listing_id', $listing->id)
-            ->where('slug', $doctorSlug)
+            ->where(function ($query) use ($doctorSlug, $normalizedDocSlug) {
+                $query->where('slug', $doctorSlug)
+                    ->orWhere('slug', 'dr-'.$doctorSlug)
+                    ->orWhere('slug', 'dr-'.$normalizedDocSlug)
+                    ->orWhere('slug', 'dr-dr-'.$normalizedDocSlug)
+                    ->orWhere('slug', $normalizedDocSlug);
+            })
             ->firstOrFail();
 
         return Inertia::render('Directory/DoctorProfile', [

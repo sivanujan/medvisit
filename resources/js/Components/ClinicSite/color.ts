@@ -3,6 +3,7 @@
 export const THEME_PRIMARY: Record<string, string> = {
     'medvisit-teal': '#0E9E8F',
     'ocean-blue': '#1E6FD9',
+    'coral-health': '#FF7A59',
     'emerald-health': '#059669',
     'royal-purple': '#7C3AED',
     'slate-luxury': '#334155',

@@ -502,7 +502,7 @@ export default function SectionEditor({ section, onChange, clinic }: Props) {
                         label="Hotline phone number"
                         value={section.phone ?? ''}
                         onChange={(v) => updateField('phone', v)}
-                        placeholder={clinic.phone || '+94 11 234 5678'}
+                        placeholder={clinic.phone || '070 129 1688'}
                         hint={!section.phone && clinic.phone ? `Using clinic default: ${clinic.phone}` : undefined}
                     />
 
@@ -510,7 +510,7 @@ export default function SectionEditor({ section, onChange, clinic }: Props) {
                         label="WhatsApp number"
                         value={section.whatsapp ?? ''}
                         onChange={(v) => updateField('whatsapp', v)}
-                        placeholder={clinic.whatsapp || '+94 77 123 4567'}
+                        placeholder={clinic.whatsapp || '070 129 1688'}
                         hint={!section.whatsapp && clinic.whatsapp ? `Using clinic default: ${clinic.whatsapp}` : undefined}
                     />
 

@@ -30,9 +30,10 @@ class PlatformDashboardController extends Controller
         $todayDate = $now->toDateString();
 
         // 1. Core KPIs
-        // A. MRR: Active paid subscriptions only (exclude comp, trials, past due beyond grace, and cancelled)
+        // A. MRR: Active paid subscriptions only (exclude comp, trials, past due beyond grace, and cancelled; exclude demo tenant)
         $activePaidSubs = Subscription::with('plan')
             ->where('status', 'active')
+            ->whereHas('tenant', fn ($q) => $q->where('is_demo', false))
             ->whereHas('plan', fn ($q) => $q->where('price_cents', '>', 0)->where('slug', '!=', 'comp'))
             ->get();
 
@@ -46,47 +47,56 @@ class PlatformDashboardController extends Controller
         });
         $mrrLkr = round($mrrCents / 100, 2);
 
-        // B. Active Paying Clinics
+        // B. Active Paying Clinics (excluding demo)
         $activePayingClinicsCount = $activePaidSubs->pluck('tenant_id')->unique()->count();
 
-        // C. Active Trials
-        $activeTrialsCount = Tenant::where(function ($q) use ($now) {
-            $q->where('status', 'trial')
-                ->orWhere('status', 'trialing')
-                ->orWhere(function ($sq) use ($now) {
-                    $sq->whereNotNull('trial_ends_at')->where('trial_ends_at', '>', $now);
-                });
-        })
+        // C. Active Trials (excluding demo)
+        $activeTrialsCount = Tenant::where('is_demo', false)
+            ->where(function ($q) use ($now) {
+                $q->where('status', 'trial')
+                    ->orWhere('status', 'trialing')
+                    ->orWhere(function ($sq) use ($now) {
+                        $sq->whereNotNull('trial_ends_at')->where('trial_ends_at', '>', $now);
+                    });
+            })
             ->where('status', '!=', 'suspended')
             ->count();
 
-        // D. Past Due / Payment Due
-        $pastDueCount = Subscription::whereIn('status', ['past_due', 'unpaid'])
-            ->orWhereHas('invoices', fn ($q) => $q->where('status', 'past_due'))
+        // D. Past Due / Payment Due (excluding demo)
+        $pastDueCount = Subscription::whereHas('tenant', fn ($q) => $q->where('is_demo', false))
+            ->where(function ($q) {
+                $q->whereIn('status', ['past_due', 'unpaid'])
+                    ->orWhereHas('invoices', fn ($iq) => $iq->where('is_test', false)->where('status', 'past_due'));
+            })
             ->pluck('tenant_id')
             ->unique()
             ->count();
 
-        // E. New Clinics This Month
-        $newClinicsThisMonth = Tenant::where('created_at', '>=', $startOfMonth)->count();
+        // E. New Clinics This Month (excluding demo)
+        $newClinicsThisMonth = Tenant::where('is_demo', false)->where('created_at', '>=', $startOfMonth)->count();
 
-        // F. Churned This Month
-        $churnedThisMonth = Subscription::where('status', 'cancelled')
+        // F. Churned This Month (excluding demo)
+        $churnedThisMonth = Subscription::whereHas('tenant', fn ($q) => $q->where('is_demo', false))
+            ->where('status', 'cancelled')
             ->where('cancelled_at', '>=', $startOfMonth)
             ->count();
 
-        // G. Tokens Issued Today Across All Clinics
-        $tokensIssuedToday = BookingToken::whereDate('created_at', $todayDate)
-            ->orWhereHas('doctorSession', fn ($q) => $q->where('session_date', $todayDate))
+        // G. Tokens Issued Today Across Real Clinics (excluding demo)
+        $tokensIssuedToday = BookingToken::whereHas('tenant', fn ($q) => $q->where('is_demo', false))
+            ->where(function ($q) use ($todayDate) {
+                $q->whereDate('created_at', $todayDate)
+                    ->orWhereHas('doctorSession', fn ($sq) => $sq->where('session_date', $todayDate));
+            })
             ->count();
 
-        // H. Failed Payments in last 7 days
+        // H. Failed Payments in last 7 days (excluding test/demo)
         $failedPayments7d = PaymentTransaction::where('status', 'failed')
             ->where('created_at', '>=', $now->copy()->subDays(7))
+            ->whereHas('tenant', fn ($q) => $q->where('is_demo', false))
             ->count();
 
         // 2. Trend Charts
-        // A. 12 Months MRR Trend
+        // A. 12 Months MRR Trend (excluding demo)
         $mrrTrend = [];
         for ($i = 11; $i >= 0; $i--) {
             $monthDate = $now->copy()->subMonths($i);
@@ -94,6 +104,7 @@ class PlatformDashboardController extends Controller
             $monthEnd = $monthDate->copy()->endOfMonth();
 
             $subsAtMonth = Subscription::with('plan')
+                ->whereHas('tenant', fn ($q) => $q->where('is_demo', false))
                 ->where('created_at', '<=', $monthEnd)
                 ->where(function ($q) use ($monthEnd) {
                     $q->whereNull('cancelled_at')->orWhere('cancelled_at', '>', $monthEnd);
@@ -108,15 +119,15 @@ class PlatformDashboardController extends Controller
             ];
         }
 
-        // B. New vs Churned Clinics per Month (Last 6 Months)
+        // B. New vs Churned Clinics per Month (Last 6 Months, excluding demo)
         $clinicGrowthTrend = [];
         for ($i = 5; $i >= 0; $i--) {
             $mStart = $now->copy()->subMonths($i)->startOfMonth();
             $mEnd = $now->copy()->subMonths($i)->endOfMonth();
             $mLabel = $mStart->format('M');
 
-            $newCount = Tenant::whereBetween('created_at', [$mStart, $mEnd])->count();
-            $churnCount = Subscription::whereBetween('cancelled_at', [$mStart, $mEnd])->count();
+            $newCount = Tenant::where('is_demo', false)->whereBetween('created_at', [$mStart, $mEnd])->count();
+            $churnCount = Subscription::whereHas('tenant', fn ($q) => $q->where('is_demo', false))->whereBetween('cancelled_at', [$mStart, $mEnd])->count();
 
             $clinicGrowthTrend[] = [
                 'month' => $mLabel,
@@ -125,12 +136,14 @@ class PlatformDashboardController extends Controller
             ];
         }
 
-        // C. Tokens Per Day (Last 30 Days)
+        // C. Tokens Per Day (Last 30 Days, excluding demo)
         $tokensPerDay = [];
         for ($i = 29; $i >= 0; $i--) {
             $d = $now->copy()->subDays($i)->toDateString();
             $dayLabel = Carbon::parse($d)->format('d M');
-            $count = BookingToken::whereDate('created_at', $d)->count();
+            $count = BookingToken::whereHas('tenant', fn ($q) => $q->where('is_demo', false))
+                ->whereDate('created_at', $d)
+                ->count();
 
             $tokensPerDay[] = [
                 'date' => $dayLabel,
@@ -161,9 +174,10 @@ class PlatformDashboardController extends Controller
             ];
         }
 
-        // Expiring Subscriptions in 7 days
+        // Expiring Subscriptions in 7 days (excluding demo)
         $expiringSubs = Subscription::with(['tenant', 'plan'])
             ->where('status', 'active')
+            ->whereHas('tenant', fn ($q) => $q->where('is_demo', false))
             ->whereBetween('current_period_end', [$now, $now->copy()->addDays(7)])
             ->get();
         foreach ($expiringSubs as $sub) {
@@ -179,10 +193,11 @@ class PlatformDashboardController extends Controller
             ];
         }
 
-        // Trials Ending in 3 days
-        $expiringTrials = Tenant::where(function ($q) use ($now) {
-            $q->whereBetween('trial_ends_at', [$now, $now->copy()->addDays(3)]);
-        })
+        // Trials Ending in 3 days (excluding demo)
+        $expiringTrials = Tenant::where('is_demo', false)
+            ->where(function ($q) use ($now) {
+                $q->whereBetween('trial_ends_at', [$now, $now->copy()->addDays(3)]);
+            })
             ->where('status', '!=', 'suspended')
             ->limit(5)
             ->get();

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Support\TokenHelper;
 use App\Support\TvDisplayHelper;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -42,8 +44,27 @@ class Doctor extends Model
         'visit_type_overrides',
         'component_overrides',
         'avg_consultation_minutes',
+        'token_code',
         'is_active',
     ];
+
+    protected $appends = [
+        'clean_slmc',
+        'slmc_display',
+        'is_demo',
+    ];
+
+    /**
+     * Determine if this doctor belongs to the demo sandbox.
+     */
+    public function getIsDemoAttribute(): bool
+    {
+        return (bool) (
+            ($this->tenant_id === config('demo.tenant_id', 'demo'))
+            || ($this->relationLoaded('tenant') && $this->tenant?->is_demo)
+            || str_starts_with((string) $this->slmc_number, 'DEMO')
+        );
+    }
 
     protected static function booted(): void
     {
@@ -52,8 +73,22 @@ class Doctor extends Model
                 $doctor->slmc_number = static::stripSlmcPrefix((string) $doctor->slmc_number);
             }
 
+            if (! empty($doctor->token_code)) {
+                $doctor->token_code = strtoupper(trim($doctor->token_code));
+            } elseif (! empty($doctor->name) && ! empty($doctor->tenant_id)) {
+                $doctor->token_code = TokenHelper::generateUniqueCode(
+                    tenantId: (string) $doctor->tenant_id,
+                    name: (string) $doctor->name,
+                    title: $doctor->title ? (string) $doctor->title : null,
+                    preferred: null,
+                    ignoreDoctorId: $doctor->id ? (int) $doctor->id : null
+                );
+            }
+
             if (empty($doctor->slug) && ! empty($doctor->name)) {
-                $base = Str::slug(($doctor->title ? $doctor->title.' ' : '').$doctor->name);
+                $cleanName = preg_replace('/^(dr\.?|doctor|prof\.?|professor)\s+/i', '', trim($doctor->name));
+                $titlePrefix = $doctor->title ? trim($doctor->title).' ' : 'Dr. ';
+                $base = Str::slug($titlePrefix.$cleanName);
                 $slug = $base;
                 $counter = 1;
                 while (static::where('tenant_id', $doctor->tenant_id)->where('slug', $slug)->where('id', '!=', $doctor->id ?? 0)->exists()) {
@@ -62,6 +97,31 @@ class Doctor extends Model
                 $doctor->slug = $slug;
             }
         });
+    }
+
+    /**
+     * Clean full doctor title and name without duplicate Dr. prefixes.
+     */
+    public function getFullTitleAttribute(): string
+    {
+        $cleanName = preg_replace('/^(dr\.?|doctor|prof\.?|professor)\s+/i', '', trim((string) $this->name));
+        $title = $this->title ?: 'Dr.';
+
+        return trim("{$title} {$cleanName}");
+    }
+
+    /**
+     * Count active future bookings for this doctor.
+     */
+    public function getFutureBookingsCountAttribute(): int
+    {
+        $todayColombo = Carbon::today('Asia/Colombo')->toDateString();
+
+        return BookingToken::whereHas('doctorSession', function ($q) use ($todayColombo) {
+            $q->where('doctor_id', $this->id)
+                ->where('session_date', '>=', $todayColombo)
+                ->whereNotIn('status', ['cancelled']);
+        })->whereNotIn('status', [BookingToken::STATUS_CANCELLED])->count();
     }
 
     /**
@@ -86,6 +146,10 @@ class Doctor extends Model
     public function getSlmcDisplayAttribute(): string
     {
         $clean = $this->clean_slmc;
+
+        if (str_starts_with(strtoupper($clean), 'DEMO')) {
+            return $clean;
+        }
 
         return $clean !== '' ? "SLMC {$clean}" : '';
     }

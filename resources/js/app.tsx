@@ -22,6 +22,12 @@ createInertiaApp({
             import.meta.glob('./Pages/**/*.tsx'),
         ),
     setup({ el, App, props }) {
+        const pageProps = (props.initialPage?.props || {}) as any;
+        if (pageProps.is_demo || pageProps.tenant?.is_demo) {
+            (window as any).__MEDVISIT_IS_DEMO__ = true;
+            document.body.setAttribute('data-is-demo', 'true');
+        }
+
         const root = createRoot(el);
 
         root.render(

@@ -53,6 +53,9 @@ class ClinicSettingsController extends Controller
             'default_max_tokens' => (int) ($tenant->default_max_tokens ?? 20),
             'cancellation_window_hours' => (int) ($tenant->cancellation_window_hours ?? 2),
             'auto_generate_days' => (int) ($tenant->auto_generate_days ?? 30),
+            'token_number_format' => $tenant->getTokenNumberFormat(),
+            'active_doctors_count' => Doctor::where('tenant_id', $tenant->id)->where('is_active', true)->count(),
+            'has_overlapping_sessions' => $tenant->hasOverlappingDoctorSessions(),
         ];
 
         // 3. Billing Settings
@@ -325,6 +328,7 @@ class ClinicSettingsController extends Controller
             'default_max_tokens' => ['required', 'integer', 'min:1', 'max:100'],
             'cancellation_window_hours' => ['required', 'integer', 'min:0', 'max:48'],
             'auto_generate_days' => ['required', 'integer', 'min:7', 'max:90'],
+            'token_number_format' => ['required', 'string', 'in:with_doctor_code,number_only'],
         ]);
 
         $tenant = tenant();
@@ -332,6 +336,7 @@ class ClinicSettingsController extends Controller
         $tenant->default_max_tokens = $validated['default_max_tokens'];
         $tenant->cancellation_window_hours = $validated['cancellation_window_hours'];
         $tenant->auto_generate_days = $validated['auto_generate_days'];
+        $tenant->token_number_format = $validated['token_number_format'];
         $tenant->save();
 
         AuditEvent::create([
@@ -345,6 +350,12 @@ class ClinicSettingsController extends Controller
             'user_agent' => $request->userAgent(),
             'created_at' => Carbon::now('Asia/Colombo'),
         ]);
+
+        if ($validated['token_number_format'] === 'number_only' && $tenant->hasOverlappingDoctorSessions()) {
+            return redirect()->back()
+                ->with('success', 'Channeling session defaults updated.')
+                ->with('warning', 'Notice: Multiple doctor sessions overlap in time. We recommend using "With doctor code (SV-01)" to prevent token clash across consultation rooms and on TV.');
+        }
 
         return redirect()->back()->with('success', 'Channeling session defaults updated successfully.');
     }

@@ -11,6 +11,7 @@ use App\Services\AuditLogger;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -109,7 +110,7 @@ class LeadManagementController extends Controller
 
         // Prepare lead data based on view mode
         if ($viewMode === 'list') {
-            $leadsData = $query->paginate(20)->withQueryString();
+            $leadsData = $query->paginate(20)->through(fn (Lead $l) => $this->formatLead($l))->withQueryString();
         } else {
             // Kanban: fetch all filtered leads and group by stage
             $allFiltered = $query->get()->map(fn (Lead $l) => $this->formatLead($l));
@@ -373,8 +374,26 @@ class LeadManagementController extends Controller
                 'subdomain' => $l->tenant->subdomain,
                 'status' => $l->tenant->status,
             ] : null,
+            'role' => $l->role,
+            'roles_tried' => $l->roles_tried ?? [],
+            'sessions_count' => $l->sessions_count ?? 1,
+            'last_seen_at' => $l->last_seen_at?->diffForHumans(),
             'created_at' => $l->created_at?->diffForHumans(),
             'created_date' => $l->created_at?->toDateString(),
         ];
+    }
+
+    /**
+     * Trigger manual reset of the public demo sandbox.
+     */
+    public function resetDemo(Request $request): RedirectResponse
+    {
+        Artisan::call('demo:reset');
+
+        AuditLogger::log('superadmin.demo_sandbox.manually_reset', [
+            'user' => $request->user(),
+        ]);
+
+        return back()->with('success', 'Public demo sandbox has been reset cleanly to default seeded state.');
     }
 }

@@ -134,7 +134,7 @@
             <td style="vertical-align: top;">
                 <h1 class="clinic-name">{{ $clinic->name ?? 'MedVisit Medical Clinic' }}</h1>
                 <div class="clinic-meta">
-                    {{ $clinic->address ?? 'Colombo, Sri Lanka' }} | Tel: {{ $clinic->phone ?? '+94 11 234 5678' }}
+                    {{ $clinic->address ?? 'Colombo, Sri Lanka' }} | Tel: {{ $clinic->phone ?? config('medvisit_public.business.phone_display', '070 129 1688') }}
                 </div>
             </td>
             <td class="doc-badge" style="vertical-align: top;">
@@ -161,7 +161,7 @@
                 </td>
                 <td style="width: 20%;">
                     <div class="info-label">Token # / ටෝකන් අංකය</div>
-                    <div class="info-val">#{{ $bill->token?->token_number ?? '—' }}</div>
+                    <div class="info-val">#{{ $bill->token?->display_token ?? $bill->token?->token_number ?? '—' }}</div>
                 </td>
                 <td style="width: 15%; text-align: right;">
                     <div class="info-label">Date / දිනය</div>
@@ -259,7 +259,7 @@
 
     <div class="footer-note">
         Thank you for visiting {{ $clinic->name ?? 'our clinic' }}. Please retain this receipt for your personal health records.<br>
-        <em>Generated securely via MedVisit Cloud Health OS • HarfBuzz Trilingual Layout Engine</em>
+        <em>Powered by MedVisit • <a href="https://medvisit.lk" style="color: inherit; text-decoration: none;">medvisit.lk</a></em>
     </div>
 </div>
 </body>

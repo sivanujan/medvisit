@@ -7,9 +7,9 @@
         ? app(\App\Services\PlatformSettingsService::class)
         : null;
 
-    $supportEmail = $platformSettings?->get('general.support_email', 'support@medvisit.lk') ?? 'support@medvisit.lk';
-    $supportPhone = $platformSettings?->get('general.support_phone', '+94 11 234 5678') ?? '+94 11 234 5678';
-    $supportWhatsApp = $platformSettings?->get('general.support_whatsapp', '+94 77 123 4567') ?? '+94 77 123 4567';
+    $supportEmail = $platformSettings?->get('general.support_email', config('medvisit_public.business.support_email', 'support@medvisit.lk')) ?? 'support@medvisit.lk';
+    $supportPhone = $platformSettings?->get('general.support_phone', config('medvisit_public.business.phone_display', '070 129 1688')) ?? '070 129 1688';
+    $supportWhatsApp = $platformSettings?->get('general.support_whatsapp', config('medvisit_public.business.phone_display', '070 129 1688')) ?? '070 129 1688';
 @endphp
 
 <table border="0" cellpadding="0" cellspacing="0" width="100%" role="presentation">

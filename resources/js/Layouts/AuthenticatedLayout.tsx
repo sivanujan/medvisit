@@ -40,6 +40,7 @@ import {
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import ThemeToggle from '@/Components/Common/ThemeToggle';
 import BannerStack from '@/Components/Common/BannerStack';
+import DemoTopBanner from '@/Components/Demo/DemoTopBanner';
 import CommandPaletteModal from '@/Components/Layout/CommandPaletteModal';
 import NotificationDropdown from '@/Components/Layout/NotificationDropdown';
 import SupportChatWidget from '@/Components/SupportChat/SupportChatWidget';
@@ -541,7 +542,7 @@ export default function AuthenticatedLayout({
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col relative selection:bg-primary-100 selection:text-primary-800 w-full max-w-full overflow-x-hidden">
+        <div className="h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 relative selection:bg-primary-100 selection:text-primary-800 w-full max-w-full overflow-hidden">
             {/* Ambient Background Glow */}
             <div aria-hidden="true" className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
                 <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-primary-500/10 dark:bg-primary-500/15 blur-3xl" />
@@ -549,9 +550,12 @@ export default function AuthenticatedLayout({
                 <div className="absolute -bottom-32 left-1/3 w-96 h-96 rounded-full bg-accent-500/5 dark:bg-accent-500/10 blur-3xl" />
             </div>
 
+            {/* Persistent Public Demo Sandbox Banner */}
+            <DemoTopBanner />
+
             {/* Persistent Impersonation Red Banner */}
             {impersonation?.is_active && (
-                <div className="bg-rose-600 text-white px-4 py-2.5 text-xs sm:text-sm font-semibold flex items-center justify-between sticky top-0 z-50 shadow-md">
+                <div className="bg-rose-600 text-white px-4 py-2.5 text-xs sm:text-sm font-semibold flex items-center justify-between sticky top-0 z-50 shadow-md shrink-0">
                     <div className="flex items-center gap-2 min-w-0">
                         <span className="bg-white text-rose-700 font-extrabold text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0">
                             Viewing as Clinic
@@ -572,11 +576,11 @@ export default function AuthenticatedLayout({
                 </div>
             )}
 
-            <div className="flex flex-1 relative min-h-0 min-w-0 w-full overflow-x-hidden">
+            <div className="flex flex-1 min-h-0 min-w-0 w-full overflow-hidden">
 
             {/* Desktop Collapsible Sidebar (rigidly shrink-0: 256px expanded / 72px collapsed rail) */}
             <aside
-                className={`hidden lg:flex flex-col border-r border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 backdrop-blur-2xl shrink-0 z-30 sticky top-0 left-0 h-screen transition-all duration-300 ease-in-out ${
+                className={`hidden lg:flex flex-col border-r border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 backdrop-blur-2xl shrink-0 z-30 h-full transition-all duration-300 ease-in-out ${
                     collapsed ? 'w-[72px] min-w-[72px] max-w-[72px]' : 'w-64 min-w-[256px] max-w-[256px]'
                 }`}
             >
@@ -800,9 +804,9 @@ export default function AuthenticatedLayout({
             </aside>
 
             {/* Main Application Column: flex-1 min-w-0 takes remaining width without overflow */}
-            <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
+            <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
                 {/* Workspace Top Bar: Exactly 64px (h-16), glass: backdrop-blur, subtle bottom border */}
-                <header className="h-16 border-b border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 backdrop-blur-2xl sticky top-0 z-20 px-4 sm:px-6 flex items-center justify-between gap-3 sm:gap-4 shrink-0">
+                <header className="h-16 border-b border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 backdrop-blur-2xl px-4 sm:px-6 flex items-center justify-between gap-3 sm:gap-4 shrink-0 z-20">
                     {/* Left: Mobile hamburger + Breadcrumbs */}
                     <div className="flex items-center gap-3 min-w-0">
                         {/* Mobile Drawer Hamburger */}
@@ -1166,34 +1170,42 @@ export default function AuthenticatedLayout({
                     </div>
                 )}
 
-                {/* Standardized Page Content Body: max-w-[1440px], px-4 mobile / px-6 sm / px-8 lg */}
-                <main className="flex-1 w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6 min-w-0">
-                    <BannerStack />
-                    {children}
-                </main>
+                {/* Scrollable Viewport: Content area scrolls smoothly while Top Bar & Sidebar remain fixed */}
+                <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col">
+                    {/* Standardized Page Content Body: max-w-[1440px], px-4 mobile / px-6 sm / px-8 lg */}
+                    <main className="flex-1 w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6 min-w-0">
+                        <BannerStack />
+                        {children}
+                    </main>
 
-                {/* Slim App Footer for Logged-In Clinic Workspaces */}
-                <footer className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-4 border-t border-slate-200/60 dark:border-white/5 text-[11px] text-slate-400 dark:text-slate-500 flex flex-wrap items-center justify-between gap-3 shrink-0">
-                    <div className="flex items-center gap-2">
-                        <span>Powered by MedVisit</span>
-                        <span>·</span>
-                        <span>Clinic Operating System</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <a href="https://medvisit.lk/terms" target="_blank" rel="noopener noreferrer" className="hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
-                            Terms
-                        </a>
-                        <a href="https://medvisit.lk/privacy-policy" target="_blank" rel="noopener noreferrer" className="hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
-                            Privacy
-                        </a>
-                        <a href="https://medvisit.lk/refund-policy" target="_blank" rel="noopener noreferrer" className="hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
-                            Refunds
-                        </a>
-                        <a href="mailto:support@medvisit.lk" className="hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
-                            Support
-                        </a>
-                    </div>
-                </footer>
+                    {/* Slim App Footer for Logged-In Clinic Workspaces */}
+                    <footer className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-4 border-t border-slate-200/60 dark:border-white/5 text-[11px] text-slate-400 dark:text-slate-500 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                        <div className="flex items-center gap-2">
+                            <a
+                                href="https://medvisit.lk"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="hover:text-slate-600 dark:hover:text-slate-300 hover:underline transition-colors"
+                            >
+                                Powered by MedVisit
+                            </a>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <a href="https://medvisit.lk/terms" target="_blank" rel="noopener noreferrer" className="hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+                                Terms
+                            </a>
+                            <a href="https://medvisit.lk/privacy-policy" target="_blank" rel="noopener noreferrer" className="hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+                                Privacy
+                            </a>
+                            <a href="https://medvisit.lk/refund-policy" target="_blank" rel="noopener noreferrer" className="hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+                                Refunds
+                            </a>
+                            <a href="mailto:support@medvisit.lk" className="hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+                                Support
+                            </a>
+                        </div>
+                    </footer>
+                </div>
             </div>
             </div>
 

@@ -19,7 +19,8 @@ class BookingConfirmationMail extends MedVisitMailable
         $resolvedClinicName = $clinicName ?? $tenant?->name ?? 'Clinic';
         $this->withClinicBrand($tenant, $resolvedClinicName, $tenant?->email ?? null);
         $this->tenantId = $tenant?->id ?? $token->tenant_id;
-        $this->preheaderText = "Your channeling token is #{$this->token->token_number} for appointment on ".($token->doctorSession ? Carbon::parse($token->doctorSession->session_date)->format('M d, Y') : 'your visit date').'.';
+        $displayToken = $this->token->display_token;
+        $this->preheaderText = "Your channeling token is #{$displayToken} for appointment on ".($token->doctorSession ? Carbon::parse($token->doctorSession->session_date)->format('M d, Y') : 'your visit date').'.';
     }
 
     public function senderType(): MailSenderType
@@ -35,8 +36,9 @@ class BookingConfirmationMail extends MedVisitMailable
     public function subjectLine(): string
     {
         $clinic = $this->onBehalfOfClinicName ?? 'Clinic';
+        $displayToken = $this->token->display_token;
 
-        return "Appointment Confirmed: Token #{$this->token->token_number} — {$clinic}";
+        return "Appointment Confirmed: Token #{$displayToken} — {$clinic}";
     }
 
     public function htmlView(): string
@@ -65,7 +67,8 @@ class BookingConfirmationMail extends MedVisitMailable
             : 'https://www.google.com/maps/search/?api=1&query='.urlencode($this->onBehalfOfClinicName ?? 'Sri Lanka Clinic');
 
         return [
-            'tokenNumber' => $this->token->token_number,
+            'tokenNumber' => $this->token->display_token,
+            'tokenRawNumber' => $this->token->token_number,
             'patientName' => $this->token->patient?->name ?? 'Patient',
             'doctorName' => trim(($doctor?->title ?? 'Dr.').' '.($doctor?->name ?? 'Doctor')),
             'doctorSpecialty' => $doctor?->specialty ?? 'General Practice',

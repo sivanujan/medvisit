@@ -34,14 +34,17 @@ use App\Http\Controllers\Tenant\StaffController;
 use App\Http\Controllers\Tenant\SubscriptionBillingController;
 use App\Http\Controllers\Tenant\TenantAuthenticatedSessionController;
 use App\Http\Controllers\Tenant\TenantDashboardController;
+use App\Http\Controllers\Tenant\TenantDemoLoginController;
 use App\Http\Controllers\Tenant\TenantImpersonationController;
 use App\Http\Controllers\Tenant\TenantNewPasswordController;
 use App\Http\Controllers\Tenant\TenantPasswordResetLinkController;
 use App\Http\Controllers\Tenant\TenantSignedLoginController;
 use App\Http\Controllers\Tenant\TenantSuspendedController;
 use App\Http\Controllers\Tenant\TodayQueueController;
+use App\Http\Controllers\Tenant\WebsiteTemplateController;
 use App\Http\Controllers\Tenant\WorkspaceNotificationController;
 use App\Http\Controllers\Tenant\WorkspaceSearchController;
+use App\Http\Middleware\EnforceDemoGuards;
 use App\Http\Middleware\EnsureClinicSetupComplete;
 use App\Http\Middleware\EnsurePublicBookingAvailable;
 use App\Http\Middleware\EnsureSubscriptionActive;
@@ -63,6 +66,7 @@ Route::middleware([
     'web',
     InitializeTenancyBySubdomain::class,
     PreventAccessFromCentralDomains::class,
+    EnforceDemoGuards::class,
 ])->group(function () {
     // 1. Suspension & Expiration Notice Page
     Route::get('/clinic/suspended', [TenantSuspendedController::class, 'show'])
@@ -73,6 +77,20 @@ Route::middleware([
         ->name('tenant.impersonate');
     Route::match(['get', 'post'], '/impersonate/exit', [TenantImpersonationController::class, 'exit'])
         ->name('tenant.impersonate.exit');
+
+    // 1.2 Public Demo Sandbox One-Click Role Access & Exit Redirect
+    Route::get('/demo-login/{role}', [TenantDemoLoginController::class, 'login'])
+        ->name('demo.signed-login');
+    Route::post('/demo-switch-role', [TenantDemoLoginController::class, 'switchRole'])
+        ->name('demo.switch-role');
+    Route::get('/demo', function () {
+        $centralHost = config('tenancy.central_domains.0', 'medvisit.localhost');
+        $port = request()->getPort();
+        $portSuffix = ($port && ! in_array($port, [80, 443])) ? ":{$port}" : '';
+        $scheme = request()->getScheme();
+
+        return redirect("{$scheme}://{$centralHost}{$portSuffix}/demo");
+    })->name('tenant.demo.redirect');
 
     // 2. Tenant Public Landing & Public Online Booking
     Route::get('/', [ClinicWebsiteController::class, 'publicHome'])
@@ -512,6 +530,20 @@ Route::middleware([
                 ->name('tenant.website.kit');
             Route::put('/website/kit', [SiteKitController::class, 'update'])
                 ->name('tenant.website.kit.update');
+
+            // Website Templates Marketplace
+            Route::get('/website/templates', [WebsiteTemplateController::class, 'index'])
+                ->name('tenant.website.templates.index');
+            Route::get('/website/templates/{slug}/preview', [WebsiteTemplateController::class, 'preview'])
+                ->name('tenant.website.templates.preview');
+            Route::post('/website/templates/{slug}/checkout', [WebsiteTemplateController::class, 'checkout'])
+                ->name('tenant.website.templates.checkout');
+            Route::post('/website/templates/{slug}/claim-free', [WebsiteTemplateController::class, 'claimFree'])
+                ->name('tenant.website.templates.claim-free');
+            Route::post('/website/templates/{slug}/apply', [WebsiteTemplateController::class, 'apply'])
+                ->name('tenant.website.templates.apply');
+            Route::post('/website/templates/revert', [WebsiteTemplateController::class, 'revert'])
+                ->name('tenant.website.templates.revert');
 
             // Visual Page Builder & Media Library
             Route::get('/website/builder/media', [ClinicWebsiteController::class, 'listMedia'])

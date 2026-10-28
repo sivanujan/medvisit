@@ -29,9 +29,12 @@ class SubscriptionInvoice extends Model
 
     public const TYPE_MANUAL = 'manual';
 
+    public const TYPE_TEMPLATE_PURCHASE = 'template_purchase';
+
     protected $fillable = [
         'tenant_id',
         'subscription_id',
+        'is_test',
         'type',
         'invoice_number',
         'receipt_number',
@@ -47,6 +50,7 @@ class SubscriptionInvoice extends Model
     ];
 
     protected $casts = [
+        'is_test' => 'boolean',
         'amount_cents' => 'integer',
         'period_start' => 'datetime',
         'period_end' => 'datetime',

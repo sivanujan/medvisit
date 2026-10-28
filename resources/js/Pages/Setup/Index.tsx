@@ -128,9 +128,9 @@ export default function SetupIndex({
                 };
                 break;
             case 8:
-                // Pharmacy
+                // Pharmacy (Guaranteed false if tenant plan does not allow pharmacy)
                 payload = {
-                    pharmacy_enabled: form.pharmacy_enabled,
+                    pharmacy_enabled: tenant.plan_allows_pharmacy ? Boolean(form.pharmacy_enabled) : false,
                     stock_reduction_mode: form.stock_reduction_mode,
                 };
                 break;

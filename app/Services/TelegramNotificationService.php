@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Models\Lead;
 use App\Models\RefundRequest;
 use App\Models\SupportConversation;
 use App\Models\SupportMessage;
@@ -18,6 +19,13 @@ class TelegramNotificationService
      */
     public function sendHandoffAlert(SupportConversation $conversation, ?SupportMessage $lastMessage = null, ?string $summary = null): bool
     {
+        // Suppress Telegram alerts for the demo sandbox
+        if ($conversation->tenant_id && ($conversation->tenant_id === config('demo.tenant_id', 'demo') || $conversation->tenant?->is_demo)) {
+            Log::info("Telegram alert suppressed for demo conversation {$conversation->id}");
+
+            return true;
+        }
+
         $botToken = (string) config('services.telegram.bot_token');
         $chatId = (string) config('services.telegram.chat_id');
 
@@ -82,6 +90,13 @@ class TelegramNotificationService
      */
     public function sendRefundAlert(RefundRequest $refundRequest): bool
     {
+        // Suppress Telegram alerts for the demo sandbox
+        if ($refundRequest->tenant_id && ($refundRequest->tenant_id === config('demo.tenant_id', 'demo') || $refundRequest->tenant?->is_demo)) {
+            Log::info("Telegram alert suppressed for demo refund {$refundRequest->id}");
+
+            return true;
+        }
+
         $botToken = (string) config('services.telegram.bot_token');
         $chatId = (string) config('services.telegram.chat_id');
 
@@ -116,6 +131,63 @@ class TelegramNotificationService
             return $response->successful();
         } catch (\Throwable $e) {
             Log::error('Telegram refund alert exception: '.$e->getMessage());
+
+            return false;
+        }
+    }
+
+    /**
+     * Send a notification to Telegram when a new demo lead or guided demo request is created.
+     * Debounced to at most once per lead phone per 24 hours.
+     */
+    public function sendDemoLeadAlert(Lead $lead): bool
+    {
+        $botToken = (string) config('services.telegram.bot_token');
+        $chatId = (string) config('services.telegram.chat_id');
+
+        // Rate limit / debounce: 1 notification per lead phone per 24 hours
+        $cacheKey = 'telegram_demo_lead_alert:'.md5((string) $lead->phone);
+        if (Cache::has($cacheKey)) {
+            Log::info("Telegram lead notification debounced for {$lead->phone}");
+
+            return false;
+        }
+
+        if (empty($botToken) || empty($chatId)) {
+            Log::info("Telegram lead notification skipped: missing bot token or chat ID for lead {$lead->id}");
+            Cache::put($cacheKey, true, now()->addDay());
+
+            return true;
+        }
+
+        $sourceLabel = Lead::SOURCES[$lead->source] ?? ucfirst((string) $lead->source);
+        $preferredTime = $lead->metadata['preferred_time'] ?? null;
+        $adminUrl = url('/super-admin/leads?search='.urlencode((string) $lead->phone));
+
+        $text = "🎯 *New MedVisit Demo Lead*\n\n"
+            .'*Contact:* '.self::escapeMarkdown((string) $lead->contact_name)."\n"
+            .'*Clinic:* '.self::escapeMarkdown((string) $lead->clinic_name)."\n"
+            .'*Phone / WhatsApp:* '.self::escapeMarkdown((string) $lead->phone)."\n"
+            .($lead->email ? '*Email:* '.self::escapeMarkdown((string) $lead->email)."\n" : '')
+            .($lead->city ? '*City:* '.self::escapeMarkdown((string) $lead->city)."\n" : '')
+            .'*Source:* '.self::escapeMarkdown($sourceLabel)."\n"
+            .($preferredTime ? '*Preferred Time:* '.self::escapeMarkdown(ucfirst((string) $preferredTime))."\n" : '')
+            .($lead->notes ? '*Notes:* '.self::escapeMarkdown((string) $lead->notes)."\n" : '')
+            ."\n👉 [View Lead in Super Admin]({$adminUrl})";
+
+        try {
+            $response = Http::timeout(8)->post("https://api.telegram.org/bot{$botToken}/sendMessage", [
+                'chat_id' => $chatId,
+                'text' => $text,
+                'parse_mode' => 'Markdown',
+                'disable_web_page_preview' => true,
+            ]);
+
+            Cache::put($cacheKey, true, now()->addDay());
+
+            return $response->successful();
+        } catch (\Throwable $e) {
+            Log::error('Telegram demo lead alert exception: '.$e->getMessage());
 
             return false;
         }

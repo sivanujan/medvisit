@@ -61,6 +61,8 @@ class Lead extends Model
 
     public const SOURCES = [
         'website_form' => 'Website Form',
+        'public_demo_sandbox' => 'Public Demo Sandbox',
+        'guided_demo_request' => 'Guided Demo Request',
         'facebook' => 'Facebook Ads',
         'instagram' => 'Instagram',
         'whatsapp' => 'WhatsApp Inbound',
@@ -76,9 +78,18 @@ class Lead extends Model
         'phone',
         'email',
         'city',
+        'role',
         'source',
         'stage',
         'notes',
+        'consented_at',
+        'ip_hash',
+        'user_agent',
+        'utm',
+        'first_seen_at',
+        'last_seen_at',
+        'sessions_count',
+        'roles_tried',
         'next_follow_up_at',
         'demo_scheduled_at',
         'lost_reason',
@@ -90,6 +101,11 @@ class Lead extends Model
     protected function casts(): array
     {
         return [
+            'consented_at' => 'datetime',
+            'first_seen_at' => 'datetime',
+            'last_seen_at' => 'datetime',
+            'utm' => 'array',
+            'roles_tried' => 'array',
             'next_follow_up_at' => 'datetime',
             'demo_scheduled_at' => 'datetime',
             'metadata' => 'array',

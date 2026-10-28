@@ -15,8 +15,8 @@ class PlatformSettingsService
         // General
         'general.platform_name' => 'MedVisit Platform',
         'general.support_email' => 'support@medvisit.lk',
-        'general.support_phone' => '+94 11 234 5678',
-        'general.support_whatsapp' => '+94 77 123 4567',
+        'general.support_phone' => '070 129 1688',
+        'general.support_whatsapp' => '070 129 1688',
         // Signups
         'signups.open' => true,
         'signups.trial_days' => 30,
@@ -43,6 +43,10 @@ class PlatformSettingsService
         'support.business_hours_timezone' => 'Asia/Colombo',
         'support.offline_message' => 'Our team is currently offline. Please leave your message and email, and we will reply as soon as business hours resume.',
         'support.response_time_text' => 'Usually replies within a few hours',
+        // Website Templates
+        'templates.free_templates_included_with_advanced' => 1,
+        'templates.base_price_cents' => 350000,
+        'templates.refund_policy' => 'option_a',
     ];
 
     /**

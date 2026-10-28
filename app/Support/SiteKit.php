@@ -22,6 +22,7 @@ class SiteKit
     public const THEME_COLORS = [
         'medvisit-teal' => ['primary' => '#0E9E8F', 'secondary' => '#0F172A', 'accent' => '#F59E0B', 'text' => '#334155'],
         'ocean-blue' => ['primary' => '#1E6FD9', 'secondary' => '#0F172A', 'accent' => '#F59E0B', 'text' => '#334155'],
+        'coral-health' => ['primary' => '#FF7A59', 'secondary' => '#0F172A', 'accent' => '#0E9E8F', 'text' => '#334155'],
         'emerald-health' => ['primary' => '#059669', 'secondary' => '#0F172A', 'accent' => '#F59E0B', 'text' => '#334155'],
         'royal-purple' => ['primary' => '#7C3AED', 'secondary' => '#0F172A', 'accent' => '#F59E0B', 'text' => '#334155'],
         'slate-luxury' => ['primary' => '#334155', 'secondary' => '#0F172A', 'accent' => '#F59E0B', 'text' => '#334155'],

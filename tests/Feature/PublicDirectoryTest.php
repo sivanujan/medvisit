@@ -363,4 +363,43 @@ class PublicDirectoryTest extends TestCase
             ->where('directorySettings.city', 'Chavakachcheri')
         );
     }
+
+    /**
+     * Test directory doctor booking URL resolves cleanly and public booking handles flexible slugs.
+     */
+    public function test_directory_doctor_booking_url_resolves_correctly_with_flexible_slugs(): void
+    {
+        $doctor = Doctor::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Dr. Rohantha Senanayake',
+            'title' => 'Dr.',
+            'specialty' => 'Cardiology',
+            'is_active' => true,
+        ]);
+
+        SyncClinicDirectoryListing::dispatchSync((string) $this->tenant->id);
+
+        $dirDoctor = DirectoryDoctor::where('tenant_id', $this->tenant->id)->first();
+        $this->assertNotNull($dirDoctor);
+        $this->assertEquals('Dr. Rohantha Senanayake', $dirDoctor->full_title);
+
+        // Directory booking URL should contain doctor's slug and source parameter
+        $this->assertStringContainsString("/book/{$doctor->slug}?source=directory", $dirDoctor->booking_url);
+
+        // Booking URL resolves with 200 OK
+        $response = $this->get($dirDoctor->booking_url);
+        $response->assertStatus(200);
+        $response->assertInertia(fn ($page) => $page
+            ->component('Public/Booking/CalendarSessionPicker')
+            ->where('doctor.id', $doctor->id)
+            ->where('doctor.full_title', 'Dr. Rohantha Senanayake')
+        );
+
+        // Both normalized and prefixed doctor slugs resolve with 200 OK
+        $res1 = $this->get("http://suwasetha.{$this->baseDomain}/book/dr-rohantha-senanayake");
+        $res1->assertStatus(200);
+
+        $res2 = $this->get("http://suwasetha.{$this->baseDomain}/book/rohantha-senanayake");
+        $res2->assertStatus(200);
+    }
 }

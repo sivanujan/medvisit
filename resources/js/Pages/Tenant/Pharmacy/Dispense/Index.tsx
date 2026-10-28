@@ -45,6 +45,7 @@ interface QueuePrescription {
     status: string;
     token_id?: number;
     token_number?: number;
+    token_display?: string;
     patient_id: number;
     patient_name: string;
     patient_phone: string;
@@ -110,6 +111,7 @@ interface WorkspacePrescription {
     prescription_number: string;
     status: string;
     token_number?: number;
+    token_display?: string;
     patient_id: number;
     patient_name: string;
     patient_phone: string;
@@ -480,7 +482,8 @@ export default function DispenseIndex({
                 const matchedRx = prescriptions.data.find(
                     (p) =>
                         p.prescription_number.toLowerCase() === cleanCode.toLowerCase() ||
-                        String(p.token_number) === cleanCode
+                        String(p.token_number) === cleanCode ||
+                        p.token_display?.toLowerCase() === cleanCode.toLowerCase()
                 );
                 if (matchedRx) {
                     loadPrescriptionWorkspace(matchedRx.id);
@@ -1004,9 +1007,9 @@ export default function DispenseIndex({
                                                 {/* Card Top: Token Chip + Patient Name + Status */}
                                                 <div className="flex items-start justify-between gap-2">
                                                     <div className="flex items-center gap-2.5 min-w-0">
-                                                        {rx.token_number ? (
-                                                            <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary font-black text-xs flex items-center justify-center shrink-0">
-                                                                #{rx.token_number}
+                                                        {rx.token_display || rx.token_number ? (
+                                                            <div className="px-2 h-8 rounded-xl bg-primary/10 text-primary font-black text-xs flex items-center justify-center shrink-0">
+                                                                #{rx.token_display || rx.token_number}
                                                             </div>
                                                         ) : (
                                                             <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center shrink-0">
@@ -1186,9 +1189,9 @@ export default function DispenseIndex({
                                     <GlassCard className="p-4 sm:p-5 space-y-4">
                                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-white/5">
                                             <div className="flex items-center gap-3">
-                                                {workspaceRx.token_number ? (
-                                                    <div className="w-11 h-11 rounded-2xl bg-primary text-white font-black text-sm flex items-center justify-center shadow-md shadow-primary/20 shrink-0">
-                                                        #{workspaceRx.token_number}
+                                                {workspaceRx.token_display || workspaceRx.token_number ? (
+                                                    <div className="px-3 h-11 rounded-2xl bg-primary text-white font-black text-sm flex items-center justify-center shadow-md shadow-primary/20 shrink-0">
+                                                        #{workspaceRx.token_display || workspaceRx.token_number}
                                                     </div>
                                                 ) : (
                                                     <div className="w-11 h-11 rounded-2xl bg-primary/10 text-primary font-bold text-sm flex items-center justify-center shrink-0">

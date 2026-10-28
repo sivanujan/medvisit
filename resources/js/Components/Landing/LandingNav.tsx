@@ -28,6 +28,14 @@ export default function LandingNav({ user, canLogin = true, canRegister = false,
                 </div>
 
                 <nav aria-label="Main" className="flex items-center gap-1.5 sm:gap-3">
+                    <Link
+                        href="/demo"
+                        className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl transition-colors bg-teal-500/10 border border-teal-500/20"
+                    >
+                        <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
+                        <span>Try demo</span>
+                    </Link>
+
                     {!tenantSubdomain && (
                         <Link
                             href="/pricing"

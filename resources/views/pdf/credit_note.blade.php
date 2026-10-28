@@ -292,7 +292,7 @@
     </table>
 
     <div class="footer">
-        MedVisit (Pvt) Ltd • Healthcare Clinic Operating Platform • Automated System Generated Credit Note<br>
+        Powered by MedVisit • <a href="https://medvisit.lk" style="color: inherit; text-decoration: none;">medvisit.lk</a> • Automated System Generated Credit Note<br>
         For inquiries regarding this credit note, contact support@medvisit.lk citing Reference: {{ $refundRequest->credit_note_number }}
     </div>
 </body>

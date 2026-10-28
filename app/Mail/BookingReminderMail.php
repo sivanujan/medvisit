@@ -19,7 +19,8 @@ class BookingReminderMail extends MedVisitMailable
         $resolvedClinicName = $clinicName ?? $tenant?->name ?? 'Clinic';
         $this->withClinicBrand($tenant, $resolvedClinicName, $tenant?->email ?? null);
         $this->tenantId = $tenant?->id ?? $token->tenant_id;
-        $this->preheaderText = 'Friendly reminder: Your appointment with '.($token->doctorSession?->doctor?->name ?? 'Doctor')." is today. Token #{$this->token->token_number}.";
+        $displayToken = $this->token->display_token;
+        $this->preheaderText = 'Friendly reminder: Your appointment with '.($token->doctorSession?->doctor?->name ?? 'Doctor')." is today. Token #{$displayToken}.";
     }
 
     public function senderType(): MailSenderType
@@ -35,8 +36,9 @@ class BookingReminderMail extends MedVisitMailable
     public function subjectLine(): string
     {
         $clinic = $this->onBehalfOfClinicName ?? 'Clinic';
+        $displayToken = $this->token->display_token;
 
-        return "Appointment Reminder: Token #{$this->token->token_number} — {$clinic}";
+        return "Appointment Reminder: Token #{$displayToken} — {$clinic}";
     }
 
     public function htmlView(): string
@@ -65,7 +67,8 @@ class BookingReminderMail extends MedVisitMailable
             : 'https://www.google.com/maps/search/?api=1&query='.urlencode($this->onBehalfOfClinicName ?? 'Sri Lanka Clinic');
 
         return [
-            'tokenNumber' => $this->token->token_number,
+            'tokenNumber' => $this->token->display_token,
+            'tokenRawNumber' => $this->token->token_number,
             'patientName' => $this->token->patient?->name ?? 'Patient',
             'doctorName' => trim(($doctor?->title ?? 'Dr.').' '.($doctor?->name ?? 'Doctor')),
             'doctorSpecialty' => $doctor?->specialty ?? 'General Practice',

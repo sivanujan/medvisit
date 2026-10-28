@@ -14,20 +14,24 @@
         We have received your subscription payment for <strong>{{ $clinicName }}</strong>. Your MedVisit clinic workspace remains active and fully operational.
     </x-email.text>
 
-    <x-email.info-card title="Payment Receipt Summary" :items="array_filter([
-        'Invoice Number' => $invoiceNumber,
-        'Receipt Number' => $receiptNumber ?? null,
-        'Subscription Plan' => $planName,
-        'Amount Paid' => '<strong style=\"color: #0E9E8F;\">' . $amount . '</strong>',
-        'Current Period Ends' => $periodEnd ?? null,
-    ])" />
+    @php
+        $receiptItems = array_filter([
+            'Invoice Number' => $invoiceNumber,
+            'Receipt Number' => $receiptNumber ?? null,
+            'Subscription Plan' => $planName,
+            'Amount Paid' => '<strong style="color: #0E9E8F;">' . $amount . '</strong>',
+            'Current Period Ends' => $periodEnd ?? null,
+        ]);
+    @endphp
+
+    <x-email.info-card title="Payment Receipt Summary" :items="$receiptItems" />
 
     <x-email.alert type="success">
         <strong>Official Receipt Attached:</strong> A formal PDF receipt for your accounting records is attached to this email. You can also view and download all past invoices from your billing portal.
     </x-email.alert>
 
     <x-email.button :url="$billingUrl" align="left">
-        Open Billing Portal &rarr;
+        Open Billing Portal →
     </x-email.button>
 
     <x-email.signature />

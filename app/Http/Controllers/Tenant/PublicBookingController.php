@@ -87,7 +87,7 @@ class PublicBookingController extends Controller
                     'id' => $doc->id,
                     'name' => $doc->name,
                     'title' => $doc->title ?? 'Dr.',
-                    'full_title' => trim(($doc->title ?? 'Dr.').' '.$doc->name),
+                    'full_title' => $doc->full_title,
                     'specialty' => $doc->specialty,
                     'slmc_number' => $doc->slmc_number,
                     'slug' => $doc->slug,
@@ -124,10 +124,7 @@ class PublicBookingController extends Controller
 
         $doctor = null;
         if (! $isAny) {
-            $doctor = Doctor::where('tenant_id', $tenant->id)
-                ->where('slug', $slug)
-                ->where('is_active', true)
-                ->firstOrFail();
+            $doctor = $this->findDoctorBySlug($tenant, $slug);
         }
 
         $now = Carbon::now('Asia/Colombo');
@@ -149,7 +146,7 @@ class PublicBookingController extends Controller
             'id' => $doctor->id,
             'name' => $doctor->name,
             'title' => $doctor->title ?? 'Dr.',
-            'full_title' => trim(($doctor->title ?? 'Dr.').' '.$doctor->name),
+            'full_title' => $doctor->full_title,
             'specialty' => $doctor->specialty,
             'slmc_number' => $doctor->slmc_number,
             'slug' => $doctor->slug,
@@ -201,7 +198,9 @@ class PublicBookingController extends Controller
             ->firstOrFail();
 
         $doctor = $session->doctor;
-        if (! $isAny && $doctor->slug !== $slug) {
+        $normSlug = preg_replace('/^(dr-)+/', '', $slug);
+        $normDocSlug = preg_replace('/^(dr-)+/', '', (string) $doctor->slug);
+        if (! $isAny && $doctor->slug !== $slug && $normSlug !== $normDocSlug) {
             return redirect("/book/{$doctor->slug}/{$sessionId}");
         }
 
@@ -233,8 +232,11 @@ class PublicBookingController extends Controller
 
         $sDate = $session->session_date instanceof Carbon ? $session->session_date : Carbon::parse($session->session_date);
 
-        $requireVerification = (bool) $tenant->require_phone_verification;
+        $requireVerification = (bool) ($tenant->is_demo ? true : $tenant->require_phone_verification);
         $allowedChannels = $requireVerification ? $this->verificationService->getAvailableChannels($tenant) : [];
+        if ((bool) $tenant->is_demo && empty($allowedChannels)) {
+            $allowedChannels = ['whatsapp', 'textlk'];
+        }
         $verifiedCookie = $request->cookie('medvisit_verified_phone');
         $initialVerifiedPhone = $this->verificationService->verifyCookiePayload($verifiedCookie);
 
@@ -250,7 +252,7 @@ class PublicBookingController extends Controller
                 'id' => $doctor->id,
                 'name' => $doctor->name,
                 'title' => $doctor->title ?? 'Dr.',
-                'full_title' => trim(($doctor->title ?? 'Dr.').' '.$doctor->name),
+                'full_title' => $doctor->full_title,
                 'specialty' => $doctor->specialty,
                 'slug' => $doctor->slug,
                 'photo_url' => $doctor->photo_url,
@@ -290,10 +292,7 @@ class PublicBookingController extends Controller
 
         $doctor = null;
         if (! $isAny) {
-            $doctor = Doctor::where('tenant_id', $tenant->id)
-                ->where('slug', $slug)
-                ->where('is_active', true)
-                ->firstOrFail();
+            $doctor = $this->findDoctorBySlug($tenant, $slug);
         }
 
         $year = (int) $request->input('year', Carbon::now('Asia/Colombo')->year);
@@ -487,7 +486,7 @@ class PublicBookingController extends Controller
         $normalizedPhone = $this->verificationService->normalizePhone($cleanPhone);
 
         // Phone Verification Enforcement for Public Online Booking
-        $requireVerification = $tenant ? (bool) ($tenant->require_phone_verification ?? false) : false;
+        $requireVerification = $tenant ? (bool) ($tenant->is_demo ? true : ($tenant->require_phone_verification ?? false)) : false;
         if ($requireVerification) {
             $cookieToken = $request->cookie('medvisit_verified_phone');
             $isVerified = $this->verificationService->isPhoneVerified($normalizedPhone, $tenant, $cookieToken);
@@ -715,11 +714,12 @@ class PublicBookingController extends Controller
         $sessionEnd = Carbon::parse($session->end_time)->format('h:i A');
 
         // Google Calendar Add Link
+        $displayToken = $token->display_token;
         $startIso = Carbon::parse($sDate->toDateString().' '.$session->start_time, 'Asia/Colombo')->format('Ymd\THis');
         $endIso = Carbon::parse($sDate->toDateString().' '.$session->end_time, 'Asia/Colombo')->format('Ymd\THis');
-        $clinicTitle = urlencode("Doctor Channeling Token #{$token->token_number} - Dr. {$doctor->name}");
+        $clinicTitle = urlencode("Doctor Channeling Token #{$displayToken} - Dr. {$doctor->name}");
         $clinicLocation = urlencode(($tenant->name ?? 'Clinic').', '.($tenant->address ?? 'Sri Lanka'));
-        $clinicDetails = urlencode("Channeling Token: #{$token->token_number}\nDoctor: Dr. {$doctor->name} ({$doctor->specialty})\nApprox Time: {$approxTime}\nClinic Phone: ".($tenant->phone ?? ''));
+        $clinicDetails = urlencode("Channeling Token: #{$displayToken}\nDoctor: Dr. {$doctor->name} ({$doctor->specialty})\nApprox Time: {$approxTime}\nClinic Phone: ".($tenant->phone ?? ''));
         $googleCalendarUrl = "https://calendar.google.com/calendar/render?action=TEMPLATE&text={$clinicTitle}&dates={$startIso}/{$endIso}&details={$clinicDetails}&location={$clinicLocation}";
 
         return Inertia::render('Public/Booking/BookingConfirmed', [
@@ -730,6 +730,7 @@ class PublicBookingController extends Controller
             'token' => [
                 'id' => $token->id,
                 'token_number' => $token->token_number,
+                'token_display' => $displayToken,
                 'status' => $token->status,
                 'approx_time' => $approxTime,
                 'signed_code' => $token->signed_cancel_token,
@@ -774,6 +775,7 @@ class PublicBookingController extends Controller
         $session = $token->doctorSession;
         $doctor = $session->doctor;
         $sDate = $session->session_date instanceof Carbon ? $session->session_date : Carbon::parse($session->session_date);
+        $displayToken = $token->display_token;
 
         $startIso = Carbon::parse($sDate->toDateString().' '.$session->start_time, 'Asia/Colombo')->format('Ymd\THis');
         $endIso = Carbon::parse($sDate->toDateString().' '.$session->end_time, 'Asia/Colombo')->format('Ymd\THis');
@@ -793,8 +795,8 @@ class PublicBookingController extends Controller
         $ics .= "DTSTAMP:{$nowIso}\r\n";
         $ics .= "DTSTART;TZID=Asia/Colombo:{$startIso}\r\n";
         $ics .= "DTEND;TZID=Asia/Colombo:{$endIso}\r\n";
-        $ics .= "SUMMARY:Doctor Channeling: Token #{$token->token_number} - Dr. {$doctor->name}\r\n";
-        $ics .= "DESCRIPTION:Channeling Appointment\\nToken Number: #{$token->token_number}\\nDoctor: Dr. {$doctor->name} ({$doctor->specialty})\\nApprox Time: {$approxTime}\\nPatient: {$token->patient->name}\\nClinic Hotline: {$tenant->phone}\\r\n";
+        $ics .= "SUMMARY:Doctor Channeling: Token #{$displayToken} - Dr. {$doctor->name}\r\n";
+        $ics .= "DESCRIPTION:Channeling Appointment\\nToken Number: #{$displayToken}\\nDoctor: Dr. {$doctor->name} ({$doctor->specialty})\\nApprox Time: {$approxTime}\\nPatient: {$token->patient->name}\\nClinic Hotline: {$tenant->phone}\\r\n";
         $ics .= "LOCATION:{$tenant->name}, {$tenant->address}\r\n";
         $ics .= "STATUS:CONFIRMED\r\n";
         $ics .= "END:VEVENT\r\n";
@@ -802,7 +804,7 @@ class PublicBookingController extends Controller
 
         return response($ics, 200, [
             'Content-Type' => 'text/calendar; charset=utf-8',
-            'Content-Disposition' => "attachment; filename=\"medvisit-token-{$token->token_number}.ics\"",
+            'Content-Disposition' => "attachment; filename=\"medvisit-token-{$displayToken}.ics\"",
         ]);
     }
 
@@ -945,12 +947,40 @@ class PublicBookingController extends Controller
         return [
             'name' => ucwords((string) ($tenant->name ?? 'Clinic')),
             'subdomain' => $tenant->subdomain,
-            'phone' => $tenant->phone ?? '+94 11 234 5678',
+            'phone' => $tenant->phone ?? config('medvisit_public.business.phone_display', '070 129 1688'),
             'address' => $tenant->address ?? 'Colombo, Sri Lanka',
             'logo_url' => $tenant->logo_url,
             'whatsapp_number' => $tenant->whatsapp_number,
             'opening_hours' => $tenant->opening_hours,
             'allow_any_doctor' => (bool) ($tenant->allow_any_doctor ?? false),
         ];
+    }
+
+    /**
+     * Helper: Resolve doctor by slug with normalized fallbacks (handles dr- / dr-dr- prefixes).
+     */
+    protected function findDoctorBySlug(Tenant $tenant, string $slug): Doctor
+    {
+        $doctor = Doctor::where('tenant_id', $tenant->id)
+            ->where('slug', $slug)
+            ->where('is_active', true)
+            ->first();
+
+        if ($doctor) {
+            return $doctor;
+        }
+
+        $normalized = preg_replace('/^(dr-)+/', '', $slug);
+
+        return Doctor::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->where(function ($query) use ($slug, $normalized) {
+                $query->where('slug', $slug)
+                    ->orWhere('slug', 'dr-'.$slug)
+                    ->orWhere('slug', 'dr-'.$normalized)
+                    ->orWhere('slug', 'dr-dr-'.$normalized)
+                    ->orWhere('slug', $normalized);
+            })
+            ->firstOrFail();
     }
 }

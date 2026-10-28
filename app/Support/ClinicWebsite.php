@@ -6,7 +6,9 @@ namespace App\Support;
 
 use App\Models\Doctor;
 use App\Models\DoctorSession;
+use App\Models\TemplatePurchase;
 use App\Models\Tenant;
+use App\Models\WebsiteTemplate;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
 
@@ -25,7 +27,7 @@ class ClinicWebsite
     /** Optional sections the owner can add (all have page-builder equivalents). */
     public const EXTRA_SECTIONS = ['gallery', 'faq', 'announcement', 'text'];
 
-    public const THEMES = ['medvisit-teal', 'ocean-blue', 'emerald-health', 'royal-purple', 'slate-luxury'];
+    public const THEMES = ['medvisit-teal', 'ocean-blue', 'coral-health', 'emerald-health', 'royal-purple', 'slate-luxury'];
 
     public const HERO_STYLES = ['gradient', 'photo', 'split', 'minimal'];
 
@@ -310,6 +312,19 @@ class ClinicWebsite
      */
     public static function publish(Tenant $tenant): void
     {
+        if ($tenant->applied_template_id) {
+            $template = WebsiteTemplate::find($tenant->applied_template_id);
+            if ($template && ! config('medvisit.templates_under_development', true) && ! $tenant->isTemplateEntitled($template)) {
+                abort(403, 'Your clinic is not entitled to publish this premium template.');
+            }
+
+            // Record first_published_at for Option A refund policy rule
+            TemplatePurchase::where('tenant_id', $tenant->id)
+                ->where('template_id', $tenant->applied_template_id)
+                ->whereNull('first_published_at')
+                ->update(['first_published_at' => now()]);
+        }
+
         $look = self::draftLook($tenant);
         $tenant->website_sections = self::draftSections($tenant);
         $tenant->website_sections_draft = null;

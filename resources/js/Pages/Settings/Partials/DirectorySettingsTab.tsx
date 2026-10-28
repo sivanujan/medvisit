@@ -38,10 +38,10 @@ interface Props {
 }
 
 const SRI_LANKA_BOUNDS = {
-    minLat: 5.8,
-    maxLat: 9.9,
-    minLng: 79.6,
-    maxLng: 82.0,
+    minLat: 5.5,
+    maxLat: 10.1,
+    minLng: 79.4,
+    maxLng: 82.3,
 };
 
 export default function DirectorySettingsTab({ settings }: Props) {

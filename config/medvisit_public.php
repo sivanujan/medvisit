@@ -96,6 +96,7 @@ return [
     'policies' => [
         'last_updated' => '22 October 2026',
         'terms_version' => '2026-10-22',
+        'retention_days' => 30,
         'downtime_refund_clause' => 'If MedVisit is unavailable for more than 48 continuous hours due to a fault on our side, we will refund the amount for the affected days, calculated pro-rata from your monthly plan price (for example, 3 days of downtime on the Pro plan = Rs. 9,000 ÷ 30 × 3 = Rs. 900). This is a partial refund for the affected days only, not a full refund of the month. Downtime of 48 hours or less, and planned maintenance announced in advance, are not eligible for a refund. To request it, email support@medvisit.lk within 14 days of the outage.',
     ],
 

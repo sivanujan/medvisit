@@ -98,7 +98,16 @@ export default function Waiting({ clinicName }: Props) {
 
             {/* Footer */}
             <div className="w-full max-w-5xl text-center text-xs text-slate-500 z-10">
-                <p>Powered by MedVisit &bull; Sri Lanka's Modern Healthcare Channeling Platform</p>
+                <p>
+                    <a
+                        href="https://medvisit.lk"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:text-slate-400 hover:underline transition-colors"
+                    >
+                        Powered by MedVisit
+                    </a>
+                </p>
             </div>
         </div>
     );

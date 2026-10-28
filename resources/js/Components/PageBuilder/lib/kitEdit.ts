@@ -9,6 +9,7 @@ type SystemId = (typeof SYSTEM_COLOR_IDS)[number];
 export const THEME_COLORS: Record<string, Record<SystemId, string>> = {
     'medvisit-teal': { primary: '#0E9E8F', secondary: '#0F172A', accent: '#F59E0B', text: '#334155' },
     'ocean-blue': { primary: '#1E6FD9', secondary: '#0F172A', accent: '#F59E0B', text: '#334155' },
+    'coral-health': { primary: '#FF7A59', secondary: '#0F172A', accent: '#0E9E8F', text: '#334155' },
     'emerald-health': { primary: '#059669', secondary: '#0F172A', accent: '#F59E0B', text: '#334155' },
     'royal-purple': { primary: '#7C3AED', secondary: '#0F172A', accent: '#F59E0B', text: '#334155' },
     'slate-luxury': { primary: '#334155', secondary: '#0F172A', accent: '#F59E0B', text: '#334155' },
@@ -17,6 +18,7 @@ export const THEME_COLORS: Record<string, Record<SystemId, string>> = {
 export const THEME_PRESET_LABELS: Record<string, string> = {
     'medvisit-teal': 'MedVisit Teal',
     'ocean-blue': 'Ocean Blue',
+    'coral-health': 'Coral Health',
     'emerald-health': 'Emerald Health',
     'royal-purple': 'Royal Specialist',
     'slate-luxury': 'Slate Executive',

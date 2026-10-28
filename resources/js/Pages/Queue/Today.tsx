@@ -50,6 +50,8 @@ interface SessionItem {
     room_number: string;
     status: 'scheduled' | 'in_progress' | 'paused' | 'completed' | string;
     current_token_number: number;
+    current_token_display?: string;
+    doctor_token_code?: string;
     max_tokens: number;
     booked_tokens_count: number;
 }
@@ -64,6 +66,8 @@ interface ActiveSessionDetails {
     room_number: string;
     status: string;
     current_token_number: number;
+    current_token_display?: string;
+    doctor_token_code?: string;
     max_tokens: number;
     fee_formatted: string;
     average_consult_minutes: number;
@@ -73,6 +77,8 @@ interface ActiveSessionDetails {
 interface QueueToken {
     id: number;
     token_number: number;
+    token_display?: string;
+    doctor_token_code?: string;
     patient_id: number;
     patient_name: string;
     patient_phone: string;
@@ -93,6 +99,8 @@ interface QueueToken {
 interface NowServing {
     id: number;
     token_number: number;
+    token_display?: string;
+    doctor_token_code?: string;
     patient_name: string;
     patient_phone: string;
     patient_phone_masked: string;
@@ -570,8 +578,13 @@ export default function TodayQueueIndex({
 
             // Search filter
             if (searchQuery.trim()) {
-                const q = searchQuery.toLowerCase();
-                const matchToken = t.token_number.toString().includes(q);
+                const q = searchQuery.toLowerCase().trim();
+                const qClean = q.replace(/[^a-z0-9]/g, '');
+                const cleanTokenDisplay = (t.token_display || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                const matchToken =
+                    t.token_number.toString().includes(q) ||
+                    (cleanTokenDisplay && cleanTokenDisplay.includes(qClean)) ||
+                    (t.token_display && t.token_display.toLowerCase().includes(q));
                 const matchName = t.patient_name.toLowerCase().includes(q);
                 const matchPhone = t.patient_phone.includes(q) || t.patient_phone_masked.includes(q);
                 return matchToken || matchName || matchPhone;
@@ -1012,8 +1025,8 @@ export default function TodayQueueIndex({
                                                             <span className="text-[11px] font-bold uppercase tracking-wider text-white/70">
                                                                 Token
                                                             </span>
-                                                            <span className="text-4xl sm:text-5xl font-black tracking-tight leading-none">
-                                                                #{nowServingToken.token_number}
+                                                            <span className="text-3xl sm:text-4xl font-black font-mono tracking-tight leading-none px-2 text-center">
+                                                                #{nowServingToken.token_display || nowServingToken.token_number}
                                                             </span>
                                                             <span className="text-[10px] font-medium text-white/80 mt-1 capitalize">
                                                                 {nowServingToken.status.replace('_', ' ')}
@@ -1345,13 +1358,13 @@ export default function TodayQueueIndex({
                                                             {/* Left: Token Chip + Name + Walk-in badge */}
                                                             <div className="flex items-center gap-2.5 min-w-0">
                                                                 <span
-                                                                    className={`w-8 h-8 rounded-xl font-mono font-black text-xs flex items-center justify-center shrink-0 ${
+                                                                    className={`px-2 h-8 min-w-[34px] rounded-xl font-mono font-black text-xs flex items-center justify-center shrink-0 ${
                                                                         isCurrent
                                                                             ? 'bg-[#1E6FD9] text-white shadow-sm'
                                                                             : 'bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200'
                                                                     }`}
                                                                 >
-                                                                    #{token.token_number}
+                                                                    #{token.token_display || token.token_number}
                                                                 </span>
 
                                                                 <div className="min-w-0">

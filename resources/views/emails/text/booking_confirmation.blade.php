@@ -25,5 +25,5 @@ Cancel or manage your booking: {{ $cancelUrl }}
 @endif
 
 ---
-Powered by MedVisit · Clinic management for Sri Lanka
+Powered by MedVisit · https://medvisit.lk
 © {{ date('Y') }} {{ $clinicName }}. All rights reserved.

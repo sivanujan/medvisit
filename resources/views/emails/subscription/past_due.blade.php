@@ -18,18 +18,22 @@
         @endif
     </x-email.text>
 
-    <x-email.info-card title="Account Standing" :items="[
-        'Clinic Workspace' => $clinicName,
-        'Status' => $isGrace ? '<span style=\"color: #D97706; font-weight: 700;\">Grace Period (' . $graceDays . ' days left)</span>' : '<span style=\"color: #DC2626; font-weight: 700;\">Past Due / Restricted</span>',
-        'Amount Due' => '<strong style=\"color: #DC2626;\">' . $amount . '</strong>',
-    ]" />
+    @php
+        $standingItems = [
+            'Clinic Workspace' => $clinicName,
+            'Status' => $isGrace ? '<span style="color: #D97706; font-weight: 700;">Grace Period (' . $graceDays . ' days left)</span>' : '<span style="color: #DC2626; font-weight: 700;">Past Due / Restricted</span>',
+            'Amount Due' => '<strong style="color: #DC2626;">' . $amount . '</strong>',
+        ];
+    @endphp
+
+    <x-email.info-card title="Account Standing" :items="$standingItems" />
 
     <x-email.alert :type="$isGrace ? 'warning' : 'danger'">
         <strong>Payment Instructions:</strong> Click the button below to complete the payment via our secure gateway. Your account will automatically return to active standing within moments.
     </x-email.alert>
 
     <x-email.button :url="$payUrl" align="left">
-        Settle Outstanding Balance &rarr;
+        Settle Outstanding Balance →
     </x-email.button>
 
     <x-email.signature />

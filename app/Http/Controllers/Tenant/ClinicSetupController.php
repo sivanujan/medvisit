@@ -150,9 +150,11 @@ class ClinicSetupController extends Controller
                 'require_phone_verification' => (bool) ($tenant->require_phone_verification ?? true),
 
                 // Step 8: Pharmacy
-                'pharmacy_enabled' => $tenant->pharmacy_enabled !== null
-                    ? (bool) $tenant->pharmacy_enabled
-                    : (bool) ($tenant->data['pharmacy_enabled'] ?? false),
+                'pharmacy_enabled' => $planAllowsPharmacy
+                    ? ($tenant->pharmacy_enabled !== null
+                        ? (bool) $tenant->pharmacy_enabled
+                        : (bool) ($tenant->data['pharmacy_enabled'] ?? false))
+                    : false,
                 'stock_reduction_mode' => (string) ($tenant->pharmacy_stock_reduction_mode ?? 'dispense'),
 
                 // Step 9: Printing
@@ -204,6 +206,16 @@ class ClinicSetupController extends Controller
 
             case 2:
                 // Step 2: Logo & Brand
+                // Normalize legacy or alias theme keys if submitted
+                $theme = $request->input('theme');
+                if ($theme === 'emerald-care') {
+                    $request->merge(['theme' => 'emerald-health']);
+                } elseif ($theme === 'slate-clean') {
+                    $request->merge(['theme' => 'slate-luxury']);
+                } elseif (! in_array($theme, ClinicWebsite::THEMES, true)) {
+                    $request->merge(['theme' => 'medvisit-teal']);
+                }
+
                 $validated = $request->validate([
                     'brand_color' => ['required', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
                     'theme' => ['required', 'string', 'in:'.implode(',', ClinicWebsite::THEMES)],

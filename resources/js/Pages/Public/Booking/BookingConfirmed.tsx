@@ -38,6 +38,7 @@ interface Props {
     token: {
         id: number;
         token_number: number;
+        token_display?: string;
         status: string;
         approx_time: string;
         signed_code: string;
@@ -88,7 +89,7 @@ export default function BookingConfirmed({
     // WhatsApp Share Text
     const whatsappMessage = encodeURIComponent(
         `Channeling Appointment Confirmed!\n\n` +
-        `Token: #${token.token_number}\n` +
+        `Token: *#${token.token_display || token.token_number}*\n` +
         `Doctor: ${doctor.full_title} (${doctor.specialty})\n` +
         `Date: ${session.session_date_formatted}\n` +
         `Session: ${session.time_range}\n` +
@@ -135,7 +136,7 @@ export default function BookingConfirmed({
                 aria-hidden="true"
             />
 
-            <Head title={`Token #${token.token_number} Confirmed - ${clinic.name}`} />
+            <Head title={`Token #${token.token_display || token.token_number} Confirmed - ${clinic.name}`} />
 
             <PublicSiteHeader
                 clinic={clinic}
@@ -150,7 +151,7 @@ export default function BookingConfirmed({
                         <XCircle className="w-5 h-5 text-rose-600 shrink-0" />
                         <div>
                             <p className="font-bold">This booking has been cancelled</p>
-                            <p className="text-xs text-rose-700">Token #{token.token_number} is no longer valid. You can book a new appointment at any time.</p>
+                            <p className="text-xs text-rose-700">Token #{token.token_display || token.token_number} is no longer valid. You can book a new appointment at any time.</p>
                         </div>
                     </div>
                 )}
@@ -176,7 +177,7 @@ export default function BookingConfirmed({
                             </span>
 
                             <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight mb-2">
-                                Your Token Number is #{token.token_number}
+                                Your Token Number is #{token.token_display || token.token_number}
                             </h1>
 
                             <p className="text-sm sm:text-base text-teal-100 font-medium">

@@ -10,6 +10,9 @@ return [
     // Domain shown to people (e.g. "yourclinic.medvisit.lk"), independent of the request host.
     'public_domain' => env('APP_PUBLIC_DOMAIN', 'medvisit.lk'),
 
+    // Templates under development mode: allows clinics to preview, test, and apply premium templates freely
+    'templates_under_development' => env('TEMPLATES_UNDER_DEVELOPMENT', true),
+
     'mail' => [
         'logo_url' => env('MAIL_LOGO_URL'),
         'icon_url' => env('MAIL_ICON_URL'),

@@ -27,6 +27,7 @@ use App\Mail\Subscription\SubscriptionPaymentSuccessMail;
 use App\Mail\Subscription\SubscriptionPlanChangedMail;
 use App\Mail\Subscription\SubscriptionRenewalReminderMail;
 use App\Mail\Subscription\SubscriptionResumedMail;
+use App\Mail\Subscription\TemplateDowngradeNoticeMail;
 use App\Mail\Tenants\TrialEndedMail;
 use App\Mail\Tenants\TrialEndingSoonMail;
 use App\Mail\TestMail;
@@ -43,6 +44,7 @@ use App\Models\Subscription;
 use App\Models\SubscriptionInvoice;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\WebsiteTemplate;
 use Carbon\Carbon;
 use Illuminate\Mail\Mailable;
 
@@ -126,6 +128,12 @@ class SampleMailFactory
                 'name' => 'Renewal Reminder (7d / 1d)',
                 'category' => 'Subscription & Billing',
                 'description' => 'Upcoming billing reminder to prevent any queue interruption.',
+                'brand_mode' => 'platform',
+            ],
+            'subscription_template_downgrade_notice' => [
+                'name' => 'Template Downgrade Notice (7 Days Before)',
+                'category' => 'Subscription & Billing',
+                'description' => 'Notice sent 7 days before downgrade takes effect warning free template ends.',
                 'brand_mode' => 'platform',
             ],
             'subscription_past_due' => [
@@ -357,6 +365,18 @@ class SampleMailFactory
                 billingUrl: 'https://matarahealth.medvisit.lk/billing'
             ),
 
+            'subscription_template_downgrade_notice' => new TemplateDowngradeNoticeMail(
+                tenant: self::mockTenant('suwa-shanthi', 'Suwashanthi Specialist Clinic'),
+                template: WebsiteTemplate::where('tier', 'premium')->first() ?? new WebsiteTemplate([
+                    'name' => 'Serene Medical Center',
+                    'slug' => 'serene',
+                    'price_cents' => 350000,
+                ]),
+                effectiveDateFormatted: Carbon::now()->addDays(7)->format('d F Y'),
+                purchaseUrl: 'https://suwa-shanthi.medvisit.lk/website/templates?action=buy&template=serene',
+                priceFormatted: 'Rs. 3,500'
+            ),
+
             'platform_announcement' => new AnnouncementMail(
                 announcement: new Announcement([
                     'title' => 'New Automated WhatsApp Queue Notifications Now Active!',
@@ -373,7 +393,7 @@ class SampleMailFactory
                 lead: new Lead([
                     'clinic_name' => 'Kings Hospital Outpatient Department',
                     'contact_name' => 'Dr. Dilshan Samarasinghe',
-                    'phone' => '+94 77 123 4567',
+                    'phone' => '070 129 1688',
                     'email' => 'dilshan@kingshospital.lk',
                     'city' => 'Colombo 05',
                     'notes' => 'We operate 4 OPD doctor channeling consultation rooms and would like to trial digital tokens.',

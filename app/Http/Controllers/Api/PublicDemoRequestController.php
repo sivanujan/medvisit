@@ -9,6 +9,7 @@ use App\Mail\LeadDemoRequestNotificationMail;
 use App\Models\Lead;
 use App\Models\User;
 use App\Services\AuditLogger;
+use App\Services\TelegramNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -38,6 +39,8 @@ class PublicDemoRequestController extends Controller
             'phone' => ['required', 'string', 'max:30'],
             'email' => ['nullable', 'email', 'max:150'],
             'city' => ['nullable', 'string', 'max:100'],
+            'source' => ['nullable', 'string', 'in:website_form,guided_demo_request,public_demo_sandbox'],
+            'preferred_time' => ['nullable', 'string', 'in:morning,afternoon,evening'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'cf_turnstile_response' => ['nullable', 'string'],
         ]);
@@ -63,6 +66,10 @@ class PublicDemoRequestController extends Controller
             }
         }
 
+        $source = $validated['source'] ?? 'guided_demo_request';
+        $preferredTime = $validated['preferred_time'] ?? null;
+        $notes = trim(($validated['notes'] ?? '').($preferredTime ? "\nPreferred time: ".ucfirst($preferredTime) : ''));
+
         // 5. Create the lead
         $lead = Lead::create([
             'clinic_name' => $validated['clinic_name'],
@@ -70,11 +77,12 @@ class PublicDemoRequestController extends Controller
             'phone' => $normalizedPhone,
             'email' => $validated['email'] ?? null,
             'city' => $validated['city'] ?? null,
-            'source' => 'website_form',
+            'source' => $source,
             'stage' => Lead::STAGE_NEW,
-            'notes' => $validated['notes'] ?? null,
+            'notes' => $notes !== '' ? $notes : null,
             'next_follow_up_at' => now()->addDay(),
             'metadata' => [
+                'preferred_time' => $preferredTime,
                 'ip' => $request->ip(),
                 'user_agent' => $request->userAgent(),
                 'origin' => $request->header('Origin'),
@@ -88,9 +96,17 @@ class PublicDemoRequestController extends Controller
             'metadata' => [
                 'clinic_name' => $lead->clinic_name,
                 'phone' => $lead->phone,
-                'source' => 'website_form',
+                'source' => $source,
+                'preferred_time' => $preferredTime,
             ],
         ]);
+
+        // 7. Send Telegram Notification (debounced per lead phone per 24 hours)
+        try {
+            app(TelegramNotificationService::class)->sendDemoLeadAlert($lead);
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         // 7. Send notification email to super admins
         try {

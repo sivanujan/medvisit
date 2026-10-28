@@ -73,11 +73,24 @@ class DirectoryDoctor extends Model
     }
 
     /**
-     * Full doctor title and name.
+     * The linked tenant doctor record if available.
+     *
+     * @return BelongsTo<Doctor, $this>
+     */
+    public function doctor(): BelongsTo
+    {
+        return $this->belongsTo(Doctor::class, 'doctor_id');
+    }
+
+    /**
+     * Full doctor title and name without duplicate Dr. prefix.
      */
     public function getFullTitleAttribute(): string
     {
-        return trim(($this->title ? $this->title.' ' : 'Dr. ').$this->name);
+        $cleanName = preg_replace('/^(dr\.?|doctor|prof\.?|professor)\s+/i', '', trim((string) $this->name));
+        $title = $this->title ?: 'Dr.';
+
+        return trim("{$title} {$cleanName}");
     }
 
     /**
@@ -86,7 +99,8 @@ class DirectoryDoctor extends Model
     public function getBookingUrlAttribute(): string
     {
         $subdomainUrl = $this->listing?->subdomain_url ?? '';
+        $slug = $this->doctor?->slug ?? $this->slug;
 
-        return rtrim($subdomainUrl, '/')."/book/{$this->slug}?source=directory";
+        return rtrim($subdomainUrl, '/')."/book/{$slug}?source=directory";
     }
 }

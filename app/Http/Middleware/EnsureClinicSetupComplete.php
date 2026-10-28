@@ -83,8 +83,8 @@ class EnsureClinicSetupComplete
         $tenant = function_exists('tenant') ? tenant() : null;
         $user = $request->user();
 
-        // 1. Outside tenant context or super admin bypass
-        if (! $tenant || ($user && $user->hasRole('super_admin'))) {
+        // 1. Outside tenant context, super admin bypass, or demo sandbox tenant
+        if (! $tenant || ($user && $user->hasRole('super_admin')) || (bool) $tenant->is_demo) {
             return $next($request);
         }
 

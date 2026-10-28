@@ -57,6 +57,7 @@ interface BillInfo {
 interface TokenData {
     id: number;
     token_number: number;
+    token_display?: string;
     status: string;
     estimated_time?: string;
     patient: Patient;
@@ -637,16 +638,16 @@ export default function Consultation({
 
     return (
         <AuthenticatedLayout>
-            <Head title={`Consultation - Token #${token.token_number} - ${token.patient.name}`} />
+            <Head title={`Consultation - Token #${token.token_display || token.token_number} - ${token.patient.name}`} />
 
             <div className="space-y-6 pb-28">
                 {/* PAGE HEADER */}
                 <PageHeader
                     breadcrumbs={[
                         { label: 'Today\'s Queue', href: '/sessions/today' },
-                        { label: `Token #${token.token_number} (${token.patient.name})` },
+                        { label: `Token #${token.token_display || token.token_number} (${token.patient.name})` },
                     ]}
-                    title={`Consultation & Prescription: Token #${token.token_number}`}
+                    title={`Consultation & Prescription: Token #${token.token_display || token.token_number}`}
                     subtitle={`Patient: ${token.patient.name} (${token.patient.gender || 'Patient'}, ${token.patient.age ? `${token.patient.age} yrs` : 'Age N/A'}) • Doctor: ${token.doctor.name}`}
                     actions={
                         <div className="flex flex-wrap items-center gap-2">
@@ -698,8 +699,8 @@ export default function Consultation({
                 <GlassCard className="p-4 sm:p-5">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center font-black text-lg shadow-inner">
-                                #{token.token_number}
+                            <div className="px-3 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center font-black text-lg shadow-inner">
+                                #{token.token_display || token.token_number}
                             </div>
                             <div>
                                 <div className="flex items-center gap-2">

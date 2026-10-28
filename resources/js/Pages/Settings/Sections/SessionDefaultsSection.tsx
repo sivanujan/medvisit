@@ -9,12 +9,17 @@ interface Props {
         default_max_tokens: number;
         cancellation_window_hours: number;
         auto_generate_days: number;
+        token_number_format?: string;
     }>;
     sessionDefaults: SessionDefaultsData;
 }
 
-export default function SessionDefaultsSection({ form }: Props) {
+export default function SessionDefaultsSection({ form, sessionDefaults }: Props) {
     const { data, setData, errors } = form;
+
+    const hasOverlapRisk =
+        data.token_number_format === 'number_only' &&
+        ((sessionDefaults.active_doctors_count ?? 0) > 1 || sessionDefaults.has_overlapping_sessions);
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -26,6 +31,94 @@ export default function SessionDefaultsSection({ form }: Props) {
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                         Define baseline rules for doctor channeling sessions, estimated consultation times and patient capacity.
                     </p>
+                </div>
+
+                {/* Token numbering format card */}
+                <div className="p-6 rounded-3xl bg-white/80 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 shadow-sm space-y-5">
+                    <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100 dark:border-white/5">
+                        <Sparkles className="w-4 h-4 text-[#1E6FD9]" />
+                        <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                            Token numbering display format
+                        </h3>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <label
+                            className={`flex flex-col justify-between p-4 rounded-2xl border cursor-pointer transition-all ${
+                                (data.token_number_format || 'with_doctor_code') === 'with_doctor_code'
+                                    ? 'border-[#1E6FD9] bg-[#1E6FD9]/5 ring-2 ring-[#1E6FD9]/20'
+                                    : 'border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20'
+                            }`}
+                        >
+                            <div className="space-y-1.5">
+                                <div className="flex items-center justify-between">
+                                    <span className="font-bold text-xs text-slate-900 dark:text-white">
+                                        With doctor code
+                                    </span>
+                                    <input
+                                        type="radio"
+                                        name="token_number_format"
+                                        checked={(data.token_number_format || 'with_doctor_code') === 'with_doctor_code'}
+                                        onChange={() => setData('token_number_format', 'with_doctor_code')}
+                                        className="text-[#1E6FD9] focus:ring-[#1E6FD9]"
+                                    />
+                                </div>
+                                <div className="font-mono text-xs font-bold text-[#1E6FD9]">
+                                    SV-01, TH-01, AW-05
+                                </div>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                    Prefixes each token with doctor initials to eliminate duplicate token numbers across concurrent rooms and TV displays.
+                                </p>
+                            </div>
+                            <span className="mt-3 inline-flex items-center text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full w-fit">
+                                Default for multi-doctor clinics
+                            </span>
+                        </label>
+
+                        <label
+                            className={`flex flex-col justify-between p-4 rounded-2xl border cursor-pointer transition-all ${
+                                data.token_number_format === 'number_only'
+                                    ? 'border-[#1E6FD9] bg-[#1E6FD9]/5 ring-2 ring-[#1E6FD9]/20'
+                                    : 'border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20'
+                            }`}
+                        >
+                            <div className="space-y-1.5">
+                                <div className="flex items-center justify-between">
+                                    <span className="font-bold text-xs text-slate-900 dark:text-white">
+                                        Number only
+                                    </span>
+                                    <input
+                                        type="radio"
+                                        name="token_number_format"
+                                        checked={data.token_number_format === 'number_only'}
+                                        onChange={() => setData('token_number_format', 'number_only')}
+                                        className="text-[#1E6FD9] focus:ring-[#1E6FD9]"
+                                    />
+                                </div>
+                                <div className="font-mono text-xs font-bold text-slate-700 dark:text-slate-300">
+                                    01, 02, 05
+                                </div>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                    Standard sequential numbering without doctor initials. Recommended only for single-doctor practices.
+                                </p>
+                            </div>
+                            <span className="mt-3 inline-flex items-center text-[10px] font-bold text-slate-600 dark:text-slate-400 bg-slate-500/10 px-2 py-0.5 rounded-full w-fit">
+                                Single-doctor clinics
+                            </span>
+                        </label>
+                    </div>
+
+                    {hasOverlapRisk && (
+                        <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200 text-xs">
+                            <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                            <div>
+                                <span className="font-bold block">Duplicate Token Ambiguity Risk</span>
+                                <span>
+                                    Your clinic currently has {sessionDefaults.active_doctors_count} active doctors with overlapping sessions. Using &quot;Number only&quot; will result in two different patients holding &quot;Token 01&quot; at the same time on live TV and reception. &quot;With doctor code&quot; is strongly recommended.
+                                </span>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 <div className="p-6 rounded-3xl bg-white/80 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 shadow-sm space-y-5">
@@ -176,13 +269,23 @@ export default function SessionDefaultsSection({ form }: Props) {
                             </span>
                         </div>
 
-                        <div>
-                            <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                                Dr. K. Sivalingam
-                            </h4>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
-                                Consultant Cardiologist
-                            </p>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                                    Dr. K. Sivalingam
+                                </h4>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    Consultant Cardiologist
+                                </p>
+                            </div>
+                            <div className="text-right">
+                                <span className="text-[10px] text-slate-400 block uppercase tracking-wider font-semibold">
+                                    Sample token
+                                </span>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-mono font-extrabold bg-[#1E6FD9] text-white shadow-xs">
+                                    {data.token_number_format === 'number_only' ? '05' : 'KS-05'}
+                                </span>
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-white/5 text-xs">

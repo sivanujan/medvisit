@@ -10,12 +10,16 @@
         Congratulations! Clinic setup has been successfully completed for <strong>{{ $clinicName }}</strong>. Your clinic website, online booking, and operational workspace are now active and ready for your team and patients.
     </x-email.text>
 
-    <x-email.info-card title="Clinic Information" :items="array_filter([
-        'Clinic Name' => $clinicName,
-        'Physical Address' => $clinicAddress ?: 'Configured in workspace',
-        'Clinic Contact' => $clinicPhone ?: 'Configured in workspace',
-        'Online Booking Site' => '<a href=\"' . $bookingUrl . '\" style=\"color: #1E6FD9; text-decoration: underline;\">' . $bookingUrl . '</a>',
-    ])" />
+    @php
+        $clinicReadyItems = array_filter([
+            'Clinic Name' => $clinicName,
+            'Physical Address' => $clinicAddress ?: 'Configured in workspace',
+            'Clinic Contact' => $clinicPhone ?: 'Configured in workspace',
+            'Online Booking Site' => '<a href="' . $bookingUrl . '" style="color: #1E6FD9; text-decoration: underline;">' . $bookingUrl . '</a>',
+        ]);
+    @endphp
+
+    <x-email.info-card title="Clinic Information" :items="$clinicReadyItems" />
 
     <x-email.text>
         <strong>Next recommended steps:</strong>

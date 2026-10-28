@@ -30,14 +30,18 @@
         3 Quick Next Steps to Get Started
     </x-email.heading>
 
-    <x-email.list :ordered="true" :items="[
-        '<strong>Sign in to your portal & add doctors:</strong> Sign in to your dedicated portal and create doctor profiles with specialties, consultation fees, and room assignments.',
-        '<strong>Invite your team & set schedule:</strong> Invite receptionists and configure weekly clinic session days, consultation hours, and token limits.',
-        '<strong>Launch queue & share booking link:</strong> Launch your digital token counter and share your direct booking URL (<a href=\"' . $clinicUrl . '/book\" style=\"color: #1E6FD9; text-decoration: none;\">' . $subdomain . '.medvisit.lk/book</a>) with patients for self-service channeling.',
-    ]" />
+    @php
+        $stepItems = [
+            '<strong>Sign in to your portal & add doctors:</strong> Sign in to your dedicated portal and create doctor profiles with specialties, consultation fees, and room assignments.',
+            '<strong>Invite your team & set schedule:</strong> Invite receptionists and configure weekly clinic session days, consultation hours, and token limits.',
+            '<strong>Launch queue & share booking link:</strong> Launch your digital token counter and share your direct booking URL (<a href="' . $clinicUrl . '/book" style="color: #1E6FD9; text-decoration: none;">' . $subdomain . '.medvisit.lk/book</a>) with patients for self-service channeling.',
+        ];
+    @endphp
+
+    <x-email.list :ordered="true" :items="$stepItems" />
 
     <x-email.button :url="$clinicUrl" align="left">
-        Open Clinic Portal &rarr;
+        Open Clinic Portal →
     </x-email.button>
 
     <x-email.alert type="info">

@@ -2011,7 +2011,7 @@ export default function ReceiveStockCreate({ suppliers: initialSuppliers, defaul
                         <GlassLabel htmlFor="newSupplierPhone">Phone number</GlassLabel>
                         <GlassInput
                             id="newSupplierPhone"
-                            placeholder="+94 11 234 5678"
+                            placeholder="011 234 5678"
                             value={newSupplierPhone}
                             onChange={(e) => setNewSupplierPhone(e.target.value)}
                         />

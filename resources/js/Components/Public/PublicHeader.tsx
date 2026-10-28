@@ -9,7 +9,6 @@ import { PageProps } from '@/types';
 /** Landing page sections the nav can point at; each must exist as an element id on "/". */
 const SECTIONS = [
     { id: 'features', label: 'Features' },
-    { id: 'how-it-works', label: 'How it works' },
 ] as const;
 
 const RESOURCES = [
@@ -19,7 +18,7 @@ const RESOURCES = [
     { label: 'Privacy Policy', path: '/privacy-policy' },
 ];
 
-type NavKey = 'find' | 'features' | 'how-it-works' | 'pricing' | 'faq' | 'resources';
+type NavKey = 'find' | 'features' | 'demo' | 'pricing' | 'faq' | 'resources';
 
 interface Props {
     /** Optional reading-progress bar under the header (policy pages). */
@@ -37,7 +36,7 @@ function useActiveSection(enabled: boolean): NavKey | null {
 
     useEffect(() => {
         if (!enabled || typeof IntersectionObserver === 'undefined') return;
-        const ids: NavKey[] = ['features', 'how-it-works', 'faq'];
+        const ids: NavKey[] = ['features', 'faq'];
         const visible = new Set<string>();
         const io = new IntersectionObserver(
             (entries) => {
@@ -88,13 +87,15 @@ export default function PublicHeader({ progressPercent }: Props) {
     const onResourcePage = RESOURCES.some((r) => r.path === pathname);
     const active: NavKey | null = onLanding
         ? sectionActive
-        : pathname === '/find' || pathname.startsWith('/clinics') || pathname.startsWith('/doctors')
-          ? 'find'
-          : pathname === '/pricing'
-            ? 'pricing'
-            : onResourcePage
-              ? 'resources'
-              : null;
+        : pathname === '/demo'
+          ? 'demo'
+          : pathname === '/find' || pathname.startsWith('/clinics') || pathname.startsWith('/doctors')
+            ? 'find'
+            : pathname === '/pricing'
+              ? 'pricing'
+              : onResourcePage
+                ? 'resources'
+                : null;
 
     const anchor = (id: string) => (onLanding ? `#${id}` : `/#${id}`);
 
@@ -273,6 +274,21 @@ export default function PublicHeader({ progressPercent }: Props) {
                                     className={itemClass('find')}
                                 >
                                     Find Care
+                                </Link>
+                            </li>
+                            {/* Try demo pill with pulsing Live dot, placed before Pricing */}
+                            <li>
+                                <Link
+                                    href="/demo"
+                                    data-nav="demo"
+                                    aria-current={active === 'demo' ? 'page' : undefined}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-slate-800 dark:text-slate-100 bg-gradient-to-r from-blue-500/10 to-teal-500/15 hover:from-blue-500/20 hover:to-teal-500/25 border border-teal-500/30 hover:border-teal-500/50 shadow-2xs transition-all duration-200"
+                                >
+                                    <span className="relative flex h-2 w-2">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                    </span>
+                                    <span>Try demo</span>
                                 </Link>
                             </li>
                             <li>
@@ -463,11 +479,30 @@ export default function PublicHeader({ progressPercent }: Props) {
                     </div>
 
                     <nav aria-label="Mobile" className="flex-1 overflow-y-auto px-4 py-5 sm:px-6">
+                        {/* Prominent Try Demo Button for Mobile */}
+                        <div className="mb-4">
+                            <Link
+                                href="/demo"
+                                onClick={closeMobile}
+                                className="w-full flex items-center justify-between px-4 py-3 rounded-2xl bg-gradient-to-r from-[#1E6FD9] to-[#0E9E8F] text-white font-extrabold text-base shadow-md active:scale-98 transition"
+                            >
+                                <span className="flex items-center gap-2">
+                                    <span className="relative flex h-2.5 w-2.5">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>
+                                    </span>
+                                    <span>Try the live demo</span>
+                                </span>
+                                <span className="text-xs bg-white/20 px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">
+                                    Live →
+                                </span>
+                            </Link>
+                        </div>
+
                         <ul className="space-y-1">
                             {[
                                 { key: 'find' as NavKey, label: 'Find Care', href: '/find' },
                                 { key: 'features' as NavKey, label: 'Features', href: anchor('features') },
-                                { key: 'how-it-works' as NavKey, label: 'How it works', href: anchor('how-it-works') },
                                 { key: 'pricing' as NavKey, label: 'Pricing', href: '/pricing' },
                                 { key: 'faq' as NavKey, label: 'FAQ', href: anchor('faq') },
                             ].map((item) => (

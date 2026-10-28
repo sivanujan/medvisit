@@ -15,18 +15,22 @@
         After evaluating your request against our published Refund Policy, we are unable to approve a refund at this time.
     </x-email.text>
 
-    <x-email.info-card title="Review Outcome" :items="[
-        'Requested Amount' => $amount,
-        'Request Reference' => $refundRequest->public_id,
-        'Reason for Decline' => '<strong style=\"color: #ef4444;\">' . e($decisionReason) . '</strong>',
-    ]" />
+    @php
+        $outcomeItems = [
+            'Requested Amount' => $amount,
+            'Request Reference' => $refundRequest->public_id,
+            'Reason for Decline' => '<strong style="color: #ef4444;">' . e($decisionReason) . '</strong>',
+        ];
+    @endphp
+
+    <x-email.info-card title="Review Outcome" :items="$outcomeItems" />
 
     <x-email.alert type="warning">
         <strong>Need to escalate or dispute this decision?</strong> If you believe this assessment does not reflect your circumstances, you can request an escalation per our Dispute Policy.
     </x-email.alert>
 
     <x-email.button :url="$disputePolicyUrl" align="left">
-        View Dispute & Escalation Policy &rarr;
+        View Dispute & Escalation Policy →
     </x-email.button>
 
     <x-email.signature />

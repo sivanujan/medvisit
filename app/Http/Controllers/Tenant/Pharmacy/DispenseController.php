@@ -14,6 +14,7 @@ use App\Models\PrescriptionItem;
 use App\Models\PrescriptionItemBatch;
 use App\Models\StockBatch;
 use App\Services\Pharmacy\DispenseService;
+use App\Support\TokenHelper;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -64,6 +65,7 @@ class DispenseController extends Controller
                 'patient',
                 'doctor',
                 'token.bill',
+                'token.doctorSession',
                 'items.clinicMedicine.batches',
             ])
             ->orderBy('finalized_at', 'asc'); // Oldest first: serve longest-waiting patients first
@@ -86,10 +88,20 @@ class DispenseController extends Controller
             $term = '%'.strtolower($search).'%';
             $digits = preg_replace('/\D/', '', $search);
             $normalizedPhone = Patient::normalizePhone($search);
+            $parsedToken = TokenHelper::parseSearchTerm($search);
 
-            $query->where(function ($q) use ($term, $search, $digits, $normalizedPhone) {
+            $query->where(function ($q) use ($term, $search, $digits, $normalizedPhone, $parsedToken) {
                 $q->whereRaw('LOWER(prescription_number) LIKE ?', [$term])
-                    ->orWhereHas('token', fn ($tq) => $tq->where('token_number', 'LIKE', $term))
+                    ->orWhereHas('token', function ($tq) use ($term, $parsedToken) {
+                        if ($parsedToken) {
+                            $tq->where('token_number', $parsedToken['number']);
+                            if ($parsedToken['code'] !== null) {
+                                $tq->whereHas('doctorSession', fn ($sq) => $sq->where('doctor_token_code', $parsedToken['code']));
+                            }
+                        } else {
+                            $tq->where('token_number', 'LIKE', $term);
+                        }
+                    })
                     ->orWhereHas('doctor', fn ($dq) => $dq->whereRaw('LOWER(name) LIKE ?', [$term]))
                     ->orWhereHas('patient', function ($pq) use ($term, $search, $digits, $normalizedPhone) {
                         $pq->whereRaw('LOWER(name) LIKE ?', [$term])
@@ -161,6 +173,7 @@ class DispenseController extends Controller
                 'status' => $p->status,
                 'token_id' => $p->booking_token_id,
                 'token_number' => $p->token?->token_number,
+                'token_display' => $p->token?->display_token ?? ($p->token ? (string) $p->token->token_number : null),
                 'patient_id' => $p->patient_id,
                 'patient_name' => $patient->name,
                 'patient_phone' => $patient->phone,
@@ -499,6 +512,7 @@ class DispenseController extends Controller
                 'prescription_number' => $prescription->prescription_number,
                 'status' => $prescription->status,
                 'token_number' => $prescription->token?->token_number,
+                'token_display' => $prescription->token?->display_token ?? ($prescription->token ? (string) $prescription->token->token_number : null),
                 'patient_id' => $prescription->patient_id,
                 'patient_name' => $patient->name,
                 'patient_phone' => $patient->phone,

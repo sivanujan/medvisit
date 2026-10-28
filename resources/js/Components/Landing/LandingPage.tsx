@@ -9,6 +9,7 @@ import WaitingRoomStory from './WaitingRoomStory';
 import HowItWorks from './HowItWorks';
 import FeatureBento from './FeatureBento';
 import SriLankaStrip from './SriLankaStrip';
+import DemoShowcase from './DemoShowcase';
 import PricingPreview from './PricingPreview';
 import LandingFaq from './LandingFaq';
 import FinalCta from './FinalCta';
@@ -51,6 +52,7 @@ export default function LandingPage({ canLogin = true, canRegister = false }: Pr
                 <HowItWorks />
                 <FeatureBento host={host} />
                 <SriLankaStrip />
+                <DemoShowcase turnstileSiteKey={(props as any).turnstileSiteKey} />
                 <PricingPreview config={config} />
                 <LandingFaq />
                 <FinalCta getStartedHref={getStartedHref} />

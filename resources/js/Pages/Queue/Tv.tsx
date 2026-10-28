@@ -38,9 +38,13 @@ interface SessionCardData {
     start_time: string;
     end_time: string;
     current_token_number: number | null;
+    current_token_display?: string | null;
+    doctor_token_code?: string;
     now_serving: {
         id: number;
         token_number: number;
+        token_display?: string;
+        doctor_token_code?: string;
         patient_name: string | null;
         status: string;
         called_at: number | null;
@@ -52,6 +56,8 @@ interface SessionCardData {
     next_in_line: Array<{
         id: number;
         token_number: number;
+        token_display?: string;
+        doctor_token_code?: string;
         patient_name: string | null;
         status: string;
         estimated_time: string;
@@ -128,6 +134,8 @@ export default function QueueTv({
     // Calling Overlay & Audio
     const [callingOverlay, setCallingOverlay] = useState<{
         token_number: number;
+        token_display?: string;
+        doctor_token_code?: string;
         room_number: string;
         doctor_name: string;
         patient_name?: string | null;
@@ -277,20 +285,21 @@ export default function QueueTv({
     };
 
     // 6. Web Speech Synthesis Announcement
-    const playSpeechAnnouncement = (tokenNum: number, roomStr: string) => {
+    const playSpeechAnnouncement = (tokenNum: number | string, roomStr: string) => {
         if (!settings.voice_language || settings.voice_language === 'off') return;
         if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
 
         try {
             window.speechSynthesis.cancel();
-            let text = `Token ${tokenNum}, please proceed to ${roomStr}`;
+            const cleanTokenVoice = typeof tokenNum === 'string' ? tokenNum.replace('-', ' ') : tokenNum;
+            let text = `Token ${cleanTokenVoice}, please proceed to ${roomStr}`;
             let langCode = 'en-US';
 
             if (settings.voice_language === 'ta') {
-                text = `டோக்கன் எண் ${tokenNum}, ${roomStr}`;
+                text = `டோக்கன் எண் ${cleanTokenVoice}, ${roomStr}`;
                 langCode = 'ta-LK';
             } else if (settings.voice_language === 'si') {
-                text = `ටෝකන් අංක ${tokenNum}, ${roomStr}`;
+                text = `ටෝකන් අංක ${cleanTokenVoice}, ${roomStr}`;
                 langCode = 'si-LK';
             }
 
@@ -321,10 +330,14 @@ export default function QueueTv({
         doctorName: string,
         patientName?: string | null,
         doctorColor?: string,
-        sessionId?: number
+        sessionId?: number,
+        tokenDisplay?: string,
+        doctorTokenCode?: string
     ) => {
         setCallingOverlay({
             token_number: tokenNumber,
+            token_display: tokenDisplay,
+            doctor_token_code: doctorTokenCode,
             room_number: roomNumber,
             doctor_name: doctorName,
             patient_name: patientName,
@@ -337,13 +350,33 @@ export default function QueueTv({
         }
 
         playChime();
-        playSpeechAnnouncement(tokenNumber, roomNumber);
+        playSpeechAnnouncement(tokenDisplay || tokenNumber, roomNumber);
 
         // Hide overlay after 5 seconds
         setTimeout(() => {
             setCallingOverlay(null);
         }, 5000);
     };
+
+    // Allow external dispatch (e.g. from tests or browser automation)
+    useEffect(() => {
+        const handleCallingEvent = (e: any) => {
+            if (e?.detail) {
+                triggerCallingAnimation(
+                    e.detail.tokenNumber || 1,
+                    e.detail.roomNumber || 'Room 2',
+                    e.detail.doctorName || 'Dr. Sivanujan Thanarasan',
+                    e.detail.patientName || 'Kavitha S.',
+                    e.detail.doctorColor || '#1E6FD9',
+                    e.detail.sessionId,
+                    e.detail.tokenDisplay || 'SV-01',
+                    e.detail.doctorTokenCode || 'SV'
+                );
+            }
+        };
+        window.addEventListener('trigger-tv-calling-animation', handleCallingEvent);
+        return () => window.removeEventListener('trigger-tv-calling-animation', handleCallingEvent);
+    }, []);
 
     // 8. Polling & Sync Mechanism
     const refreshData = async () => {
@@ -369,7 +402,9 @@ export default function QueueTv({
                                 sess.now_serving.doctor_name,
                                 sess.now_serving.patient_name,
                                 sess.now_serving.doctor_color,
-                                sess.id
+                                sess.id,
+                                sess.now_serving.token_display,
+                                sess.doctor_token_code
                             );
                         }
                         lastCalledTokenKeyRef.current = key;
@@ -740,8 +775,8 @@ export default function QueueTv({
 
                         {/* Huge Token Number */}
                         <div className="py-2">
-                            <div className="text-[18vw] sm:text-[14vw] font-mono font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-slate-100 to-slate-300 drop-shadow-2xl leading-none">
-                                #{callingOverlay.token_number}
+                            <div className="text-[14vw] sm:text-[11vw] font-mono font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-slate-100 to-slate-300 drop-shadow-2xl leading-none">
+                                #{callingOverlay.token_display || callingOverlay.token_number}
                             </div>
 
                             {callingOverlay.patient_name && (
@@ -759,7 +794,15 @@ export default function QueueTv({
                                 </span>
                             </div>
 
-                            <div className="text-center sm:text-left">
+                            <div className="text-center sm:text-left flex items-center gap-3">
+                                {callingOverlay.doctor_token_code && (
+                                    <span
+                                        className="px-2.5 py-1 rounded-xl text-sm font-mono font-black text-white shrink-0"
+                                        style={{ backgroundColor: callingOverlay.doctor_color || '#1E6FD9' }}
+                                    >
+                                        {callingOverlay.doctor_token_code}
+                                    </span>
+                                )}
                                 <div className="text-lg sm:text-xl font-bold text-white">
                                     {callingOverlay.doctor_name}
                                 </div>
@@ -947,10 +990,10 @@ export default function QueueTv({
                                         <div
                                             className="font-mono font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-[#38BDF8] via-teal-300 to-white leading-none drop-shadow-md"
                                             style={{
-                                                fontSize: 'clamp(5rem, 15vw, 13rem)',
+                                                fontSize: 'clamp(4rem, 12vw, 10rem)',
                                             }}
                                         >
-                                            #{primarySession.now_serving.token_number}
+                                            #{primarySession.now_serving.token_display || primarySession.now_serving.token_number}
                                         </div>
 
                                         {primarySession.now_serving.patient_name && (
@@ -1040,8 +1083,8 @@ export default function QueueTv({
                                                 }`}
                                             >
                                                 <div className="flex items-center gap-3">
-                                                    <span className="w-12 h-12 rounded-xl bg-[#1E6FD9]/15 text-[#38BDF8] font-mono font-black text-xl flex items-center justify-center border border-[#1E6FD9]/30">
-                                                        #{item.token_number}
+                                                    <span className="px-3 h-12 rounded-xl bg-[#1E6FD9]/15 text-[#38BDF8] font-mono font-black text-lg sm:text-xl flex items-center justify-center border border-[#1E6FD9]/30">
+                                                        #{item.token_display || item.token_number}
                                                     </span>
                                                     <div>
                                                         {item.patient_name && (
@@ -1109,16 +1152,27 @@ export default function QueueTv({
                             >
                                 {/* Header: Doctor & Room */}
                                 <div className="flex items-start justify-between pb-3 border-b border-white/10">
-                                    <div>
-                                        <h3 className="text-lg sm:text-xl font-black text-white truncate">
-                                            {session.doctor_name}
-                                        </h3>
-                                        <p className="text-xs text-slate-400">
-                                            {session.doctor_specialty}
-                                        </p>
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                        {session.doctor_token_code && (
+                                            <span
+                                                className="px-2 py-0.5 rounded-lg text-xs font-mono font-black text-white shrink-0"
+                                                style={{ backgroundColor: session.doctor_color || '#1E6FD9' }}
+                                                title="Doctor token prefix"
+                                            >
+                                                {session.doctor_token_code}
+                                            </span>
+                                        )}
+                                        <div className="min-w-0">
+                                            <h3 className="text-lg sm:text-xl font-black text-white truncate">
+                                                {session.doctor_name}
+                                            </h3>
+                                            <p className="text-xs text-slate-400 truncate">
+                                                {session.doctor_specialty}
+                                            </p>
+                                        </div>
                                     </div>
 
-                                    <div className="text-right">
+                                    <div className="text-right shrink-0">
                                         <span className="px-3 py-1 rounded-xl text-xs sm:text-sm font-black bg-[#1E6FD9]/15 text-[#38BDF8] border border-[#1E6FD9]/30">
                                             {session.room_number}
                                         </span>
@@ -1139,9 +1193,9 @@ export default function QueueTv({
                                             <div>
                                                 <div
                                                     className="font-mono font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-slate-300 drop-shadow-md leading-none"
-                                                    style={{ fontSize: 'clamp(3rem, 6vw, 5.5rem)' }}
+                                                    style={{ fontSize: 'clamp(2.5rem, 5vw, 4.5rem)' }}
                                                 >
-                                                    #{session.now_serving.token_number}
+                                                    #{session.now_serving.token_display || session.now_serving.token_number}
                                                 </div>
                                                 {session.now_serving.patient_name && (
                                                     <div className="text-sm font-bold text-white mt-1 truncate">
@@ -1168,7 +1222,7 @@ export default function QueueTv({
                                                         key={t.id}
                                                         className="px-2.5 py-1 rounded-xl bg-white/10 font-mono font-bold text-xs sm:text-sm text-[#38BDF8]"
                                                     >
-                                                        #{t.token_number}
+                                                        #{t.token_display || t.token_number}
                                                     </span>
                                                 ))
                                             ) : (
@@ -1219,11 +1273,20 @@ export default function QueueTv({
                                                     : 'hover:bg-white/[0.02]'
                                             }`}
                                         >
-                                            <div className="col-span-4 flex items-center gap-3">
-                                                <span
-                                                    className="w-2.5 h-8 rounded-full shrink-0"
-                                                    style={{ backgroundColor: session.doctor_color || '#1E6FD9' }}
-                                                />
+                                            <div className="col-span-4 flex items-center gap-2.5">
+                                                {session.doctor_token_code ? (
+                                                    <span
+                                                        className="px-2 py-0.5 rounded-lg text-xs font-mono font-black text-white shrink-0"
+                                                        style={{ backgroundColor: session.doctor_color || '#1E6FD9' }}
+                                                    >
+                                                        {session.doctor_token_code}
+                                                    </span>
+                                                ) : (
+                                                    <span
+                                                        className="w-2.5 h-8 rounded-full shrink-0"
+                                                        style={{ backgroundColor: session.doctor_color || '#1E6FD9' }}
+                                                    />
+                                                )}
                                                 <div className="truncate">
                                                     <span className="font-extrabold text-base sm:text-lg text-white block truncate">
                                                         {session.doctor_name}
@@ -1246,8 +1309,8 @@ export default function QueueTv({
                                                         Short Break
                                                     </span>
                                                 ) : session.now_serving ? (
-                                                    <span className="font-mono font-black text-2xl sm:text-3xl text-emerald-400">
-                                                        #{session.now_serving.token_number}
+                                                    <span className="font-mono font-black text-xl sm:text-2xl text-emerald-400">
+                                                        #{session.now_serving.token_display || session.now_serving.token_number}
                                                     </span>
                                                 ) : (
                                                     <span className="text-xs text-slate-400 font-medium">
@@ -1264,7 +1327,7 @@ export default function QueueTv({
                                                                 key={t.id}
                                                                 className="px-2 py-0.5 rounded-lg bg-white/10 font-mono text-xs font-bold text-slate-300"
                                                             >
-                                                                #{t.token_number}
+                                                                #{t.token_display || t.token_number}
                                                             </span>
                                                         ))
                                                     ) : (

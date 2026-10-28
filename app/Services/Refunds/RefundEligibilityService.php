@@ -10,6 +10,7 @@ use App\Models\PlatformIncident;
 use App\Models\RefundRequest;
 use App\Models\Subscription;
 use App\Models\SubscriptionInvoice;
+use App\Models\TemplatePurchase;
 use Carbon\Carbon;
 
 class RefundEligibilityService
@@ -145,6 +146,9 @@ class RefundEligibilityService
 
             case RefundRequest::REASON_DOWNTIME:
                 return $this->evaluateDowntime($payment, $tenantId, $invoice, $asOf, $maxAllowed, $checks);
+
+            case RefundRequest::REASON_TEMPLATE_PURCHASE:
+                return $this->evaluateTemplatePurchase($payment, $invoice, $maxAllowed, $asOf, $checks);
 
             case RefundRequest::REASON_OTHER:
             default:
@@ -539,6 +543,121 @@ class RefundEligibilityService
             'eligible_amount_cents' => 0, // Admin sets approved amount
             'max_allowed_cents' => $maxAllowed,
             'reason_summary' => 'Custom refund request will be reviewed by platform administration per our Dispute Policy.',
+            'checks' => $checks,
+        ];
+    }
+
+    /**
+     * Option A Refund Rule for Website Template Purchases:
+     * Full refund within 7 calendar days of purchase ONLY if the template has NOT been published to the live site.
+     * After live publishing, it is non-refundable.
+     * Duplicate charges and billing errors still apply as usual.
+     * Free/plan-included templates are not refundable (nothing was paid).
+     *
+     * @param  array<int, mixed>  $checks
+     * @return array{eligibility: string, eligible_amount_cents: int, max_allowed_cents: int, reason_summary: string, checks: array<int, mixed>}
+     */
+    public function evaluateTemplatePurchase(
+        PaymentTransaction $payment,
+        ?SubscriptionInvoice $invoice,
+        int $maxAllowed,
+        ?Carbon $asOf = null,
+        array $checks = []
+    ): array {
+        $asOf = $asOf ?? Carbon::now('Asia/Colombo');
+        $paidAt = $invoice?->paid_at ?? $payment->created_at;
+
+        // Check 1: Find linked template purchase
+        $purchase = TemplatePurchase::where('payment_transaction_id', $payment->id)
+            ->orWhere('invoice_id', $invoice?->id)
+            ->first();
+
+        $isTemplatePurchase = $purchase !== null || ($invoice && $invoice->type === SubscriptionInvoice::TYPE_TEMPLATE_PURCHASE);
+
+        $checks[] = [
+            'code' => 'is_template_purchase',
+            'name' => 'Template Purchase Verification',
+            'passed' => $isTemplatePurchase,
+            'message' => $isTemplatePurchase ? 'Payment corresponds to a website template purchase.' : 'This payment is not a website template purchase.',
+            'evidence' => [
+                'purchase_id' => $purchase?->id,
+                'invoice_type' => $invoice?->type,
+            ],
+        ];
+
+        if (! $isTemplatePurchase) {
+            return [
+                'eligibility' => RefundRequest::ELIGIBILITY_NOT_ELIGIBLE,
+                'eligible_amount_cents' => 0,
+                'max_allowed_cents' => $maxAllowed,
+                'reason_summary' => 'This payment is not for a website template purchase.',
+                'checks' => $checks,
+            ];
+        }
+
+        // Check 2: Plan-included / Free check
+        $isPlanIncluded = $purchase && $purchase->source === TemplatePurchase::SOURCE_PLAN_INCLUDED;
+        $checks[] = [
+            'code' => 'paid_purchase_not_free',
+            'name' => 'Paid Purchase Verification',
+            'passed' => ! $isPlanIncluded,
+            'message' => ! $isPlanIncluded ? 'Template was purchased as a paid transaction.' : 'Templates included free with a plan are not refundable.',
+            'evidence' => ['source' => $purchase?->source],
+        ];
+
+        if ($isPlanIncluded) {
+            return [
+                'eligibility' => RefundRequest::ELIGIBILITY_NOT_ELIGIBLE,
+                'eligible_amount_cents' => 0,
+                'max_allowed_cents' => $maxAllowed,
+                'reason_summary' => 'Templates included free with a plan are not refundable.',
+                'checks' => $checks,
+            ];
+        }
+
+        // Check 3: 7 calendar days boundary
+        $daysSincePayment = $paidAt ? $paidAt->diffInDays($asOf) : 999;
+        $isWithin7Days = $daysSincePayment <= 7;
+        $checks[] = [
+            'code' => 'within_7_days',
+            'name' => 'Requested Within 7 Calendar Days',
+            'passed' => $isWithin7Days,
+            'message' => $isWithin7Days
+                ? "Request is within 7 days of purchase ({$daysSincePayment} days elapsed)."
+                : "Request is past the 7-day refund window ({$daysSincePayment} days elapsed).",
+            'evidence' => [
+                'paid_at' => $paidAt?->toIso8601String(),
+                'as_of' => $asOf->toIso8601String(),
+                'days_elapsed' => $daysSincePayment,
+            ],
+        ];
+
+        // Check 4: Never published to live site
+        $isPublished = $purchase ? $purchase->isEverPublished() : false;
+        $checks[] = [
+            'code' => 'never_published_to_live',
+            'name' => 'Template Never Published to Live Site',
+            'passed' => ! $isPublished,
+            'message' => ! $isPublished
+                ? 'Template has never been published to the live public site.'
+                : 'Template was published to the live website on '.($purchase?->first_published_at?->format('M d, Y') ?? 'record').' and is therefore non-refundable.',
+            'evidence' => [
+                'first_published_at' => $purchase?->first_published_at?->toIso8601String(),
+                'is_published' => $isPublished,
+            ],
+        ];
+
+        $isEligible = $isWithin7Days && ! $isPublished;
+
+        return [
+            'eligibility' => $isEligible ? RefundRequest::ELIGIBILITY_ELIGIBLE : RefundRequest::ELIGIBILITY_NOT_ELIGIBLE,
+            'eligible_amount_cents' => $isEligible ? min($payment->amount_cents, $maxAllowed) : 0,
+            'max_allowed_cents' => $maxAllowed,
+            'reason_summary' => $isEligible
+                ? 'Eligible for full refund: template was purchased within 7 days and has never been published to the live website.'
+                : (! $isWithin7Days
+                    ? 'Non-refundable: template purchase was made more than 7 calendar days ago.'
+                    : 'Non-refundable: template has already been published to your live clinic website.'),
             'checks' => $checks,
         ];
     }

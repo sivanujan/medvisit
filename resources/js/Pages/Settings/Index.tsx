@@ -81,6 +81,7 @@ export default function SettingsCentre({
         default_max_tokens: sessionDefaults.default_max_tokens,
         cancellation_window_hours: sessionDefaults.cancellation_window_hours,
         auto_generate_days: sessionDefaults.auto_generate_days,
+        token_number_format: sessionDefaults.token_number_format || 'with_doctor_code',
     });
 
     // 3. Billing Form

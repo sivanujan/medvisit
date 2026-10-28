@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Support\TokenHelper;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -18,6 +19,7 @@ class DoctorSession extends Model
     protected $fillable = [
         'tenant_id',
         'doctor_id',
+        'doctor_token_code',
         'session_template_id',
         'session_date',
         'start_time',
@@ -38,6 +40,30 @@ class DoctorSession extends Model
         'notes',
         'cancellation_reason',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (DoctorSession $session) {
+            if (empty($session->doctor_token_code) && $session->doctor_id) {
+                $doctor = $session->doctor ?: Doctor::find($session->doctor_id);
+                if ($doctor && ! empty($doctor->token_code)) {
+                    $session->doctor_token_code = $doctor->token_code;
+                }
+            }
+        });
+    }
+
+    /**
+     * Format a token number for this session's display snapshot.
+     */
+    public function formatToken(int $tokenNumber, ?string $formatOverride = null): string
+    {
+        $tenant = $this->tenant_id ? Tenant::find($this->tenant_id) : (function_exists('tenant') ? tenant() : null);
+        $format = $formatOverride ?? ($tenant ? $tenant->getTokenNumberFormat() : 'with_doctor_code');
+        $code = $this->doctor_token_code ?: $this->doctor?->token_code;
+
+        return TokenHelper::format($tokenNumber, $code, $format);
+    }
 
     protected function casts(): array
     {

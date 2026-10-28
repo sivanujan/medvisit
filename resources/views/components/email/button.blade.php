@@ -16,12 +16,12 @@
             <!--[if mso]>
             <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ $url }}" style="height:48px;v-text-anchor:middle;width:240px;" arcsize="21%" stroke="f" fillcolor="#1E6FD9">
                 <w:anchorlock/>
-                <center style="color:#ffffff;font-family:-apple-system,'Segoe UI',Arial,sans-serif;font-size:15px;font-weight:600;">{{ $text }}</center>
+                <center style="color:#ffffff;font-family:-apple-system,'Segoe UI',Arial,sans-serif;font-size:15px;font-weight:600;">{!! $text !!}</center>
             </v:roundrect>
             <![endif]-->
             <!--[if !mso]><!-- -->
             <a href="{{ $url }}" target="_blank" class="responsive-btn" style="background-color: #1E6FD9; background: #1E6FD9; color: #FFFFFF !important; display: inline-block; font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 15px; font-weight: 600; text-decoration: none; padding: 14px 28px; border-radius: 10px; line-height: 20px; text-align: center; -webkit-text-size-adjust: none; box-sizing: border-box; mso-hide: all;">
-                {{ $text }}
+                {!! $text !!}
             </a>
             <!--<![endif]-->
         </td>

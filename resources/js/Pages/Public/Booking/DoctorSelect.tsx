@@ -28,6 +28,7 @@ interface DoctorItem {
     next_available: string | null;
     avg_consultation_minutes: number;
     direct_url: string;
+    is_demo?: boolean;
 }
 
 interface Props {
@@ -38,6 +39,7 @@ interface Props {
         address: string;
         logo_url?: string;
         whatsapp_number?: string;
+        is_demo?: boolean;
         opening_hours?: string;
         allow_any_doctor?: boolean;
     };
@@ -249,9 +251,16 @@ export default function DoctorSelect({
                                             </div>
                                         )}
                                         <div className="flex-1 min-w-0">
-                                            <h3 className="text-base font-extrabold text-slate-900 truncate group-hover:text-teal-700 transition-colors">
-                                                {doc.full_title}
-                                            </h3>
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="text-base font-extrabold text-slate-900 truncate group-hover:text-teal-700 transition-colors">
+                                                    {doc.full_title}
+                                                </h3>
+                                                {(doc.is_demo || (doc.slmc_number && doc.slmc_number.includes('DEMO')) || clinic.is_demo) && (
+                                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-700 border border-amber-500/30 shrink-0">
+                                                        Demo doctor
+                                                    </span>
+                                                )}
+                                            </div>
                                             <p className="text-xs font-bold text-teal-700 mt-0.5">
                                                 {doc.specialty}
                                             </p>

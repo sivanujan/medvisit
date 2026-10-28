@@ -97,17 +97,11 @@ class SubscriptionBillingController extends Controller
             'terms_accepted.accepted' => 'You must accept the Terms and Conditions and Refund Policy to proceed.',
         ]);
 
-        $subscription = $tenant->subscription;
-        if (! $subscription) {
-            abort(404, 'Subscription record not found.');
-        }
-
-        // Resolve the selected plan from config (single source of truth)
+        $selectedPlanSlug = (string) $request->input('plan_slug', 'pro');
         $plansConfig = config('medvisit_public.plans');
         if (empty($plansConfig) || ! is_array($plansConfig)) {
             throw new \RuntimeException("Plan configuration 'medvisit_public.plans' is missing.");
         }
-        $selectedPlanSlug = (string) $request->input('plan_slug', 'pro');
         if (! isset($plansConfig[$selectedPlanSlug])) {
             throw new \RuntimeException("Requested plan [{$selectedPlanSlug}] is not defined in config('medvisit_public.plans').");
         }
@@ -117,6 +111,16 @@ class SubscriptionBillingController extends Controller
             throw new \RuntimeException("Unable to initialize plan [{$selectedPlanSlug}] from canonical config.");
         }
         $planPriceCents = (int) $plansConfig[$selectedPlanSlug]['price_cents'];
+
+        $subscription = $tenant->subscription;
+        if (! $subscription) {
+            $subscription = Subscription::create([
+                'tenant_id' => $tenant->id,
+                'plan_id' => $plan->id,
+                'status' => Subscription::STATUS_PENDING_PAYMENT,
+                'trial_ends_at' => $tenant->trial_ends_at,
+            ]);
+        }
 
         $now = Carbon::now();
         $termsVersion = (string) config('medvisit_public.policies.terms_version', '2026-10-21');
@@ -149,7 +153,9 @@ class SubscriptionBillingController extends Controller
         }
 
         $successUrl = route('tenant.subscription.return');
-        $cancelUrl = route('tenant.subscription.subscribe', ['status' => 'cancelled']);
+        $cancelUrl = $request->boolean('from_suspended') || $request->input('return_to_suspended')
+            ? route('tenant.suspended', ['status' => 'cancelled'])
+            : route('tenant.subscription.subscribe', ['status' => 'cancelled']);
         $idempotencyKey = "inv-chk-{$invoice->invoice_number}-{$tenant->id}-".time();
 
         try {

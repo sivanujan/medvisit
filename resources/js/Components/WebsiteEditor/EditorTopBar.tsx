@@ -10,6 +10,7 @@ import {
     AlertCircle,
     CheckCircle2,
     LayoutTemplate,
+    Sparkles,
 } from 'lucide-react';
 import type { SiteStatus, SaveState } from './useWebsiteDraft';
 import QrCodeModal from './QrCodeModal';
@@ -166,6 +167,18 @@ export default function EditorTopBar({
                         >
                             <LayoutTemplate className="h-3.5 w-3.5" />
                             <span className="hidden md:inline">MedVisit</span> Page Builder
+                        </a>
+
+                        {/* Premium Templates button */}
+                        <a
+                            href="/website/templates/serene/preview"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-500/30 dark:border-amber-500/40 bg-amber-500/10 dark:bg-amber-500/20 text-xs font-semibold text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 transition shadow-xs"
+                            title="Browse premium website templates"
+                        >
+                            <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                            <span>Templates</span>
                         </a>
 
                         {/* Preview button (opens /preview in new tab) */}

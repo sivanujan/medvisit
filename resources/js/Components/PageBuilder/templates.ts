@@ -7,10 +7,107 @@ export interface TemplateTenant {
     logo_url?: string | null;
 }
 
-export const PAGE_TEMPLATES: { key: string; label: string }[] = [
-    { key: 'modern-clinic', label: 'Modern Clinic' },
-    { key: 'specialist-center', label: 'Specialist Center' },
-    { key: 'family-practice', label: 'Family Practice' },
+export interface PageTemplateItem {
+    key: string;
+    label: string;
+    tagline: string;
+    tier: 'free' | 'premium';
+    price_lkr: string;
+    price_cents: number;
+    badge: string;
+    category: string;
+    accent_color: string;
+}
+
+export const PAGE_TEMPLATES: PageTemplateItem[] = [
+    {
+        key: 'serene',
+        label: 'Serene Medical Center',
+        tagline: 'Calm, airy elegance with floating cards and soft teal accents',
+        tier: 'premium',
+        price_lkr: 'Free Preview',
+        price_cents: 0,
+        badge: 'Under Dev',
+        category: 'General & Wellness',
+        accent_color: '#0E9E8F',
+    },
+    {
+        key: 'specialist',
+        label: 'Specialist Hospital Suite',
+        tagline: 'Commanding dark hero with interactive doctor grid & chamber booking',
+        tier: 'premium',
+        price_lkr: 'Free Preview',
+        price_cents: 0,
+        badge: 'Under Dev',
+        category: 'Hospital & Specialists',
+        accent_color: '#7C3AED',
+    },
+    {
+        key: 'family-care',
+        label: 'Family Care & Pediatric',
+        tagline: 'Friendly, community-first with warm honey accents & child health',
+        tier: 'premium',
+        price_lkr: 'Free Preview',
+        price_cents: 0,
+        badge: 'Under Dev',
+        category: 'Family & Pediatrics',
+        accent_color: '#D97706',
+    },
+    {
+        key: 'heritage',
+        label: 'Heritage Ayurvedic & Wellness',
+        tagline: 'Botanical serenity with deep green and gold tones for holistic care',
+        tier: 'premium',
+        price_lkr: 'Free Preview',
+        price_cents: 0,
+        badge: 'Under Dev',
+        category: 'Ayurveda & Holistic',
+        accent_color: '#15803D',
+    },
+    {
+        key: 'dental-eye',
+        label: 'Dental & Vision Specialty',
+        tagline: 'Crisp clinical precision with procedure comparison pricing',
+        tier: 'premium',
+        price_lkr: 'Free Preview',
+        price_cents: 0,
+        badge: 'Under Dev',
+        category: 'Dental & Optical',
+        accent_color: '#0284C7',
+    },
+    {
+        key: 'modern-clinic',
+        label: 'MedVisit Teal Standard',
+        tagline: 'Standard clinical clarity & trusted medical tone',
+        tier: 'free',
+        price_lkr: 'Free',
+        price_cents: 0,
+        badge: 'Free Preset',
+        category: 'General Clinic',
+        accent_color: '#0E9E8F',
+    },
+    {
+        key: 'specialist-center',
+        label: 'Royal Specialist Classic',
+        tagline: 'Chamber channeling and consultant directory',
+        tier: 'free',
+        price_lkr: 'Free',
+        price_cents: 0,
+        badge: 'Free Preset',
+        category: 'Specialists',
+        accent_color: '#7C3AED',
+    },
+    {
+        key: 'family-practice',
+        label: 'Emerald Family Health',
+        tagline: 'Community primary care with vaccination and clinic hours',
+        tier: 'free',
+        price_lkr: 'Free',
+        price_cents: 0,
+        badge: 'Free Preset',
+        category: 'Primary Care',
+        accent_color: '#059669',
+    },
 ];
 
 export function getTemplateHtml(templateId: string, tenant: TemplateTenant): string {
@@ -64,7 +161,201 @@ export function getTemplateHtml(templateId: string, tenant: TemplateTenant): str
         `;
     }
 
-    if (templateId === 'specialist-center') {
+    if (templateId === 'serene') {
+        return `
+            <!-- Serene Medical Center Header -->
+            <header style="background: #ffffff; border-bottom: 1px solid #e0f2fe; padding: 18px 24px; position: sticky; top: 0; z-index: 100;">
+                <div style="max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        ${
+                            tenant.logo_url
+                                ? `<img src="${tenant.logo_url}" alt="${tenant.name}" style="height: 40px; border-radius: 10px;" />`
+                                : `<div style="width: 42px; height: 42px; border-radius: 12px; background: linear-gradient(135deg, #0E9E8F 0%, #14b8a6 100%); color: white; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 20px; box-shadow: 0 4px 12px rgba(14, 158, 143, 0.25);">${tenant.name.charAt(0)}</div>`
+                        }
+                        <div>
+                            <span style="font-size: 1.25rem; font-weight: 800; color: #0f172a; display: block; line-height: 1.2;">${tenant.name}</span>
+                            <span style="font-size: 0.75rem; color: #0E9E8F; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;">Wellness &amp; Medical Center</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 18px;">
+                        <span style="color: #64748b; font-size: 0.85rem; font-weight: 600;">Desk: ${tenant.phone || '070 129 1688'}</span>
+                        <a href="/book" style="background: #0E9E8F; color: #ffffff; padding: 12px 24px; border-radius: 12px; font-size: 0.9rem; font-weight: 700; text-decoration: none; box-shadow: 0 4px 14px rgba(14, 158, 143, 0.35);">
+                            Reserve Token →
+                        </a>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Serene Hero Section -->
+            <section class="medvisit-section" style="background: linear-gradient(180deg, #f0fdfa 0%, #ffffff 100%); padding: 90px 20px; text-align: center;">
+                <div class="medvisit-container" style="max-width: 1000px; margin: 0 auto;">
+                    <span style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 20px; background: #ccfbf1; color: #0f766e; border-radius: 9999px; font-size: 0.8rem; font-weight: 700; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(15, 118, 110, 0.1);">
+                        🌿 Peaceful Atmosphere • Real-Time Waiting Room Queue
+                    </span>
+                    <h1 style="font-size: 3.5rem; font-weight: 800; color: #0f172a; line-height: 1.15; margin: 0 auto 24px auto; letter-spacing: -0.02em;">
+                        Calm, Mindful Healthcare for You and Your Loved Ones
+                    </h1>
+                    <p style="font-size: 1.25rem; color: #475569; line-height: 1.7; max-width: 750px; margin: 0 auto 40px auto;">
+                        Experience stress-free consultations with live token updates. Arrive at your exact appointment time without crowded waiting rooms.
+                    </p>
+                    <div style="display: flex; justify-content: center; gap: 16px; flex-wrap: wrap;">
+                        <a href="/book" style="background: #0E9E8F; color: #ffffff; padding: 16px 40px; border-radius: 14px; font-size: 1.05rem; font-weight: 700; text-decoration: none; box-shadow: 0 8px 24px rgba(14, 158, 143, 0.35);">
+                            Book Consultation Online
+                        </a>
+                        <a href="#services" style="background: #ffffff; color: #334155; border: 1px solid #cbd5e1; padding: 16px 32px; border-radius: 14px; font-size: 1.05rem; font-weight: 700; text-decoration: none; box-shadow: 0 2px 6px rgba(0,0,0,0.05);">
+                            View Services
+                        </a>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Floating Highlights Bento -->
+            <section class="medvisit-section" style="padding: 20px 20px 80px 20px; background: #ffffff;">
+                <div class="medvisit-container" style="max-width: 1200px; margin: 0 auto;">
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;">
+                        <div style="padding: 32px; border-radius: 24px; background: #f0fdfa; border: 1px solid #ccfbf1; box-shadow: 0 10px 30px rgba(14, 158, 143, 0.06);">
+                            <div style="font-size: 2rem; margin-bottom: 12px;">⏱️</div>
+                            <h3 style="font-size: 1.3rem; font-weight: 800; color: #0f172a; margin: 0 0 8px 0;">Zero Waiting Lounge Delay</h3>
+                            <p style="color: #64748b; font-size: 0.95rem; line-height: 1.6; margin: 0;">Live SMS and mobile screen updates tell you exactly when your doctor begins consultation.</p>
+                        </div>
+                        <div style="padding: 32px; border-radius: 24px; background: #f8fafc; border: 1px solid #e2e8f0; box-shadow: 0 10px 30px rgba(0,0,0,0.03);">
+                            <div style="font-size: 2rem; margin-bottom: 12px;">🩺</div>
+                            <h3 style="font-size: 1.3rem; font-weight: 800; color: #0f172a; margin: 0 0 8px 0;">SLMC Senior Specialists</h3>
+                            <p style="color: #64748b; font-size: 0.95rem; line-height: 1.6; margin: 0;">Access certified physicians, pediatricians, cardiologists, and gynecologists under one roof.</p>
+                        </div>
+                        <div style="padding: 32px; border-radius: 24px; background: #f0fdfa; border: 1px solid #ccfbf1; box-shadow: 0 10px 30px rgba(14, 158, 143, 0.06);">
+                            <div style="font-size: 2rem; margin-bottom: 12px;">💊</div>
+                            <h3 style="font-size: 1.3rem; font-weight: 800; color: #0f172a; margin: 0 0 8px 0;">Integrated In-House Pharmacy</h3>
+                            <p style="color: #64748b; font-size: 0.95rem; line-height: 1.6; margin: 0;">Digital prescriptions sent directly to the counter so your medicines are ready upon exit.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Footer -->
+            <footer style="background: #0f172a; color: #94a3b8; padding: 60px 20px 30px 20px; font-size: 0.9rem;">
+                <div style="max-width: 1200px; margin: 0 auto; text-align: center;">
+                    <h3 style="color: #ffffff; font-size: 1.3rem; font-weight: 700; margin: 0 0 10px 0;">${tenant.name}</h3>
+                    <p style="margin: 0 0 16px 0; color: #94a3b8;">${tenant.address || 'Colombo, Sri Lanka'} • Tel: ${tenant.phone || '070 129 1688'}</p>
+                    <p style="font-size: 0.8rem; color: #64748b; margin: 0;">© ${new Date().getFullYear()} ${tenant.name}. Powered by MedVisit.</p>
+                </div>
+            </footer>
+        `;
+    }
+
+    if (templateId === 'heritage') {
+        return `
+            <!-- Heritage Ayurvedic Header -->
+            <header style="background: #14532d; border-bottom: 1px solid #166534; padding: 18px 24px; position: sticky; top: 0; z-index: 100;">
+                <div style="max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        ${
+                            tenant.logo_url
+                                ? `<img src="${tenant.logo_url}" alt="${tenant.name}" style="height: 40px; border-radius: 10px;" />`
+                                : `<div style="width: 42px; height: 42px; border-radius: 12px; background: #d97706; color: white; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 20px;">${tenant.name.charAt(0)}</div>`
+                        }
+                        <div>
+                            <span style="font-size: 1.25rem; font-weight: 800; color: #ffffff; display: block; line-height: 1.2;">${tenant.name}</span>
+                            <span style="font-size: 0.75rem; color: #fde047; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;">Ayurvedic &amp; Holistic Wellness Sanctuary</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 18px;">
+                        <span style="color: #bbf7d0; font-size: 0.85rem; font-weight: 600;">Sanctuary Desk: ${tenant.phone || '070 129 1688'}</span>
+                        <a href="/book" style="background: #d97706; color: #ffffff; padding: 12px 24px; border-radius: 12px; font-size: 0.9rem; font-weight: 700; text-decoration: none;">
+                            Book Veda Consultation →
+                        </a>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Heritage Hero -->
+            <section class="medvisit-section" style="background: linear-gradient(180deg, #14532d 0%, #166534 60%, #15803d 100%); padding: 90px 20px; color: #ffffff; text-align: center;">
+                <div class="medvisit-container" style="max-width: 1000px; margin: 0 auto;">
+                    <span style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 20px; background: rgba(253, 224, 71, 0.15); border: 1px solid rgba(253, 224, 71, 0.4); color: #fef08a; border-radius: 9999px; font-size: 0.8rem; font-weight: 700; margin-bottom: 24px;">
+                        🌿 Traditional Sri Lankan Healing Arts &amp; Modern Pulse Diagnosis
+                    </span>
+                    <h1 style="font-size: 3.5rem; font-weight: 800; color: #ffffff; line-height: 1.15; margin: 0 auto 24px auto;">
+                        Ancient Wisdom for Modern Vitality
+                    </h1>
+                    <p style="font-size: 1.25rem; color: #bbf7d0; line-height: 1.7; max-width: 750px; margin: 0 auto 40px auto;">
+                        Personalized herbal therapies, Panchakarma rejuvenation, and authentic Ayurvedic doctor channeling in a serene setting.
+                    </p>
+                    <div style="display: flex; justify-content: center; gap: 16px; flex-wrap: wrap;">
+                        <a href="/book" style="background: #d97706; color: #ffffff; padding: 16px 40px; border-radius: 14px; font-size: 1.05rem; font-weight: 700; text-decoration: none; box-shadow: 0 8px 24px rgba(217, 119, 6, 0.4);">
+                            Reserve Doctor Session
+                        </a>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Footer -->
+            <footer style="background: #052e16; color: #86efac; padding: 60px 20px 30px 20px; font-size: 0.9rem; text-align: center;">
+                <div style="max-width: 1200px; margin: 0 auto;">
+                    <h3 style="color: #ffffff; font-size: 1.3rem; font-weight: 700; margin: 0 0 10px 0;">${tenant.name}</h3>
+                    <p style="margin: 0 0 16px 0; color: #86efac;">${tenant.address || 'Sri Lanka'} • Hotline: ${tenant.phone || '070 129 1688'}</p>
+                    <p style="font-size: 0.8rem; color: #4ade80; margin: 0;">© ${new Date().getFullYear()} ${tenant.name}. Powered by MedVisit.</p>
+                </div>
+            </footer>
+        `;
+    }
+
+    if (templateId === 'dental-eye') {
+        return `
+            <!-- Dental & Eye Specialty Header -->
+            <header style="background: #ffffff; border-bottom: 1px solid #e2e8f0; padding: 18px 24px; position: sticky; top: 0; z-index: 100;">
+                <div style="max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        ${
+                            tenant.logo_url
+                                ? `<img src="${tenant.logo_url}" alt="${tenant.name}" style="height: 40px; border-radius: 10px;" />`
+                                : `<div style="width: 42px; height: 42px; border-radius: 12px; background: #0284c7; color: white; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 20px;">${tenant.name.charAt(0)}</div>`
+                        }
+                        <div>
+                            <span style="font-size: 1.25rem; font-weight: 800; color: #0f172a; display: block; line-height: 1.2;">${tenant.name}</span>
+                            <span style="font-size: 0.75rem; color: #0284c7; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;">Dental Surgery &amp; Eye Specialty Care</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 18px;">
+                        <span style="color: #64748b; font-size: 0.85rem; font-weight: 600;">Desk: ${tenant.phone || '070 129 1688'}</span>
+                        <a href="/book" style="background: #0284c7; color: #ffffff; padding: 12px 24px; border-radius: 12px; font-size: 0.9rem; font-weight: 700; text-decoration: none;">
+                            Book Specialist Visit →
+                        </a>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Dental & Eye Hero -->
+            <section class="medvisit-section" style="background: linear-gradient(180deg, #f0f9ff 0%, #ffffff 100%); padding: 90px 20px; text-align: center;">
+                <div class="medvisit-container" style="max-width: 1000px; margin: 0 auto;">
+                    <span style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 20px; background: #e0f2fe; color: #0369a1; border-radius: 9999px; font-size: 0.8rem; font-weight: 700; margin-bottom: 24px;">
+                        ✦ Precision Laser Diagnostics • Pain-Free Dentistry • Optical Channeling
+                    </span>
+                    <h1 style="font-size: 3.5rem; font-weight: 800; color: #0f172a; line-height: 1.15; margin: 0 auto 24px auto;">
+                        Crisp Vision &amp; Confident Smiles
+                    </h1>
+                    <p style="font-size: 1.25rem; color: #475569; line-height: 1.7; max-width: 750px; margin: 0 auto 40px auto;">
+                        Advanced orthodontic alignment, digital dental imaging, refractive eye examinations, and surgeon-led outpatient care.
+                    </p>
+                    <div style="display: flex; justify-content: center; gap: 16px; flex-wrap: wrap;">
+                        <a href="/book" style="background: #0284c7; color: #ffffff; padding: 16px 40px; border-radius: 14px; font-size: 1.05rem; font-weight: 700; text-decoration: none; box-shadow: 0 8px 24px rgba(2, 132, 199, 0.35);">
+                            Reserve Chair Appointment
+                        </a>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Footer -->
+            <footer style="background: #0f172a; color: #94a3b8; padding: 60px 20px 30px 20px; font-size: 0.9rem; text-align: center;">
+                <div style="max-width: 1200px; margin: 0 auto;">
+                    <h3 style="color: #ffffff; font-size: 1.3rem; font-weight: 700; margin: 0 0 10px 0;">${tenant.name}</h3>
+                    <p style="margin: 0 0 16px 0;">${tenant.address || 'Colombo, Sri Lanka'} • Tel: ${tenant.phone || '070 129 1688'}</p>
+                    <p style="font-size: 0.8rem; color: #64748b; margin: 0;">© ${new Date().getFullYear()} ${tenant.name}. Powered by MedVisit.</p>
+                </div>
+            </footer>
+        `;
+    }
+
+    if (templateId === 'specialist' || templateId === 'specialist-center') {
         return `
             <!-- Specialist Suites Header -->
             <header style="background: #0f172a; border-bottom: 1px solid #1e293b; padding: 16px 24px; position: sticky; top: 0; z-index: 100;">
@@ -81,7 +372,7 @@ export function getTemplateHtml(templateId: string, tenant: TemplateTenant): str
                         </div>
                     </div>
                     <div style="display: flex; align-items: center; gap: 20px;">
-                        <span style="color: #cbd5e1; font-size: 0.85rem; font-weight: 600;">Direct Channeling: ${tenant.phone || '+94 11 234 5678'}</span>
+                        <span style="color: #cbd5e1; font-size: 0.85rem; font-weight: 600;">Direct Channeling: ${tenant.phone || '070 129 1688'}</span>
                         <a href="/book" style="background: #7C3AED; color: #ffffff; padding: 12px 24px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; text-decoration: none; box-shadow: 0 4px 14px rgba(124, 58, 237, 0.4);">
                             Book Consultant Chamber →
                         </a>
@@ -160,7 +451,7 @@ export function getTemplateHtml(templateId: string, tenant: TemplateTenant): str
                     <div>
                         <h3 style="color: #ffffff; font-size: 1.15rem; font-weight: 700; margin: 0 0 12px 0;">${tenant.name}</h3>
                         <p style="line-height: 1.6; margin: 0 0 16px 0;">${tenant.address || 'Specialist Hospital Suites, Colombo, Sri Lanka'}</p>
-                        <p style="margin: 0;">Hotline: <strong style="color: #ffffff;">${tenant.phone || '+94 11 234 5678'}</strong></p>
+                        <p style="margin: 0;">Hotline: <strong style="color: #ffffff;">${tenant.phone || '070 129 1688'}</strong></p>
                     </div>
                     <div>
                         <h4 style="color: #ffffff; font-size: 1rem; font-weight: 700; margin: 0 0 12px 0;">Consultant Hours</h4>
@@ -181,7 +472,7 @@ export function getTemplateHtml(templateId: string, tenant: TemplateTenant): str
         `;
     }
 
-    if (templateId === 'family-practice') {
+    if (templateId === 'family-care' || templateId === 'family-practice') {
         return `
             <!-- Family Practice Header -->
             <header style="background: #ffffff; border-bottom: 1px solid #e2e8f0; padding: 16px 24px; position: sticky; top: 0; z-index: 100;">
@@ -198,7 +489,7 @@ export function getTemplateHtml(templateId: string, tenant: TemplateTenant): str
                         </div>
                     </div>
                     <div style="display: flex; align-items: center; gap: 16px;">
-                        <span style="color: #475569; font-size: 0.85rem; font-weight: 600;">Clinic Hotline: ${tenant.phone || '+94 11 234 5678'}</span>
+                        <span style="color: #475569; font-size: 0.85rem; font-weight: 600;">Clinic Hotline: ${tenant.phone || '070 129 1688'}</span>
                         <a href="/book" style="background: #059669; color: #ffffff; padding: 10px 22px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; text-decoration: none; box-shadow: 0 4px 10px rgba(5, 150, 105, 0.25);">
                             Book Appointment
                         </a>
@@ -276,7 +567,7 @@ export function getTemplateHtml(templateId: string, tenant: TemplateTenant): str
             <footer style="background: #0f172a; color: #94a3b8; padding: 50px 20px 30px 20px; font-size: 0.9rem;">
                 <div style="max-width: 1200px; margin: 0 auto; text-align: center;">
                     <h3 style="color: #ffffff; font-size: 1.2rem; font-weight: 700; margin: 0 0 8px 0;">${tenant.name}</h3>
-                    <p style="margin: 0 0 16px 0;">${tenant.address || 'Colombo, Sri Lanka'} • Tel: ${tenant.phone || '+94 11 234 5678'}</p>
+                    <p style="margin: 0 0 16px 0;">${tenant.address || 'Colombo, Sri Lanka'} • Tel: ${tenant.phone || '070 129 1688'}</p>
                     <p style="font-size: 0.8rem; color: #64748b; margin: 0;">© ${new Date().getFullYear()} ${tenant.name}. Powered by MedVisit.</p>
                 </div>
             </footer>
@@ -300,7 +591,7 @@ export function getTemplateHtml(templateId: string, tenant: TemplateTenant): str
                     </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 16px;">
-                    <span style="color: #475569; font-size: 0.85rem; font-weight: 600;">Hotline: ${tenant.phone || '+94 11 234 5678'}</span>
+                    <span style="color: #475569; font-size: 0.85rem; font-weight: 600;">Hotline: ${tenant.phone || '070 129 1688'}</span>
                     <a href="/book" style="background: #0E9E8F; color: #ffffff; padding: 10px 20px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; text-decoration: none; box-shadow: 0 4px 10px rgba(14, 158, 143, 0.25);">
                         Book Token Online
                     </a>
@@ -430,7 +721,7 @@ export function getTemplateHtml(templateId: string, tenant: TemplateTenant): str
                 <div>
                     <h3 style="color: #ffffff; font-size: 1.15rem; font-weight: 700; margin: 0 0 12px 0;">${tenant.name}</h3>
                     <p style="line-height: 1.6; margin: 0 0 16px 0;">${tenant.address || 'Colombo, Sri Lanka'}</p>
-                    <p style="margin: 0;">Hotline: <strong style="color: #ffffff;">${tenant.phone || '+94 11 234 5678'}</strong></p>
+                    <p style="margin: 0;">Hotline: <strong style="color: #ffffff;">${tenant.phone || '070 129 1688'}</strong></p>
                 </div>
                 <div>
                     <h4 style="color: #ffffff; font-size: 1rem; font-weight: 700; margin: 0 0 12px 0;">Clinical Hours</h4>

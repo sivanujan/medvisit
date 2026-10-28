@@ -20,7 +20,8 @@ class BookingCancelledMail extends MedVisitMailable
         $resolvedClinicName = $clinicName ?? $tenant?->name ?? 'Clinic';
         $this->withClinicBrand($tenant, $resolvedClinicName, $tenant?->email ?? null);
         $this->tenantId = $tenant?->id ?? $token->tenant_id;
-        $this->preheaderText = "Your channeling token #{$this->token->token_number} at {$resolvedClinicName} has been cancelled.";
+        $displayToken = $this->token->display_token;
+        $this->preheaderText = "Your channeling token #{$displayToken} at {$resolvedClinicName} has been cancelled.";
     }
 
     public function senderType(): MailSenderType
@@ -36,8 +37,9 @@ class BookingCancelledMail extends MedVisitMailable
     public function subjectLine(): string
     {
         $clinic = $this->onBehalfOfClinicName ?? 'Clinic';
+        $displayToken = $this->token->display_token;
 
-        return "Appointment Cancelled: Token #{$this->token->token_number} — {$clinic}";
+        return "Appointment Cancelled: Token #{$displayToken} — {$clinic}";
     }
 
     public function htmlView(): string
@@ -61,7 +63,8 @@ class BookingCancelledMail extends MedVisitMailable
         $rebookUrl = "https://{$subdomain}.{$baseDomain}/book";
 
         return [
-            'tokenNumber' => $this->token->token_number,
+            'tokenNumber' => $this->token->display_token,
+            'tokenRawNumber' => $this->token->token_number,
             'reason' => $this->reason ?? ($this->token->cancellation_reason ?? 'Cancelled per patient or doctor request'),
             'patientName' => $this->token->patient?->name ?? 'Patient',
             'doctorName' => trim(($doctor?->title ?? 'Dr.').' '.($doctor?->name ?? 'Doctor')),

@@ -21,7 +21,8 @@ class BookingTokenMovedMail extends MedVisitMailable
         $resolvedClinicName = $clinicName ?? $tenant?->name ?? 'Clinic';
         $this->withClinicBrand($tenant, $resolvedClinicName, $tenant?->email ?? null);
         $this->tenantId = $tenant?->id ?? $token->tenant_id;
-        $this->preheaderText = "Your channeling token has been updated to #{$this->token->token_number} at {$resolvedClinicName}.";
+        $displayToken = $this->token->display_token;
+        $this->preheaderText = "Your channeling token has been updated to #{$displayToken} at {$resolvedClinicName}.";
     }
 
     public function senderType(): MailSenderType
@@ -37,8 +38,9 @@ class BookingTokenMovedMail extends MedVisitMailable
     public function subjectLine(): string
     {
         $clinic = $this->onBehalfOfClinicName ?? 'Clinic';
+        $displayToken = $this->token->display_token;
 
-        return "Token Updated: #{$this->oldTokenNumber} \u{2192} #{$this->token->token_number} — {$clinic}";
+        return "Token Updated: #{$this->oldTokenNumber} \u{2192} #{$displayToken} — {$clinic}";
     }
 
     public function htmlView(): string
@@ -67,7 +69,8 @@ class BookingTokenMovedMail extends MedVisitMailable
             : 'https://www.google.com/maps/search/?api=1&query='.urlencode($this->onBehalfOfClinicName ?? 'Sri Lanka Clinic');
 
         return [
-            'newTokenNumber' => $this->token->token_number,
+            'newTokenNumber' => $this->token->display_token,
+            'newTokenRawNumber' => $this->token->token_number,
             'oldTokenNumber' => $this->oldTokenNumber,
             'reason' => $this->reason ?? 'Schedule optimization or patient request',
             'patientName' => $this->token->patient?->name ?? 'Patient',

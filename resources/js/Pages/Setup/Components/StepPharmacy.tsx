@@ -32,6 +32,12 @@ export default function StepPharmacy({
 }: Props) {
     const allowsPharmacy = tenant.plan_allows_pharmacy;
 
+    React.useEffect(() => {
+        if (!allowsPharmacy && form.pharmacy_enabled) {
+            onChange('pharmacy_enabled', false);
+        }
+    }, [allowsPharmacy, form.pharmacy_enabled, onChange]);
+
     return (
         <div className="space-y-6">
             {/* Header */}
@@ -81,7 +87,7 @@ export default function StepPharmacy({
 
                     <div className="pt-1">
                         <a
-                            href="/billing"
+                            href="/settings/billing"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 text-white shadow-xs hover:bg-amber-600 transition-colors"

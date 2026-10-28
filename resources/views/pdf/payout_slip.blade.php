@@ -124,7 +124,7 @@
             <td style="vertical-align: top;">
                 <h1 class="clinic-name">{{ $clinic->name ?? 'MedVisit Medical Clinic' }}</h1>
                 <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
-                    {{ $clinic->address ?? 'Colombo, Sri Lanka' }} | Tel: {{ $clinic->phone ?? '+94 11 234 5678' }}
+                    {{ $clinic->address ?? 'Colombo, Sri Lanka' }} | Tel: {{ $clinic->phone ?? config('medvisit_public.business.phone_display', '070 129 1688') }}
                 </div>
             </td>
             <td class="doc-badge" style="vertical-align: top;">
@@ -175,7 +175,7 @@
                 <tr>
                     <td style="font-family: monospace;">{{ $item->bill?->receipt_number ?? ('REC-' . $item->bill_id) }}</td>
                     <td>{{ $item->bill?->patient?->name ?? 'Walk-in Patient' }}</td>
-                    <td>#{{ $item->bill?->token?->token_number ?? '—' }}</td>
+                    <td>#{{ $item->bill?->token?->display_token ?? $item->bill?->token?->token_number ?? '—' }}</td>
                     <td style="text-align: right;">LKR {{ number_format($item->consultation_fee_cents / 100, 2) }}</td>
                     <td style="text-align: right; font-weight: 700; color: #0E9E8F;">LKR {{ number_format($item->doctor_share_cents / 100, 2) }}</td>
                 </tr>

@@ -14,6 +14,7 @@ class EnsureSubscriptionActive
      * Routes explicitly permitted when subscription is inactive or pending payment.
      */
     protected array $allowedRouteNames = [
+        'tenant.suspended',
         'tenant.billing.subscribe',
         'tenant.billing.checkout',
         'tenant.billing.return',
@@ -39,8 +40,8 @@ class EnsureSubscriptionActive
         $tenant = tenant();
         $user = $request->user();
 
-        // 1. If not in a tenant context, or user is a super admin, allow through
-        if (! $tenant || ($user && $user->hasRole('super_admin'))) {
+        // 1. If not in a tenant context, or user is a super admin, or demo sandbox tenant, allow through
+        if (! $tenant || ($user && $user->hasRole('super_admin')) || (bool) $tenant->is_demo) {
             return $next($request);
         }
 
@@ -79,6 +80,7 @@ class EnsureSubscriptionActive
         }
 
         $adminBillingRoutes = [
+            'tenant.suspended',
             'tenant.subscription.subscribe',
             'tenant.subscription.checkout',
             'tenant.subscription.return',

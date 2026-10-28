@@ -60,7 +60,9 @@ class TodayQueueController extends Controller
                 'end_time' => Carbon::parse($s->end_time)->format('h:i A'),
                 'room_number' => $s->room_number ?? 'Room 1',
                 'status' => $s->status,
+                'doctor_token_code' => $s->doctor_token_code ?: $s->doctor?->token_code,
                 'current_token_number' => $s->current_token_number,
+                'current_token_display' => $s->current_token_number > 0 ? $s->formatToken($s->current_token_number) : null,
                 'max_tokens' => $s->max_tokens,
                 'booked_tokens_count' => $s->tokens()->whereNotIn('status', ['cancelled'])->count(),
             ];
@@ -133,6 +135,7 @@ class TodayQueueController extends Controller
                 return [
                     'id' => $t->id,
                     'token_number' => $t->token_number,
+                    'token_display' => $t->display_token,
                     'patient_id' => $t->patient_id,
                     'patient_name' => $t->patient?->name ?? 'Walk-in Patient',
                     'patient_phone' => $rawPhone ?: '—',
@@ -198,6 +201,7 @@ class TodayQueueController extends Controller
                 $nowServingToken = [
                     'id' => $nowServingModel->id,
                     'token_number' => $nowServingModel->token_number,
+                    'token_display' => $activeSessionModel->formatToken($nowServingModel->token_number),
                     'patient_name' => $nowServingModel->patient?->name ?? 'Patient',
                     'patient_phone' => $rawPhone ?: '—',
                     'patient_phone_masked' => $maskPhone($rawPhone),
@@ -219,6 +223,7 @@ class TodayQueueController extends Controller
             })->take(3)->map(fn ($t) => [
                 'id' => $t->id,
                 'token_number' => $t->token_number,
+                'token_display' => $activeSessionModel->formatToken($t->token_number),
                 'patient_name' => $t->patient?->name ?? 'Patient',
                 'status' => $t->status,
                 'estimated_time' => $t->estimated_time ? Carbon::parse($t->estimated_time)->format('h:i A') : '',
@@ -229,11 +234,13 @@ class TodayQueueController extends Controller
                 'doctor_id' => $activeSessionModel->doctor_id,
                 'doctor_name' => $this->formatDoctorName($activeSessionModel->doctor),
                 'doctor_specialty' => $activeSessionModel->doctor?->specialty ?? 'General',
+                'doctor_token_code' => $activeSessionModel->doctor_token_code ?: $activeSessionModel->doctor?->token_code,
                 'start_time' => Carbon::parse($activeSessionModel->start_time)->format('h:i A'),
                 'end_time' => Carbon::parse($activeSessionModel->end_time)->format('h:i A'),
                 'room_number' => $activeSessionModel->room_number ?? 'Consultation Suite',
                 'status' => $activeSessionModel->status,
                 'current_token_number' => $activeSessionModel->current_token_number,
+                'current_token_display' => $activeSessionModel->current_token_number > 0 ? $activeSessionModel->formatToken($activeSessionModel->current_token_number) : null,
                 'max_tokens' => $activeSessionModel->max_tokens,
                 'fee_formatted' => 'Rs. '.number_format(($activeSessionModel->doctor_fee + $activeSessionModel->clinic_fee) / 100, 2),
                 'average_consult_minutes' => $avgConsultMinutes,
@@ -312,7 +319,7 @@ class TodayQueueController extends Controller
             'checked_in_at' => now(),
         ]);
 
-        return redirect()->back()->with('success', "Patient {$token->patient?->name} (Token #{$token->token_number}) checked in.");
+        return redirect()->back()->with('success', "Patient {$token->patient?->name} (Token #{$token->display_token}) checked in.");
     }
 
     /**
@@ -350,7 +357,9 @@ class TodayQueueController extends Controller
             'status' => 'in_progress',
         ]);
 
-        return redirect()->back()->with('success', "Now Calling Token #{$nextToken->token_number} ({$nextToken->patient?->name}) to {$session->room_number}.");
+        $tokenDisplay = $session->formatToken($nextToken->token_number);
+
+        return redirect()->back()->with('success', "Now Calling Token #{$tokenDisplay} ({$nextToken->patient?->name}) to {$session->room_number}.");
     }
 
     /**
@@ -371,7 +380,9 @@ class TodayQueueController extends Controller
             'called_at' => now(),
         ]);
 
-        return redirect()->back()->with('success', "Recalled Token #{$currentToken->token_number}. Audio chime sent to waiting room TV.");
+        $tokenDisplay = $session->formatToken($currentToken->token_number);
+
+        return redirect()->back()->with('success', "Recalled Token #{$tokenDisplay}. Audio chime sent to waiting room TV.");
     }
 
     /**
@@ -392,7 +403,9 @@ class TodayQueueController extends Controller
             'status' => BookingToken::STATUS_SKIPPED,
         ]);
 
-        return redirect()->back()->with('info', "Token #{$currentToken->token_number} ({$currentToken->patient?->name}) skipped.");
+        $tokenDisplay = $session->formatToken($currentToken->token_number);
+
+        return redirect()->back()->with('info', "Token #{$tokenDisplay} ({$currentToken->patient?->name}) skipped.");
     }
 
     /**
@@ -413,7 +426,9 @@ class TodayQueueController extends Controller
             'status' => BookingToken::STATUS_IN_CONSULTATION,
         ]);
 
-        return redirect()->back()->with('success', "Consultation started with Token #{$currentToken->token_number}.");
+        $tokenDisplay = $session->formatToken($currentToken->token_number);
+
+        return redirect()->back()->with('success', "Consultation started with Token #{$tokenDisplay}.");
     }
 
     /**
@@ -435,7 +450,9 @@ class TodayQueueController extends Controller
             'completed_at' => now(),
         ]);
 
-        return redirect()->back()->with('success', "Consultation for Token #{$currentToken->token_number} completed.");
+        $tokenDisplay = $session->formatToken($currentToken->token_number);
+
+        return redirect()->back()->with('success', "Consultation for Token #{$tokenDisplay} completed.");
     }
 
     /**
@@ -485,7 +502,9 @@ class TodayQueueController extends Controller
             'status' => 'in_progress',
         ]);
 
-        return redirect()->back()->with('success', "Consultation finished. Now Calling Token #{$nextToken->token_number} ({$nextToken->patient?->name}).");
+        $tokenDisplay = $session->formatToken($nextToken->token_number);
+
+        return redirect()->back()->with('success', "Consultation finished. Now Calling Token #{$tokenDisplay} ({$nextToken->patient?->name}).");
     }
 
     /**
@@ -497,7 +516,7 @@ class TodayQueueController extends Controller
             'status' => BookingToken::STATUS_NO_SHOW,
         ]);
 
-        return redirect()->back()->with('info', "Token #{$token->token_number} marked as No-Show.");
+        return redirect()->back()->with('info', "Token #{$token->display_token} marked as No-Show.");
     }
 
     /**
@@ -593,7 +612,7 @@ class TodayQueueController extends Controller
             'status' => 'in_progress',
         ]);
 
-        return redirect()->back()->with('success', "Now Calling Token #{$token->token_number} ({$token->patient?->name}).");
+        return redirect()->back()->with('success', "Now Calling Token #{$token->display_token} ({$token->patient?->name}).");
     }
 
     /**
@@ -607,7 +626,7 @@ class TodayQueueController extends Controller
             'status' => $newStatus,
         ]);
 
-        return redirect()->back()->with('success', "Token #{$token->token_number} restored to queue.");
+        return redirect()->back()->with('success', "Token #{$token->display_token} restored to queue.");
     }
 
     /**

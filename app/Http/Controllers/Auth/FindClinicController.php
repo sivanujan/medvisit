@@ -45,8 +45,13 @@ class FindClinicController extends Controller
         ]);
 
         $subdomain = (string) $request->input('subdomain');
-        $tenant = Tenant::where('subdomain', $subdomain)
-            ->orWhere('id', $subdomain)
+        $demoTenantId = config('demo.tenant_id', 'demo');
+
+        $tenant = Tenant::where(function ($q) use ($subdomain) {
+            $q->where('subdomain', $subdomain)->orWhere('id', $subdomain);
+        })
+            ->where('is_demo', false)
+            ->where('id', '!=', $demoTenantId)
             ->first();
 
         if (! $tenant) {
@@ -68,9 +73,14 @@ class FindClinicController extends Controller
         ]);
 
         $email = Str::lower(trim($request->input('email')));
+        $demoTenantId = config('demo.tenant_id', 'demo');
 
         $users = User::where('email', $email)
             ->whereNotNull('tenant_id')
+            ->whereHas('tenant', function ($t) use ($demoTenantId) {
+                $t->where('is_demo', false)
+                    ->where('id', '!=', $demoTenantId);
+            })
             ->with('tenant')
             ->get()
             ->filter(fn (User $u) => $u->tenant !== null)

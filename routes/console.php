@@ -47,3 +47,15 @@ Schedule::command('medvisit:check-refund-slas')
     ->dailyAt('08:00')
     ->before(fn () => SchedulerHeartbeat::updateOrCreate(['command' => 'medvisit:check-refund-slas'], ['last_started_at' => now()]))
     ->after(fn () => SchedulerHeartbeat::updateOrCreate(['command' => 'medvisit:check-refund-slas'], ['last_finished_at' => now(), 'status' => 'success']));
+
+// Public Demo Sandbox nightly reset (03:00 Asia/Colombo)
+Schedule::command('demo:reset')
+    ->dailyAt('03:00')
+    ->timezone('Asia/Colombo')
+    ->before(fn () => SchedulerHeartbeat::updateOrCreate(['command' => 'demo:reset'], ['last_started_at' => now()]))
+    ->after(fn () => SchedulerHeartbeat::updateOrCreate(['command' => 'demo:reset'], ['last_finished_at' => now(), 'status' => 'success']));
+
+// Public Demo Sandbox hourly session shifter (keeps waiting room and TV live 24/7)
+Schedule::command('demo:refresh-today')
+    ->hourly()
+    ->timezone('Asia/Colombo');
