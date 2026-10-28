@@ -14,6 +14,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Testing\Fakes\NotificationFake;
 use Spatie\Permission\Traits\HasRoles;
@@ -36,7 +37,26 @@ class User extends Authenticatable implements MustVerifyEmail
         'password',
         'email_verified_at',
         'is_active',
+        'avatar_path',
+        'avatar_url',
     ];
+
+    /**
+     * Get the user's avatar URL.
+     */
+    public function getAvatarUrlAttribute(): ?string
+    {
+        if (! empty($this->attributes['avatar_url'])) {
+            return $this->attributes['avatar_url'];
+        }
+        if (! empty($this->attributes['avatar_path'])) {
+            $disk = config('filesystems.media_disk', env('MEDIA_DISK', 'public'));
+
+            return Storage::disk($disk)->url($this->attributes['avatar_path']).'?v='.($this->updated_at?->timestamp ?? time());
+        }
+
+        return null;
+    }
 
     /**
      * The attributes that should be hidden for serialization.
@@ -59,6 +79,10 @@ class User extends Authenticatable implements MustVerifyEmail
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'two_factor_recovery_codes' => 'array',
+            'two_factor_confirmed_at' => 'datetime',
+            'mute_announcement_emails' => 'boolean',
+            'last_login_at' => 'datetime',
         ];
     }
 

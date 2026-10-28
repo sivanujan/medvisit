@@ -1,45 +1,26 @@
-@extends('emails.layouts.medvisit', [
-    'subject' => 'Verify your email address - MedVisit',
-    'previewText' => 'Please confirm your email address to activate your MedVisit account.',
-    'reason' => $reason,
+@extends('emails.layouts.base', [
+    'subject' => 'Verify your email address — MedVisit',
+    'preheader' => 'Please confirm your email address to activate your MedVisit account.',
 ])
 
 @section('content')
-    <h1 style="margin: 0 0 16px 0; font-size: 22px; font-weight: 700; color: #0F172A; line-height: 28px;">
-        Verify your email address
-    </h1>
+    <x-email.heading>Verify your email address</x-email.heading>
 
-    <p style="margin: 0 0 16px 0; font-size: 15px; color: #334155; line-height: 24px;">
+    <x-email.text>
         Hello {{ $name }},
-    </p>
+    </x-email.text>
 
-    <p style="margin: 0 0 24px 0; font-size: 15px; color: #334155; line-height: 24px;">
-        Thank you for joining MedVisit. To complete your setup and ensure secure access to your healthcare portal, please verify your email address by clicking the button below.
-    </p>
+    <x-email.text>
+        Thank you for creating an account on MedVisit. To confirm your identity and ensure secure access to your clinical dashboard, please verify your email address below:
+    </x-email.text>
 
-    <div style="text-align: center; margin: 32px 0;">
-        <!--[if mso]>
-        <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ $verificationUrl }}" style="height:48px;v-text-anchor:middle;width:240px;" arcsize="17%" stroke="f" fillcolor="#1E6FD9">
-        <w:anchorlock/>
-        <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">Verify Email Address</center>
-        </v:roundrect>
-        <![endif]-->
-        <a href="{{ $verificationUrl }}" 
-           class="btn-primary responsive-btn" 
-           target="_blank" 
-           style="background-color: #1E6FD9; color: #FFFFFF; display: inline-block; font-size: 16px; font-weight: 600; text-decoration: none; padding: 14px 32px; border-radius: 8px; box-shadow: 0 2px 4px rgba(30, 111, 217, 0.25);">
-            Verify Email Address
-        </a>
-    </div>
+    <x-email.button :url="$verificationUrl" align="left">
+        Verify Email Address &rarr;
+    </x-email.button>
 
-    <p style="margin: 0 0 16px 0; font-size: 13px; color: #64748B; line-height: 20px;">
-        This verification link will expire in 60 minutes. If you did not create an account on MedVisit, no further action is required.
-    </p>
+    <x-email.alert type="info">
+        <strong>Security Notice:</strong> This verification link will expire in 60 minutes. If you did not create an account on MedVisit, no further action is required.
+    </x-email.alert>
 
-    <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 24px 0;" />
-
-    <p style="margin: 0; font-size: 12px; color: #94A3B8; line-height: 18px; word-break: break-all;">
-        If you are having trouble clicking the button, copy and paste the following URL into your browser:<br>
-        <a href="{{ $verificationUrl }}" style="color: #1E6FD9;">{{ $verificationUrl }}</a>
-    </p>
+    <x-email.signature />
 @endsection

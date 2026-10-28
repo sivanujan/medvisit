@@ -1,12 +1,12 @@
 Hello {{ $name }},
 
-Thank you for joining MedVisit. To complete your setup and ensure secure access to your healthcare portal, please verify your email address by visiting this link:
+Thank you for joining MedVisit. To complete your setup and ensure secure access, please verify your email address using the link below:
 
 {{ $verificationUrl }}
 
-This verification link will expire in 60 minutes. If you did not create an account on MedVisit, please ignore this email.
+This link expires in 60 minutes. If you did not create this account, you can safely ignore this email.
 
 ---
-MedVisit, Sri Lanka
+MedVisit · Clinic management for Sri Lanka
 Support: {{ config('medvisit.mail.reply_to.address', 'support@medvisit.lk') }}
-{{ $reason }}
+© {{ date('Y') }} MedVisit. All rights reserved.

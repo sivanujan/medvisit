@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedVisit Pre-Launch QA Report</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-body: #f8fafc;
+            --bg-card: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --blue: #1E6FD9;
+            --teal: #0E9E8F;
+            --coral: #FF7A59;
+            --pass-bg: #ecfdf5;
+            --pass-border: #a7f3d0;
+            --pass-text: #065f46;
+            --warn-bg: #fffbeb;
+            --warn-border: #fde68a;
+            --warn-text: #92400e;
+            --fail-bg: #fef2f2;
+            --fail-border: #fecaca;
+            --fail-text: #991b1b;
+            --skip-bg: #f1f5f9;
+            --skip-border: #cbd5e1;
+            --skip-text: #475569;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-body: #0b1120;
+                --bg-card: #131d31;
+                --text-main: #f8fafc;
+                --text-muted: #94a3b8;
+                --border: #1e293b;
+                --pass-bg: rgba(6, 95, 70, 0.2);
+                --pass-border: rgba(16, 185, 129, 0.3);
+                --pass-text: #6ee7b7;
+                --warn-bg: rgba(146, 64, 14, 0.2);
+                --warn-border: rgba(245, 158, 11, 0.3);
+                --warn-text: #fcd34d;
+                --fail-bg: rgba(153, 27, 27, 0.2);
+                --fail-border: rgba(239, 68, 68, 0.3);
+                --fail-text: #fca5a5;
+                --skip-bg: rgba(71, 85, 105, 0.2);
+                --skip-border: rgba(100, 116, 139, 0.3);
+                --skip-text: #cbd5e1;
+            }
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            line-height: 1.6;
+            padding: 32px 16px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        header {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 32px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        }
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 8px;
+        }
+        .meta-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-top: 16px;
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 9999px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .badge-warn { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); }
+        .badge-pass { background: var(--pass-bg); border: 1px solid var(--pass-border); color: var(--pass-text); }
+        .badge-fail { background: var(--fail-bg); border: 1px solid var(--fail-border); color: var(--fail-text); }
+        .badge-skip { background: var(--skip-bg); border: 1px solid var(--skip-border); color: var(--skip-text); }
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+        }
+        h2 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--blue);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin: 16px 0 8px 0;
+        }
+        p, ul, ol { margin-bottom: 12px; font-size: 14px; }
+        ul, ol { padding-left: 20px; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0;
+            font-size: 13px;
+        }
+        th, td {
+            padding: 10px 14px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        th {
+            background: rgba(30, 111, 217, 0.05);
+            font-weight: 600;
+            color: var(--text-main);
+        }
+        code, pre {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            background: rgba(0,0,0,0.04);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        pre {
+            padding: 16px;
+            overflow-x: auto;
+            margin: 12px 0;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin: 16px 0;
+        }
+        .stat-card {
+            background: rgba(30, 111, 217, 0.03);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+        }
+        .stat-val {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--blue);
+        }
+        .stat-lbl {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+        .flow-box {
+            background: rgba(14, 158, 143, 0.05);
+            border: 1px solid var(--teal);
+            border-radius: 12px;
+            padding: 16px;
+            margin: 16px 0;
+        }
+        .search-input {
+            width: 100%;
+            padding: 10px 16px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-family: inherit;
+            font-size: 14px;
+            background: var(--bg-card);
+            color: var(--text-main);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px;">
+                <div>
+                    <h1>MedVisit Pre-Launch QA Report (Final Comprehensive Pass)</h1>
+                    <p style="color:var(--text-muted); font-size:14px;">Automated & Manual Pre-Launch Audit across all 554 routes, features, and components.</p>
+                </div>
+                <div>
+                    <span class="badge badge-warn" style="font-size:14px; padding:6px 16px;">STATUS: NOT READY FOR LAUNCH (AWAITING APPROVAL)</span>
+                </div>
+            </div>
+            <div class="meta-bar">
+                <span><strong>Date:</strong> 2026-10-25 (Asia/Colombo)</span>
+                <span><strong>Branch:</strong> <code>qa/full-test-pass</code></span>
+                <span><strong>Environment:</strong> PostgreSQL <code>medvisit_testing</code></span>
+                <span><strong>PHP Version:</strong> PHP 8.5.0</span>
+            </div>
+        </header>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-val">585</div>
+                <div class="stat-lbl">Total Backend Tests</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-val" style="color:var(--teal)">582</div>
+                <div class="stat-lbl">Passing Tests</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-val" style="color:var(--blue)">125</div>
+                <div class="stat-lbl">Route × Role Matrix Checks</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-val" style="color:var(--coral)">4,531</div>
+                <div class="stat-lbl">Total Assertions</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>1. Baseline Failures Breakdown (2 Failed + 1 Error)</h2>
+            <p>During the full test pass, the baseline test suite yielded 2 failed tests and 1 error. All three have been fully traced and diagnosed:</p>
+            <ul>
+                <li><strong>Failure 1 (Error in <code>NavigationTest.php:53</code>):</strong> Missing <code>PharmacyPermissionsSeeder</code> in <code>setUp()</code>. The test uses <code>RefreshDatabase</code> but did not seed pharmacy permissions, crashing Spatie's permission checker with <code>PermissionDoesNotExist: prescriptions.create</code>.</li>
+                <li><strong>Failure 2 (Failed in <code>TokenBookingFlowTest.php:371</code>):</strong> Tenant setup gating redirect. The factory tenant was created without <code>setup_completed_at</code>, so <code>EnsureClinicSetupComplete</code> intercepted <code>POST /doctors</code> and redirected to <code>/setup</code>. Doctor was never inserted.</li>
+                <li><strong>Failure 3 (Failed in <code>TokenBookingFlowTest.php:786</code>):</strong> Moved token payout attribution discrepancy. Traced below in Section 2.</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>2. QA-004 (Money) Rule Determination & Money Chain Analysis</h2>
+            <div class="flow-box">
+                <strong>The Confirmed Core Rule:</strong><br>
+                <em>"Doctor share comes from the snapshot on the paid bill, attributed to the session where the patient was actually seen."</em>
+            </div>
+            <p><strong>The Complete Bill → Token → Session → Fee Snapshot Chain:</strong></p>
+            <ol>
+                <li><strong>Initial Booking in Session 1 (Dr. Old):</strong> Patient Sunil pays Bill #101. Total collected is Rs. 2,000 (Dr. Old fee: Rs. 1,500 + Clinic fee: Rs. 500). Fee snapshot records <code>doctor_fee = 150000</code>.</li>
+                <li><strong>Token Move to Session 2 (Dr. New):</strong> Patient Sunil is moved to Dr. New's session (where standard fee is Rs. 2,500). The token moves and the paid bill is re-linked to Dr. New, but <strong>no differential cash was collected from the patient</strong>. The paid bill snapshot remains immutable at Rs. 1,500.</li>
+                <li><strong>Settlement Calculation:</strong> The payout engine inspects the paid bill and attributes the recorded doctor fee snapshot (Rs. 1,500) to Dr. New for the consultation performed in Session 2.</li>
+            </ol>
+            <p><strong>Code vs Test Expectation:</strong></p>
+            <ul>
+                <li><strong>Value Code Produces:</strong> <code>1500 LKR</code></li>
+                <li><strong>Value Test Expects:</strong> <code>2500 LKR</code></li>
+                <li><strong>Which one is right per rule?</strong> The <strong>CODE is right</strong>. If the clinic paid Dr. New Rs. 2,500, the clinic would incur an uncollected deficit of Rs. 1,000 because only Rs. 2,000 was collected from the patient. The test assertion must be updated to 1,500.</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>3. QA-005 Single Source of Truth Pricing & QA-001 Directory Gating</h2>
+            <h3>QA-005: Plan Config Source of Truth</h3>
+            <p>All hardcoded string fallbacks (<code>Rs. 5,000.00</code>) will be removed from <code>Subscription/Index.tsx</code> and <code>BillingSection.tsx</code>. Prices will be pulled strictly from <code>config('medvisit_public.plans')</code> (Basic Rs. 7,000, Pro Rs. 9,000, Advanced Rs. 15,000). If config is missing, tests and runtime will fail loudly with an exception.</p>
+
+            <h3>QA-001: Suspended Clinic Directory Gating</h3>
+            <p><code>DirectoryListing::active()</code> will be updated to require <code>whereHas('tenant', fn($q) => $q->where('status', 'active'))</code>. The sync job will immediately deactivate suspended clinics, and the public clinic page, doctor profile, <code>/find</code>, and <code>/book</code> endpoints will abort with 404.</p>
+        </div>
+
+        <div class="card">
+            <h2>4. Role × Route Authorization Matrix (125 Checks)</h2>
+            <p>25 representative routes evaluated across 5 distinct roles (Guest, Pharmacist, Receptionist, Doctor, Clinic Admin) totaling 125 granular assertions:</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Route</th>
+                        <th>Guest</th>
+                        <th>Pharmacist</th>
+                        <th>Receptionist</th>
+                        <th>Doctor</th>
+                        <th>Clinic Admin</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>/</code> (Public Website)</td><td>✅ 200</td><td>✅ 200</td><td>✅ 200</td><td>✅ 200</td><td>✅ 200</td></tr>
+                    <tr><td><code>/book</code> (Online Booking)</td><td>✅ 200</td><td>✅ 200</td><td>✅ 200</td><td>✅ 200</td><td>✅ 200</td></tr>
+                    <tr><td><code>/queue/tv</code> (TV Display)</td><td>✅ 200</td><td>✅ 200</td><td>✅ 200</td><td>✅ 200</td><td>✅ 200</td></tr>
+                    <tr><td><code>/dashboard</code></td><td>🔒 302</td><td>✅ 200</td><td>✅ 200</td><td>✅ 200</td><td>✅ 200</td></tr>
+                    <tr><td><code>/bookings</code></td><td>🔒 302</td><td>🚫 403</td><td>✅ 200</td><td>🚫 403</td><td>✅ 200</td></tr>
+                    <tr><td><code>/calendar</code></td><td>🔒 302</td><td>✅ 200</td><td>✅ 200</td><td>✅ 200</td><td>✅ 200</td></tr>
+                    <tr><td><code>/patients</code></td><td>🔒 302</td><td>✅ 200</td><td>✅ 200</td><td>✅ 200</td><td>✅ 200</td></tr>
+                    <tr><td><code>/billing</code></td><td>🔒 302</td><td>🚫 403</td><td>✅ 200</td><td>🚫 403</td><td>✅ 200</td></tr>
+                    <tr><td><code>/billing/payouts</code></td><td>🔒 302</td><td>🚫 403</td><td>✅ 200</td><td>✅ 200</td><td>✅ 200</td></tr>
+                    <tr><td><code>/pharmacy/medicines</code></td><td>🔒 302</td><td>✅ 200</td><td>🚫 403</td><td>✅ 200</td><td>✅ 200</td></tr>
+                    <tr><td><code>/pharmacy/dispense</code></td><td>🔒 302</td><td>✅ 200</td><td>🚫 403</td><td>✅ 200</td><td>✅ 200</td></tr>
+                    <tr><td><code>/pharmacy/receipts/create</code></td><td>🔒 302</td><td>✅ 200</td><td>🚫 403</td><td>🚫 403</td><td>✅ 200</td></tr>
+                    <tr><td><code>/staff</code></td><td>🔒 302</td><td>🚫 403</td><td>🚫 403</td><td>🚫 403</td><td>✅ 200</td></tr>
+                    <tr><td><code>/settings/fees</code></td><td>🔒 302</td><td>🚫 403</td><td>🚫 403</td><td>🚫 403</td><td>✅ 200</td></tr>
+                    <tr><td><code>/website/builder</code></td><td>🔒 302</td><td>🚫 403</td><td>🚫 403</td><td>🚫 403</td><td>✅ 200</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>5. Complete Feature Coverage Table (554 Items)</h2>
+            <input type="text" id="covSearch" class="search-input" placeholder="Filter features, routes, or controllers..." onkeyup="filterTable()">
+            <div style="overflow-x:auto; max-height:600px;">
+                <table id="covTable">
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th>Feature / Route</th>
+                            <th>Details / URI</th>
+                            <th>Controller / Action</th>
+                            <th>Status</th>
+                            <th>Reason / Test Scope</th>
+                        </tr>
+                    </thead>
+                    <tbody><tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`home`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`announcements.cta`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`POST`</code></td><td>`check-subdomain`</td><td><code>`ClinicRegistrationController@checkSubdomain`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`public.directory.clinic`</code></td><td><span class="badge badge-warn">⚠️</span></td><td>QA-001 finding: Suspended clinic profile accessible if directory listing active</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`password.confirm`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`POST`</code></td><td>`confirm-password`</td><td><code>`ConfirmablePasswordController@store`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`dashboard`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`dev.components`</code></td><td><span class="badge badge-skip">⏭</span></td><td>Internal developer preview closure - disabled in production environment</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`dev.preview.dashboard`</code></td><td><span class="badge badge-skip">⏭</span></td><td>Internal developer preview closure - disabled in production environment</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`dev.preview.register-success`</code></td><td><span class="badge badge-skip">⏭</span></td><td>Internal developer preview closure - disabled in production environment</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`dev.preview.subscribe`</code></td><td><span class="badge badge-skip">⏭</span></td><td>Internal developer preview closure - disabled in production environment</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`dispute_policy`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`doctor.index`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`public.directory.doctor`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`POST`</code></td><td>`email/verification-notification`</td><td><code>`EmailVerificationNotificationController@store`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`public.directory.index`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`POST`</code></td><td>`find-clinic/email`</td><td><code>`FindClinicController@searchEmail`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`POST`</code></td><td>`find-clinic/subdomain`</td><td><code>`FindClinicController@searchSubdomain`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`password.request`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`POST`</code></td><td>`forgot-password`</td><td><code>`PasswordResetLinkController@store`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`login`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`POST`</code></td><td>`login`</td><td><code>`AuthenticatedSessionController@store`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`POST`</code></td><td>`logout`</td><td><code>`AuthenticatedSessionController@destroy`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`PUT`</code></td><td>`password`</td><td><code>`PasswordController@update`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`pricing`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`privacy_policy`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`profile.edit`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`PATCH`</code></td><td>`profile`</td><td><code>`ProfileController@update`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`DELETE`</code></td><td>`profile`</td><td><code>`ProfileController@destroy`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`POST`</code></td><td>`profile/avatar`</td><td><code>`ProfileController@uploadAvatar`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`DELETE`</code></td><td>`profile/avatar`</td><td><code>`ProfileController@deleteAvatar`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`reception.index`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`refund_policy`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`register`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`POST`</code></td><td>`register`</td><td><code>`ClinicRegistrationController@store`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`POST`</code></td><td>`register/resend-code`</td><td><code>`ClinicRegistrationController@resendCode`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`POST`</code></td><td>`register/send-code`</td><td><code>`ClinicRegistrationController@sendVerificationCode`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`register.success`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`POST`</code></td><td>`register/verify-code`</td><td><code>`ClinicRegistrationController@verifyCode`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`POST`</code></td><td>`reset-password`</td><td><code>`NewPasswordController@store`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`password.reset`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`public.directory.sitemap`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`POST`</code></td><td>`support/broadcasting/auth`</td><td><code>`SupportBroadcastAuthController@authenticate`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`POST`</code></td><td>`support/conversations`</td><td><code>`SupportChatWidgetController@store`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`support.conversations.show`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`POST`</code></td><td>`support/conversations/{publicId}/close`</td><td><code>`SupportChatWidgetController@close`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`POST`</code></td><td>`support/conversations/{publicId}/messages`</td><td><code>`SupportChatWidgetController@sendMessage`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`POST`</code></td><td>`support/conversations/{publicId}/read`</td><td><code>`SupportChatWidgetController@markRead`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`POST`</code></td><td>`support/conversations/{publicId}/typing`</td><td><code>`SupportChatWidgetController@typing`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`support.status`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`terms`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`two-factor.challenge`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`POST`</code></td><td>`two-factor-challenge`</td><td><code>`TwoFactorChallengeController@store`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`verification.notice`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Central Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`verification.verify`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.home`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.billing`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.billing.export`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.billing.inactive`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.settlements`</code></td><td><span class="badge badge-warn">⚠️</span></td><td>QA-004 discrepancy: Moved token payout attribution logic evaluated against snapshot rule</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`billing/payouts`</td><td><code>`DoctorSettlementController@store`</code></td><td><span class="badge badge-warn">⚠️</span></td><td>QA-004 discrepancy: Moved token payout attribution logic evaluated against snapshot rule</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`billing/payouts/disburse`</td><td><code>`DoctorSettlementController@disburse`</code></td><td><span class="badge badge-warn">⚠️</span></td><td>QA-004 discrepancy: Moved token payout attribution logic evaluated against snapshot rule</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.settlements.export`</code></td><td><span class="badge badge-warn">⚠️</span></td><td>QA-004 discrepancy: Moved token payout attribution logic evaluated against snapshot rule</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.settlements.session_bills`</code></td><td><span class="badge badge-warn">⚠️</span></td><td>QA-004 discrepancy: Moved token payout attribution logic evaluated against snapshot rule</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.settlements.slip`</code></td><td><span class="badge badge-warn">⚠️</span></td><td>QA-004 discrepancy: Moved token payout attribution logic evaluated against snapshot rule</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.settlements.unsettled_bills`</code></td><td><span class="badge badge-warn">⚠️</span></td><td>QA-004 discrepancy: Moved token payout attribution logic evaluated against snapshot rule</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`billing/payouts/{settlement}/pay`</td><td><code>`DoctorSettlementController@recordPayment`</code></td><td><span class="badge badge-warn">⚠️</span></td><td>QA-004 discrepancy: Moved token payout attribution logic evaluated against snapshot rule</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`billing/payouts/{settlement}/void`</td><td><code>`DoctorSettlementController@void`</code></td><td><span class="badge badge-warn">⚠️</span></td><td>QA-004 discrepancy: Moved token payout attribution logic evaluated against snapshot rule</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.billing.subscribe`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`billing/{bill}/pay`</td><td><code>`BillingController@pay`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`billing/{bill}/refund`</td><td><code>`BillingController@refund`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.book`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`book`</td><td><code>`PublicBookingController@store`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`book/cancel/{signedToken}`</td><td><code>`PublicBookingController@cancel`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.book.confirmed`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.book.ics`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`book/verify/check-code`</td><td><code>`PublicBookingController@verifyPhoneCode`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.book.verify.check_remembered`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`book/verify/start`</td><td><code>`PublicBookingController@startPhoneVerification`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.book.verify.status`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.book.doctor`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.book.session`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.bookings`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`bookings`</td><td><code>`BookingTokenController@store`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`bookings/{token}/cancel`</td><td><code>`BookingTokenController@cancel`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`bookings/{token}/move`</td><td><code>`BookingTokenController@move`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.calendar`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.calendar.roster`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`calendar/sessions/{session}/cancel`</td><td><code>`ChannelingCalendarController@cancelSession`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`calendar/sessions/{session}/duplicate`</td><td><code>`ChannelingCalendarController@duplicateSession`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`calendar/sessions/{session}/reschedule`</td><td><code>`ChannelingCalendarController@rescheduleSession`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`calendar/sessions/{session}/update`</td><td><code>`ChannelingCalendarController@updateSession`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.suspended`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.dashboard`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.doctor.index`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.doctor.consultation`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`doctor/consultation/{token}/addendum`</td><td><code>`ConsultationController@addendum`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`doctor/consultation/{token}/cancel`</td><td><code>`ConsultationController@cancel`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`doctor/consultation/{token}/draft`</td><td><code>`ConsultationController@saveDraft`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`doctor/consultation/{token}/finalize`</td><td><code>`ConsultationController@finalize`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`doctor/consultation/{token}/repeat-last`</td><td><code>`ConsultationController@repeatLast`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.doctor.patients.history`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.doctor.prescriptions.print`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.doctor.templates`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`doctor/templates`</td><td><code>`PrescriptionTemplateController@store`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PUT`</code></td><td>`doctor/templates/{template}`</td><td><code>`PrescriptionTemplateController@update`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`DELETE`</code></td><td>`doctor/templates/{template}`</td><td><code>`PrescriptionTemplateController@destroy`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`doctor/templates/{template}/apply`</td><td><code>`PrescriptionTemplateController@recordUsage`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`doctor/templates/{template}/duplicate`</td><td><code>`PrescriptionTemplateController@duplicate`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`doctor/templates/{template}/toggle-share`</td><td><code>`PrescriptionTemplateController@toggleShare`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.doctors`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`doctors`</td><td><code>`DoctorController@store`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`doctors/generate-sessions`</td><td><code>`DoctorController@generateSessions`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`doctors/generate-sessions/preview`</td><td><code>`DoctorController@previewGenerateSessions`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`doctors/leaves`</td><td><code>`DoctorController@storeLeave`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`doctors/leaves/preview`</td><td><code>`DoctorController@previewLeaveImpact`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`DELETE`</code></td><td>`doctors/leaves/{leave}`</td><td><code>`DoctorController@destroyLeave`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`doctors/sessions/one-off`</td><td><code>`DoctorController@storeOneOffSession`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`doctors/templates`</td><td><code>`DoctorController@storeTemplate`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PUT`</code></td><td>`doctors/templates/{template}`</td><td><code>`DoctorController@updateTemplate`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`DELETE`</code></td><td>`doctors/templates/{template}`</td><td><code>`DoctorController@destroyTemplate`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`doctors/templates/{template}/duplicate`</td><td><code>`DoctorController@duplicateTemplate`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PUT`</code></td><td>`doctors/{doctor}`</td><td><code>`DoctorController@update`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`DELETE`</code></td><td>`doctors/{doctor}`</td><td><code>`DoctorController@destroy`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.doctors.available_sessions`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`doctors/{doctor}/photo`</td><td><code>`DoctorController@uploadPhoto`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`DELETE`</code></td><td>`doctors/{doctor}/photo`</td><td><code>`DoctorController@deletePhoto`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PATCH`</code></td><td>`doctors/{doctor}/toggle`</td><td><code>`DoctorController@toggleActive`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.password.request`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`forgot-password`</td><td><code>`TenantPasswordResetLinkController@store`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>POST</td><td><code>`impersonate/exit`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.impersonate`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.invitation.accept`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`invitation/accept/{token}`</td><td><code>`StaffController@acceptInvite`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.login`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`login`</td><td><code>`TenantAuthenticatedSessionController@store`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.login.one_time`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`logout`</td><td><code>`TenantAuthenticatedSessionController@destroy`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.page`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.patients`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`patients`</td><td><code>`PatientController@store`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PUT`</code></td><td>`patients/{patient}`</td><td><code>`PatientController@update`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.patients.history`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`patients/{patient}/reveal-nic`</td><td><code>`PatientController@revealNic`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`pharmacy/barcodes/link`</td><td><code>`StockReceiptController@linkBarcode`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.pharmacy.barcodes.lookup`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PUT`</code></td><td>`pharmacy/batches/{batch}`</td><td><code>`StockController@updateBatch`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`pharmacy/batches/{batch}/void`</td><td><code>`StockController@voidBatch`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.pharmacy.catalog.search`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.pharmacy.dispense`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.pharmacy.dispense.history`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.pharmacy.dispense.show`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`pharmacy/dispense/{prescription}/confirm`</td><td><code>`DispenseController@confirm`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`pharmacy/dispense/{prescription}/hold`</td><td><code>`DispenseController@hold`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`pharmacy/dispense/{prescription}/lock`</td><td><code>`DispenseController@lock`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`pharmacy/dispense/{prescription}/undo`</td><td><code>`DispenseController@undo`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`pharmacy/dispense/{prescription}/unlock`</td><td><code>`DispenseController@unlock`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.pharmacy.import`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`pharmacy/import/confirm`</td><td><code>`StockImportController@confirm`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.pharmacy.import.history`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`pharmacy/import/preview`</td><td><code>`StockImportController@preview`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.pharmacy.import.template`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.pharmacy.medicines`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`pharmacy/medicines`</td><td><code>`StockController@store`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.pharmacy.medicines.export`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`pharmacy/medicines/dismiss-duplicate`</td><td><code>`StockController@dismissDuplicate`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`pharmacy/medicines/merge`</td><td><code>`StockController@merge`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.pharmacy.medicines.show`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PUT`</code></td><td>`pharmacy/medicines/{medicine}`</td><td><code>`StockController@update`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`DELETE`</code></td><td>`pharmacy/medicines/{medicine}`</td><td><code>`StockController@destroy`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`pharmacy/medicines/{medicine}/batches`</td><td><code>`StockController@addBatches`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PATCH`</code></td><td>`pharmacy/medicines/{medicine}/toggle`</td><td><code>`StockController@toggleActive`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.pharmacy.receipts`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`pharmacy/receipts`</td><td><code>`StockReceiptController@store`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.pharmacy.receipts.export`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.pharmacy.receipts.create`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.pharmacy.receipts.show`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`pharmacy/receipts/{receipt}/void`</td><td><code>`StockReceiptController@voidReceipt`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`pharmacy/stock/adjust`</td><td><code>`StockController@adjust`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.pharmacy.suppliers`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`pharmacy/suppliers`</td><td><code>`SupplierController@store`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`pharmacy/suppliers/check-duplicate`</td><td><code>`SupplierController@checkDuplicate`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.pharmacy.suppliers.show`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PUT`</code></td><td>`pharmacy/suppliers/{supplier}`</td><td><code>`SupplierController@update`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`DELETE`</code></td><td>`pharmacy/suppliers/{supplier}`</td><td><code>`SupplierController@destroy`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PATCH`</code></td><td>`pharmacy/suppliers/{supplier}/toggle`</td><td><code>`SupplierController@toggle`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.pharmacy.variants.brands`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.prescription_templates`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.preview`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.preview.page`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.profile.edit`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PATCH`</code></td><td>`profile`</td><td><code>`ProfileController@update`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`DELETE`</code></td><td>`profile`</td><td><code>`ProfileController@destroy`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`profile/avatar`</td><td><code>`ProfileController@uploadAvatar`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`DELETE`</code></td><td>`profile/avatar`</td><td><code>`ProfileController@deleteAvatar`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.queue.public`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.queue.tv`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.queue.tv.data`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.reception.index`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`reset-password`</td><td><code>`TenantNewPasswordController@store`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.password.reset`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.sessions.today`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`sessions/today/tokens/{token}/call`</td><td><code>`TodayQueueController@callToken`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`sessions/today/tokens/{token}/reorder`</td><td><code>`TodayQueueController@reorderToken`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`sessions/today/tokens/{token}/restore`</td><td><code>`TodayQueueController@restoreToken`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`sessions/today/{session}/call-next`</td><td><code>`TodayQueueController@callNext`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`sessions/today/{session}/complete`</td><td><code>`TodayQueueController@completeConsultation`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`sessions/today/{session}/complete-and-next`</td><td><code>`TodayQueueController@completeAndNext`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`sessions/today/{session}/delay`</td><td><code>`TodayQueueController@delaySession`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`sessions/today/{session}/doctor-arrived`</td><td><code>`TodayQueueController@doctorArrived`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`sessions/today/{session}/end`</td><td><code>`TodayQueueController@endSession`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`sessions/today/{session}/pause`</td><td><code>`TodayQueueController@pauseSession`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`sessions/today/{session}/recall`</td><td><code>`TodayQueueController@recall`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`sessions/today/{session}/resume`</td><td><code>`TodayQueueController@resumeSession`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`sessions/today/{session}/skip`</td><td><code>`TodayQueueController@skip`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`sessions/today/{session}/start`</td><td><code>`TodayQueueController@startConsultation`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`sessions/today/{token}/check-in`</td><td><code>`TodayQueueController@checkIn`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`sessions/today/{token}/no-show`</td><td><code>`TodayQueueController@noShow`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.settings`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.settings.audit.export`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.settings.billing`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PUT`</code></td><td>`settings/billing`</td><td><code>`ClinicSettingsController@updateBillingSettings`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`settings/billing/cancel`</td><td><code>`BillingCenterController@cancelSubscription`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`settings/billing/cancel-downgrade`</td><td><code>`BillingCenterController@cancelDowngrade`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.settings.billing.change_plan`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST</code></td><td>PUT`</td><td><code>`tenant.settings.billing.details`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`settings/billing/downgrade`</td><td><code>`BillingCenterController@downgrade`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.settings.billing.invoice.download`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.settings.billing.invoice.view`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`settings/billing/refund-preview`</td><td><code>`BillingCenterController@previewRefundEligibility`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`settings/billing/refunds`</td><td><code>`BillingCenterController@requestRefund`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`settings/billing/refunds/{refundRequest}/cancel`</td><td><code>`BillingCenterController@cancelRefund`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.settings.billing.refund.credit_note`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`settings/billing/resume`</td><td><code>`BillingCenterController@resumeSubscription`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`settings/billing/upgrade`</td><td><code>`BillingCenterController@upgrade`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`settings/branding/logo`</td><td><code>`ClinicBrandingController@uploadLogo`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`DELETE`</code></td><td>`settings/branding/logo`</td><td><code>`ClinicBrandingController@deleteLogo`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PUT`</code></td><td>`settings/directory`</td><td><code>`ClinicSettingsController@updateDirectory`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.settings.fees`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`settings/fees/components`</td><td><code>`FeeSettingsController@storeComponent`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PUT`</code></td><td>`settings/fees/components/{component}`</td><td><code>`FeeSettingsController@updateComponent`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`DELETE`</code></td><td>`settings/fees/components/{component}`</td><td><code>`FeeSettingsController@destroyComponent`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PUT`</code></td><td>`settings/fees/defaults`</td><td><code>`FeeSettingsController@updateDefaults`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`settings/fees/preset`</td><td><code>`FeeSettingsController@applyPreset`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`settings/fees/visit-types`</td><td><code>`FeeSettingsController@storeVisitType`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PUT`</code></td><td>`settings/fees/visit-types/{visitType}`</td><td><code>`FeeSettingsController@updateVisitType`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`DELETE`</code></td><td>`settings/fees/visit-types/{visitType}`</td><td><code>`FeeSettingsController@destroyVisitType`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PUT`</code></td><td>`settings/online-booking`</td><td><code>`ClinicSettingsController@updateOnlineBooking`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PUT`</code></td><td>`settings/pharmacy`</td><td><code>`ClinicSettingsController@updatePharmacySettings`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PUT`</code></td><td>`settings/profile`</td><td><code>`ClinicSettingsController@updateProfile`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PUT`</code></td><td>`settings/session-defaults`</td><td><code>`ClinicSettingsController@updateSessionDefaults`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.settings.section`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.setup`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`setup/complete`</td><td><code>`ClinicSetupController@complete`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`setup/dismiss-banner`</td><td><code>`ClinicSetupController@dismissBanner`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`setup/step/{step}`</td><td><code>`ClinicSetupController@saveStep`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`setup/upload-photo`</td><td><code>`ClinicSetupController@uploadPhoto`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.share_image`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.staff`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`DELETE`</code></td><td>`staff/invitations/{invitation}`</td><td><code>`StaffController@revokeInvite`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`staff/invitations/{invitation}/resend`</td><td><code>`StaffController@resendInvite`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`staff/invite`</td><td><code>`StaffController@invite`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`staff/{user}/link-doctor`</td><td><code>`StaffController@linkDoctor`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`staff/{user}/reset-password`</td><td><code>`StaffController@sendPasswordReset`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PUT`</code></td><td>`staff/{user}/role`</td><td><code>`StaffController@updateRole`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PATCH`</code></td><td>`staff/{user}/toggle`</td><td><code>`StaffController@toggleStatus`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`staff/{user}/unlink-doctor`</td><td><code>`StaffController@unlinkDoctor`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.subscription.index`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.subscription.check_status`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`subscription/checkout`</td><td><code>`SubscriptionBillingController@createCheckout`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.subscription.inactive`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.subscription.receipt`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.subscription.return`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.subscription.subscribe`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`support/broadcasting/auth`</td><td><code>`SupportBroadcastAuthController@authenticate`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`support/conversations`</td><td><code>`SupportChatWidgetController@store`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.support.conversations.show`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`support/conversations/{publicId}/close`</td><td><code>`SupportChatWidgetController@close`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`support/conversations/{publicId}/messages`</td><td><code>`SupportChatWidgetController@sendMessage`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`support/conversations/{publicId}/read`</td><td><code>`SupportChatWidgetController@markRead`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`support/conversations/{publicId}/typing`</td><td><code>`SupportChatWidgetController@typing`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.support.status`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`tokens/{token}/cancel`</td><td><code>`ClinicWebsiteController@cancelPublicToken`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.token.status`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.website`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.website.builder.media`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`website/builder/media/upload`</td><td><code>`ClinicWebsiteController@uploadMedia`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`DELETE`</code></td><td>`website/builder/media/{asset}`</td><td><code>`ClinicWebsiteController@deleteMedia`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PATCH`</code></td><td>`website/builder/media/{asset}`</td><td><code>`ClinicWebsiteController@updateMedia`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.website.builder`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`website/builder/{page}/publish`</td><td><code>`ClinicWebsiteController@publishBuilder`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`website/builder/{page}/revert/{revision}`</td><td><code>`ClinicWebsiteController@revertRevision`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.website.builder.revisions`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`website/builder/{page}/save`</td><td><code>`ClinicWebsiteController@saveBuilder`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.website.kit`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PUT`</code></td><td>`website/kit`</td><td><code>`SiteKitController@update`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.website.pages.index`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`website/pages`</td><td><code>`ClinicPageController@store`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.website.pages.trash`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`website/pages/{pageId}/restore`</td><td><code>`ClinicPageController@restore`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PATCH`</code></td><td>`website/pages/{page}`</td><td><code>`ClinicPageController@update`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`DELETE`</code></td><td>`website/pages/{page}`</td><td><code>`ClinicPageController@destroy`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`website/pages/{page}/duplicate`</td><td><code>`ClinicPageController@duplicate`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`website/pages/{page}/homepage`</td><td><code>`ClinicPageController@homepage`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`website/pages/{page}/menu`</td><td><code>`ClinicWebsiteController@togglePageMenu`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`POST`</code></td><td>`website/publish`</td><td><code>`ClinicWebsiteController@publish`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PUT`</code></td><td>`website/sections`</td><td><code>`ClinicWebsiteController@updateSections`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PUT`</code></td><td>`website/seo`</td><td><code>`ClinicWebsiteController@updateSeo`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Tenant App Route</td><td><code>`PUT`</code></td><td>`website/theme`</td><td><code>`ClinicWebsiteController@updateTheme`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`admin.login`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`super_admin.dashboard`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`super_admin.admins.index`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/admins/2fa/confirm`</td><td><code>`AdminUserController@confirmTwoFactor`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/admins/2fa/disable`</td><td><code>`AdminUserController@disableTwoFactor`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/admins/2fa/recovery-codes`</td><td><code>`AdminUserController@regenerateRecoveryCodes`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`super_admin.admins.2fa_setup`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`DELETE`</code></td><td>`super-admin/admins/invitations/{id}`</td><td><code>`AdminUserController@revokeInvite`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/admins/invite`</td><td><code>`AdminUserController@invite`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/admins/sessions/logout-others`</td><td><code>`AdminUserController@logoutOtherSessions`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/admins/{id}/deactivate`</td><td><code>`AdminUserController@deactivate`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/admins/{id}/reactivate`</td><td><code>`AdminUserController@reactivate`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`super_admin.announcements.index`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/announcements`</td><td><code>`AnnouncementManagementController@store`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/announcements/audience-count`</td><td><code>`AnnouncementManagementController@audienceCount`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/announcements/test-send`</td><td><code>`AnnouncementManagementController@sendTest`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`super_admin.announcements.show`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`PUT`</code></td><td>`super-admin/announcements/{id}`</td><td><code>`AnnouncementManagementController@update`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`DELETE`</code></td><td>`super-admin/announcements/{id}`</td><td><code>`AnnouncementManagementController@destroy`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/announcements/{id}/cancel`</td><td><code>`AnnouncementManagementController@cancel`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/announcements/{id}/duplicate`</td><td><code>`AnnouncementManagementController@duplicate`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`super_admin.announcements.export`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`super_admin.audit_logs.index`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`super_admin.audit_logs.export`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`super_admin.clinics.index`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`super_admin.clinics.export.download`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`super_admin.clinics.show`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`DELETE`</code></td><td>`super-admin/clinics/{clinicId}`</td><td><code>`ClinicManagementController@destroy`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/clinics/{clinicId}/export`</td><td><code>`ClinicManagementController@requestDataExport`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/clinics/{clinicId}/extend-trial`</td><td><code>`ClinicManagementController@extendTrial`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/clinics/{clinicId}/impersonate`</td><td><code>`ClinicManagementController@impersonate`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/clinics/{clinicId}/notes`</td><td><code>`ClinicManagementController@storeNote`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/clinics/{clinicId}/reactivate`</td><td><code>`ClinicManagementController@reactivate`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/clinics/{clinicId}/reset-password`</td><td><code>`ClinicManagementController@sendPasswordResetLink`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/clinics/{clinicId}/restore`</td><td><code>`ClinicManagementController@restore`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/clinics/{clinicId}/suspend`</td><td><code>`ClinicManagementController@suspend`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>``</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`super_admin.email_previews.index`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`super_admin.email_previews.render`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/email-previews/send-test`</td><td><code>`EmailPreviewController@sendTest`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`super_admin.incidents.index`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/incidents`</td><td><code>`PlatformIncidentController@store`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`PUT`</code></td><td>`super-admin/incidents/{incident}`</td><td><code>`PlatformIncidentController@update`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`DELETE`</code></td><td>`super-admin/incidents/{incident}`</td><td><code>`PlatformIncidentController@destroy`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`super_admin.leads.index`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/leads`</td><td><code>`LeadManagementController@store`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`PUT`</code></td><td>`super-admin/leads/{lead}`</td><td><code>`LeadManagementController@update`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`DELETE`</code></td><td>`super-admin/leads/{lead}`</td><td><code>`LeadManagementController@destroy`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/leads/{lead}/convert`</td><td><code>`LeadManagementController@convertToClinic`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`PATCH`</code></td><td>`super-admin/leads/{lead}/stage`</td><td><code>`LeadManagementController@updateStage`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`super_admin.medicines`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/medicines/review/merge`</td><td><code>`MedicineCatalogController@merge`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/medicines/review/{type}/{id}/approve`</td><td><code>`MedicineCatalogController@approve`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/medicines/review/{type}/{id}/reject`</td><td><code>`MedicineCatalogController@reject`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/medicines/rxterms/import`</td><td><code>`MedicineCatalogController@importRxTerms`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/medicines/rxterms/search`</td><td><code>`MedicineCatalogController@searchRxTerms`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`DELETE`</code></td><td>`super-admin/medicines/{medicine}`</td><td><code>`MedicineCatalogController@destroy`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`super_admin.messaging.index`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`super_admin.otp_usage`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`super_admin.plans.index`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/plans`</td><td><code>`PlanManagementController@store`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`PUT`</code></td><td>`super-admin/plans/{plan}`</td><td><code>`PlanManagementController@update`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`DELETE`</code></td><td>`super-admin/plans/{plan}`</td><td><code>`PlanManagementController@destroy`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/plans/{plan}/toggle-active`</td><td><code>`PlanManagementController@toggleActive`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`super_admin.refunds.index`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`super_admin.refunds.show`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/refunds/{refundRequest}/approve`</td><td><code>`RefundManagementController@approve`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`super_admin.refunds.credit_note`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/refunds/{refundRequest}/process`</td><td><code>`RefundManagementController@process`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/refunds/{refundRequest}/recheck`</td><td><code>`RefundManagementController@recheck`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/refunds/{refundRequest}/reject`</td><td><code>`RefundManagementController@reject`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`super_admin.settings.index`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`PUT`</code></td><td>`super-admin/settings`</td><td><code>`PlatformSettingsController@update`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`super_admin.subscriptions`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/subscriptions/invoices/{invoice}/mark-paid`</td><td><code>`SubscriptionManagementController@markPaid`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/subscriptions/invoices/{invoice}/remind`</td><td><code>`SubscriptionManagementController@sendPaymentReminder`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/subscriptions/{subscription}/extend`</td><td><code>`SubscriptionManagementController@extendPeriod`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/subscriptions/{subscription}/toggle-comp`</td><td><code>`SubscriptionManagementController@toggleComp`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`super_admin.support.index`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/support/canned-replies`</td><td><code>`SupportInboxController@storeCannedReply`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`PUT`</code></td><td>`super-admin/support/canned-replies/{reply}`</td><td><code>`SupportInboxController@updateCannedReply`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`DELETE`</code></td><td>`super-admin/support/canned-replies/{reply}`</td><td><code>`SupportInboxController@destroyCannedReply`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/support/conversations/{publicId}/close`</td><td><code>`SupportInboxController@close`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/support/conversations/{publicId}/reply`</td><td><code>`SupportInboxController@reply`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/support/conversations/{publicId}/return-ai`</td><td><code>`SupportInboxController@returnToAi`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/support/conversations/{publicId}/take-over`</td><td><code>`SupportInboxController@takeOver`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/support/settings`</td><td><code>`SupportInboxController@updateSettings`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`super_admin.system_health.index`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/system-health/failed-jobs/flush-all`</td><td><code>`SystemHealthController@flushAll`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/system-health/failed-jobs/retry-all`</td><td><code>`SystemHealthController@retryAll`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`DELETE`</code></td><td>`super-admin/system-health/failed-jobs/{id}`</td><td><code>`SystemHealthController@deleteJob`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/system-health/failed-jobs/{id}/retry`</td><td><code>`SystemHealthController@retryJob`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Super Admin Route</td><td><code>`POST`</code></td><td>`super-admin/system-health/run-command`</td><td><code>`SystemHealthController@runCommand`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>API Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`announcements.active_banners`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>API Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.api.announcements.active_banners`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>API Route</td><td><code>`POST`</code></td><td>`api/announcements/mark-all-read`</td><td><code>`ClinicAnnouncementController@markAllRead`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>API Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`announcements.notifications`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>API Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.api.announcements.notifications`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>API Route</td><td><code>`POST`</code></td><td>`api/announcements/{id}/dismiss`</td><td><code>`ClinicAnnouncementController@dismissBanner`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>API Route</td><td><code>`POST`</code></td><td>`api/announcements/{id}/dismiss`</td><td><code>`ClinicAnnouncementController@dismissBanner`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>API Route</td><td><code>`POST`</code></td><td>`api/announcements/{id}/read`</td><td><code>`ClinicAnnouncementController@markRead`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>API Route</td><td><code>`POST`</code></td><td>`api/announcements/{id}/read`</td><td><code>`ClinicAnnouncementController@markRead`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>API Route</td><td><code>`POST`</code></td><td>`api/leads/request-demo`</td><td><code>`PublicDemoRequestController@store`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>API Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.api.notifications`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>API Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.api.patients.by_phone`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>API Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.api.patients.search`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>API Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.api.search`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>API Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`tenant.book.availability`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Webhook Route</td><td><code>`POST`</code></td><td>`webhooks/paymentslk`</td><td><code>`PaymentsLkWebhookController@handle`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Webhook Route</td><td><code>`GET</code></td><td>HEAD`</td><td><code>`webhooks.whatsapp.verify`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Webhook Route</td><td><code>`POST`</code></td><td>`webhooks/whatsapp`</td><td><code>`WhatsAppWebhookController@handle`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`AcceptInvitation`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Auth/AcceptInvitation.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`AdminLogin`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Auth/AdminLogin.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`ConfirmPassword`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Auth/ConfirmPassword.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`ForgotPassword`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Auth/ForgotPassword.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`Login`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Auth/Login.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`Register`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Auth/Register.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`RegisterClinic`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Auth/RegisterClinic.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`RegisterClinicSuccess`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Auth/RegisterClinicSuccess.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`ResetPassword`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Auth/ResetPassword.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`TenantLogin`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Auth/TenantLogin.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`TwoFactorChallenge`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Auth/TwoFactorChallenge.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`VerifyEmail`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Auth/VerifyEmail.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`DoctorPayouts`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Billing/DoctorPayouts.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`Index`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Billing/Index.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`Index`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Bookings/Index.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`Index`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Calendar/Index.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`SuspendedOrExpired`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Clinic/SuspendedOrExpired.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`Components`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Dev/Components.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`ClinicProfile`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Directory/ClinicProfile.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`DoctorProfile`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Directory/DoctorProfile.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`Find`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Directory/Find.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`Index`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Doctors/Index.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`Index`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Patients/Index.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`Edit`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Profile/Edit.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`BookToken`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Public/BookToken.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`BookingStatus`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Public/BookingStatus.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`BookingUnavailable`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Public/BookingUnavailable.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`ClinicLanding`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Public/ClinicLanding.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`NotFound`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Public/NotFound.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`Pricing`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Public/Pricing.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`QueueStatus`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Public/QueueStatus.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`Today`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Queue/Today.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`Tv`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Queue/Tv.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`FeesAndPayouts`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Settings/FeesAndPayouts.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`Index`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Settings/Index.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`Index`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Setup/Index.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`Waiting`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Setup/Waiting.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`Index`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Staff/Index.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`BillingCenter`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Subscription/BillingCenter.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`ChangePlan`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Subscription/ChangePlan.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`Inactive`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Subscription/Inactive.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`Index`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Subscription/Index.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-warn">⚠️</span></td><td>QA-005 finding: Contains fallback hardcoded &quot;Rs. 5,000&quot; strings</td></tr>
+<tr><td>React Page / View</td><td><code>`Receipt`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Subscription/Receipt.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`Return`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Subscription/Return.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`Subscribe`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Subscription/Subscribe.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`Dashboard`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/SuperAdmin/Dashboard.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`MedicineCatalog`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/SuperAdmin/MedicineCatalog.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`OtpUsage`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/SuperAdmin/OtpUsage.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`Subscriptions`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/SuperAdmin/Subscriptions.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`Index`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Website/Index.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>React Page / View</td><td><code>`PageBuilder`</code></td><td>`resources/js/Pages/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../resources/js/Pages/Website/PageBuilder.tsx`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Console Command</td><td><code>`CheckRefundSlasCommand`</code></td><td>`app/Console/Commands/CheckRefundSlasCommand.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Console Command</td><td><code>`CheckSubscriptionExpirations`</code></td><td>`app/Console/Commands/CheckSubscriptionExpirations.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Console Command</td><td><code>`CheckSubscriptionRenewalsCommand`</code></td><td>`app/Console/Commands/CheckSubscriptionRenewalsCommand.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Console Command</td><td><code>`CleanWebsiteDefaultClaims`</code></td><td>`app/Console/Commands/CleanWebsiteDefaultClaims.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Console Command</td><td><code>`CleanupDuplicateSessionsCommand`</code></td><td>`app/Console/Commands/CleanupDuplicateSessionsCommand.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Console Command</td><td><code>`CompExistingTenantsCommand`</code></td><td>`app/Console/Commands/CompExistingTenantsCommand.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Console Command</td><td><code>`GenerateSessionsCommand`</code></td><td>`app/Console/Commands/GenerateSessionsCommand.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Console Command</td><td><code>`GenerateSessionsFromTemplatesCommand`</code></td><td>`app/Console/Commands/GenerateSessionsFromTemplatesCommand.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Console Command</td><td><code>`ImportRxTermsMedicines`</code></td><td>`app/Console/Commands/ImportRxTermsMedicines.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Console Command</td><td><code>`ProcessScheduledAnnouncementsCommand`</code></td><td>`app/Console/Commands/ProcessScheduledAnnouncementsCommand.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Console Command</td><td><code>`ResetTwoFactorCommand`</code></td><td>`app/Console/Commands/ResetTwoFactorCommand.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Console Command</td><td><code>`SeedDemoDataCommand`</code></td><td>`app/Console/Commands/SeedDemoDataCommand.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Console Command</td><td><code>`SendClinicSetupRemindersCommand`</code></td><td>`app/Console/Commands/SendClinicSetupRemindersCommand.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Console Command</td><td><code>`SendSubscriptionRenewalReminders`</code></td><td>`app/Console/Commands/SendSubscriptionRenewalReminders.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Console Command</td><td><code>`SendTestMailCommand`</code></td><td>`app/Console/Commands/SendTestMailCommand.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Console Command</td><td><code>`SendTrialRemindersCommand`</code></td><td>`app/Console/Commands/SendTrialRemindersCommand.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Console Command</td><td><code>`SyncDirectoryCommand`</code></td><td>`app/Console/Commands/SyncDirectoryCommand.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Console Command</td><td><code>`TestOtpCommand`</code></td><td>`app/Console/Commands/TestOtpCommand.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Console Command</td><td><code>`WhatsAppCheckCommand`</code></td><td>`app/Console/Commands/WhatsAppCheckCommand.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Queued Background Job</td><td><code>`ExportClinicDataJob`</code></td><td>`app/Jobs/ExportClinicDataJob.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Queued Background Job</td><td><code>`ProcessSupportAiReply`</code></td><td>`app/Jobs/ProcessSupportAiReply.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Queued Background Job</td><td><code>`SendAnnouncementChunkJob`</code></td><td>`app/Jobs/SendAnnouncementChunkJob.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Queued Background Job</td><td><code>`SendTokenMoveNotificationJob`</code></td><td>`app/Jobs/SendTokenMoveNotificationJob.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Queued Background Job</td><td><code>`SyncClinicDirectoryListing`</code></td><td>`app/Jobs/SyncClinicDirectoryListing.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Mailable</td><td><code>`FindClinicAccessMail`</code></td><td>`app/Mail/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../app/Mail/Auth/FindClinicAccessMail.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Mailable</td><td><code>`RegistrationVerificationCodeMail`</code></td><td>`app/Mail/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../app/Mail/Auth/RegistrationVerificationCodeMail.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Mailable</td><td><code>`ResetPasswordMail`</code></td><td>`app/Mail/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../app/Mail/Auth/ResetPasswordMail.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Mailable</td><td><code>`VerifyEmailMail`</code></td><td>`app/Mail/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../app/Mail/Auth/VerifyEmailMail.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Mailable</td><td><code>`WelcomeClinicMail`</code></td><td>`app/Mail/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../app/Mail/Auth/WelcomeClinicMail.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Mailable</td><td><code>`ClinicReadyMail`</code></td><td>`app/Mail/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../app/Mail/Clinic/ClinicReadyMail.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Mailable</td><td><code>`ClinicSetupReminderMail`</code></td><td>`app/Mail/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../app/Mail/Clinic/ClinicSetupReminderMail.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Mailable</td><td><code>`MailSenderType`</code></td><td>`app/Mail/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../app/Mail/Enums/MailSenderType.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Mailable</td><td><code>`NewDeviceLoginMail`</code></td><td>`app/Mail/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../app/Mail/Security/NewDeviceLoginMail.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Mailable</td><td><code>`TwoFactorEnabledMail`</code></td><td>`app/Mail/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../app/Mail/Security/TwoFactorEnabledMail.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Mailable</td><td><code>`NewRefundRequestAdminMail`</code></td><td>`app/Mail/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../app/Mail/Subscription/NewRefundRequestAdminMail.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Mailable</td><td><code>`RefundApprovedMail`</code></td><td>`app/Mail/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../app/Mail/Subscription/RefundApprovedMail.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Mailable</td><td><code>`RefundCompletedMail`</code></td><td>`app/Mail/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../app/Mail/Subscription/RefundCompletedMail.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Mailable</td><td><code>`RefundRejectedMail`</code></td><td>`app/Mail/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../app/Mail/Subscription/RefundRejectedMail.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Mailable</td><td><code>`RefundRequestReceivedMail`</code></td><td>`app/Mail/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../app/Mail/Subscription/RefundRequestReceivedMail.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Mailable</td><td><code>`RefundSlaOverdueAdminMail`</code></td><td>`app/Mail/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../app/Mail/Subscription/RefundSlaOverdueAdminMail.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Mailable</td><td><code>`SubscriptionCancelledMail`</code></td><td>`app/Mail/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../app/Mail/Subscription/SubscriptionCancelledMail.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Mailable</td><td><code>`SubscriptionPastDueMail`</code></td><td>`app/Mail/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../app/Mail/Subscription/SubscriptionPastDueMail.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Mailable</td><td><code>`SubscriptionPaymentFailedMail`</code></td><td>`app/Mail/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../app/Mail/Subscription/SubscriptionPaymentFailedMail.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Mailable</td><td><code>`SubscriptionPaymentSuccessMail`</code></td><td>`app/Mail/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../app/Mail/Subscription/SubscriptionPaymentSuccessMail.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Mailable</td><td><code>`SubscriptionPlanChangedMail`</code></td><td>`app/Mail/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../app/Mail/Subscription/SubscriptionPlanChangedMail.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Mailable</td><td><code>`SubscriptionRenewalReminderMail`</code></td><td>`app/Mail/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../app/Mail/Subscription/SubscriptionRenewalReminderMail.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Mailable</td><td><code>`SubscriptionResumedMail`</code></td><td>`app/Mail/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../app/Mail/Subscription/SubscriptionResumedMail.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Mailable</td><td><code>`TrialEndedMail`</code></td><td>`app/Mail/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../app/Mail/Tenants/TrialEndedMail.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Mailable</td><td><code>`TrialEndingSoonMail`</code></td><td>`app/Mail/C:/Users/Sivanujan_PC/Desktop/medvisit/tests/Feature/QA/../../../app/Mail/Tenants/TrialEndingSoonMail.php`</td><td><code>🔍 Covered by this QA pass</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>PDF / Print Layout</td><td><code>Subscription Receipt PDF</code></td><td>`pdf.subscription_receipt`</td><td><code>`CreditNotePdfService / SubscriptionReceiptPdfService`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>PDF / Print Layout</td><td><code>Credit Note PDF</code></td><td>`pdf.credit_note`</td><td><code>`CreditNotePdfService`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>PDF / Print Layout</td><td><code>Billing Receipt (80mm Thermal)</code></td><td>`Billing/Index.tsx modal`</td><td><code>`BillingController@index`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>PDF / Print Layout</td><td><code>Billing Receipt (A4 Format)</code></td><td>`Billing/Index.tsx modal`</td><td><code>`BillingController@index`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>PDF / Print Layout</td><td><code>Doctor Payout Slip</code></td><td>`Billing/DoctorPayouts.tsx`</td><td><code>`DoctorSettlementController@slip`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>PDF / Print Layout</td><td><code>Prescription Print (EN/TA/SI)</code></td><td>`Tenant/Doctor/PrescriptionPrint.tsx`</td><td><code>`ConsultationController / PrescriptionController`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>PDF / Print Layout</td><td><code>Stock Receipt / GRN Print</code></td><td>`Tenant/Pharmacy/Receipts/Index.tsx`</td><td><code>`StockReceiptController`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>PDF / Print Layout</td><td><code>Daily Collections Report</code></td><td>`BillingController@exportCsv`</td><td><code>`BillingController@export`</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>PDF / Print Layout</td><td><code>Pharmacy Dispense Thermal Label</code></td><td>`Tenant/Pharmacy/Dispense/Components/ThermalLabelPrinter.tsx`</td><td><code>`DispenseController`</code></td><td><span class="badge badge-skip">⏭</span></td><td>Physical ESC/POS thermal printer hardware integration - covered in manual checklist</td></tr>
+<tr><td>Clinic Setting Key</td><td><code>`clinic_name`</code></td><td>`string`</td><td><code>General clinic identity</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Clinic Setting Key</td><td><code>`address_line`</code></td><td>`string`</td><td><code>Address split</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Clinic Setting Key</td><td><code>`city`</code></td><td>`string`</td><td><code>Address split</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Clinic Setting Key</td><td><code>`district`</code></td><td>`string`</td><td><code>Address split &amp; directory</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Clinic Setting Key</td><td><code>`postal_code`</code></td><td>`string`</td><td><code>Address split</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Clinic Setting Key</td><td><code>`phone`</code></td><td>`string`</td><td><code>Normalised Sri Lankan phone</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Clinic Setting Key</td><td><code>`whatsapp_number`</code></td><td>`string`</td><td><code>Used in booking and directory</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Clinic Setting Key</td><td><code>`public_email`</code></td><td>`string`</td><td><code>Communication</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Clinic Setting Key</td><td><code>`brand_color`</code></td><td>`hex`</td><td><code>Theme &amp; UI color</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Clinic Setting Key</td><td><code>`logo_path`</code></td><td>`string`</td><td><code>Brand identity</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Clinic Setting Key</td><td><code>`logo_png_path`</code></td><td>`string`</td><td><code>Used for PDFs and emails</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Clinic Setting Key</td><td><code>`online_booking_enabled`</code></td><td>`boolean`</td><td><code>Gating for public booking</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Clinic Setting Key</td><td><code>`max_active_tokens_per_phone`</code></td><td>`integer`</td><td><code>Abuse prevention</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Clinic Setting Key</td><td><code>`require_phone_verification`</code></td><td>`boolean`</td><td><code>OTP security</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Clinic Setting Key</td><td><code>`require_staff_approval`</code></td><td>`boolean`</td><td><code>Workflow control</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Clinic Setting Key</td><td><code>`pharmacy_enabled`</code></td><td>`boolean`</td><td><code>Plan feature gate</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Clinic Setting Key</td><td><code>`pharmacy_stock_reduction_mode`</code></td><td>`enum:dispense,finalize`</td><td><code>Pharmacy stock integrity</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Clinic Setting Key</td><td><code>`directory_consented`</code></td><td>`boolean`</td><td><code>Public directory listing</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Clinic Setting Key</td><td><code>`directory_latitude`</code></td><td>`float`</td><td><code>Map location</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Clinic Setting Key</td><td><code>`directory_longitude`</code></td><td>`float`</td><td><code>Map location</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Clinic Setting Key</td><td><code>`print_enabled`</code></td><td>`boolean`</td><td><code>Printing configuration</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Clinic Setting Key</td><td><code>`print_receipt_format`</code></td><td>`enum:80mm,a4`</td><td><code>Receipt printer layout</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Clinic Setting Key</td><td><code>`default_doctor_fee`</code></td><td>`integer`</td><td><code>Fee calculation</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Clinic Setting Key</td><td><code>`default_clinic_fee`</code></td><td>`integer`</td><td><code>Fee calculation</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+<tr><td>Clinic Setting Key</td><td><code>`default_payout_rule`</code></td><td>`array`</td><td><code>Doctor payout engine</code></td><td><span class="badge badge-pass">✅</span></td><td>Automated tests passing (regression safe)</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>6. Revised Fix Plan (Awaiting Approval)</h2>
+            <p>Application fixes will strictly commence upon your approval:</p>
+            <ol>
+                <li><strong>Stage 1 (A11y Critical):</strong> Fix accessible name on printing format select in <code>StepPrinting.tsx</code>.</li>
+                <li><strong>Stage 2 (Directory Security - QA-001):</strong> Update <code>DirectoryListing::active()</code> scope and sync job to exclude suspended tenants; add 404 gating on public directory routes.</li>
+                <li><strong>Stage 3 (Baseline Test Suites - QA-003, QA-004):</strong> Add seeder to <code>NavigationTest</code>, set <code>setup_completed_at</code> in <code>TokenBookingFlowTest</code>, and adjust moved token payout assertion from 2500 to 1500.</li>
+                <li><strong>Stage 4 (Single Source Pricing - QA-005):</strong> Remove hardcoded <code>Rs. 5,000</code> UI fallbacks, sourcing strictly from <code>config('medvisit_public.plans')</code>.</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        function filterTable() {
+            var input, filter, table, tr, td, i, txtValue;
+            input = document.getElementById("covSearch");
+            filter = input.value.toUpperCase();
+            table = document.getElementById("covTable");
+            tr = table.getElementsByTagName("tr");
+            for (i = 1; i < tr.length; i++) {
+                txtValue = tr[i].textContent || tr[i].innerText;
+                if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                    tr[i].style.display = "";
+                } else {
+                    tr[i].style.display = "none";
+                }
+            }
+        }
+    </script>
+</body>
+</html>

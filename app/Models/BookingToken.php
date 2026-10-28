@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Support\TokenHelper;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Stancl\Tenancy\Database\Concerns\BelongsToTenant;
 
@@ -29,6 +31,10 @@ class BookingToken extends Model
 
     public const STATUS_CANCELLED = 'cancelled';
 
+    public const STATUS_MOVED = 'moved';
+
+    public const STATUS_SKIPPED = 'skipped';
+
     protected $fillable = [
         'tenant_id',
         'doctor_session_id',
@@ -36,7 +42,11 @@ class BookingToken extends Model
         'token_number',
         'estimated_time',
         'status',
+        'moved_to_token_id',
+        'moved_at',
+        'move_reason',
         'booked_via',
+        'source',
         'checked_in_at',
         'called_at',
         'completed_at',
@@ -46,6 +56,7 @@ class BookingToken extends Model
         'notes',
         'visit_type_id',
         'fee_snapshot',
+        'fee_snapshot_backup',
         'payout_status',
         'doctor_settlement_id',
     ];
@@ -59,8 +70,26 @@ class BookingToken extends Model
             'called_at' => 'datetime',
             'completed_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            'moved_at' => 'datetime',
             'fee_snapshot' => 'array',
+            'fee_snapshot_backup' => 'array',
         ];
+    }
+
+    /**
+     * Get the formatted display token label (e.g. 'SV-01' or '01').
+     */
+    public function getDisplayTokenAttribute(): string
+    {
+        $session = $this->doctorSession ?: $this->session;
+        if ($session) {
+            return $session->formatToken($this->token_number);
+        }
+
+        $tenant = tenant();
+        $format = $tenant ? $tenant->getTokenNumberFormat() : 'with_doctor_code';
+
+        return TokenHelper::format($this->token_number, null, $format);
     }
 
     public function session(): BelongsTo
@@ -91,5 +120,25 @@ class BookingToken extends Model
     public function bill(): HasOne
     {
         return $this->hasOne(Bill::class);
+    }
+
+    public function prescription(): HasOne
+    {
+        return $this->hasOne(Prescription::class)->where('status', '!=', Prescription::STATUS_CANCELLED);
+    }
+
+    public function allPrescriptions(): HasMany
+    {
+        return $this->hasMany(Prescription::class);
+    }
+
+    public function movedToToken(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'moved_to_token_id');
+    }
+
+    public function sourceTokens(): HasMany
+    {
+        return $this->hasMany(self::class, 'moved_to_token_id');
     }
 }

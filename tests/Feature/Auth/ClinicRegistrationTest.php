@@ -117,11 +117,10 @@ class ClinicRegistrationTest extends TestCase
         // Assert tenant created
         $tenant = Tenant::find('ruhunu');
         $this->assertNotNull($tenant);
-        $this->assertSame('Ruhunu Medical Centre', $tenant->name);
-        $this->assertSame('trial', $tenant->status);
-        $this->assertSame('trial', $tenant->plan);
-        $this->assertNotNull($tenant->trial_ends_at);
-        $this->assertTrue($tenant->trial_ends_at->isFuture());
+        $expectedStatus = ((int) config('medvisit.subscription.trial_days', 0)) > 0 ? 'trial' : 'pending_payment';
+        $this->assertSame($expectedStatus, $tenant->status);
+        $this->assertNotNull($tenant->subscription);
+        $this->assertSame($expectedStatus, $tenant->subscription->status);
 
         // Assert domain created
         $this->assertTrue($tenant->domains()->where('domain', 'ruhunu')->exists());
@@ -330,5 +329,64 @@ class ClinicRegistrationTest extends TestCase
         $expiredResponse = $this->get($expiredUrl);
         $this->assertGuest();
         $expiredResponse->assertRedirect("http://{$host}{$port}/login");
+    }
+
+    public function test_subdomain_availability_check_rate_limiting(): void
+    {
+        // Route has middleware throttle:30,1
+        for ($i = 0; $i < 30; $i++) {
+            $response = $this->postJson('/check-subdomain', ['subdomain' => "valid-sub-{$i}"]);
+            $response->assertStatus(200);
+        }
+
+        // 31st request should be throttled
+        $throttled = $this->postJson('/check-subdomain', ['subdomain' => 'over-limit-sub']);
+        $throttled->assertStatus(429);
+    }
+
+    public function test_phone_number_normalisation_accepts_and_strips_leading_zero(): void
+    {
+        Notification::fake();
+
+        $token = 'test-token-phone-norm';
+        PendingRegistration::create([
+            'email' => 'phone-norm@testclinic.lk',
+            'token' => $token,
+            'code_hash' => Hash::make('123456'),
+            'attempts' => 0,
+            'expires_at' => now()->addMinutes(10),
+            'verified_at' => now(),
+            'payload' => Crypt::encryptString(json_encode([])),
+        ]);
+
+        // Submit phone numbers with leading zeros and without +94
+        $payload = [
+            'clinic_name' => 'Phone Normalization Clinic',
+            'clinic_type' => 'medical centre',
+            'district' => 'Colombo',
+            'city' => 'Colombo 03',
+            'address' => '100 Galle Road',
+            'clinic_phone' => '011 222 3344', // leading 0, no +94
+            'subdomain' => 'phone-norm',
+            'name' => 'Dr. Normalizer',
+            'email' => 'phone-norm@testclinic.lk',
+            'mobile' => '077 123 4567', // leading 0, no +94
+            'password' => 'Passw0rd123!',
+            'password_confirmation' => 'Passw0rd123!',
+            'terms' => true,
+            'registration_token' => $token,
+        ];
+
+        $response = $this->post('/register', $payload);
+        $response->assertSessionHasNoErrors();
+        $response->assertRedirect(route('register.success'));
+
+        $tenant = Tenant::find('phone-norm');
+        $this->assertNotNull($tenant);
+        // Stripped leading 0 and prefixed with +94
+        $this->assertSame('+94 11 222 3344', $tenant->phone);
+
+        $user = User::where('email', 'phone-norm@testclinic.lk')->first();
+        $this->assertNotNull($user);
     }
 }

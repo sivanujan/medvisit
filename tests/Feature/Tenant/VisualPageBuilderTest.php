@@ -69,6 +69,22 @@ class VisualPageBuilderTest extends TestCase
         ]);
     }
 
+    private function homepageA(): ClinicPage
+    {
+        return ClinicPage::homepageFor($this->tenantA->id)
+            ?? ClinicPage::create([
+                'tenant_id' => $this->tenantA->id,
+                'slug' => 'home',
+                'title' => 'Home',
+                'is_homepage' => true,
+            ]);
+    }
+
+    private function builderUrl(string $path = ''): string
+    {
+        return "http://{$this->tenantA->subdomain}.{$this->baseDomain}/website/builder{$path}";
+    }
+
     public function test_clinic_admin_can_access_page_builder(): void
     {
         $response = $this->actingAs($this->adminA)
@@ -112,7 +128,7 @@ class VisualPageBuilderTest extends TestCase
         ];
 
         $response = $this->actingAs($this->adminA)
-            ->postJson("http://{$this->tenantA->subdomain}.{$this->baseDomain}/website/builder/save", $payload);
+            ->postJson($this->builderUrl("/{$this->homepageA()->id}/save"), $payload);
 
         $response->assertOk();
         $response->assertJson([
@@ -146,7 +162,7 @@ class VisualPageBuilderTest extends TestCase
         ];
 
         $response = $this->actingAs($this->adminA)
-            ->postJson("http://{$this->tenantA->subdomain}.{$this->baseDomain}/website/builder/publish", $payload);
+            ->postJson($this->builderUrl("/{$this->homepageA()->id}/publish"), $payload);
 
         $response->assertOk();
         $response->assertJson([
@@ -194,6 +210,7 @@ class VisualPageBuilderTest extends TestCase
             'tenant_id' => $this->tenantA->id,
             'slug' => 'home',
             'title' => 'Home',
+            'is_homepage' => true,
             'html' => '<p>Clinic A Content</p>',
         ]);
 
@@ -201,9 +218,9 @@ class VisualPageBuilderTest extends TestCase
 
         // 2. Admin B tries to revert Clinic A's revision
         $response = $this->actingAs($this->adminB)
-            ->postJson("http://{$this->tenantB->subdomain}.{$this->baseDomain}/website/builder/revert/{$revA->id}");
+            ->postJson("http://{$this->tenantB->subdomain}.{$this->baseDomain}/website/builder/{$pageA->id}/revert/{$revA->id}");
 
-        $response->assertForbidden();
+        $response->assertNotFound();
 
         // 3. Create media asset for Clinic A
         $assetA = ClinicMediaAsset::create([
@@ -228,7 +245,7 @@ class VisualPageBuilderTest extends TestCase
     {
         // 1. Save Initial Version
         $this->actingAs($this->adminA)
-            ->postJson("http://{$this->tenantA->subdomain}.{$this->baseDomain}/website/builder/save", [
+            ->postJson($this->builderUrl("/{$this->homepageA()->id}/save"), [
                 'content_json' => ['v' => 1],
                 'html' => '<div>Initial Draft Version 1</div>',
                 'css' => 'div { color: blue; }',
@@ -240,7 +257,7 @@ class VisualPageBuilderTest extends TestCase
 
         // 2. Save Updated Version 2
         $this->actingAs($this->adminA)
-            ->postJson("http://{$this->tenantA->subdomain}.{$this->baseDomain}/website/builder/save", [
+            ->postJson($this->builderUrl("/{$this->homepageA()->id}/save"), [
                 'content_json' => ['v' => 2],
                 'html' => '<div>Updated Draft Version 2</div>',
                 'css' => 'div { color: green; }',
@@ -251,12 +268,184 @@ class VisualPageBuilderTest extends TestCase
 
         // 3. Revert to Revision 1
         $revertResponse = $this->actingAs($this->adminA)
-            ->postJson("http://{$this->tenantA->subdomain}.{$this->baseDomain}/website/builder/revert/{$rev1->id}");
+            ->postJson($this->builderUrl("/{$page->id}/revert/{$rev1->id}"));
 
         $revertResponse->assertOk();
 
         $page->refresh();
         $this->assertStringContainsString('Initial Draft Version 1', $page->html);
+    }
+
+    public function test_publish_only_affects_target_page(): void
+    {
+        $page1 = $this->homepageA();
+        $page1->update(['published_html' => '<p>Page one live</p>']);
+        $page2 = ClinicPage::create(['tenant_id' => $this->tenantA->id, 'slug' => 'about', 'title' => 'About']);
+
+        $this->actingAs($this->adminA)
+            ->postJson($this->builderUrl("/{$page2->id}/publish"), [
+                'html' => '<section>About live</section>',
+                'css' => '',
+            ])->assertOk();
+
+        $this->assertStringContainsString('About live', $page2->refresh()->published_html);
+        $this->assertTrue($page2->is_published);
+        $this->assertSame('<p>Page one live</p>', $page1->refresh()->published_html);
+    }
+
+    public function test_publish_strips_style_breakout_from_css(): void
+    {
+        $page = $this->homepageA();
+
+        $this->actingAs($this->adminA)
+            ->postJson($this->builderUrl("/{$page->id}/publish"), [
+                'html' => '<p>x</p>',
+                'css' => '#a{color:red}</style><script>alert(1)</script>',
+            ])
+            ->assertOk();
+
+        $page->refresh();
+        $this->assertStringContainsString('#a{color:red}', $page->published_css);
+        $this->assertStringNotContainsString('</style', $page->published_css);
+        $this->assertStringNotContainsString('<script', $page->published_css);
+        $this->assertStringNotContainsString('</style', $page->css);
+        $this->assertStringNotContainsString('<script', $page->css);
+    }
+
+    public function test_draft_save_strips_style_breakout_from_css(): void
+    {
+        $page = $this->homepageA();
+
+        $this->actingAs($this->adminA)
+            ->postJson($this->builderUrl("/{$page->id}/save"), [
+                'html' => '<p>x</p>',
+                'css' => '#a{color:red}< / STYLE ><ScRipt>alert(1)</ScRipt><!-- x -->#b{background:url(javascript:alert(1))}',
+            ])
+            ->assertOk();
+
+        $css = $page->refresh()->css;
+        $this->assertStringContainsString('#a{color:red}', $css);
+        $this->assertDoesNotMatchRegularExpression('/<\s*\/?\s*(style|script)|<!--|-->|javascript:/i', $css);
+    }
+
+    public function test_css_sanitizer_is_not_bypassed_by_spliced_tokens(): void
+    {
+        $page = $this->homepageA();
+
+        foreach ([
+            '@im<script>port url(//evil/x.css);',
+            'a{width:expr<script>ession(alert(1))}',
+            '@im<!--port url(//evil/x.css);',
+            'a{width:expr<!---->ession(alert(1))}',
+            'a{x:-moz-bin<!--ding:url(x);}',
+        ] as $input) {
+            $this->actingAs($this->adminA)
+                ->postJson($this->builderUrl("/{$page->id}/save"), ['html' => '<p>x</p>', 'css' => $input])
+                ->assertOk();
+
+            $css = $page->refresh()->css;
+            $this->assertStringNotContainsStringIgnoringCase('@import', $css, $input);
+            $this->assertStringNotContainsStringIgnoringCase('expression(', $css, $input);
+            $this->assertStringNotContainsStringIgnoringCase('-moz-binding', $css, $input);
+        }
+    }
+
+    public function test_draft_save_keeps_published_at(): void
+    {
+        $page = $this->homepageA();
+
+        $this->actingAs($this->adminA)
+            ->postJson($this->builderUrl("/{$page->id}/publish"), ['html' => '<p>v1</p>', 'css' => ''])
+            ->assertOk();
+        $publishedAt = $page->refresh()->published_at;
+        $this->assertNotNull($publishedAt);
+
+        $this->travel(1)->minutes();
+
+        $this->actingAs($this->adminA)
+            ->postJson($this->builderUrl("/{$page->id}/save"), ['html' => '<p>v2</p>', 'css' => ''])
+            ->assertOk();
+
+        $page->refresh();
+        $this->assertTrue($page->published_at->equalTo($publishedAt));
+        $this->assertTrue($page->is_published);
+        $this->assertTrue($page->hasUnpublishedChanges());
+    }
+
+    public function test_revert_rejects_revision_from_other_page(): void
+    {
+        $page1 = $this->homepageA();
+        $page2 = ClinicPage::create(['tenant_id' => $this->tenantA->id, 'slug' => 'about', 'title' => 'About']);
+        $rev = $page2->createRevision(userId: $this->adminA->id, summary: 'About rev');
+
+        $this->actingAs($this->adminA)
+            ->postJson($this->builderUrl("/{$page1->id}/revert/{$rev->id}"))
+            ->assertNotFound();
+    }
+
+    public function test_sanitizer_preserves_mv_attributes_and_still_strips_event_handlers(): void
+    {
+        $html = '<div id="a1" data-mv-animation="slide-up" data-mv-duration="800" data-mv-delay="200" '
+            .'data-mv-custom-css="selector{border:2px solid red}" data-mv-hidden-desktop="1" '
+            .'data-mv-hidden-tablet="1" data-mv-hidden-mobile="1" data-x="keep" onclick="alert(1)">Hi</div>';
+
+        $clean = HtmlSanitizer::sanitize($html);
+
+        $this->assertStringContainsString('data-mv-animation="slide-up"', $clean);
+        $this->assertStringContainsString('data-mv-duration="800"', $clean);
+        $this->assertStringContainsString('data-mv-delay="200"', $clean);
+        $this->assertStringContainsString('data-mv-custom-css="selector{border:2px solid red}"', $clean);
+        $this->assertStringContainsString('data-mv-hidden-desktop="1"', $clean);
+        $this->assertStringContainsString('data-mv-hidden-tablet="1"', $clean);
+        $this->assertStringContainsString('data-mv-hidden-mobile="1"', $clean);
+        // Unchanged behaviour: other data-* attributes are kept, event handlers are stripped.
+        $this->assertStringContainsString('data-x="keep"', $clean);
+        $this->assertStringNotContainsString('onclick', $clean);
+    }
+
+    public function test_mv_attributes_survive_publish(): void
+    {
+        $page = $this->homepageA();
+        $html = '<section id="s1" data-mv-animation="fade-in" data-mv-duration="500" data-mv-hidden-mobile="1" onclick="x()">Hello</section>';
+
+        $this->actingAs($this->adminA)
+            ->postJson($this->builderUrl("/{$page->id}/publish"), [
+                'content_json' => ['v' => 1],
+                'html' => $html,
+                'css' => '#s1{display:none}',
+            ])->assertOk();
+
+        $published = (string) $page->fresh()->published_html;
+        $this->assertStringContainsString('data-mv-animation="fade-in"', $published);
+        $this->assertStringContainsString('data-mv-duration="500"', $published);
+        $this->assertStringContainsString('data-mv-hidden-mobile="1"', $published);
+        $this->assertStringNotContainsString('onclick', $published);
+    }
+
+    public function test_builder_without_page_opens_homepage(): void
+    {
+        $home = $this->homepageA();
+        ClinicPage::create(['tenant_id' => $this->tenantA->id, 'slug' => 'about', 'title' => 'About']);
+
+        $this->actingAs($this->adminA)
+            ->get($this->builderUrl())
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Website/PageBuilder')
+                ->where('page.id', $home->id)
+                ->where('page.is_homepage', true)
+                ->where('page.public_url', '/')
+                ->has('pages', 2)
+                ->has('siteKit.colors', 4)
+            );
+    }
+
+    public function test_builder_page_of_another_tenant_is_not_found(): void
+    {
+        $other = ClinicPage::create(['tenant_id' => $this->tenantB->id, 'slug' => 'home', 'title' => 'Home', 'is_homepage' => true]);
+
+        $this->actingAs($this->adminA)->get($this->builderUrl("/{$other->id}"))->assertNotFound();
+        $this->actingAs($this->adminA)->postJson($this->builderUrl("/{$other->id}/save"), ['html' => ''])->assertNotFound();
     }
 
     public function test_media_library_upload_and_delete(): void
@@ -293,6 +482,7 @@ class VisualPageBuilderTest extends TestCase
             'tenant_id' => $this->tenantA->id,
             'slug' => 'home',
             'title' => 'Home',
+            'is_homepage' => true,
             'is_published' => true,
             'published_at' => now(),
             'published_html' => '<div class="custom-hero"><h1>Welcome to Our Live Custom Website</h1></div>',
@@ -308,5 +498,16 @@ class VisualPageBuilderTest extends TestCase
             ->has('customPage')
             ->where('customPage.html', fn ($html) => str_contains($html, 'Welcome to Our Live Custom Website'))
         );
+    }
+
+    public function test_faq_details_and_summary_survive_sanitization(): void
+    {
+        $clean = HtmlSanitizer::sanitize(
+            '<div data-mv-widget="faq"><details open><summary>How do I book?</summary><p>Online.</p></details></div>'
+        );
+
+        $this->assertStringContainsString('<details', $clean);
+        $this->assertStringContainsString('<summary>How do I book?</summary>', $clean);
+        $this->assertStringContainsString('<p>Online.</p>', $clean);
     }
 }

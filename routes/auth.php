@@ -36,6 +36,7 @@ Route::middleware('guest')->group(function () {
         ->name('subdomain.check');
 
     Route::post('find-clinic/subdomain', [FindClinicController::class, 'searchSubdomain'])
+        ->middleware('throttle:10,1')
         ->name('find.clinic.subdomain');
 
     Route::post('find-clinic/email', [FindClinicController::class, 'searchEmail'])
@@ -44,6 +45,9 @@ Route::middleware('guest')->group(function () {
 
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');
+
+    Route::get('admin/login', [AuthenticatedSessionController::class, 'create'])
+        ->name('admin.login');
 
     Route::post('login', [AuthenticatedSessionController::class, 'store']);
 

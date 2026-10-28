@@ -13,7 +13,7 @@ class WelcomeClinicMail extends MedVisitMailable
 {
     public string $clinicUrl;
 
-    public string $formattedTrialEnd;
+    public ?string $formattedTrialEnd = null;
 
     public function __construct(
         public Tenant $tenant,
@@ -22,8 +22,9 @@ class WelcomeClinicMail extends MedVisitMailable
         $this->forTenant($this->tenant);
         $this->clinicUrl = $this->tenant->url('/login');
 
-        $trialEnd = $this->tenant->trial_ends_at ?? now()->addDays(14);
-        $this->formattedTrialEnd = $trialEnd->copy()->timezone('Asia/Colombo')->format('F j, Y');
+        if ($this->tenant->trial_ends_at) {
+            $this->formattedTrialEnd = $this->tenant->trial_ends_at->copy()->timezone('Asia/Colombo')->format('F j, Y');
+        }
     }
 
     public function senderType(): MailSenderType

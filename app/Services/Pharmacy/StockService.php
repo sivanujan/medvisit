@@ -64,10 +64,12 @@ class StockService
             $totalCostCents = 0;
 
             foreach ($data['items'] as $item) {
-                $quantity = (int) $item['quantity'];
+                $billedQuantity = (int) $item['quantity'];
+                $freeQuantity = (int) ($item['free_quantity'] ?? 0);
+                $totalUnits = $billedQuantity + $freeQuantity;
                 $costPrice = (int) $item['cost_price_cents'];
 
-                if ($quantity <= 0) {
+                if ($totalUnits <= 0) {
                     continue;
                 }
 
@@ -111,8 +113,8 @@ class StockService
                     ->first();
 
                 if ($existingBatch) {
-                    $existingBatch->increment('quantity_received', $quantity);
-                    $existingBatch->increment('quantity_remaining', $quantity);
+                    $existingBatch->increment('quantity_received', $totalUnits);
+                    $existingBatch->increment('quantity_remaining', $totalUnits);
                     $batch = $existingBatch;
                 } else {
                     $batch = StockBatch::create([
@@ -120,8 +122,8 @@ class StockService
                         'clinic_medicine_id' => $clinicMedicine->id,
                         'batch_number' => $batchNumber,
                         'expiry_date' => $expiryDate,
-                        'quantity_received' => $quantity,
-                        'quantity_remaining' => $quantity,
+                        'quantity_received' => $totalUnits,
+                        'quantity_remaining' => $totalUnits,
                         'cost_price_cents' => $costPrice,
                         'supplier_id' => $data['supplier_id'] ?? null,
                         'stock_receipt_id' => $receipt->id,
@@ -135,7 +137,7 @@ class StockService
                     'clinic_medicine_id' => $clinicMedicine->id,
                     'stock_batch_id' => $batch->id,
                     'type' => StockMovement::TYPE_RECEIPT,
-                    'quantity' => $quantity,
+                    'quantity' => $totalUnits,
                     'reason' => "Received via {$receiptNumber}",
                     'reference_type' => StockReceipt::class,
                     'reference_id' => (string) $receipt->id,
@@ -143,7 +145,7 @@ class StockService
                     'created_at' => now(),
                 ]);
 
-                $lineTotal = $quantity * $costPrice;
+                $lineTotal = $billedQuantity * $costPrice;
                 $totalCostCents += $lineTotal;
 
                 AuditLogger::log('stock.received', [
@@ -154,7 +156,9 @@ class StockService
                         'receipt_number' => $receiptNumber,
                         'medicine_id' => $clinicMedicine->id,
                         'medicine_name' => $clinicMedicine->display_name,
-                        'quantity' => $quantity,
+                        'quantity' => $totalUnits,
+                        'billed_quantity' => $billedQuantity,
+                        'free_quantity' => $freeQuantity,
                         'cost_price_cents' => $costPrice,
                     ],
                 ]);
@@ -287,7 +291,7 @@ class StockService
                     'quantity_received' => $quantity,
                     'quantity_remaining' => $quantity,
                     'cost_price_cents' => $costPriceCents,
-                    'supplier_id' => null,
+                    'supplier_id' => $batchData['supplier_id'] ?? null,
                     'stock_receipt_id' => null,
                     'received_at' => now(),
                 ]);
@@ -521,8 +525,11 @@ class StockService
      */
     protected function generateNextReceiptNumber(string $tenantId): string
     {
-        $sequence = $this->sequenceService->next($tenantId, 'grn');
+        do {
+            $sequence = $this->sequenceService->next($tenantId, 'grn');
+            $candidate = sprintf('GRN-%06d', $sequence);
+        } while (StockReceipt::where('tenant_id', $tenantId)->where('receipt_number', $candidate)->exists());
 
-        return sprintf('GRN-%06d', $sequence);
+        return $candidate;
     }
 }

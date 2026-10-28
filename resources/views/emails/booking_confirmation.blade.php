@@ -1,67 +1,71 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Appointment Confirmation</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #1e293b; margin: 0; padding: 24px; }
-        .card { max-width: 540px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-        .header { background: #0f172a; color: #ffffff; padding: 24px; text-align: center; }
-        .header h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
-        .header p { margin: 6px 0 0; color: #94a3b8; font-size: 13px; }
-        .token-badge { background: #f0fdf4; border: 2px solid #86efac; border-radius: 12px; padding: 16px; text-align: center; margin: 24px; }
-        .token-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #15803d; }
-        .token-number { font-size: 40px; font-weight: 900; color: #166534; line-height: 1; margin: 6px 0; }
-        .token-approx { font-size: 13px; color: #15803d; font-weight: 600; }
-        .body { padding: 0 24px 24px; }
-        .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
-        .detail-row:last-child { border-bottom: none; }
-        .detail-label { color: #64748b; font-weight: 500; }
-        .detail-value { color: #0f172a; font-weight: 700; text-align: right; }
-        .footer { background: #f8fafc; padding: 16px 24px; text-align: center; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0; }
-    </style>
-</head>
-<body>
-    <div class="card">
-        <div class="header">
-            <h1>{{ $clinicName }}</h1>
-            <p>Doctor Channeling Appointment Confirmation</p>
-        </div>
+@extends('emails.layouts.base', [
+    'subject' => "Appointment Confirmed: Token #{$tokenNumber} — {$clinicName}",
+    'preheader' => "Your channeling token is #{$tokenNumber} for {$doctorName} on {$sessionDate}.",
+    'brandMode' => 'clinic',
+])
 
-        <div class="token-badge">
-            <div class="token-label">Your Channeling Token</div>
-            <div class="token-number">#{{ $tokenNumber }}</div>
-            <div class="token-approx">Approx. Time: {{ $approxTime }}</div>
-        </div>
+@section('content')
+    <x-email.heading>Appointment Confirmed</x-email.heading>
 
-        <div class="body">
-            <div class="detail-row">
-                <span class="detail-label">Patient Name</span>
-                <span class="detail-value">{{ $patientName }}</span>
-            </div>
-            <div class="detail-row">
-                <span class="detail-label">Doctor</span>
-                <span class="detail-value">{{ $doctorName }} ({{ $doctorSpecialty }})</span>
-            </div>
-            <div class="detail-row">
-                <span class="detail-label">Date</span>
-                <span class="detail-value">{{ $sessionDate }}</span>
-            </div>
-            <div class="detail-row">
-                <span class="detail-label">Session Hours</span>
-                <span class="detail-value">{{ $sessionTime }}</span>
-            </div>
-            <div class="detail-row">
-                <span class="detail-label">Room / Suite</span>
-                <span class="detail-value">{{ $roomNumber }}</span>
-            </div>
-        </div>
+    <x-email.text>
+        Hello {{ $patientName }},
+    </x-email.text>
 
-        <div class="footer">
-            Please arrive at the clinic 15 minutes before your approximate consultation time.<br>
-            Powered by MedVisit • Clinic Management System
-        </div>
-    </div>
-</body>
-</html>
+    <x-email.text>
+        Your appointment has been confirmed at <strong>{{ $clinicName }}</strong>. Please find your channeling token details below:
+    </x-email.text>
+
+    {{-- Large Token Box --}}
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" role="presentation" style="margin: 20px 0 24px 0;">
+        <tr>
+            <td align="center">
+                <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="background-color: #ECFDF5; border: 2px solid #A7F3D0; border-radius: 12px; margin: 0 auto; width: 100%; max-width: 320px;">
+                    <tr>
+                        <td align="center" style="padding: 18px 24px;">
+                            <div style="font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 11px; font-weight: 700; color: #065F46; letter-spacing: 1px; text-transform: uppercase;">
+                                YOUR CHANNELING TOKEN
+                            </div>
+                            <div style="font-family: 'SFMono-Regular', Consolas, -apple-system, sans-serif; font-size: 42px; font-weight: 800; color: #047857; line-height: 1.1; margin: 6px 0;">
+                                #{{ $tokenNumber }}
+                            </div>
+                            <div style="font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 13px; font-weight: 600; color: #065F46;">
+                                Approx. Consultation Time: {{ $approxTime }}
+                            </div>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+
+    <x-email.info-card title="Consultation Details" :items="[
+        'Doctor' => '<strong>' . $doctorName . '</strong> (' . $doctorSpecialty . ')',
+        'Date' => $sessionDate,
+        'Session Window' => $sessionTime,
+        'Room / Suite' => $roomNumber,
+        'Patient Name' => $patientName,
+    ]" />
+
+    @if(!empty($clinicAddress))
+        @php
+            $locationItems = array_filter([
+                'Clinic' => $clinicName,
+                'Address' => $clinicAddress,
+                'Telephone' => !empty($clinicPhone) ? '<a href="tel:' . $clinicPhone . '" style="color: #1E6FD9; text-decoration: none;">' . $clinicPhone . '</a>' : null,
+                'Directions' => '<a href="' . $mapUrl . '" target="_blank" style="color: #0E9E8F; font-weight: 600; text-decoration: none;">Open in Google Maps →</a>',
+            ]);
+        @endphp
+        <x-email.info-card title="Clinic Location" :items="$locationItems" />
+    @endif
+
+    <x-email.alert type="info">
+        <strong>Important Arrival Notice:</strong> Please arrive at the clinic reception 15 minutes before your estimated time of consultation (<strong>{{ $approxTime }}</strong>). Keep this token number ready for check-in.
+    </x-email.alert>
+
+    @if(!empty($cancelUrl))
+        <x-email.text muted style="text-align: center; margin-top: 20px;">
+            Need to reschedule or cancel your visit? 
+            <a href="{{ $cancelUrl }}" target="_blank" style="color: #64748B; text-decoration: underline;">Cancel appointment</a>
+        </x-email.text>
+    @endif
+@endsection

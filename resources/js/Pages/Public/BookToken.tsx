@@ -128,7 +128,7 @@ export default function BookToken({
 
     const isSubmitDisabled = processing || !selectedSession || selectedSession.is_full;
 
-    const rawPhone = (clinic.phone || '+94 77 204 6898').replace(/\s+/g, '');
+    const rawPhone = (clinic.phone || '+94 70 129 1688').replace(/\s+/g, '');
 
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-teal-100 selection:text-teal-900 font-sans flex flex-col">
@@ -311,7 +311,7 @@ export default function BookToken({
                                 className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs shadow-md transition-all active:scale-95"
                             >
                                 <Phone className="w-4 h-4" />
-                                <span>Call Clinic Hotline ({clinic.phone || '+94 77 204 6898'})</span>
+                                <span>Call Clinic Hotline ({clinic.phone || '070 129 1688'})</span>
                             </a>
 
                             <Link

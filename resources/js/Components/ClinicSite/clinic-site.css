@@ -1,0 +1,267 @@
+/*
+ * Public clinic website (home page sections). Themed entirely by CSS variables set on
+ * .cs-root from the clinic's look & feel: brand colour, light/dark, font, button shape.
+ */
+
+.cs-root {
+    --cs-bg: #ffffff;
+    --cs-soft: #f5f8fc;
+    --cs-surface: #ffffff;
+    --cs-ink: #0f1b2d;
+    --cs-muted: #4b5a70;
+    --cs-line: #e3e9f2;
+    --cs-open: #047857;
+    --cs-radius: 1.25rem;
+    --cs-btn-radius: 0.85rem;
+    background: var(--cs-bg);
+    color: var(--cs-ink);
+    font-family: var(--cs-font-body, 'Poppins'), ui-sans-serif, system-ui, sans-serif;
+}
+
+.cs-root[data-mode='dark'] {
+    --cs-bg: #0b1220;
+    --cs-soft: #0f1a2e;
+    --cs-surface: #121e33;
+    --cs-ink: #eef3fb;
+    --cs-muted: #a7b4c8;
+    --cs-line: #24324a;
+    --cs-open: #34d399;
+}
+
+.cs-root[data-buttons='pill'] {
+    --cs-btn-radius: 9999px;
+}
+
+.cs-root h1,
+.cs-root h2,
+.cs-root h3 {
+    font-family: var(--cs-font-head, var(--cs-font-body, 'Poppins')), ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: -0.02em;
+}
+
+.cs-container {
+    width: 100%;
+    max-width: 72rem;
+    margin: 0 auto;
+    padding: 0 1rem;
+}
+
+@media (min-width: 640px) {
+    .cs-container {
+        padding: 0 1.5rem;
+    }
+}
+
+.cs-section {
+    position: relative;
+    padding: 3.5rem 0;
+    scroll-margin-top: 5rem;
+}
+
+@media (min-width: 768px) {
+    .cs-section {
+        padding: 4.5rem 0;
+    }
+}
+
+.cs-section-alt {
+    background: var(--cs-soft);
+}
+
+.cs-h2 {
+    font-size: clamp(1.6rem, 3.2vw, 2.2rem);
+    font-weight: 600;
+    line-height: 1.15;
+}
+
+.cs-lead {
+    margin-top: 0.6rem;
+    max-width: 40rem;
+    color: var(--cs-muted);
+    font-size: 1.02rem;
+    line-height: 1.65;
+}
+
+.cs-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 3rem;
+    padding: 0 1.4rem;
+    border-radius: var(--cs-btn-radius);
+    font-weight: 600;
+    font-size: 0.98rem;
+    background: var(--cs-primary);
+    color: var(--cs-on-primary);
+    transition:
+        filter 150ms ease,
+        transform 150ms ease;
+}
+
+.cs-btn:hover {
+    filter: brightness(1.06);
+}
+
+.cs-btn-ghost {
+    background: transparent;
+    color: var(--cs-ink);
+    border: 1.5px solid var(--cs-line);
+}
+
+.cs-btn-small {
+    min-height: 2.5rem;
+    padding: 0 1rem;
+    font-size: 0.88rem;
+}
+
+.cs-root :focus-visible {
+    outline: 3px solid var(--cs-primary-text);
+    outline-offset: 2px;
+}
+
+.cs-card {
+    background: var(--cs-surface);
+    border: 1px solid var(--cs-line);
+    border-radius: var(--cs-radius);
+}
+
+.cs-accent {
+    color: var(--cs-primary-text);
+}
+
+.cs-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.8rem;
+    border-radius: 9999px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    background: color-mix(in srgb, var(--cs-primary) 12%, transparent);
+    color: var(--cs-primary-text);
+}
+
+/* ---------- Hero styles ---------- */
+
+.cs-hero {
+    padding: 4rem 0 3.5rem;
+}
+
+@media (min-width: 768px) {
+    .cs-hero {
+        padding: 6rem 0 5rem;
+    }
+}
+
+.cs-hero-title {
+    font-size: clamp(2.2rem, 5.5vw, 3.75rem);
+    font-weight: 600;
+    line-height: 1.06;
+}
+
+.cs-hero-gradient {
+    background:
+        radial-gradient(70% 90% at 85% 0%, color-mix(in srgb, var(--cs-primary) 20%, transparent), transparent 70%),
+        radial-gradient(60% 70% at 0% 100%, color-mix(in srgb, var(--cs-primary) 10%, transparent), transparent 70%),
+        var(--cs-bg);
+}
+
+.cs-hero-photo {
+    color: #ffffff;
+    background-color: #0b1220;
+    background-size: cover;
+    background-position: center;
+}
+
+.cs-hero-photo::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, rgba(8, 15, 30, 0.85), rgba(8, 15, 30, 0.45));
+}
+
+.cs-hero-photo .cs-lead,
+.cs-hero-photo .cs-hero-title {
+    color: #ffffff;
+}
+
+.cs-hero-photo .cs-chip {
+    background: rgba(255, 255, 255, 0.16);
+    color: #ffffff;
+}
+
+.cs-hero-photo .cs-btn-ghost {
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.45);
+}
+
+.cs-hero-minimal .cs-hero-title {
+    border-bottom: 4px solid var(--cs-primary);
+    display: inline;
+    padding-bottom: 0.2rem;
+}
+
+.cs-hero-art {
+    aspect-ratio: 4 / 3;
+    border-radius: 1.75rem;
+    background:
+        radial-gradient(80% 70% at 30% 20%, color-mix(in srgb, var(--cs-primary) 70%, white 10%), transparent 70%),
+        radial-gradient(70% 60% at 90% 90%, color-mix(in srgb, var(--cs-primary) 45%, black 15%), transparent 70%),
+        var(--cs-primary);
+    overflow: hidden;
+}
+
+/* ---------- Editor preview (embed) ---------- */
+
+.cs-root[data-embed='true'] [data-section-id] {
+    cursor: pointer;
+    outline: 2px solid transparent;
+    outline-offset: -2px;
+    transition: outline-color 150ms ease;
+}
+
+.cs-root[data-embed='true'] [data-section-id]:hover {
+    outline-color: color-mix(in srgb, #1e6fd9 45%, transparent);
+}
+
+.cs-root[data-embed='true'] [data-section-id][data-selected='true'] {
+    outline: 3px solid #1e6fd9;
+}
+
+.cs-placeholder {
+    border: 2px dashed color-mix(in srgb, #1e6fd9 50%, transparent);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    text-align: center;
+    color: var(--cs-muted);
+    background: color-mix(in srgb, #1e6fd9 5%, transparent);
+}
+
+.cs-placeholder strong {
+    display: block;
+    color: #1e6fd9;
+    font-weight: 600;
+}
+
+.cs-flash {
+    animation: cs-flash 900ms ease-out;
+}
+
+@keyframes cs-flash {
+    0% {
+        box-shadow: inset 0 0 0 9999px rgba(30, 111, 217, 0.12);
+    }
+    100% {
+        box-shadow: inset 0 0 0 9999px rgba(30, 111, 217, 0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cs-flash {
+        animation: none;
+    }
+    .cs-btn {
+        transition: none;
+    }
+}

@@ -234,8 +234,10 @@ class PhoneVerificationService
             ];
         }
 
-        // Generate 6-digit random code
-        $plainCode = sprintf('%06d', random_int(100000, 999999));
+        $isDemo = (bool) ($tenant && $tenant->is_demo);
+
+        // Generate 6-digit random code (fixed 123456 for demo sandbox)
+        $plainCode = $isDemo ? '123456' : sprintf('%06d', random_int(100000, 999999));
         $codeHash = hash('sha256', $plainCode);
 
         // Mark any existing pending attempt for this session and phone as expired
@@ -258,9 +260,9 @@ class PhoneVerificationService
             'expires_at' => $expiresAt,
         ]);
 
-        // Choose driver
-        $driverChannel = $channel;
-        if ($channel === 'textlk' && empty(config('services.textlk.api_token')) && app()->environment('local', 'testing')) {
+        // Choose driver (in demo sandbox, never send real external network requests)
+        $driverChannel = $isDemo ? 'fake' : $channel;
+        if (! $isDemo && $channel === 'textlk' && empty(config('services.textlk.api_token')) && app()->environment('local', 'testing')) {
             $driverChannel = app()->environment('testing') ? 'fake' : 'log';
         }
 
@@ -287,7 +289,10 @@ class PhoneVerificationService
         }
 
         $responseData = $result['data'] ?? [];
-        if (app()->environment('local') && ($channel === 'textlk' || $channel === 'log')) {
+        if ($isDemo) {
+            $responseData['demo_code'] = '123456';
+            $responseData['dev_code'] = '123456';
+        } elseif (app()->environment('local') && ($channel === 'textlk' || $channel === 'log')) {
             $responseData['dev_code'] = $plainCode;
         }
 
@@ -386,7 +391,8 @@ class PhoneVerificationService
             ];
         }
 
-        $submittedHash = hash('sha256', trim($code));
+        $isDemo = (bool) (($tenant && $tenant->is_demo) || ($verification->tenant && $verification->tenant->is_demo));
+        $submittedHash = ($isDemo && trim($code) === '123456') ? $verification->code_hash : hash('sha256', trim($code));
 
         if (hash_equals($verification->code_hash, $submittedHash)) {
             $verification->update([

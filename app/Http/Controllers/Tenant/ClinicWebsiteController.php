@@ -15,12 +15,17 @@ use App\Models\DoctorSession;
 use App\Models\Patient;
 use App\Models\Tenant;
 use App\Models\VisitType;
+use App\Models\WebsiteTemplate;
 use App\Services\FeeResolutionService;
+use App\Services\Templates\TemplateService;
+use App\Support\ClinicWebsite;
 use App\Support\HtmlSanitizer;
+use App\Support\SiteKit;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -30,169 +35,151 @@ use Inertia\Response;
 class ClinicWebsiteController extends Controller
 {
     /**
-     * Default sections configuration.
-     */
-    protected array $defaultSections = [
-        [
-            'id' => 'hero',
-            'name' => 'Hero Banner',
-            'enabled' => true,
-            'title' => 'Compassionate Care, Specialist Excellence',
-            'subtitle' => 'Book specialist channeling appointments with Sri Lanka’s leading medical practitioners. Zero waiting lounge delays with real-time digital queue updates.',
-            'cta_text' => 'Book Appointment Online',
-            'cta_link' => '/book',
-            'badge' => 'Open Daily • Specialist Channeling',
-        ],
-        [
-            'id' => 'about',
-            'name' => 'About Clinic',
-            'enabled' => true,
-            'title' => 'Your Family’s Trusted Medical Center',
-            'description' => 'Providing premier outpatient healthcare, specialist channeling, and diagnostic medical services with international safety protocols and Sri Lankan warmth.',
-            'stat_1_number' => '15+',
-            'stat_1_label' => 'Medical Specialists',
-            'stat_2_number' => '25,000+',
-            'stat_2_label' => 'Satisfied Patients',
-            'stat_3_number' => '100%',
-            'stat_3_label' => 'Digital Queue Tracking',
-        ],
-        [
-            'id' => 'doctors',
-            'name' => 'Doctors Roster (Auto)',
-            'enabled' => true,
-            'title' => 'Meet Our Medical Specialists',
-            'subtitle' => 'SLMC verified consultants, surgeons, and physicians practicing at our modern medical center.',
-        ],
-        [
-            'id' => 'sessions',
-            'name' => 'This Week Channeling (Auto)',
-            'enabled' => true,
-            'title' => 'Channeling Sessions This Week',
-            'subtitle' => 'Live upcoming schedules with real-time token capacity and consultation suites.',
-        ],
-        [
-            'id' => 'services',
-            'name' => 'Clinical Services',
-            'enabled' => true,
-            'title' => 'Comprehensive Medical Services',
-            'subtitle' => 'From preventive healthcare to specialist consultation and diagnostic labs.',
-            'items' => [
-                ['name' => 'Specialist Doctor Channeling', 'desc' => 'Cardiology, Paediatrics, ENT, Dermatology, and General Medicine.'],
-                ['name' => 'Clinical Laboratory & Pathology', 'desc' => 'Automated blood testing, lipid profiles, and diagnostic screening.'],
-                ['name' => 'Digital ECG & Vitals Lounge', 'desc' => 'Rapid heart health monitoring and cardiac diagnostics.'],
-                ['name' => 'Pharmacy & Prescription Dispensing', 'desc' => 'Certified pharmaceutical supplies and patient medication guidance.'],
-            ],
-        ],
-        [
-            'id' => 'hours',
-            'name' => 'Operating Hours',
-            'enabled' => true,
-            'title' => 'Clinical Hours & Availability',
-            'weekdays' => '07:30 AM – 10:00 PM',
-            'saturday' => '07:30 AM – 10:00 PM',
-            'sunday' => '08:00 AM – 08:00 PM',
-            'emergency_note' => 'Channeling appointments operate according to individual doctor schedule suites.',
-        ],
-        [
-            'id' => 'contact',
-            'name' => 'Contact & Location',
-            'enabled' => true,
-            'title' => 'Visit Our Medical Center',
-            'subtitle' => 'Centrally located with dedicated parking and accessible wheelchair facilities.',
-            'map_link' => 'https://maps.google.com',
-        ],
-        [
-            'id' => 'footer',
-            'name' => 'Website Footer',
-            'enabled' => true,
-            'notice' => 'All doctor channeling schedules are subject to practitioner availability. Token appointment times are approximate.',
-        ],
-    ];
-
-    /**
-     * Admin: Visual Section Builder & Website Settings.
+     * The simple website editor: home page sections, look & feel, extra pages, SEO.
      */
     public function index(Request $request): Response
     {
         $tenant = tenant();
-
-        $sections = $tenant->website_sections ?? $this->defaultSections;
-        $theme = $tenant->website_theme ?? 'medvisit-teal';
-        $isPublished = (bool) ($tenant->website_published ?? false);
-        $seo = [
-            'title' => $tenant->seo_title ?? ($tenant->name.' - Specialist Doctor Channeling'),
-            'description' => $tenant->seo_description ?? ('Book doctor channeling sessions online at '.$tenant->name.'. Live queue monitoring and SLMC verified specialists.'),
-        ];
-
-        // Public preview data
-        $doctors = Doctor::where('is_active', true)->orderBy('name')->get();
-        $upcomingSessions = DoctorSession::with('doctor')
-            ->where('session_date', '>=', Carbon::today('Asia/Colombo')->toDateString())
-            ->whereNotIn('status', ['cancelled'])
-            ->orderBy('session_date')
-            ->orderBy('start_time')
-            ->limit(10)
-            ->get();
+        $sections = ClinicWebsite::draftSections($tenant);
+        $homepage = ClinicPage::homepageFor((string) $tenant->id);
 
         return Inertia::render('Website/Index', [
             'sections' => $sections,
-            'theme' => $theme,
-            'isPublished' => $isPublished,
-            'seo' => $seo,
-            'clinic' => [
-                'name' => ucwords((string) ($tenant->name ?? 'Demo Clinic')),
-                'subdomain' => $tenant->subdomain,
-                'phone' => $tenant->phone ?? '+94 11 234 5678',
-                'address' => $tenant->address ?? 'Colombo, Sri Lanka',
+            'look' => ClinicWebsite::draftLook($tenant),
+            'status' => $this->statusPayload($tenant, $sections),
+            'seo' => [
+                'title' => $tenant->seo_title ?: ClinicWebsite::defaultSeoTitle($tenant),
+                'description' => $tenant->seo_description ?: ClinicWebsite::defaultSeoDescription($tenant),
+                'default_title' => ClinicWebsite::defaultSeoTitle($tenant),
+                'default_description' => ClinicWebsite::defaultSeoDescription($tenant),
+                'share_image_url' => $tenant->website_share_image,
+                'generated_share_image_url' => url('/share-image.png'),
             ],
-            'doctors' => $doctors,
-            'upcomingSessions' => $upcomingSessions,
+            'clinic' => [
+                'name' => (string) $tenant->name,
+                'subdomain' => (string) $tenant->subdomain,
+                'site_url' => $tenant->url('/'),
+                'display_host' => $tenant->subdomain.'.'.config('medvisit.public_domain', 'medvisit.lk'),
+                'phone' => (string) ($tenant->phone ?? ''),
+                'address' => (string) ($tenant->address ?? ''),
+                'whatsapp' => (string) ($tenant->whatsapp_number ?? ''),
+                'logo_url' => $tenant->logo_url,
+                'latitude' => $tenant->directory_latitude !== null ? (float) $tenant->directory_latitude : null,
+                'longitude' => $tenant->directory_longitude !== null ? (float) $tenant->directory_longitude : null,
+            ],
+            'counts' => [
+                'doctors' => Doctor::where('is_active', true)->count(),
+            ],
+            'homepageUsesBuilder' => (bool) ($homepage?->published_html),
+            'pages' => ClinicPage::forTenant((string) $tenant->id)
+                ->where('is_homepage', false)
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->get()
+                ->map(fn (ClinicPage $p) => $p->toSummaryArray() + ['in_menu' => $this->pageInMenu($tenant, $p)])
+                ->values(),
         ]);
     }
 
     /**
-     * Admin: Update sections content and ordering.
+     * Draft autosave. Nothing changes on the live site until Publish.
      */
-    public function updateSections(Request $request): RedirectResponse
+    public function updateSections(Request $request): JsonResponse|RedirectResponse
     {
         $validated = $request->validate([
-            'sections' => ['required', 'array'],
+            'sections' => ['required', 'array', 'max:40'],
+            'sections.*.id' => ['required', 'string', 'max:64'],
+            'sections.*.type' => ['nullable', 'string', 'in:'.implode(',', [...ClinicWebsite::CORE_SECTIONS, ...ClinicWebsite::EXTRA_SECTIONS])],
+            'sections.*.enabled' => ['nullable', 'boolean'],
+            'look' => ['nullable', 'array'],
         ]);
 
         $tenant = tenant();
-        $tenant->website_sections = $validated['sections'];
+        // validated() keeps only the wildcard-validated keys of each section; use the full input.
+        $sections = ClinicWebsite::normalize($this->sanitizeSections((array) $request->input('sections')), $tenant);
+        $tenant->website_sections_draft = $sections;
+        if (isset($validated['look'])) {
+            $tenant->website_look_draft = ClinicWebsite::normalizeLook((array) $request->input('look'), $tenant);
+        }
         $tenant->save();
 
-        return redirect()->back()->with('success', 'Website sections layout and content saved successfully.');
+        if (! $request->expectsJson()) {
+            return redirect()->back();
+        }
+
+        return response()->json([
+            'saved_at' => now()->toIso8601String(),
+            'status' => $this->statusPayload(Tenant::find($tenant->id), $sections),
+        ]);
     }
 
     /**
-     * Admin: Toggle Publish status.
+     * Publish the draft (or take the site offline). Publishing is blocked only when a
+     * blocking checklist item fails (clinic name, phone); other items are warnings.
      */
-    public function publish(Request $request): RedirectResponse
+    public function publish(Request $request): JsonResponse|RedirectResponse
     {
         $validated = $request->validate([
             'published' => ['required', 'boolean'],
         ]);
 
         $tenant = tenant();
-        $tenant->website_published = $validated['published'];
-        $tenant->save();
 
-        $msg = $validated['published']
-            ? 'Clinic website is now LIVE and publicly visible!'
-            : 'Clinic website saved as draft.';
+        if (! $validated['published']) {
+            $tenant->website_published = false;
+            $tenant->save();
 
-        return redirect()->back()->with('success', $msg);
+            return $request->expectsJson()
+                ? response()->json(['status' => $this->statusPayload($tenant, ClinicWebsite::draftSections($tenant))])
+                : redirect()->back()->with('success', 'Your website is offline.');
+        }
+
+        $checklist = ClinicWebsite::checklist($tenant, ClinicWebsite::draftSections($tenant));
+        if (! ClinicWebsite::canPublish($checklist)) {
+            $missing = collect($checklist)->filter(fn ($c) => $c['blocking'] && ! $c['ok'])->pluck('label')->implode(' and ');
+            $message = 'Add your '.Str::lower($missing).' before publishing.';
+
+            return $request->expectsJson()
+                ? response()->json(['message' => $message, 'checklist' => $checklist], 422)
+                : redirect()->back()->withErrors(['publish' => $message]);
+        }
+
+        ClinicWebsite::publish($tenant);
+        // refresh() would skip decoding the tenancy data column, so re-read instead.
+        $tenant = Tenant::find($tenant->id);
+
+        return $request->expectsJson()
+            ? response()->json(['status' => $this->statusPayload($tenant, ClinicWebsite::draftSections($tenant))])
+            : redirect()->back()->with('success', 'Published. Your website is live.');
     }
 
     /**
-     * Admin: Update theme and SEO meta fields.
+     * SEO & sharing (saved straight away; it does not change what visitors see on the page).
+     */
+    public function updateSeo(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'seo_title' => ['nullable', 'string', 'max:70'],
+            'seo_description' => ['nullable', 'string', 'max:170'],
+            'share_image_url' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $tenant = tenant();
+        $tenant->seo_title = $validated['seo_title'] ?: null;
+        $tenant->seo_description = $validated['seo_description'] ?: null;
+        $tenant->website_share_image = $validated['share_image_url'] ?: null;
+        $tenant->save();
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Legacy: theme + SEO in one form (kept for older clients).
      */
     public function updateTheme(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'theme' => ['required', 'string', 'in:medvisit-teal,ocean-blue,emerald-health,royal-purple,slate-luxury'],
+            'theme' => ['required', 'string', 'in:'.implode(',', ClinicWebsite::THEMES)],
             'seo_title' => ['required', 'string', 'max:255'],
             'seo_description' => ['required', 'string', 'max:500'],
         ]);
@@ -203,30 +190,87 @@ class ClinicWebsiteController extends Controller
         $tenant->seo_description = $validated['seo_description'];
         $tenant->save();
 
-        return redirect()->back()->with('success', 'Website theme preset and SEO metadata updated.');
+        return redirect()->back()->with('success', 'Website theme and SEO updated.');
     }
 
     /**
-     * Show Visual Page Builder (Elementor-Style 3-panel editor).
+     * Show or hide an extra page in the site header menu.
      */
-    public function showBuilder(Request $request): Response
+    public function togglePageMenu(Request $request, ClinicPage $page): JsonResponse
+    {
+        $tenant = tenant();
+        abort_unless((string) $page->tenant_id === (string) $tenant->id, 404);
+        $validated = $request->validate(['in_menu' => ['required', 'boolean']]);
+
+        $header = is_array($tenant->website_header) ? $tenant->website_header : [];
+        $items = collect($header['menu_items'] ?? [])
+            ->reject(fn ($item) => is_array($item) && (string) ($item['page_id'] ?? '') === (string) $page->id)
+            ->values();
+        if ($validated['in_menu']) {
+            $items->push(['label' => $page->title, 'url' => $page->publicUrl(), 'page_id' => (string) $page->id]);
+        }
+        $header['menu_items'] = $items->all();
+        $tenant->website_header = $header;
+        $tenant->save();
+
+        return response()->json(['in_menu' => $validated['in_menu']]);
+    }
+
+    protected function pageInMenu(Tenant $tenant, ClinicPage $page): bool
+    {
+        $items = is_array($tenant->website_header) ? ($tenant->website_header['menu_items'] ?? []) : [];
+
+        return collect($items)->contains(fn ($item) => is_array($item) && (string) ($item['page_id'] ?? '') === (string) $page->id);
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $sections
+     * @return array<string, mixed>
+     */
+    protected function statusPayload(Tenant $tenant, array $sections): array
+    {
+        return [
+            'is_published' => (bool) ($tenant->website_published ?? false),
+            'published_at' => $tenant->website_published_at,
+            'change_count' => ClinicWebsite::changeCount($tenant),
+            'checklist' => ClinicWebsite::checklist($tenant, $sections),
+        ];
+    }
+
+    /**
+     * Strip markup from every text field; keep structure (lists of items/images/days).
+     *
+     * @param  array<int, mixed>  $sections
+     * @return array<int, mixed>
+     */
+    protected function sanitizeSections(array $sections): array
+    {
+        $clean = function ($value) use (&$clean) {
+            if (is_array($value)) {
+                return array_map($clean, $value);
+            }
+            if (is_string($value)) {
+                return Str::limit(trim(strip_tags($value)), 2000, '');
+            }
+
+            return is_bool($value) || is_int($value) || is_float($value) || $value === null ? $value : null;
+        };
+
+        return array_map($clean, $sections);
+    }
+
+    /**
+     * Show MedVisit Page Builder (3-panel editor).
+     */
+    public function showBuilder(Request $request, ?ClinicPage $page = null): Response
     {
         $tenant = tenant();
 
-        $page = ClinicPage::firstOrCreate(
-            ['tenant_id' => $tenant->id, 'slug' => 'home'],
-            [
-                'title' => 'Home',
-                'schema_version' => 2,
-                'theme_preset' => $tenant->website_theme ?? 'medvisit-teal',
-                'seo_title' => $tenant->seo_title ?? ($tenant->name.' - Specialist Doctor Channeling'),
-                'seo_description' => $tenant->seo_description ?? ('Book doctor channeling sessions online at '.$tenant->name.'.'),
-                'content_json' => $this->getDefaultPageContent($tenant),
-                'html' => null,
-                'css' => null,
-                'is_published' => (bool) ($tenant->website_published ?? false),
-            ]
-        );
+        if ($page) {
+            $this->authorizeTenantPage($page);
+        } else {
+            $page = ClinicPage::homepageFor((string) $tenant->id) ?? $this->createHomepage($tenant);
+        }
 
         $revisions = $page->revisions()
             ->with('user:id,name')
@@ -271,7 +315,7 @@ class ClinicWebsiteController extends Controller
                 'id' => $tenant->id,
                 'name' => ucwords((string) ($tenant->name ?? 'Clinic')),
                 'subdomain' => $tenant->subdomain,
-                'phone' => $tenant->phone ?? '+94 11 234 5678',
+                'phone' => $tenant->phone ?? config('medvisit_public.business.phone_display', '070 129 1688'),
                 'address' => $tenant->address ?? 'Colombo, Sri Lanka',
                 'logo_url' => $tenant->logo_url ?? null,
                 'theme' => $page->theme_preset,
@@ -289,7 +333,16 @@ class ClinicWebsiteController extends Controller
                 'seo_title' => $page->seo_title,
                 'seo_description' => $page->seo_description,
                 'theme_preset' => $page->theme_preset,
+                'is_homepage' => $page->is_homepage,
+                'public_url' => $page->publicUrl(),
             ],
+            'pages' => ClinicPage::forTenant((string) $tenant->id)
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->get()
+                ->map(fn (ClinicPage $p) => $p->toSummaryArray())
+                ->values(),
+            'siteKit' => SiteKit::resolveFor($tenant),
             'revisions' => $revisions,
             'mediaAssets' => $mediaAssets,
             'doctors' => $doctors,
@@ -302,9 +355,10 @@ class ClinicWebsiteController extends Controller
     /**
      * Save draft of visual page builder layout.
      */
-    public function saveBuilder(Request $request): JsonResponse
+    public function saveBuilder(Request $request, ClinicPage $page): JsonResponse
     {
         $tenant = tenant();
+        $this->authorizeTenantPage($page);
 
         $validated = $request->validate([
             'content_json' => ['nullable'],
@@ -327,14 +381,6 @@ class ClinicWebsiteController extends Controller
             $tenant->website_footer = $validated['footer_config'];
         }
         $tenant->save();
-
-        $page = ClinicPage::firstOrCreate(
-            ['tenant_id' => $tenant->id, 'slug' => 'home'],
-            [
-                'title' => 'Home',
-                'theme_preset' => $tenant->website_theme ?? 'medvisit-teal',
-            ]
-        );
 
         $page->update([
             'content_json' => $validated['content_json'] ?? $page->content_json,
@@ -361,9 +407,10 @@ class ClinicWebsiteController extends Controller
     /**
      * Publish visual page builder layout to public clinic website.
      */
-    public function publishBuilder(Request $request): JsonResponse
+    public function publishBuilder(Request $request, ClinicPage $page): JsonResponse
     {
         $tenant = tenant();
+        $this->authorizeTenantPage($page);
 
         $validated = $request->validate([
             'content_json' => ['nullable'],
@@ -385,14 +432,6 @@ class ClinicWebsiteController extends Controller
         if ($request->has('footer_config')) {
             $tenant->website_footer = $validated['footer_config'];
         }
-
-        $page = ClinicPage::firstOrCreate(
-            ['tenant_id' => $tenant->id, 'slug' => 'home'],
-            [
-                'title' => 'Home',
-                'theme_preset' => $tenant->website_theme ?? 'medvisit-teal',
-            ]
-        );
 
         $page->update([
             'content_json' => $validated['content_json'] ?? $page->content_json,
@@ -427,18 +466,45 @@ class ClinicWebsiteController extends Controller
         ]);
     }
 
+    private function authorizeTenantPage(ClinicPage $page): void
+    {
+        abort_if($page->tenant_id !== tenant('id'), 404);
+    }
+
+    private function createHomepage(Tenant $tenant): ClinicPage
+    {
+        $page = ClinicPage::create([
+            'tenant_id' => $tenant->id,
+            'slug' => 'home',
+            'title' => 'Home',
+            'schema_version' => 2,
+            'theme_preset' => $tenant->website_theme ?? 'medvisit-teal',
+            'seo_title' => $tenant->seo_title ?? ($tenant->name.' - Specialist Doctor Channeling'),
+            'seo_description' => $tenant->seo_description ?? ('Book doctor channeling sessions online at '.$tenant->name.'.'),
+            'content_json' => $this->getDefaultPageContent($tenant),
+            'html' => null,
+            'css' => null,
+            'is_published' => (bool) ($tenant->website_published ?? false),
+            'is_homepage' => true,
+        ]);
+
+        return $page->refresh();
+    }
+
     /**
      * Revert page to a chosen historical revision.
      */
-    public function revertRevision(Request $request, ClinicPageRevision $revision): JsonResponse
+    public function revertRevision(Request $request, ClinicPage $page, ClinicPageRevision $revision): JsonResponse
     {
         $tenant = tenant();
+        $this->authorizeTenantPage($page);
 
         if ($revision->tenant_id !== $tenant->id) {
             abort(403, 'Unauthorized access to revision.');
         }
 
-        $page = ClinicPage::where('tenant_id', $tenant->id)->where('id', $revision->page_id)->firstOrFail();
+        abort_if($revision->page_id !== $page->id, 404);
+
         $page->revertToRevision($revision);
 
         return response()->json([
@@ -453,14 +519,9 @@ class ClinicWebsiteController extends Controller
     /**
      * List historical revisions.
      */
-    public function listRevisions(Request $request): JsonResponse
+    public function listRevisions(Request $request, ClinicPage $page): JsonResponse
     {
-        $tenant = tenant();
-        $page = ClinicPage::where('tenant_id', $tenant->id)->where('slug', 'home')->first();
-
-        if (! $page) {
-            return response()->json(['revisions' => []]);
-        }
+        $this->authorizeTenantPage($page);
 
         $revisions = $page->revisions()
             ->with('user:id,name')
@@ -649,11 +710,21 @@ class ClinicWebsiteController extends Controller
     }
 
     /**
-     * Preview homepage (draft mode).
+     * Preview homepage (draft mode, staff only).
      */
     public function previewHome(Request $request): Response|RedirectResponse
     {
-        return $this->renderPublicHome(isPreview: true);
+        return $this->renderPage(ClinicPage::homepageFor((string) tenant('id')), isPreview: true);
+    }
+
+    /**
+     * Preview any page (draft mode, staff only). Trashed pages 404.
+     */
+    public function previewPage(Request $request, string $slug): Response|RedirectResponse
+    {
+        $page = ClinicPage::forTenant((string) tenant('id'))->where('slug', $slug)->firstOrFail();
+
+        return $this->renderPage($page, isPreview: true);
     }
 
     /**
@@ -661,13 +732,91 @@ class ClinicWebsiteController extends Controller
      */
     public function publicHome(): Response|RedirectResponse
     {
-        return $this->renderPublicHome(isPreview: false);
+        return $this->renderPage(ClinicPage::homepageFor((string) tenant('id')), isPreview: false);
     }
 
     /**
-     * Unified renderer for public homepage & draft preview.
+     * Public page (GET /p/{slug}). Only published pages are served; the homepage lives at /.
      */
-    protected function renderPublicHome(bool $isPreview = false): Response|RedirectResponse
+    public function publicPage(string $slug): Response|RedirectResponse
+    {
+        $page = ClinicPage::forTenant((string) tenant('id'))->where('slug', $slug)->firstOrFail();
+
+        abort_unless($page->is_published, 404);
+
+        if ($page->is_homepage) {
+            return redirect('/', 301);
+        }
+
+        return $this->renderPage($page, isPreview: false);
+    }
+
+    /**
+     * Resolve header/footer configs so page-linked menu items carry real URLs.
+     *
+     * @return array{0: mixed, 1: mixed}
+     */
+    protected function resolvedChromeConfigs(Tenant $tenant, bool $isPreview = false): array
+    {
+        $header = $tenant->website_header;
+        $footer = $tenant->website_footer;
+
+        $hasPageLinks = fn ($config): bool => is_array($config)
+            && str_contains((string) json_encode($config), '"page_id"');
+
+        if (! $hasPageLinks($header) && ! $hasPageLinks($footer)) {
+            return [$header, $footer];
+        }
+
+        $pages = ClinicPage::forTenant((string) $tenant->id)->get()->keyBy('id');
+
+        if (is_array($header) && isset($header['menu_items']) && is_array($header['menu_items'])) {
+            $header['menu_items'] = $this->resolveMenuItems($header['menu_items'], $pages, $isPreview);
+        }
+        if (is_array($footer) && isset($footer['quick_links']) && is_array($footer['quick_links'])) {
+            $footer['quick_links'] = $this->resolveMenuItems($footer['quick_links'], $pages, $isPreview);
+        }
+
+        return [$header, $footer];
+    }
+
+    /**
+     * Map page-linked menu items to page URLs; drop links to missing pages and,
+     * outside preview, to unpublished pages. Items without page_id pass through.
+     *
+     * @param  array<int, mixed>  $items
+     * @param  Collection<int, ClinicPage>  $pages  keyed by page id
+     * @return array<int, mixed>
+     */
+    protected function resolveMenuItems(array $items, Collection $pages, bool $isPreview = false): array
+    {
+        $resolved = [];
+
+        foreach ($items as $item) {
+            if (is_array($item) && isset($item['children']) && is_array($item['children'])) {
+                $item['children'] = $this->resolveMenuItems($item['children'], $pages, $isPreview);
+            }
+
+            if (is_array($item) && isset($item['page_id']) && $item['page_id'] !== '') {
+                $linked = $pages->get((int) $item['page_id']);
+
+                if ($linked === null || (! $linked->is_published && ! $isPreview)) {
+                    continue;
+                }
+
+                $item['url'] = $linked->publicUrl();
+            }
+
+            $resolved[] = $item;
+        }
+
+        return $resolved;
+    }
+
+    /**
+     * Unified renderer for public pages & draft preview.
+     */
+    protected function renderPage(?ClinicPage $page, bool $isPreview = false): Response|RedirectResponse
     {
         $tenant = tenant();
 
@@ -675,13 +824,23 @@ class ClinicWebsiteController extends Controller
             return redirect()->route('tenant.suspended');
         }
 
-        $page = ClinicPage::where('tenant_id', $tenant->id)->where('slug', 'home')->first();
+        [$headerConfig, $footerConfig] = $this->resolvedChromeConfigs($tenant, $isPreview);
 
-        $sections = $tenant->website_sections ?? $this->defaultSections;
-        $theme = $page?->theme_preset ?? ($tenant->website_theme ?? 'medvisit-teal');
+        // Server-side entitlement check: if entitlement was lost (e.g. refunded/revoked), fall back gracefully
+        if (! $isPreview && $tenant->applied_template_id) {
+            $appliedTpl = WebsiteTemplate::find($tenant->applied_template_id);
+            if ($appliedTpl && ! config('medvisit.templates_under_development', true) && ! $tenant->isTemplateEntitled($appliedTpl)) {
+                app(TemplateService::class)->revertToPreviousDesign($tenant);
+                $look = ClinicWebsite::liveLook($tenant);
+            }
+        }
+
+        // The editor preview shows the draft; visitors see the published copy.
+        $sections = $isPreview ? ClinicWebsite::draftSections($tenant) : ClinicWebsite::liveSections($tenant);
+        $look = $isPreview ? ClinicWebsite::draftLook($tenant) : ClinicWebsite::liveLook($tenant);
+        $theme = $page?->theme_preset ?? $look['theme'];
         $isPublished = (bool) ($page?->is_published ?? ($tenant->website_published ?? false));
 
-        // Live active doctors
         $doctors = Doctor::where('is_active', true)
             ->orderBy('name')
             ->get()
@@ -691,13 +850,13 @@ class ClinicWebsiteController extends Controller
                 'specialty' => $d->specialty,
                 'slmc_number' => $d->slmc_number,
                 'bio' => $d->bio,
+                'photo_url' => $d->photo_url ?? null,
                 'total_fee_formatted' => 'Rs. '.number_format(($d->doctor_fee + $d->clinic_fee) / 100, 2),
             ]);
 
-        // Upcoming channeling sessions this week
         $upcomingSessions = DoctorSession::with('doctor')
             ->where('session_date', '>=', Carbon::today('Asia/Colombo')->toDateString())
-            ->where('session_date', '<=', Carbon::today('Asia/Colombo')->addDays(7)->toDateString())
+            ->where('session_date', '<=', Carbon::today('Asia/Colombo')->addDays(6)->toDateString())
             ->whereNotIn('status', ['cancelled'])
             ->orderBy('session_date')
             ->orderBy('start_time')
@@ -708,40 +867,60 @@ class ClinicWebsiteController extends Controller
                 return [
                     'id' => $s->id,
                     'doctor_name' => trim(($s->doctor?->title ?? 'Dr.').' '.($s->doctor?->name ?? 'Doctor')),
-                    'doctor_specialty' => $s->doctor?->specialty ?? 'Specialist',
-                    'session_date' => $s->session_date->format('l, M d'),
-                    'start_time' => Carbon::parse($s->start_time)->format('h:i A'),
-                    'room_number' => $s->room_number ?? 'Suite 1',
+                    'doctor_specialty' => $s->doctor?->specialty ?? '',
+                    'session_date' => $s->session_date->format('l, j M'),
+                    'start_time' => Carbon::parse($s->start_time)->format('g:i A'),
+                    'room_number' => $s->room_number ?? '',
                     'available_tokens_count' => max(0, $s->max_tokens - $bookedCount),
                     'is_full' => $bookedCount >= $s->max_tokens,
                     'total_fee_formatted' => 'Rs. '.number_format(($s->doctor_fee + $s->clinic_fee) / 100, 2),
                 ];
             });
 
+        $stats = ClinicWebsite::stats();
+        $visibleIds = ClinicWebsite::visibleSectionIds($sections, [
+            'doctors' => $doctors->count(),
+            'sessions' => $upcomingSessions->count(),
+            'stats' => $stats,
+        ], $tenant);
+
         $customHtml = $isPreview ? ($page?->html ?? $page?->published_html) : $page?->published_html;
         $customCss = $isPreview ? ($page?->css ?? $page?->published_css) : $page?->published_css;
+        $contact = collect($sections)->firstWhere('type', 'contact') ?? [];
 
         return Inertia::render('Public/ClinicLanding', [
             'clinic' => [
-                'name' => ucwords((string) ($tenant->name ?? 'Clinic')),
+                'name' => (string) ($tenant->name ?? ''),
                 'subdomain' => $tenant->subdomain,
-                'phone' => $tenant->phone ?? '+94 11 234 5678',
-                'address' => $tenant->address ?? 'Colombo, Sri Lanka',
+                // Only real details; never placeholders that look like the clinic's own.
+                'phone' => ClinicWebsite::contactValue($contact, 'phone', $tenant) ?: null,
+                'address' => ClinicWebsite::contactValue($contact, 'address', $tenant) ?: null,
+                'email' => ClinicWebsite::contactValue($contact, 'email', $tenant) ?: null,
+                'whatsapp_number' => ClinicWebsite::contactValue($contact, 'whatsapp', $tenant) ?: null,
                 'logo_url' => $tenant->logo_url,
-                'whatsapp_number' => $tenant->whatsapp_number,
                 'opening_hours' => $tenant->opening_hours,
+                'latitude' => $contact['latitude'] ?? ($tenant->directory_latitude !== null ? (float) $tenant->directory_latitude : null),
+                'longitude' => $contact['longitude'] ?? ($tenant->directory_longitude !== null ? (float) $tenant->directory_longitude : null),
             ],
-            'headerConfig' => $tenant->website_header,
-            'footerConfig' => $tenant->website_footer,
+            'headerConfig' => $headerConfig,
+            'footerConfig' => $footerConfig,
             'sections' => $sections,
+            'visibleSectionIds' => $visibleIds,
+            'look' => $look,
+            'stats' => $stats,
             'theme' => $theme,
             'isPublished' => $isPublished,
+            'isPreview' => $isPreview,
+            'isEmbed' => $isPreview && request()->boolean('embed'),
             'doctors' => $doctors,
             'upcomingSessions' => $upcomingSessions,
             'seo' => [
-                'title' => $page?->seo_title ?? ($tenant->seo_title ?? ($tenant->name.' - Doctor Channeling')),
-                'description' => $page?->seo_description ?? ($tenant->seo_description ?? ('Book doctor appointments online at '.$tenant->name.'.')),
+                'title' => $page?->seo_title ?? ($tenant->seo_title ?: ClinicWebsite::defaultSeoTitle($tenant)),
+                'description' => $page?->seo_description ?? ($tenant->seo_description ?: ClinicWebsite::defaultSeoDescription($tenant)),
+                'image' => $tenant->website_share_image ?: url('/share-image.png'),
+                'url' => $tenant->url('/'),
             ],
+            'siteKit' => SiteKit::resolveFor($tenant),
             'customPage' => $customHtml ? [
                 'html' => $customHtml,
                 'css' => $customCss,
@@ -810,15 +989,15 @@ class ClinicWebsiteController extends Controller
         return Inertia::render('Public/BookToken', [
             'clinic' => [
                 'name' => ucwords((string) ($tenant->name ?? 'Clinic')),
-                'phone' => $tenant->phone ?? '+94 11 234 5678',
+                'phone' => $tenant->phone ?? config('medvisit_public.business.phone_display', '070 129 1688'),
                 'address' => $tenant->address ?? 'Colombo, Sri Lanka',
                 'subdomain' => $tenant->subdomain,
                 'logo_url' => $tenant->logo_url,
                 'whatsapp_number' => $tenant->whatsapp_number,
                 'opening_hours' => $tenant->opening_hours,
             ],
-            'headerConfig' => $tenant->website_header,
-            'footerConfig' => $tenant->website_footer,
+            'headerConfig' => $this->resolvedChromeConfigs($tenant)[0],
+            'footerConfig' => $this->resolvedChromeConfigs($tenant)[1],
             'theme' => $tenant->website_theme ?? 'medvisit-teal',
             'sessions' => $sessions,
             'visitTypes' => $onlineVisitTypes,
@@ -1006,14 +1185,14 @@ class ClinicWebsiteController extends Controller
             'clinic' => [
                 'name' => ucwords((string) ($tenant->name ?? 'Clinic')),
                 'subdomain' => $tenant->subdomain,
-                'phone' => $tenant->phone ?? '+94 11 234 5678',
+                'phone' => $tenant->phone ?? config('medvisit_public.business.phone_display', '070 129 1688'),
                 'address' => $tenant->address ?? 'Colombo, Sri Lanka',
                 'logo_url' => $tenant->logo_url,
                 'whatsapp_number' => $tenant->whatsapp_number,
                 'opening_hours' => $tenant->opening_hours,
             ],
-            'headerConfig' => $tenant->website_header,
-            'footerConfig' => $tenant->website_footer,
+            'headerConfig' => $this->resolvedChromeConfigs($tenant)[0],
+            'footerConfig' => $this->resolvedChromeConfigs($tenant)[1],
             'theme' => $tenant->website_theme ?? 'medvisit-teal',
             'activeSessions' => $activeSessions,
         ]);
@@ -1048,14 +1227,14 @@ class ClinicWebsiteController extends Controller
             'clinic' => [
                 'name' => ucwords((string) ($tenant->name ?? 'Clinic')),
                 'subdomain' => $tenant->subdomain,
-                'phone' => $tenant->phone ?? '+94 11 234 5678',
+                'phone' => $tenant->phone ?? config('medvisit_public.business.phone_display', '070 129 1688'),
                 'address' => $tenant->address ?? 'Colombo, Sri Lanka',
                 'logo_url' => $tenant->logo_url,
                 'whatsapp_number' => $tenant->whatsapp_number,
                 'opening_hours' => $tenant->opening_hours,
             ],
-            'headerConfig' => $tenant->website_header,
-            'footerConfig' => $tenant->website_footer,
+            'headerConfig' => $this->resolvedChromeConfigs($tenant)[0],
+            'footerConfig' => $this->resolvedChromeConfigs($tenant)[1],
             'theme' => $tenant->website_theme ?? 'medvisit-teal',
             'token' => $tokenData,
         ]);

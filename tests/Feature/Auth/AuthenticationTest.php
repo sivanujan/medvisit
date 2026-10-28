@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Http\Controllers\Auth\FindClinicController;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -20,21 +21,29 @@ class AuthenticationTest extends TestCase
 
     public function test_demo_credentials_are_only_displayed_in_local_environment(): void
     {
-        // In testing environment, showDemoCredentials must be false
-        $response = $this->get('/login');
+        // Demo accounts live on the platform admin page only, and only locally.
+        $response = $this->get('/admin/login');
         $response->assertStatus(200);
         $response->assertInertia(fn ($page) => $page
-            ->component('Auth/Login')
+            ->component('Auth/AdminLogin')
             ->where('showDemoCredentials', false)
         );
 
-        // In local environment, showDemoCredentials must be true
         $this->app->detectEnvironment(fn () => 'local');
-        $responseLocal = $this->get('/login');
+        $responseLocal = $this->get('/admin/login');
         $responseLocal->assertStatus(200);
         $responseLocal->assertInertia(fn ($page) => $page
-            ->component('Auth/Login')
+            ->component('Auth/AdminLogin')
             ->where('showDemoCredentials', true)
+        );
+    }
+
+    public function test_central_login_is_the_clinic_finder_without_admin_props(): void
+    {
+        $this->get('/login')->assertInertia(fn ($page) => $page
+            ->component('Auth/Login')
+            ->missing('showDemoCredentials')
+            ->missing('initialMode')
         );
     }
 
@@ -113,5 +122,65 @@ class AuthenticationTest extends TestCase
         ]);
 
         $response->assertSessionHasErrors('email');
+    }
+
+    public function test_email_lookup_does_not_reveal_platform_admin_accounts(): void
+    {
+        User::factory()->create([
+            'tenant_id' => null,
+            'email' => 'root@medvisit.lk',
+        ]);
+
+        $admin = $this->post('/find-clinic/email', ['email' => 'root@medvisit.lk']);
+        $unknown = $this->post('/find-clinic/email', ['email' => 'nobody@medvisit.lk']);
+
+        $expected = ['email' => FindClinicController::NOT_FOUND_EMAIL, 'lookup' => 'not_found'];
+        $admin->assertSessionHasErrors($expected);
+        $unknown->assertSessionHasErrors($expected);
+    }
+
+    public function test_email_lookup_with_several_clinics_returns_a_chooser(): void
+    {
+        foreach (['ruhunu', 'kandy-care'] as $id) {
+            $tenant = Tenant::factory()->create(['id' => $id, 'subdomain' => $id, 'name' => ucfirst($id)]);
+            User::factory()->create(['tenant_id' => $tenant->id, 'email' => 'locum@clinic.lk']);
+        }
+
+        $response = $this->post('/find-clinic/email', ['email' => 'locum@clinic.lk']);
+
+        $response->assertSessionHas('matchedClinics', fn (array $clinics) => count($clinics) === 2
+            && collect($clinics)->every(fn ($c) => array_key_exists('logo_url', $c) && str_contains($c['login_url'], '/login?email=')));
+    }
+
+    public function test_inertia_lookup_returns_the_clinic_so_the_page_can_remember_it(): void
+    {
+        $tenant = Tenant::factory()->create(['id' => 'ruhunu', 'subdomain' => 'ruhunu', 'name' => 'Ruhunu']);
+
+        $response = $this->withHeaders(['X-Inertia' => 'true'])
+            ->from('/login')
+            ->post('/find-clinic/subdomain', ['subdomain' => 'Ruhunu']);
+
+        $response->assertRedirect('/login');
+        $response->assertSessionHas('clinicRedirect', fn (array $c) => $c['name'] === 'Ruhunu'
+            && $c['login_url'] === $tenant->url('/login')
+            && $c['home_login_url'] === $tenant->url('/login'));
+    }
+
+    public function test_clinic_address_must_be_a_valid_label(): void
+    {
+        $this->post('/find-clinic/subdomain', ['subdomain' => 'bad_name!'])
+            ->assertSessionHasErrors(['subdomain' => 'Use lowercase letters, numbers and hyphens only.']);
+
+        $this->post('/find-clinic/subdomain', ['subdomain' => 'no-such-clinic'])
+            ->assertSessionHasErrors(['subdomain' => FindClinicController::NOT_FOUND_ADDRESS, 'lookup' => 'not_found']);
+    }
+
+    public function test_clinic_lookups_are_rate_limited(): void
+    {
+        for ($i = 0; $i < 10; $i++) {
+            $this->post('/find-clinic/subdomain', ['subdomain' => "missing-{$i}"]);
+        }
+
+        $this->post('/find-clinic/subdomain', ['subdomain' => 'missing-x'])->assertStatus(429);
     }
 }

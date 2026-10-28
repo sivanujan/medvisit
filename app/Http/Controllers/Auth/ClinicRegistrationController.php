@@ -9,6 +9,8 @@ use App\Http\Requests\Auth\ClinicRegistrationRequest;
 use App\Mail\Auth\RegistrationVerificationCodeMail;
 use App\Mail\Auth\WelcomeClinicMail;
 use App\Models\PendingRegistration;
+use App\Models\Plan;
+use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Rules\NotDisposableEmail;
@@ -39,11 +41,13 @@ class ClinicRegistrationController extends Controller
     public function create(): Response
     {
         $baseDomain = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
+        $publicDomain = config('medvisit.public_domain', 'medvisit.lk');
 
         return Inertia::render('Auth/RegisterClinic', [
             'districts' => ClinicRegistrationRequest::DISTRICTS,
             'clinicTypes' => ClinicRegistrationRequest::CLINIC_TYPES,
             'centralDomain' => $baseDomain,
+            'publicDomain' => $publicDomain,
         ]);
     }
 
@@ -114,7 +118,18 @@ class ClinicRegistrationController extends Controller
      */
     public function sendVerificationCode(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
+        $raw = $request->all();
+        if (isset($raw['clinic_phone'])) {
+            $raw['clinic_phone'] = ClinicRegistrationRequest::normalizePhone($raw['clinic_phone']);
+        }
+        if (isset($raw['mobile'])) {
+            $raw['mobile'] = ClinicRegistrationRequest::normalizePhone($raw['mobile']);
+        }
+        if (isset($raw['subdomain'])) {
+            $raw['subdomain'] = strtolower(trim((string) $raw['subdomain']));
+        }
+
+        $validator = Validator::make($raw, [
             'honeypot' => ['nullable', 'max:0'],
             'clinic_name' => ['required', 'string', 'max:120'],
             'clinic_type' => ['required', 'string', 'in:'.implode(',', ClinicRegistrationRequest::CLINIC_TYPES)],
@@ -397,9 +412,9 @@ class ClinicRegistrationController extends Controller
                 'subdomain' => $subdomain,
                 'phone' => $validated['clinic_phone'],
                 'address' => $validated['address'].', '.$validated['city'].', '.$validated['district'],
-                'plan' => 'trial',
-                'status' => 'trial',
-                'trial_ends_at' => now()->addDays(14),
+                'plan' => 'pro',
+                'status' => ((int) config('medvisit.subscription.trial_days', 0)) > 0 ? 'trial' : 'pending_payment',
+                'trial_ends_at' => ((int) config('medvisit.subscription.trial_days', 0)) > 0 ? now()->addDays((int) config('medvisit.subscription.trial_days', 0)) : null,
                 'data' => [
                     'clinic_type' => $validated['clinic_type'],
                     'district' => $validated['district'],
@@ -408,6 +423,26 @@ class ClinicRegistrationController extends Controller
                     'timezone' => 'Asia/Colombo',
                     'token_reset' => 'daily',
                 ],
+            ]);
+
+            // Create initial Subscription (Pending payment; invoice is created only when Pay is clicked)
+            $trialDays = (int) config('medvisit.subscription.trial_days', 0);
+            $proPlan = Plan::forSlug('pro');
+            $planId = $proPlan ? $proPlan->id : 1;
+
+            $trialEndsAt = $trialDays > 0 ? now()->addDays($trialDays) : null;
+            $subStatus = $trialDays > 0 ? Subscription::STATUS_ACTIVE : Subscription::STATUS_PENDING_PAYMENT;
+
+            Subscription::create([
+                'tenant_id' => $tenant->id,
+                'plan_id' => $planId,
+                'status' => $subStatus,
+                'current_period_start' => now(),
+                'current_period_end' => $trialEndsAt,
+                'trial_ends_at' => $trialEndsAt,
+                'activated_at' => $trialDays > 0 ? now() : null,
+                'created_by' => 'registration',
+                'notes' => $trialDays > 0 ? "Started with {$trialDays}-day free trial" : 'Initial registration pending subscription payment',
             ]);
 
             $centralDomain = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
@@ -432,7 +467,7 @@ class ClinicRegistrationController extends Controller
                 'tenant_id' => $tenant->id,
                 'name' => $tenant->name,
                 'subdomain' => $subdomain,
-                'plan' => 'trial',
+                'plan' => 'pro',
             ]);
 
             AuditLogger::log('user.created', [
@@ -473,7 +508,7 @@ class ClinicRegistrationController extends Controller
             'subdomain' => $subdomain,
             'clinic_url' => $clinicUrl,
             'auto_login_url' => $autoLoginUrl,
-            'trial_ends_at' => $tenant->trial_ends_at->toFormattedDateString(),
+            'trial_ends_at' => $tenant->trial_ends_at?->toFormattedDateString(),
             'admin_email' => $user->email,
             'clinic_type' => $validated['clinic_type'],
             'district' => $validated['district'],

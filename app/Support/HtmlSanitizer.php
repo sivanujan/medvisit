@@ -19,6 +19,7 @@ class HtmlSanitizer
         'ul', 'ol', 'li', 'blockquote', 'hr', 'br', 'table', 'thead', 'tbody',
         'tr', 'th', 'td', 'b', 'strong', 'i', 'em', 'u', 'mark', 'small',
         'sub', 'sup', 'code', 'pre', 'figure', 'figcaption', 'iframe',
+        'details', 'summary',
         'svg', 'path', 'g', 'circle', 'rect', 'polyline', 'polygon', 'line', 'use',
     ];
 
@@ -31,7 +32,7 @@ class HtmlSanitizer
         'data-gjs-custom-name', 'data-gjs-droppable', 'data-widget',
         'viewbox', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin',
         'd', 'cx', 'cy', 'r', 'x', 'y', 'rx', 'ry', 'x1', 'y1', 'x2', 'y2', 'points',
-        'allow', 'allowfullscreen', 'frameborder', 'loading', 'referrerpolicy',
+        'allow', 'allowfullscreen', 'frameborder', 'loading', 'referrerpolicy', 'open',
         'role', 'aria-label', 'aria-hidden', 'aria-expanded',
     ];
 
@@ -207,13 +208,24 @@ class HtmlSanitizer
             return '';
         }
 
-        // Strip @import directives
-        $css = preg_replace('/@import\s+[^;]+;/i', '', $css) ?? '';
-        // Strip javascript: urls
-        $css = preg_replace('/url\s*\(\s*["\']?\s*javascript:[^)]+\)/i', '', $css) ?? '';
-        // Strip expression() or behavior in IE
-        $css = preg_replace('/expression\s*\([^)]+\)/i', '', $css) ?? '';
-        $css = preg_replace('/-moz-binding\s*:[^;]+;/i', '', $css) ?? '';
+        // Loop until stable so removing one construct cannot splice another
+        // forbidden construct back together.
+        do {
+            $before = $css;
+            // Strip @import directives
+            $css = preg_replace('/@import\s+[^;]+;/i', '', $css) ?? '';
+            // Strip javascript: urls
+            $css = preg_replace('/url\s*\(\s*["\']?\s*javascript:[^)]+\)/i', '', $css) ?? '';
+            // Strip expression() or behavior in IE
+            $css = preg_replace('/expression\s*\([^)]+\)/i', '', $css) ?? '';
+            $css = preg_replace('/-moz-binding\s*:[^;]+;/i', '', $css) ?? '';
+            // Strip tokens that could break out of an inline <style> element
+            $css = preg_replace(
+                '/<\s*\/?\s*(?:style|script)|<!--|-->|javascript\s*:/i',
+                '',
+                $css
+            ) ?? '';
+        } while ($css !== $before);
 
         return trim($css);
     }

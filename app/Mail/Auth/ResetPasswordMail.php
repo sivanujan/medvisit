@@ -19,11 +19,16 @@ class ResetPasswordMail extends MedVisitMailable
         public User $user,
         public string $token,
         ?string $resetUrl = null,
+        ?string $clinicName = null,
     ) {
+        if ($clinicName !== null) {
+            $this->clinicName = $clinicName;
+        }
+
         if ($this->user->tenant_id) {
             $this->forTenant($this->user->tenant_id);
             $tenant = $this->user->tenant ?? Tenant::find($this->user->tenant_id);
-            if ($tenant) {
+            if ($tenant && $this->clinicName === null) {
                 $this->clinicName = $tenant->name;
             }
         }

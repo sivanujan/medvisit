@@ -1,7 +1,7 @@
 <?php
 
-use App\Models\Tenant;
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -11,10 +11,13 @@ return new class extends Migration
     public function up(): void
     {
         // Backfill all existing tenants to require phone verification by default
-        Tenant::all()->each(function (Tenant $tenant) {
-            $tenant->require_phone_verification = true;
-            $tenant->phone_verification_methods = ['whatsapp', 'textlk'];
-            $tenant->save();
+        DB::table('tenants')->get()->each(function ($tenant) {
+            DB::table('tenants')
+                ->where('id', $tenant->id)
+                ->update([
+                    'require_phone_verification' => true,
+                    'phone_verification_methods' => json_encode(['whatsapp', 'textlk']),
+                ]);
         });
     }
 

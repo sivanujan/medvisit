@@ -21,7 +21,7 @@ class RoleRedirect
         }
 
         if ($user->hasRole('super_admin')) {
-            return route('dashboard', absolute: false);
+            return route('super_admin.dashboard', absolute: false);
         }
 
         if ($user->hasRole('clinic_admin')) {

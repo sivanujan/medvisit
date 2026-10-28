@@ -1,0 +1,728 @@
+/*
+ * MedVisit landing page.
+ * Signature: the token ticket (notched card + perforation) and rolling token digits.
+ * Every looping animation sits inside a [data-play] region that pauses it while
+ * off-screen; prefers-reduced-motion removes motion entirely.
+ */
+
+.lp-root {
+    --lp-bg: #f4f7fc;
+    --lp-surface: rgba(255, 255, 255, 0.78);
+    --lp-surface-solid: #ffffff;
+    --lp-line: rgba(15, 23, 42, 0.1);
+    --lp-ink: #0f1b2d;
+    --lp-muted: #475569;
+    --lp-blue: #165bb5;
+    --lp-step-num: #1459b3;
+    --lp-teal: #0e9e8f;
+    --lp-teal-ink: #0a7e73;
+    --lp-coral: #ff7a59;
+    --lp-coral-ink: #c12b08;
+    --lp-board: #0b1d3a;
+    --lp-board-line: rgba(255, 255, 255, 0.12);
+    --lp-perf: rgba(15, 23, 42, 0.18);
+    background: var(--lp-bg);
+    color: var(--lp-ink);
+}
+
+.dark .lp-root {
+    --lp-bg: #08111f;
+    --lp-surface: rgba(17, 28, 48, 0.72);
+    --lp-surface-solid: #111c30;
+    --lp-line: rgba(255, 255, 255, 0.1);
+    --lp-ink: #eef3fb;
+    --lp-muted: #a7b4c8;
+    --lp-blue: #1d4ed8;
+    --lp-step-num: #93c5fd;
+    --lp-teal-ink: #4fd1c3;
+    --lp-coral-ink: #ff9c82;
+    --lp-board: #0d2347;
+    --lp-perf: rgba(255, 255, 255, 0.2);
+}
+
+.lp-root [id] {
+    scroll-margin-top: 5.5rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    html:has(.lp-root) {
+        scroll-behavior: smooth;
+    }
+}
+
+.lp-root :focus-visible {
+    outline: 3px solid var(--lp-blue);
+    outline-offset: 3px;
+    border-radius: 12px;
+}
+
+.dark .lp-root :focus-visible {
+    outline-color: #91bcf8;
+}
+
+.lp-tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+}
+
+/* ---------- Pausing: looping animations only run while their region is on screen ---------- */
+
+[data-play='false'] *,
+[data-play='false'] *::before,
+[data-play='false'] *::after {
+    animation-play-state: paused !important;
+}
+
+/* ---------- Glass surface ---------- */
+
+.lp-glass {
+    background: var(--lp-surface);
+    border: 1px solid var(--lp-line);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+}
+
+/* ---------- Token ticket shape ---------- */
+
+.lp-ticket {
+    --notch: 11px;
+    --notch-y: 50%;
+    -webkit-mask:
+        radial-gradient(circle var(--notch) at 0 var(--notch-y), transparent 97%, #000) left / 51% 100% no-repeat,
+        radial-gradient(circle var(--notch) at 100% var(--notch-y), transparent 97%, #000) right / 51% 100% no-repeat;
+    mask:
+        radial-gradient(circle var(--notch) at 0 var(--notch-y), transparent 97%, #000) left / 51% 100% no-repeat,
+        radial-gradient(circle var(--notch) at 100% var(--notch-y), transparent 97%, #000) right / 51% 100% no-repeat;
+}
+
+.lp-perf {
+    height: 0;
+    border-top: 2px dashed var(--lp-perf);
+}
+
+.lp-board .lp-perf {
+    border-top-color: rgba(255, 255, 255, 0.22);
+}
+
+/* ---------- Hero background: drifting gradient mesh + static grain ---------- */
+
+.lp-mesh {
+    position: absolute;
+    inset: -20% -10% auto -10%;
+    height: 140%;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.lp-mesh span {
+    position: absolute;
+    border-radius: 9999px;
+    opacity: 0.8;
+    will-change: transform;
+}
+
+.lp-mesh span:nth-child(1) {
+    width: 46rem;
+    height: 46rem;
+    left: -12rem;
+    top: -8rem;
+    background: radial-gradient(closest-side, rgba(30, 111, 217, 0.38), transparent);
+    animation: lp-drift-a 22s ease-in-out infinite alternate;
+}
+
+.lp-mesh span:nth-child(2) {
+    width: 40rem;
+    height: 40rem;
+    right: -10rem;
+    top: 4rem;
+    background: radial-gradient(closest-side, rgba(14, 158, 143, 0.34), transparent);
+    animation: lp-drift-b 26s ease-in-out infinite alternate;
+}
+
+.lp-mesh span:nth-child(3) {
+    width: 30rem;
+    height: 30rem;
+    left: 38%;
+    top: 22rem;
+    background: radial-gradient(closest-side, rgba(255, 122, 89, 0.26), transparent);
+    animation: lp-drift-a 30s ease-in-out infinite alternate-reverse;
+}
+
+.dark .lp-mesh span {
+    opacity: 0.7;
+}
+
+@keyframes lp-drift-a {
+    to {
+        transform: translate3d(8rem, 4rem, 0) scale(1.08);
+    }
+}
+
+@keyframes lp-drift-b {
+    to {
+        transform: translate3d(-7rem, 6rem, 0) scale(0.94);
+    }
+}
+
+.lp-grain {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.08;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.dark .lp-grain {
+    mix-blend-mode: screen;
+    opacity: 0.06;
+}
+
+/* ---------- Token board (hero) ---------- */
+
+.lp-board {
+    background:
+        radial-gradient(120% 80% at 100% 0%, rgba(30, 111, 217, 0.45), transparent 60%),
+        radial-gradient(90% 70% at 0% 100%, rgba(14, 158, 143, 0.28), transparent 60%),
+        var(--lp-board);
+    color: #f1f6ff;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.dark .lp-board {
+    box-shadow: inset 0 0 0 1px rgba(145, 188, 248, 0.22);
+}
+
+.lp-board-shadow {
+    filter: drop-shadow(0 30px 50px rgba(11, 29, 58, 0.28));
+}
+
+.dark .lp-board-shadow {
+    filter: drop-shadow(0 30px 60px rgba(0, 0, 0, 0.55));
+}
+
+/* The glow is a filter on the whole number, not a text-shadow: each digit column clips
+   its overflow, which would cut a per-digit shadow into visible boxes. */
+.lp-now {
+    color: #ff9c82;
+    filter: drop-shadow(0 0 22px rgba(255, 122, 89, 0.35));
+}
+
+.lp-chime {
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    border: 2px solid #ff9c82;
+    opacity: 0;
+}
+
+.lp-chime.is-ringing {
+    animation: lp-chime 1.4s ease-out;
+}
+
+.lp-chime.is-ringing.lp-chime-late {
+    animation-delay: 0.22s;
+}
+
+@keyframes lp-chime {
+    0% {
+        transform: scale(0.6);
+        opacity: 0.9;
+    }
+    100% {
+        transform: scale(2.4);
+        opacity: 0;
+    }
+}
+
+.lp-live-dot {
+    animation: lp-blink 1.6s ease-in-out infinite;
+}
+
+@keyframes lp-blink {
+    50% {
+        opacity: 0.35;
+    }
+}
+
+.lp-next-chip {
+    animation: lp-chip-in 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes lp-chip-in {
+    from {
+        transform: translateX(14px);
+        opacity: 0;
+    }
+}
+
+/* ---------- Waiting room story (scroll driven) ---------- */
+
+.lp-story {
+    --p: 0;
+}
+
+.lp-story-dot {
+    --e: clamp(0, calc((var(--p) - var(--d)) / 0.45), 1);
+    transform: translate(
+        calc((var(--x0) + (var(--x1) - var(--x0)) * var(--e)) * 1px),
+        calc((var(--y0) + (var(--y1) - var(--y0)) * var(--e)) * 1px)
+    );
+}
+
+.lp-story-jitter {
+    --amp: clamp(0, calc(1 - var(--p) * 2.2), 1);
+    animation: lp-jitter var(--dur, 1.1s) ease-in-out infinite alternate;
+}
+
+@keyframes lp-jitter {
+    0% {
+        transform: translate(calc(var(--amp) * -3px), calc(var(--amp) * 2px));
+    }
+    50% {
+        transform: translate(calc(var(--amp) * 2px), calc(var(--amp) * -3px));
+    }
+    100% {
+        transform: translate(calc(var(--amp) * 3px), calc(var(--amp) * 1px));
+    }
+}
+
+.lp-story-calm {
+    opacity: var(--e);
+}
+
+.lp-story-label {
+    opacity: clamp(0, calc((var(--e) - 0.75) * 4), 1);
+}
+
+.lp-story-fade-out {
+    opacity: clamp(0, calc(1 - var(--p) * 3), 1);
+}
+
+.lp-story-fade-in {
+    opacity: clamp(0, calc((var(--p) - 0.82) * 6), 1);
+}
+
+.lp-story-before {
+    opacity: clamp(0, calc(1 - (var(--p) - 0.3) * 5), 1);
+}
+
+.lp-story-after {
+    opacity: clamp(0, calc((var(--p) - 0.5) * 5), 1);
+}
+
+.lp-story-meter {
+    transform-origin: left;
+    transform: scaleX(var(--p));
+}
+
+/* ---------- How it works line ---------- */
+
+.lp-steps {
+    --p: 0;
+}
+
+.lp-steps-line {
+    transform-origin: top;
+    transform: scaleY(var(--p));
+}
+
+@media (min-width: 1024px) {
+    .lp-steps-line {
+        transform-origin: left;
+        transform: scaleX(var(--p));
+    }
+}
+
+.lp-step {
+    --lit: clamp(0, calc((var(--p) - var(--at)) * 8), 1);
+}
+
+.lp-step-badge {
+    background: color-mix(in srgb, var(--lp-blue) calc(var(--lit) * 100%), var(--lp-surface-solid));
+    color: color-mix(in srgb, #ffffff calc(var(--lit) * 100%), var(--lp-step-num));
+}
+
+.lp-step-badge {
+    transform: scale(calc(0.92 + var(--lit) * 0.08));
+}
+
+/* ---------- Bento micro-animations ---------- */
+
+.lp-tile {
+    background: var(--lp-surface);
+    border: 1px solid var(--lp-line);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+}
+
+@media (min-width: 1024px) {
+    .lp-bento {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-areas:
+            'q q s s'
+            'q q r b'
+            'x x m b'
+            'd d l l';
+    }
+    .lp-area-q { grid-area: q; }
+    .lp-area-s { grid-area: s; }
+    .lp-area-r { grid-area: r; }
+    .lp-area-b { grid-area: b; }
+    .lp-area-x { grid-area: x; }
+    .lp-area-m { grid-area: m; }
+    .lp-area-d { grid-area: d; }
+    .lp-area-l { grid-area: l; }
+}
+
+.lp-queue-row {
+    animation: lp-row-in 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes lp-row-in {
+    from {
+        transform: translateY(12px);
+        opacity: 0;
+    }
+}
+
+.lp-sweep {
+    animation: lp-sweep 9s linear infinite;
+}
+
+@keyframes lp-sweep {
+    from {
+        transform: translateX(0);
+    }
+    to {
+        transform: translateX(var(--sweep, 300px));
+    }
+}
+
+.lp-record-line {
+    transform-origin: left;
+    animation: lp-record 6s ease-in-out infinite;
+    animation-delay: var(--delay, 0s);
+}
+
+@keyframes lp-record {
+    0%,
+    8% {
+        transform: scaleX(0);
+        opacity: 0;
+    }
+    20%,
+    85% {
+        transform: scaleX(1);
+        opacity: 1;
+    }
+    100% {
+        transform: scaleX(1);
+        opacity: 0;
+    }
+}
+
+.lp-receipt {
+    animation: lp-receipt 6s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+}
+
+@keyframes lp-receipt {
+    0% {
+        transform: translateY(-100%);
+    }
+    35%,
+    85% {
+        transform: translateY(0);
+    }
+    100% {
+        transform: translateY(-100%);
+    }
+}
+
+.lp-stock-bar {
+    transform-origin: left;
+    animation: lp-stock 7s ease-in-out infinite;
+}
+
+@keyframes lp-stock {
+    0%,
+    10% {
+        transform: scaleX(0.82);
+    }
+    30%,
+    45% {
+        transform: scaleX(0.64);
+    }
+    65%,
+    80% {
+        transform: scaleX(0.46);
+    }
+    95%,
+    100% {
+        transform: scaleX(0.82);
+    }
+}
+
+.lp-rx-tick {
+    animation: lp-tick 7s ease-in-out infinite;
+    animation-delay: var(--delay, 0s);
+}
+
+@keyframes lp-tick {
+    0%,
+    15% {
+        opacity: 0;
+        transform: scale(0.4);
+    }
+    25%,
+    90% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    100% {
+        opacity: 0;
+    }
+}
+
+.lp-type {
+    clip-path: inset(0 100% 0 0);
+    animation: lp-type 6s steps(18, end) infinite;
+}
+
+@keyframes lp-type {
+    0%,
+    10% {
+        clip-path: inset(0 100% 0 0);
+    }
+    55%,
+    90% {
+        clip-path: inset(0 0 0 0);
+    }
+    100% {
+        clip-path: inset(0 100% 0 0);
+    }
+}
+
+.lp-caret {
+    animation: lp-blink 1s steps(1) infinite;
+}
+
+.lp-role {
+    animation: lp-role 8s ease-in-out infinite;
+    animation-delay: var(--delay, 0s);
+}
+
+@keyframes lp-role {
+    0%,
+    22% {
+        background-color: var(--lp-blue);
+        color: #ffffff;
+        border-color: var(--lp-blue);
+    }
+    28%,
+    100% {
+        background-color: transparent;
+        color: var(--lp-ink);
+        border-color: var(--lp-line);
+    }
+}
+
+.lp-pulse-dot {
+    animation: lp-pulse 2.4s ease-out infinite;
+    animation-delay: var(--delay, 0s);
+}
+
+@keyframes lp-pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(14, 158, 143, 0.55);
+    }
+    70%,
+    100% {
+        box-shadow: 0 0 0 10px rgba(14, 158, 143, 0);
+    }
+}
+
+/* ---------- Final CTA ticket ---------- */
+
+.lp-cta-ticket {
+    animation: lp-print 5.5s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+}
+
+@keyframes lp-print {
+    0% {
+        transform: translateY(-105%);
+    }
+    30%,
+    82% {
+        transform: translateY(0);
+    }
+    100% {
+        transform: translateY(-105%);
+    }
+}
+
+/* ---------- FAQ ---------- */
+
+.lp-faq summary {
+    list-style: none;
+}
+
+.lp-faq summary::-webkit-details-marker {
+    display: none;
+}
+
+.lp-faq-chevron {
+    transition: transform 250ms ease;
+}
+
+.lp-faq[open] .lp-faq-chevron {
+    transform: rotate(45deg);
+}
+
+/* ---------- Built for Sri Lanka ---------- */
+
+.lp-accent-teal { --acc: 14 158 143; --acc-ink: #0a7e73; }
+.lp-accent-blue { --acc: 30 111 217; --acc-ink: #1557b2; }
+.lp-accent-coral { --acc: 255 122 89; --acc-ink: #c12b08; }
+.lp-accent-brand { --acc: 30 111 217; --acc-ink: #ffffff; }
+
+.dark .lp-accent-teal { --acc-ink: #4fd1c3; }
+.dark .lp-accent-blue { --acc-ink: #91bcf8; }
+.dark .lp-accent-coral { --acc-ink: #ff9c82; }
+
+.lp-lk-tile {
+    position: relative;
+    background:
+        radial-gradient(120% 70% at 0% 0%, rgb(var(--acc) / 0.13), transparent 60%),
+        var(--lp-surface);
+    border: 1px solid rgb(var(--acc) / 0.2);
+    /* No backdrop-filter: the section behind is a flat tint, and the blur layer made
+       Chrome drop paint at the bottom of the tall tile on mobile. */
+    transition:
+        transform 300ms cubic-bezier(0.22, 1, 0.36, 1),
+        border-color 300ms ease,
+        box-shadow 300ms ease;
+}
+
+.lp-lk-tile:hover {
+    transform: translateY(-4px);
+    border-color: rgb(var(--acc) / 0.55);
+    box-shadow: 0 22px 44px -22px rgb(var(--acc) / 0.55);
+}
+
+.lp-lk-icon {
+    background: rgb(var(--acc) / 0.12);
+    color: var(--acc-ink);
+    box-shadow: inset 0 0 0 1px rgb(var(--acc) / 0.2);
+}
+
+.lp-accent-brand .lp-lk-icon {
+    background: linear-gradient(135deg, #1e6fd9, #0e9e8f);
+    box-shadow: 0 8px 20px -8px rgb(30 111 217 / 0.6);
+}
+
+.lp-lk-card {
+    background: var(--lp-surface-solid);
+    border: 1px solid var(--lp-line);
+}
+
+.lp-lk-script:lang(ta) {
+    font-family: 'Noto Sans Tamil', 'Poppins', sans-serif;
+}
+
+.lp-lk-script:lang(si) {
+    font-family: 'Noto Sans Sinhala', 'Poppins', sans-serif;
+}
+
+/* Staggered fade-up once the section scrolls into view */
+.lp-reveal {
+    opacity: 0;
+    transform: translateY(18px);
+    transition:
+        opacity 600ms ease,
+        transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: calc(var(--i, 0) * 90ms);
+}
+
+[data-revealed='true'] .lp-reveal {
+    opacity: 1;
+    transform: none;
+}
+
+/* Receipt lines print one after another, then the loop restarts */
+.lp-lk-line {
+    animation: lp-lk-line 6s ease-in-out infinite;
+    animation-delay: calc(var(--i, 0) * 0.45s);
+}
+
+@keyframes lp-lk-line {
+    0%,
+    4% {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    12%,
+    88% {
+        opacity: 1;
+        transform: none;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+
+.lp-lk-fill {
+    transform-origin: left;
+    transform: scaleX(0.4);
+    animation: lp-lk-fill 5s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+}
+
+@keyframes lp-lk-fill {
+    0% {
+        transform: scaleX(0);
+    }
+    45%,
+    100% {
+        transform: scaleX(0.4);
+    }
+}
+
+.lp-lk-check {
+    animation: lp-lk-check 4s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+}
+
+@keyframes lp-lk-check {
+    0%,
+    8% {
+        transform: scale(0.4);
+        opacity: 0;
+    }
+    22%,
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* ---------- Reduced motion: static states only ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+    .lp-root *,
+    .lp-root *::before,
+    .lp-root *::after {
+        animation: none !important;
+        transition: none !important;
+    }
+    .lp-type {
+        clip-path: none;
+    }
+    .lp-cta-ticket,
+    .lp-receipt,
+    .lp-reveal,
+    .lp-lk-tile:hover {
+        transform: none;
+    }
+    .lp-reveal {
+        opacity: 1;
+    }
+}

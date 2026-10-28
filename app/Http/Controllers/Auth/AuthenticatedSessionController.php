@@ -10,24 +10,33 @@ use App\Support\RoleRedirect;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class AuthenticatedSessionController extends Controller
 {
-    /**
-     * Display the login view.
-     */
-    public function create(): Response
+    public function create(Request $request): Response
     {
+        $isAdmin = $request->query('mode') === 'admin'
+            || $request->boolean('admin')
+            || $request->routeIs('admin.login');
+
+        // Platform admins sign in on their own page, reachable only by its URL.
+        if ($isAdmin) {
+            return Inertia::render('Auth/AdminLogin', [
+                'status' => session('status'),
+                'showDemoCredentials' => app()->environment('local'),
+            ]);
+        }
+
         return Inertia::render('Auth/Login', [
-            'canResetPassword' => Route::has('password.request'),
             'status' => session('status'),
-            'showDemoCredentials' => app()->environment('local'),
             'matchedClinics' => session('matchedClinics'),
             'lookupEmail' => session('lookupEmail'),
+            'clinicRedirect' => session('clinicRedirect'),
+            // Shown in "yourclinic.<domain>" hints; never the request host (e.g. 127.0.0.1).
+            'publicDomain' => (string) config('medvisit.public_domain', 'medvisit.lk'),
         ]);
     }
 
@@ -55,6 +64,25 @@ class AuthenticatedSessionController extends Controller
 
                 return redirect()->away($clinicUrl);
             }
+        }
+
+        // If the user has 2FA enabled, challenge them before completing session
+        if ($user && $user->two_factor_confirmed_at !== null) {
+            $remember = $request->boolean('remember');
+            Auth::guard('web')->logout();
+            $request->session()->put([
+                'login.2fa.user_id' => $user->id,
+                'login.2fa.remember' => $remember,
+            ]);
+
+            return redirect()->route('two-factor.challenge');
+        }
+
+        if ($user) {
+            $user->forceFill([
+                'last_login_at' => now(),
+                'last_login_ip' => $request->ip(),
+            ])->save();
         }
 
         AuditLogger::log('user.login');

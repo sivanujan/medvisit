@@ -15,6 +15,7 @@ export interface HeaderMenuItem {
     id?: string;
     label: string;
     url: string;
+    page_id?: number;
     children?: { label: string; url: string }[];
 }
 
@@ -49,9 +50,9 @@ interface PublicSiteHeaderProps {
     themePreset?: string;
 }
 
-// Format Sri Lankan and international phone numbers into clean grouped format: "+94 77 204 6898"
+// Format Sri Lankan and international phone numbers into clean grouped format: "+94 70 129 1688"
 function formatPhoneNumber(rawPhone?: string): string {
-    if (!rawPhone) return '+94 77 204 6898';
+    if (!rawPhone) return '+94 70 129 1688';
     const cleaned = rawPhone.trim();
     const digits = cleaned.replace(/\D/g, '');
 
@@ -67,35 +68,35 @@ function formatPhoneNumber(rawPhone?: string): string {
     return cleaned;
 }
 
-// Primary theme styles mapping
+// Primary theme styles mapping (ensuring >= 4.5:1 contrast against white text)
 const THEME_CLASSES: Record<string, { bg: string; hover: string; text: string; ring: string }> = {
     'medvisit-teal': {
-        bg: 'bg-teal-600',
-        hover: 'hover:bg-teal-500',
+        bg: 'bg-teal-700',
+        hover: 'hover:bg-teal-800',
         text: 'text-teal-700',
         ring: 'focus-visible:ring-teal-500',
     },
     'ocean-blue': {
-        bg: 'bg-blue-600',
-        hover: 'hover:bg-blue-500',
+        bg: 'bg-blue-700',
+        hover: 'hover:bg-blue-800',
         text: 'text-blue-700',
         ring: 'focus-visible:ring-blue-500',
     },
     'emerald-health': {
-        bg: 'bg-emerald-600',
-        hover: 'hover:bg-emerald-500',
+        bg: 'bg-emerald-700',
+        hover: 'hover:bg-emerald-800',
         text: 'text-emerald-700',
         ring: 'focus-visible:ring-emerald-500',
     },
     'royal-purple': {
-        bg: 'bg-purple-600',
-        hover: 'hover:bg-purple-500',
+        bg: 'bg-purple-700',
+        hover: 'hover:bg-purple-800',
         text: 'text-purple-700',
         ring: 'focus-visible:ring-purple-500',
     },
     'warm-terracotta': {
-        bg: 'bg-amber-600',
-        hover: 'hover:bg-amber-500',
+        bg: 'bg-amber-700',
+        hover: 'hover:bg-amber-800',
         text: 'text-amber-700',
         ring: 'focus-visible:ring-amber-500',
     },
@@ -155,13 +156,13 @@ export default function PublicSiteHeader({
         : defaultMenuItems;
 
     const displayLogoUrl = headerConfig?.logo_url || clinic.logo_url;
-    const displayPhone = headerConfig?.phone || clinic.phone || '+94 77 204 6898';
+    const displayPhone = headerConfig?.phone || clinic.phone || '+94 70 129 1688';
     const formattedPhone = formatPhoneNumber(displayPhone);
     const rawTel = displayPhone.replace(/\s+/g, '');
     const displayWhatsApp = headerConfig?.whatsapp_number || clinic.whatsapp_number;
     const cleanWhatsApp = displayWhatsApp ? displayWhatsApp.replace(/\D/g, '') : '';
     const showTagline = headerConfig?.show_tagline !== false;
-    const tagline = headerConfig?.tagline || 'Specialist Channeling & Healthcare';
+    const tagline = headerConfig?.tagline || '';
     const ctaText = headerConfig?.cta_text || 'Book a token';
     const ctaLink = headerConfig?.cta_link || '/book';
     const isSticky = headerConfig?.is_sticky !== false;
@@ -193,11 +194,9 @@ export default function PublicSiteHeader({
                 <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                         <span className="flex items-center gap-1.5 text-teal-400 font-medium">
-                            <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse" />
-                            Live Patient Queue Active
+                            <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
+                            Book your token online
                         </span>
-                        <span className="text-slate-600">•</span>
-                        <span className="text-slate-400">SLMC Certified Medical Consultants</span>
                     </div>
 
                     <div className="flex items-center gap-4 text-xs">

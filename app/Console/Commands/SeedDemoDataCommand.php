@@ -52,7 +52,7 @@ class SeedDemoDataCommand extends Command
                 'name' => 'K. Sivalingam',
                 'specialty' => 'Cardiologist',
                 'slmc_number' => 'SLMC-18429',
-                'phone' => '+94 77 123 4567',
+                'phone' => '070 129 1688',
                 'email' => 'sivalingam@example.com',
                 'use_clinic_default_fees' => false,
                 'pricing_mode' => 'split',

@@ -31,17 +31,28 @@ class TenantAuthenticatedSessionController extends Controller
         return Inertia::render('Auth/TenantLogin', [
             'tenant' => [
                 'id' => $tenant->id,
-                'name' => $tenant->name ?? 'MedVisit Clinic',
-                'subdomain' => $tenant->subdomain ?? $tenant->id,
-                'address' => $tenant->address ?? '',
-                'phone' => $tenant->phone ?? '',
                 'status' => $tenant->status ?? 'active',
+                ...$tenant->authBranding(),
             ],
             'canResetPassword' => Route::has('tenant.password.request'),
             'status' => session('status'),
             'error' => session('error'),
             'defaultEmail' => (string) request()->query('email', ''),
+            'findClinicUrl' => $this->centralUrl('/login'),
         ]);
+    }
+
+    /**
+     * Absolute URL on the central domain, keeping the current scheme and any non-standard port.
+     */
+    private function centralUrl(string $path): string
+    {
+        $request = request();
+        $port = $request->getPort();
+        $standard = ($request->isSecure() && $port === 443) || (! $request->isSecure() && $port === 80);
+
+        return $request->getScheme().'://'.config('medvisit.base_domain', 'medvisit.localhost')
+            .($standard ? '' : ':'.$port).$path;
     }
 
     /**
@@ -61,11 +72,15 @@ class TenantAuthenticatedSessionController extends Controller
 
         if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
             $seconds = RateLimiter::availableIn($throttleKey);
+            // `auth`/`retry_after` let the page show one alert with a countdown
+            // instead of marking the email field as invalid.
             throw ValidationException::withMessages([
                 'email' => trans('auth.throttle', [
                     'seconds' => $seconds,
                     'minutes' => (int) ceil($seconds / 60),
                 ]),
+                'auth' => 'throttled',
+                'retry_after' => (string) $seconds,
             ]);
         }
 
@@ -83,8 +98,24 @@ class TenantAuthenticatedSessionController extends Controller
                 'reason' => 'invalid_credentials',
             ]);
 
+            // Same message whether or not the email exists in this clinic.
             throw ValidationException::withMessages([
-                'email' => trans('auth.failed'),
+                'email' => 'Email or password is incorrect.',
+                'auth' => 'failed',
+            ]);
+        }
+
+        if (! (bool) ($user->is_active ?? true)) {
+            RateLimiter::hit($throttleKey, 300);
+
+            AuditLogger::log('user.login_failed', [
+                'email' => $email,
+                'tenant_id' => $tenant->id,
+                'reason' => 'account_deactivated',
+            ]);
+
+            throw ValidationException::withMessages([
+                'email' => 'This account has been deactivated. Please contact your clinic administrator.',
             ]);
         }
 

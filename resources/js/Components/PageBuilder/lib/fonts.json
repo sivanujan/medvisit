@@ -1,0 +1,170 @@
+[
+  {
+    "family": "Poppins",
+    "weights": [
+      400,
+      500,
+      600,
+      700,
+      800
+    ]
+  },
+  {
+    "family": "Inter",
+    "weights": [
+      400,
+      500,
+      600,
+      700
+    ]
+  },
+  {
+    "family": "Roboto",
+    "weights": [
+      400,
+      500,
+      600,
+      700
+    ]
+  },
+  {
+    "family": "Lato",
+    "weights": [
+      400,
+      700
+    ]
+  },
+  {
+    "family": "Open Sans",
+    "weights": [
+      400,
+      500,
+      600,
+      700
+    ]
+  },
+  {
+    "family": "Montserrat",
+    "weights": [
+      400,
+      500,
+      600,
+      700
+    ]
+  },
+  {
+    "family": "Nunito",
+    "weights": [
+      400,
+      500,
+      600,
+      700
+    ]
+  },
+  {
+    "family": "Source Sans 3",
+    "weights": [
+      400,
+      500,
+      600,
+      700
+    ]
+  },
+  {
+    "family": "Raleway",
+    "weights": [
+      400,
+      500,
+      600,
+      700
+    ]
+  },
+  {
+    "family": "Merriweather",
+    "weights": [
+      400,
+      700
+    ]
+  },
+  {
+    "family": "Playfair Display",
+    "weights": [
+      400,
+      500,
+      600,
+      700
+    ]
+  },
+  {
+    "family": "DM Sans",
+    "weights": [
+      400,
+      500,
+      600,
+      700
+    ]
+  },
+  {
+    "family": "Work Sans",
+    "weights": [
+      400,
+      500,
+      600,
+      700
+    ]
+  },
+  {
+    "family": "Rubik",
+    "weights": [
+      400,
+      500,
+      600,
+      700
+    ]
+  },
+  {
+    "family": "Mulish",
+    "weights": [
+      400,
+      500,
+      600,
+      700
+    ]
+  },
+  {
+    "family": "Noto Sans",
+    "weights": [
+      400,
+      500,
+      600,
+      700
+    ]
+  },
+  {
+    "family": "Noto Serif",
+    "weights": [
+      400,
+      500,
+      600,
+      700
+    ]
+  },
+  {
+    "family": "Noto Sans Sinhala",
+    "weights": [
+      400,
+      500,
+      600,
+      700
+    ]
+  },
+  {
+    "family": "Noto Sans Tamil",
+    "weights": [
+      400,
+      500,
+      600,
+      700
+    ]
+  }
+]

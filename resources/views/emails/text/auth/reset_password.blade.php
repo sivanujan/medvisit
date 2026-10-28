@@ -1,13 +1,14 @@
 Hello {{ $name }},
 
-We received a request to reset your password for your MedVisit account{{ $clinicName ? " at {$clinicName}" : '' }}.
+We received a request to reset the password for your MedVisit account{{ $clinicName ? ' at ' . $clinicName : '' }}.
 
-To reset your password, visit the link below:
+Reset your password using the following link:
 {{ $resetUrl }}
 
-This link will expire in {{ $expiresIn }} minutes. If you did not request a password reset, no action is needed.
+This password reset link will expire in {{ $expiresIn }} minutes.
+If you did not make this request, you can safely ignore this email — your account remains secure.
 
 ---
-MedVisit, Sri Lanka
+MedVisit · Clinic management for Sri Lanka
 Support: {{ config('medvisit.mail.reply_to.address', 'support@medvisit.lk') }}
-{{ $reason }}
+© {{ date('Y') }} MedVisit. All rights reserved.

@@ -437,4 +437,25 @@ class PublicCalendlyBookingTest extends TestCase
         $this->assertEquals(0, $exitCode);
         $this->assertEquals(1, DoctorSession::where('doctor_id', $doctor->id)->where('session_date', $tomorrow)->count());
     }
+
+    public function test_public_booking_is_blocked_when_online_booking_enabled_is_false(): void
+    {
+        $this->tenant->online_booking_enabled = false;
+        $this->tenant->save();
+
+        $response = $this->get("http://sivacli.{$this->baseDomain}/book");
+
+        $response->assertStatus(503);
+        $response->assertInertia(fn ($page) => $page
+            ->component('Public/BookingUnavailable')
+            ->where('clinicName', 'Siva Clinic Care')
+        );
+
+        // JSON API endpoint returns 503 JSON
+        $jsonResponse = $this->getJson("http://sivacli.{$this->baseDomain}/book/api/availability/dr-k-sivalingam");
+        $jsonResponse->assertStatus(503);
+        $jsonResponse->assertJsonFragment([
+            'message' => 'Online booking is currently disabled for this clinic. Please contact the clinic directly.',
+        ]);
+    }
 }

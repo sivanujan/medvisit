@@ -13,142 +13,144 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
-use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * "Sign in to your clinic" on the central domain: find a clinic by staff email or by
+ * clinic address and send the visitor to that clinic's own login page.
+ *
+ * Both lookups are rate limited (routes/auth.php) and padded to the same minimum
+ * duration so found and not-found answers can't be told apart by timing.
+ */
 class FindClinicController extends Controller
 {
+    private const MIN_RESPONSE_MS = 350;
+
+    public const NOT_FOUND_EMAIL = "We couldn't find a clinic for that email. Check the address or enter your clinic address instead.";
+
+    public const NOT_FOUND_ADDRESS = "We couldn't find a clinic at that address. Check the spelling or use your email instead.";
+
     /**
-     * Find clinic by subdomain and redirect to its login page.
+     * Find clinic by subdomain and send the visitor to its login page.
      */
     public function searchSubdomain(Request $request): Response|RedirectResponse
     {
+        $startedAt = microtime(true);
+
+        $request->merge(['subdomain' => Str::lower(trim((string) $request->input('subdomain')))]);
         $request->validate([
-            'subdomain' => ['required', 'string'],
+            'subdomain' => ['required', 'string', 'max:63', 'regex:/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/'],
+        ], [
+            'subdomain.regex' => 'Use lowercase letters, numbers and hyphens only.',
         ]);
 
-        $raw = Str::lower(trim($request->input('subdomain')));
-        // Clean leading protocols or full hosts if user pasted a URL
-        $clean = preg_replace('#^https?://#i', '', $raw);
-        $clean = explode('.', $clean)[0];
-        $subdomain = Str::slug($clean);
+        $subdomain = (string) $request->input('subdomain');
+        $demoTenantId = config('demo.tenant_id', 'demo');
 
-        $tenant = Tenant::where('id', $subdomain)
-            ->orWhere('subdomain', $subdomain)
+        $tenant = Tenant::where(function ($q) use ($subdomain) {
+            $q->where('subdomain', $subdomain)->orWhere('id', $subdomain);
+        })
+            ->where('is_demo', false)
+            ->where('id', '!=', $demoTenantId)
             ->first();
 
         if (! $tenant) {
-            return back()->withErrors([
-                'subdomain' => "We could not find an active clinic with the address '{$subdomain}'. Please verify the spelling or search using your work email.",
-            ]);
+            return $this->afterMinimumTime($startedAt, back()->withErrors(['subdomain' => self::NOT_FOUND_ADDRESS, 'lookup' => 'not_found']));
         }
 
-        $centralDomain = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
-        $scheme = $request->getScheme();
-        $port = $request->getPort();
-        $portSuffix = ($port && ! in_array($port, [80, 443])) ? ":{$port}" : '';
-        $clinicUrl = "{$scheme}://{$tenant->subdomain}.{$centralDomain}{$portSuffix}/login";
-
-        if ($request->header('X-Inertia')) {
-            return Inertia::location($clinicUrl);
-        }
-
-        return redirect()->away($clinicUrl);
+        return $this->afterMinimumTime($startedAt, $this->goToClinic($request, $tenant, $tenant->url('/login')));
     }
 
     /**
-     * Look up clinic by work email and automatically redirect to its clinic login page.
+     * Look up the clinic(s) a staff email belongs to.
      */
     public function searchEmail(Request $request): Response|RedirectResponse
     {
+        $startedAt = microtime(true);
+
         $request->validate([
             'email' => ['required', 'string', 'email'],
         ]);
 
         $email = Str::lower(trim($request->input('email')));
+        $demoTenantId = config('demo.tenant_id', 'demo');
 
         $users = User::where('email', $email)
             ->whereNotNull('tenant_id')
+            ->whereHas('tenant', function ($t) use ($demoTenantId) {
+                $t->where('is_demo', false)
+                    ->where('id', '!=', $demoTenantId);
+            })
             ->with('tenant')
-            ->get();
+            ->get()
+            ->filter(fn (User $u) => $u->tenant !== null)
+            ->values();
 
+        // Same answer for unknown emails and platform accounts: nothing here says which.
         if ($users->isEmpty()) {
-            $superAdmin = User::where('email', $email)->whereNull('tenant_id')->first();
-            if ($superAdmin) {
-                return back()->withErrors([
-                    'email' => 'This email belongs to a Platform Admin. Please sign in via the Platform Admin Sign In below.',
-                ]);
-            }
-
-            return back()->withErrors([
-                'email' => "We could not find a clinic associated with '{$email}'. Please verify your email or register a new clinic.",
-            ]);
+            return $this->afterMinimumTime($startedAt, back()->withErrors(['email' => self::NOT_FOUND_EMAIL, 'lookup' => 'not_found']));
         }
 
-        $centralDomain = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
-        $scheme = $request->getScheme();
-        $port = $request->getPort();
-        $portSuffix = ($port && ! in_array($port, [80, 443])) ? ":{$port}" : '';
-
-        $clinicsForMail = $users->map(function ($u) use ($centralDomain, $scheme, $portSuffix) {
-            $sub = (string) ($u->tenant?->subdomain ?? $u->tenant_id);
-            $name = (string) ($u->tenant?->name ?? 'Clinic');
-
-            return [
-                'name' => $name,
-                'subdomain' => $sub,
-                'login_url' => "{$scheme}://{$sub}.{$centralDomain}{$portSuffix}/login",
-            ];
-        })->values()->all();
+        $loginPath = '/login?email='.urlencode($email);
+        $clinics = $users->map(fn (User $u) => $this->clinicCard($u->tenant, $u->tenant->url($loginPath)))->all();
 
         try {
-            Mail::to($email)->queue(new FindClinicAccessMail($email, $clinicsForMail));
+            Mail::to($email)->queue(new FindClinicAccessMail($email, array_map(
+                fn (array $c) => ['name' => $c['name'], 'subdomain' => $c['subdomain'], 'login_url' => $c['login_url']],
+                $clinics,
+            )));
         } catch (\Throwable $e) {
             Log::warning("Could not dispatch clinic access email: {$e->getMessage()}");
         }
 
-        session()->flash('status', 'Redirecting to your clinic workspace...');
+        if (count($clinics) === 1) {
+            session()->flash('status', 'Opening your clinic sign-in page…');
 
-        // Single clinic match -> automatically redirect to clinic login
-        if ($users->count() === 1) {
-            $user = $users->first();
-            $tenant = $user->tenant ?? Tenant::find($user->tenant_id);
-
-            if (! $tenant) {
-                return back()->withErrors([
-                    'email' => "Could not locate an active clinic workspace for '{$email}'.",
-                ]);
-            }
-
-            $clinicUrl = $tenant->url('/login?email='.urlencode($email));
-
-            if ($request->header('X-Inertia')) {
-                return Inertia::location($clinicUrl);
-            }
-
-            return redirect()->away($clinicUrl);
+            return $this->afterMinimumTime($startedAt, $this->goToClinic($request, $users->first()->tenant, $clinics[0]['login_url']));
         }
 
-        // Multiple clinic matches -> provide selection
-        $clinics = $users->map(function ($u) use ($email) {
-            $tenant = $u->tenant ?? Tenant::find($u->tenant_id);
-            $sub = (string) ($tenant?->subdomain ?? $u->tenant_id);
-            $name = (string) ($tenant?->name ?? 'Clinic');
-
-            $url = $tenant
-                ? $tenant->url('/login?email='.urlencode($email))
-                : Tenant::urlForSubdomain($sub, '/login?email='.urlencode($email));
-
-            return [
-                'name' => $name,
-                'subdomain' => $sub,
-                'login_url' => $url,
-            ];
-        })->values()->all();
-
-        return back()->with([
+        return $this->afterMinimumTime($startedAt, back()->with([
             'matchedClinics' => $clinics,
             'lookupEmail' => $email,
-        ]);
+        ]));
+    }
+
+    /**
+     * Inertia visits get the clinic back so the page can remember it before navigating
+     * (localStorage on the central domain); plain requests are redirected directly.
+     */
+    private function goToClinic(Request $request, Tenant $tenant, string $loginUrl): RedirectResponse
+    {
+        if ($request->header('X-Inertia')) {
+            return back()->with('clinicRedirect', $this->clinicCard($tenant, $loginUrl));
+        }
+
+        return redirect()->away($loginUrl);
+    }
+
+    /**
+     * @return array{name: string, subdomain: string, logo_url: ?string, login_url: string, home_login_url: string}
+     */
+    private function clinicCard(Tenant $tenant, string $loginUrl): array
+    {
+        return [
+            'name' => (string) ($tenant->name ?? 'Clinic'),
+            'subdomain' => (string) ($tenant->subdomain ?? $tenant->id),
+            'logo_url' => $tenant->logo_url,
+            'login_url' => $loginUrl,
+            // Without the email, for the "Continue to {clinic}" shortcut stored in the browser.
+            'home_login_url' => $tenant->url('/login'),
+        ];
+    }
+
+    private function afterMinimumTime(float $startedAt, RedirectResponse $response): RedirectResponse
+    {
+        $minMs = app()->runningUnitTests() ? 0 : self::MIN_RESPONSE_MS;
+        $elapsedMs = (microtime(true) - $startedAt) * 1000;
+        if ($elapsedMs < $minMs) {
+            usleep((int) (($minMs - $elapsedMs) * 1000));
+        }
+
+        return $response;
     }
 }

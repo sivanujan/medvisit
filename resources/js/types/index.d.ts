@@ -20,10 +20,12 @@ export type PageProps<
         status?: string;
         phone?: string;
         address?: string;
+        base_domain?: string | null;
     } | null;
     flash?: {
         status?: string | null;
         success?: string | null;
         error?: string | null;
     };
+    publicConfig?: import('@/Config/medvisitPublic').PublicConfig;
 };

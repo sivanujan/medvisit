@@ -16,6 +16,7 @@ export interface ActionMenuItem {
 export interface ActionsMenuProps {
     items: (ActionMenuItem | null | undefined | false)[];
     align?: 'left' | 'right';
+    placement?: 'bottom' | 'top' | 'auto';
     triggerClassName?: string;
     menuClassName?: string;
     ariaLabel?: string;
@@ -24,11 +25,13 @@ export interface ActionsMenuProps {
 export function ActionsMenu({
     items = [],
     align = 'right',
+    placement = 'auto',
     triggerClassName = '',
     menuClassName = '',
     ariaLabel = 'Actions menu',
 }: ActionsMenuProps) {
     const [isOpen, setIsOpen] = useState(false);
+    const [openUpward, setOpenUpward] = useState(placement === 'top');
     const menuRef = useRef<HTMLDivElement>(null);
     const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -61,7 +64,26 @@ export function ActionsMenu({
         };
     }, [isOpen]);
 
+    const handleToggle = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!isOpen && buttonRef.current) {
+            const rect = buttonRef.current.getBoundingClientRect();
+            const spaceBelow = window.innerHeight - rect.bottom;
+            if (placement === 'top') {
+                setOpenUpward(true);
+            } else if (placement === 'bottom') {
+                setOpenUpward(false);
+            } else {
+                setOpenUpward(spaceBelow < 260 && rect.top > spaceBelow);
+            }
+        }
+        setIsOpen((prev) => !prev);
+    };
+
     const alignClasses = align === 'left' ? 'left-0' : 'right-0';
+    const verticalClasses = openUpward
+        ? 'bottom-full mb-1.5 origin-bottom-right'
+        : 'top-full mt-1.5 origin-top-right';
     const validItems = items.filter(Boolean) as ActionMenuItem[];
 
     return (
@@ -72,10 +94,7 @@ export function ActionsMenu({
                 aria-label={ariaLabel}
                 aria-haspopup="true"
                 aria-expanded={isOpen}
-                onClick={(e) => {
-                    e.stopPropagation();
-                    setIsOpen((prev) => !prev);
-                }}
+                onClick={handleToggle}
                 className={`p-2 rounded-xl text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                     isOpen ? 'bg-slate-100 dark:bg-white/[0.08] text-slate-800 dark:text-white' : ''
                 } ${triggerClassName}`}
@@ -86,15 +105,15 @@ export function ActionsMenu({
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
-                        initial={{ opacity: 0, scale: 0.95, y: -4 }}
+                        initial={{ opacity: 0, scale: 0.95, y: openUpward ? 4 : -4 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95, y: -4 }}
+                        exit={{ opacity: 0, scale: 0.95, y: openUpward ? 4 : -4 }}
                         transition={{ duration: 0.15, ease: 'easeOut' }}
-                        className={`absolute z-30 mt-1.5 w-48 origin-top-right rounded-2xl p-1.5 shadow-xl border
-                            border-slate-200/80 dark:border-white/10
+                        className={`absolute z-50 w-52 rounded-2xl p-1.5 shadow-2xl border
+                            border-slate-200/90 dark:border-white/10
                             bg-white/95 dark:bg-slate-900/95
-                            backdrop-blur-xl
-                            ${alignClasses} ${menuClassName}`}
+                            backdrop-blur-2xl
+                            ${verticalClasses} ${alignClasses} ${menuClassName}`}
                     >
                         <div className="space-y-0.5" role="menu">
                             {validItems.map((item, idx) => {

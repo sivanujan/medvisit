@@ -6,6 +6,7 @@ namespace Tests\Feature\Tenant;
 
 use App\Models\Tenant;
 use App\Models\User;
+use Database\Seeders\PharmacyPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -19,6 +20,7 @@ class NavigationTest extends TestCase
     {
         parent::setUp();
         $this->baseDomain = config('medvisit.base_domain', 'medvisit.localhost');
+        $this->seed(PharmacyPermissionsSeeder::class);
     }
 
     public function test_clinic_admin_can_access_all_navigation_routes(): void
@@ -27,6 +29,7 @@ class NavigationTest extends TestCase
             'id' => 'suwa',
             'name' => 'Suwa Shanthi Clinic',
             'subdomain' => 'suwa',
+            'setup_completed_at' => now(),
         ]);
 
         $admin = User::factory()->clinicAdmin()->create([

@@ -341,26 +341,32 @@ export default function GlassSelect({
             {/* Floating Portal Menu */}
             {isOpen &&
                 typeof document !== 'undefined' &&
-                createPortal(
-                    <div
-                        ref={dropdownRef}
-                        role="listbox"
-                        style={{
-                            position: 'fixed',
-                            top: coords.openUpward ? undefined : `${coords.top}px`,
-                            bottom: coords.openUpward
-                                ? `${window.innerHeight - coords.top}px`
-                                : undefined,
-                            left: `${coords.left}px`,
-                            width: `${coords.width}px`,
-                            zIndex: 99999,
-                        }}
-                        onKeyDown={handleKeyDown}
-                        className={`rounded-2xl border border-slate-200/90 dark:border-white/10
-                            bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl
-                            shadow-2xl shadow-slate-900/20 dark:shadow-black/60
-                            overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150 ${portalClassName}`}
-                    >
+                (() => {
+                    const menuWidth = Math.max(coords.width, 240);
+                    const maxLeft = typeof window !== 'undefined' ? window.innerWidth - menuWidth - 12 : coords.left;
+                    const targetLeft = Math.max(8, Math.min(coords.left, maxLeft));
+
+                    return createPortal(
+                        <div
+                            ref={dropdownRef}
+                            role="listbox"
+                            style={{
+                                position: 'fixed',
+                                top: coords.openUpward ? undefined : `${coords.top}px`,
+                                bottom: coords.openUpward
+                                    ? `${window.innerHeight - coords.top}px`
+                                    : undefined,
+                                left: `${targetLeft}px`,
+                                width: `${menuWidth}px`,
+                                minWidth: '220px',
+                                zIndex: 99999,
+                            }}
+                            onKeyDown={handleKeyDown}
+                            className={`rounded-2xl border border-slate-200/90 dark:border-white/10
+                                bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl
+                                shadow-2xl shadow-slate-900/20 dark:shadow-black/60
+                                overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150 ${portalClassName}`}
+                        >
                         {/* Search Filter Bar */}
                         {isSearchable && (
                             <div className="p-2 border-b border-slate-100 dark:border-white/5 bg-slate-50/70 dark:bg-slate-800/40">
@@ -421,10 +427,10 @@ export default function GlassSelect({
                                             }`}
                                         >
                                             <div className="min-w-0 flex-1">
-                                                <div className="truncate">{opt.label}</div>
+                                                <div className="whitespace-normal leading-snug">{opt.label}</div>
                                                 {opt.description && (
                                                     <div
-                                                        className={`text-[10px] truncate mt-0.5 ${
+                                                        className={`text-[10px] whitespace-normal mt-0.5 ${
                                                             isSelected
                                                                 ? 'text-white/80'
                                                                 : 'text-slate-400 dark:text-slate-500'
@@ -444,7 +450,8 @@ export default function GlassSelect({
                         </div>
                     </div>,
                     document.body
-                )}
+                );
+            })()}
         </div>
     );
 }

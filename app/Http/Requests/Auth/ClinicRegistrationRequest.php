@@ -43,6 +43,70 @@ class ClinicRegistrationRequest extends FormRequest
     }
 
     /**
+     * Normalize a Sri Lankan phone number (+94 prefix, accepts and strips leading 0).
+     */
+    public static function normalizePhone(?string $phone): ?string
+    {
+        if ($phone === null) {
+            return null;
+        }
+
+        $trimmed = trim($phone);
+        if ($trimmed === '') {
+            return '';
+        }
+
+        $allDigits = preg_replace('/\D/', '', $trimmed) ?? '';
+        if ($allDigits === '') {
+            return $trimmed;
+        }
+
+        if (str_starts_with($trimmed, '+94')) {
+            $localDigits = preg_replace('/\D/', '', substr($trimmed, 3)) ?? '';
+        } elseif (str_starts_with($trimmed, '0094')) {
+            $localDigits = preg_replace('/\D/', '', substr($trimmed, 4)) ?? '';
+        } elseif (str_starts_with($allDigits, '94') && strlen($allDigits) >= 11) {
+            $localDigits = substr($allDigits, 2);
+        } else {
+            $localDigits = $allDigits;
+        }
+
+        if (str_starts_with($localDigits, '0')) {
+            $localDigits = substr($localDigits, 1);
+        }
+
+        if (strlen($localDigits) === 9) {
+            return sprintf('+94 %s %s %s', substr($localDigits, 0, 2), substr($localDigits, 2, 3), substr($localDigits, 5, 4));
+        }
+
+        return '+94 '.$localDigits;
+    }
+
+    /**
+     * Prepare the data for validation.
+     */
+    protected function prepareForValidation(): void
+    {
+        $merge = [];
+
+        if ($this->has('clinic_phone')) {
+            $merge['clinic_phone'] = self::normalizePhone((string) $this->input('clinic_phone'));
+        }
+
+        if ($this->has('mobile')) {
+            $merge['mobile'] = self::normalizePhone((string) $this->input('mobile'));
+        }
+
+        if ($this->has('subdomain')) {
+            $merge['subdomain'] = strtolower(trim((string) $this->input('subdomain')));
+        }
+
+        if (! empty($merge)) {
+            $this->merge($merge);
+        }
+    }
+
+    /**
      * Get the validation rules that apply to the request.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
