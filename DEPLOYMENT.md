@@ -225,6 +225,26 @@ php artisan migrate --force
   * * * * * www-data cd /var/www/medvisit && php artisan schedule:run >> /dev/null 2>&1
   ```
 
+### 6.4 Prelaunch Homepage Redirect & Owner Bypass
+- **Snippet File**: `/etc/nginx/snippets/medvisit-prelaunch.conf`
+- **Static Page**: `/var/www/prelaunch/index.html` (self-contained, Poppins font, responsive light/dark design, contact WhatsApp/Email, legal links, `noindex`).
+- **Behavior**:
+  - `location = /` on `medvisit.lk` / `www.medvisit.lk` temporarily redirects (`302`) to `/coming`.
+  - `/coming` serves the static HTML directly from Nginx.
+  - All other routes (`/register`, `/pricing`, `/terms`, `/privacy-policy`, `/login`, etc.) and clinic subdomains (`*.medvisit.lk`) remain fully operational without redirection.
+  - **Owner Bypass**:
+    - Visit `https://medvisit.lk/__home-on` to set cookie `mv_home=1` (30 days) and view the real homepage.
+    - Visit `https://medvisit.lk/__home-off` to clear the cookie and restore the prelaunch redirect.
+- **To Launch**:
+  In `/etc/nginx/sites-available/medvisit.conf`, comment out the include:
+  ```nginx
+  # include /etc/nginx/snippets/medvisit-prelaunch.conf;
+  ```
+  Then reload Nginx:
+  ```bash
+  sudo nginx -t && sudo systemctl reload nginx
+  ```
+
 ---
 
 ## 7. Verification & Smoke Testing
