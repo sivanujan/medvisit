@@ -176,4 +176,62 @@ npm run build
 - `APP_KEY` generated via `php artisan key:generate --force`.
 - Passwords (`DB_PASSWORD`, `REDIS_PASSWORD`) populated securely from local server credentials.
 
+---
+
+## 5. Migrations & Database Seeding (Step 3)
+
+### 5.1 Migrations
+```bash
+php artisan migrate --force
+```
+- Core tables, tenant schemas, indexes, and automated plan seeding executed cleanly.
+
+### 5.2 Production Seeders
+- `PharmacyPermissionsSeeder`: official system roles (`super_admin`, `clinic_admin`, `doctor`, `pharmacist`, `receptionist`) and permissions.
+- `WebsiteTemplateSeeder`: 5 free presets and 5 premium templates seeded. Premium template sales gated via `PREMIUM_TEMPLATE_SALES_ENABLED=false` until owner approval.
+- Excluded seeders: `DatabaseSeeder`, `DemoClinicSeeder`, `DemoPatientDirectorySeeder`, `DemoPrescriptionTemplatesSeeder`, `QaScenarioSeeder`.
+
+### 5.3 Database Row Count Audit
+- `roles`: 5
+- `permissions`: 12
+- `plans`: 5 (3 active tiers: Basic, Pro, Advanced)
+- `website_templates`: 10 (5 free presets + 5 premium)
+- `tenants`: 0 (clean production DB)
+- `patients`: 0 (zero demo/test patients)
+
+---
+
+## 6. Web Server & Background Services (Step 4 & 5)
+
+### 6.1 Nginx & Cloudflare SSL (`/etc/nginx/sites-available/medvisit.conf`)
+- Certificate: `/etc/ssl/cloudflare/medvisit.lk.pem`
+- Private key: `/etc/ssl/cloudflare/medvisit.lk.key`
+- Domains: `medvisit.lk`, `*.medvisit.lk`
+- HTTP → HTTPS 301 redirection.
+- HTTP/2 enabled on port 443.
+- FastCGI backend: `unix:/run/php/php8.5-fpm.sock`.
+- Cloudflare Real IP restoration: `/etc/nginx/conf.d/cloudflare-realip.conf`.
+- Reverb WebSocket proxy: `/app` and `/apps` locations proxied to `http://127.0.0.1:8080`.
+
+### 6.2 Supervisor Daemons (`/etc/supervisor/conf.d/medvisit.conf`)
+- `medvisit-worker-default`: 2 worker processes running `queue:work redis --queue=default`.
+- `medvisit-worker-pdfs`: 1 dedicated worker process running `queue:work redis --queue=pdfs` (concurrency 1 for PDF rendering stability).
+- `medvisit-reverb`: 1 WebSocket server process running `reverb:start --host=127.0.0.1 --port=8080`.
+- All processes running as `www-data` under automated restart supervision.
+
+### 6.3 Cron Scheduler (`/etc/cron.d/medvisit`)
+- System cron entry configured for `www-data`:
+  ```cron
+  * * * * * www-data cd /var/www/medvisit && php artisan schedule:run >> /dev/null 2>&1
+  ```
+
+---
+
+## 7. Verification & Smoke Testing
+
+- **HTTPS Endpoint**: `https://medvisit.lk` returns HTTP 200 with Cloudflare Origin SSL.
+- **WebSocket Gateway**: Reverb active and listening on port 8080 with Nginx proxy.
+- **Chromium PDF Service**: Spatie Browsershot verified generating PDFs in headless Google Chrome 156 under user `www-data` with `--no-sandbox`.
+
+
 
