@@ -64,6 +64,10 @@ class BillingCenterController extends Controller
         } elseif ($subscription->isComp()) {
             $statusKey = 'comp';
             $statusLabel = 'Complimentary';
+        } elseif ($subscription->status === Subscription::STATUS_CANCELLED) {
+            $statusKey = 'cancelled';
+            $statusLabel = 'Cancelled';
+            $daysRemaining = 0;
         } elseif ($subscription->isTrialing()) {
             $statusKey = 'trial';
             $statusLabel = 'Free Trial';
@@ -76,6 +80,7 @@ class BillingCenterController extends Controller
         } elseif (! $subscription->isActive()) {
             $statusKey = 'expired';
             $statusLabel = 'Expired';
+            $daysRemaining = 0;
         }
 
         // Invoices / Payment History
@@ -165,7 +170,7 @@ class BillingCenterController extends Controller
 
         // Upcoming payment info (manual online payment due date)
         $upcomingInvoice = null;
-        if ($subscription && ! $subscription->isComp() && ! $subscription->isCancelling() && $periodEnd) {
+        if ($subscription && ! $subscription->isComp() && ! $subscription->isCancelling() && $subscription->status !== Subscription::STATUS_CANCELLED && $periodEnd && $periodEnd->isFuture()) {
             $targetPlan = $subscription->pendingPlan ?? $subscription->plan;
             $upcomingInvoice = [
                 'date' => $periodEnd->format('j M Y'),
@@ -257,8 +262,8 @@ class BillingCenterController extends Controller
                 ] : null,
             ] : null,
             'actions' => [
-                'can_change_plan' => $subscription && ! $subscription->isComp(),
-                'can_cancel' => $subscription && ! $subscription->isComp() && ! $subscription->isCancelling(),
+                'can_change_plan' => $subscription && ! $subscription->isComp() && $subscription->status !== Subscription::STATUS_CANCELLED && $subscription->isActive(),
+                'can_cancel' => $subscription && ! $subscription->isComp() && ! $subscription->isCancelling() && $subscription->status !== Subscription::STATUS_CANCELLED && $subscription->isActive(),
                 'can_resume' => $subscription && (bool) $subscription->cancels_at_period_end,
                 'has_unpaid_invoice' => (bool) $unpaidInvoice,
                 'unpaid_invoice_amount' => $unpaidInvoice?->formatted_amount,

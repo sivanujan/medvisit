@@ -429,4 +429,42 @@ class RefundWorkflowTest extends TestCase
 
         $isolatedResponse->assertStatus(404);
     }
+
+    public function test_super_admin_approving_refund_immediately_cancels_subscription_and_expires_tenant(): void
+    {
+        Mail::fake();
+        $env = $this->createClinicEnvironment('apprclinic');
+
+        $refund = RefundRequest::create([
+            'tenant_id' => $env['tenant']->id,
+            'payment_id' => $env['payment']->id,
+            'requested_by_user_id' => $env['admin']->id,
+            'requested_amount_cents' => 900000,
+            'reason_type' => RefundRequest::REASON_FIRST_PAYMENT_UNUSED,
+            'description' => 'Test approval immediate cancellation',
+            'status' => RefundRequest::STATUS_REQUESTED,
+            'eligibility' => RefundRequest::ELIGIBILITY_ELIGIBLE,
+        ]);
+
+        $superAdmin = User::factory()->superAdmin()->create();
+
+        $response = $this->actingAs($superAdmin)
+            ->post("http://{$this->baseDomain}/super-admin/refunds/{$refund->id}/approve", [
+                'approved_amount_cents' => 900000,
+                'decision_reason' => 'Approved and reversed back to card',
+            ]);
+
+        $response->assertRedirect();
+
+        $refund = $refund->fresh();
+        $this->assertEquals(RefundRequest::STATUS_APPROVED, $refund->status);
+
+        // Immediate cancellation upon approval
+        $subscription = $env['subscription']->fresh();
+        $this->assertEquals(Subscription::STATUS_CANCELLED, $subscription->status);
+        $this->assertEquals('expired', $env['tenant']->fresh()->status);
+        $this->assertFalse($env['tenant']->fresh()->isUsable());
+
+        Mail::assertQueued(RefundApprovedMail::class);
+    }
 }

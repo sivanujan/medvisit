@@ -12,6 +12,7 @@ use App\Models\BookingToken;
 use App\Models\PaymentTransaction;
 use App\Models\PlatformIncident;
 use App\Models\RefundRequest;
+use App\Models\Subscription;
 use App\Services\AuditLogger;
 use App\Services\Billing\CreditNotePdfService;
 use App\Services\Refunds\RefundEligibilityService;
@@ -332,6 +333,31 @@ class RefundManagementController extends Controller
             'decided_by_admin_id' => auth()->id(),
             'decided_at' => Carbon::now('Asia/Colombo'),
         ]);
+
+        // Cancel subscription and revoke clinic workspace access immediately upon refund approval
+        $payment = $refundRequest->payment;
+        $invoice = $payment?->invoice;
+        $subscription = $invoice?->subscription ?? Subscription::where('tenant_id', $refundRequest->tenant_id)->latest('id')->first();
+        $tenant = $refundRequest->tenant;
+
+        if ($subscription && $refundRequest->reason_type !== RefundRequest::REASON_TEMPLATE_PURCHASE) {
+            $reasonLabel = $decisionReason ?: match ($refundRequest->reason_type) {
+                RefundRequest::REASON_FIRST_PAYMENT_UNUSED => 'First payment refunded under 7-day guarantee',
+                RefundRequest::REASON_CHARGED_AFTER_CANCELLATION => 'Refunded after cancellation',
+                default => 'Subscription payment refunded',
+            };
+
+            $subscription->update([
+                'status' => Subscription::STATUS_CANCELLED,
+                'cancelled_at' => Carbon::now('Asia/Colombo'),
+                'current_period_end' => Carbon::now('Asia/Colombo'),
+                'cancellation_reason' => $reasonLabel,
+            ]);
+
+            if ($tenant) {
+                $tenant->update(['status' => 'expired']);
+            }
+        }
 
         // Send approval email to clinic
         $tenant = $refundRequest->tenant;

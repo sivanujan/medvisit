@@ -436,7 +436,9 @@ class Tenant extends BaseTenant
 
     public function isUsable(): bool
     {
-        return ! $this->isSuspended() && ! $this->isTrialExpired();
+        return ! $this->isSuspended()
+            && ! $this->isTrialExpired()
+            && ! in_array($this->status, ['expired', 'cancelled'], true);
     }
 
     /**

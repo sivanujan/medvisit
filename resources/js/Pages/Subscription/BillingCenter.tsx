@@ -41,7 +41,7 @@ interface CurrentPlanInfo {
     name: string;
     price_cents: number;
     formatted_price: string;
-    status_key: 'active' | 'trial' | 'past_due' | 'cancelling' | 'expired' | 'comp' | 'none';
+    status_key: 'active' | 'trial' | 'past_due' | 'cancelling' | 'expired' | 'comp' | 'none' | 'cancelled';
     status_label: string;
     is_comp: boolean;
     is_trialing: boolean;
@@ -400,25 +400,31 @@ export default function BillingCenter({
     );
     const isOverdue = Boolean(
         currentPlan &&
-        (currentPlan.status_key === 'past_due' || currentPlan.status_key === 'expired')
+        (currentPlan.status_key === 'past_due')
+    );
+    const isTerminated = Boolean(
+        currentPlan &&
+        (currentPlan.status_key === 'cancelled' || currentPlan.status_key === 'expired')
     );
     const isCancelled = Boolean(
         currentPlan &&
-        (currentPlan.is_cancelling || currentPlan.cancels_at_period_end)
+        (currentPlan.is_cancelling || currentPlan.cancels_at_period_end || currentPlan.status_key === 'cancelled')
     );
     const isComp = Boolean(currentPlan?.is_comp);
 
     // Circular Ring calculation
-    const daysRemaining = currentPlan?.days_remaining ?? 30;
+    const daysRemaining = currentPlan?.days_remaining ?? (isTerminated ? 0 : 30);
     const clampedDays = Math.max(0, Math.min(30, daysRemaining));
     const ringRadius = 42;
     const ringCircumference = 2 * Math.PI * ringRadius; // ~263.89
-    const ringPercentage = isComp ? 100 : Math.min(100, Math.max(0, (clampedDays / 30) * 100));
+    const ringPercentage = isComp ? 100 : (isTerminated ? 0 : Math.min(100, Math.max(0, (clampedDays / 30) * 100)));
     const ringOffset = ringCircumference - (ringPercentage / 100) * ringCircumference;
 
     // Ring stroke color
     let ringColorClass = 'text-[#0E9E8F] stroke-current';
-    if (isCancelled) {
+    if (isTerminated) {
+        ringColorClass = 'text-rose-500 stroke-current';
+    } else if (isCancelled) {
         ringColorClass = 'text-slate-400 dark:text-slate-500 stroke-current';
     } else if (isOverdue) {
         ringColorClass = 'text-rose-500 stroke-current';
@@ -539,7 +545,12 @@ export default function BillingCenter({
                                     {currentPlan?.name || 'No Active Plan'}
                                 </h3>
                                 <div>
-                                    {isCancelled ? (
+                                    {isTerminated ? (
+                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/25 text-rose-600 dark:text-rose-400 text-xs font-semibold">
+                                            <AlertTriangle className="w-3.5 h-3.5" />
+                                            <span>Subscription Cancelled</span>
+                                        </span>
+                                    ) : isCancelled ? (
                                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-500/10 border border-slate-500/25 text-slate-600 dark:text-slate-400 text-xs font-semibold">
                                             <AlertTriangle className="w-3.5 h-3.5" />
                                             <span>Access until {currentPlan?.period_end || 'period end'}</span>
@@ -650,6 +661,15 @@ export default function BillingCenter({
                                                 Lifetime
                                             </span>
                                         </>
+                                    ) : isTerminated ? (
+                                        <>
+                                            <span className="text-xl font-bold text-rose-600 dark:text-rose-400">
+                                                0
+                                            </span>
+                                            <span className="text-[10px] font-medium text-slate-500">
+                                                Ended
+                                            </span>
+                                        </>
                                     ) : isCancelled ? (
                                         <>
                                             <span className="text-xl font-bold text-slate-700 dark:text-slate-300">
@@ -679,6 +699,16 @@ export default function BillingCenter({
                     {/* Actions Row */}
                     <div className="mt-8 pt-6 border-t border-slate-200/80 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-4">
                         <div className="flex flex-wrap items-center gap-3">
+                            {isTerminated && (
+                                <Link
+                                    href="/subscription/subscribe"
+                                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#0E9E8F] hover:bg-[#0b8074] text-white font-medium text-xs transition shadow-sm cursor-pointer"
+                                >
+                                    <Sparkles className="w-4 h-4" />
+                                    <span>Re-activate subscription</span>
+                                </Link>
+                            )}
+
                             {actions.can_change_plan && (
                                 <button
                                     type="button"
@@ -691,7 +721,7 @@ export default function BillingCenter({
                             )}
 
                             {/* Pay now: only when due soon (<= 5 days), overdue, or unpaid invoice */}
-                            {(isDueSoon || isOverdue || actions.has_unpaid_invoice) && (
+                            {(isDueSoon || isOverdue || actions.has_unpaid_invoice) && !isTerminated && (
                                 <Link
                                     href="/subscription/subscribe"
                                     className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#FF7A59] hover:bg-[#e06343] text-white font-semibold text-xs transition shadow-sm cursor-pointer"
@@ -737,6 +767,8 @@ export default function BillingCenter({
                                     <>
                                         Next payment due {upcomingInvoice.date} · {upcomingInvoice.amount} · {upcomingInvoice.plan_name}
                                     </>
+                                ) : isTerminated ? (
+                                    <>No upcoming payments · Subscription has ended</>
                                 ) : isCancelled ? (
                                     <>No upcoming payments · Access ends on {currentPlan?.period_end || 'period end'}</>
                                 ) : isComp ? (
@@ -746,7 +778,9 @@ export default function BillingCenter({
                                 )}
                             </h4>
                             <p className="text-xs text-slate-500 dark:text-slate-400">
-                                {isCancelled ? (
+                                {isTerminated ? (
+                                    'Your subscription has been cancelled and clinic access ended. No future card charges will occur.'
+                                ) : isCancelled ? (
                                     'Your subscription has been cancelled. No renewal reminders or card charges will occur.'
                                 ) : (
                                     "We'll email you 7 days and 1 day before."

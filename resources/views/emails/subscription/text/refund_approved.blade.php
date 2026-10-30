@@ -10,7 +10,9 @@ Request Reference: {{ $refundRequest->public_id }}
 Decision Note: {{ $decisionReason }}
 @endif
 
-Timeline: The funds will be returned to your original payment card within 7–14 working days. You will receive an official credit note once processing completes.
+Timeline: The funds will be reversed back to your original payment card via Payments.lk within 7–14 working days. You will receive an official credit note once processing completes.
+
+Subscription Status: Cancelled. Your clinic subscription plan has been cancelled and clinic workspace access has been ended. You can reactivate anytime by choosing a new plan.
 
 View billing history: {{ $billingUrl }}
 
