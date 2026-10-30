@@ -36,6 +36,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'register/send-code',
             'register/verify-code',
             'register/resend-code',
+            'subscription/validate-promo',
+            'dev/preview/validate-promo',
             'webhooks/*',
             'support/broadcasting/auth',
         ]);

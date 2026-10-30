@@ -42,9 +42,9 @@ class TemplateDowngradeNoticeMail extends MedVisitMailable
         return 'emails.subscription.template_downgrade_notice';
     }
 
-    public function textView(): ?string
+    public function textView(): string
     {
-        return null;
+        return 'emails.subscription.text.template_downgrade_notice';
     }
 
     public function viewData(): array

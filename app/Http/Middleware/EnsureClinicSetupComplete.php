@@ -15,6 +15,7 @@ class EnsureClinicSetupComplete
      * Route patterns explicitly permitted during clinic setup gating.
      */
     protected array $allowedRouteNames = [
+        'agreements.accept',
         'tenant.logout',
         'tenant.setup',
         'tenant.setup.step',
@@ -23,6 +24,7 @@ class EnsureClinicSetupComplete
         'tenant.setup.test_print',
         'tenant.setup.dismiss_banner',
         'tenant.subscription.subscribe',
+        'tenant.subscription.validate_promo',
         'tenant.subscription.checkout',
         'tenant.subscription.return',
         'tenant.subscription.check_status',
@@ -30,6 +32,7 @@ class EnsureClinicSetupComplete
         'tenant.subscription.index',
         'tenant.subscription.receipt',
         'tenant.billing.subscribe',
+        'tenant.billing.validate_promo',
         'tenant.billing.inactive',
         'tenant.settings.billing',
         'tenant.settings.billing.details',

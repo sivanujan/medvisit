@@ -280,9 +280,10 @@ class CalendarTest extends TestCase
             'clinic_fee' => 50000,
         ]);
 
+        $rescheduledDate = now()->addDays(5)->toDateString();
         $response = $this->actingAs($this->admin)
             ->post("http://suwa.{$this->baseDomain}/calendar/sessions/{$session->id}/reschedule", [
-                'session_date' => '2026-10-26',
+                'session_date' => $rescheduledDate,
                 'start_time' => '10:00',
                 'end_time' => '13:00',
             ]);
@@ -290,7 +291,7 @@ class CalendarTest extends TestCase
         $response->assertRedirect();
         $this->assertDatabaseHas('doctor_sessions', [
             'id' => $session->id,
-            'session_date' => '2026-10-26',
+            'session_date' => $rescheduledDate,
             'start_time' => '10:00:00',
             'end_time' => '13:00:00',
         ]);

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\AgreementAcceptanceController;
 use App\Http\Controllers\Api\ClinicAnnouncementController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Support\SupportBroadcastAuthController;
@@ -204,6 +205,12 @@ Route::middleware([
             ->name('tenant.invitation.store');
     });
 
+    // Legal Agreement Acceptance (accessible whenever authenticated)
+    Route::middleware(['auth'])->group(function () {
+        Route::post('/agreements/accept', [AgreementAcceptanceController::class, 'accept'])
+            ->name('agreements.accept');
+    });
+
     // 4. Authenticated & Active Tenant Routes
     Route::middleware(['auth', EnsureTenantIsActive::class, EnsureSubscriptionActive::class, EnsureClinicSetupComplete::class])->group(function () {
         // Clinic Setup Wizard (guided first-time configuration)
@@ -221,6 +228,8 @@ Route::middleware([
         // Clinic Subscription & Payments.lk Billing
         Route::get('/subscription/subscribe', [SubscriptionBillingController::class, 'subscribe'])
             ->name('tenant.subscription.subscribe');
+        Route::post('/subscription/validate-promo', [SubscriptionBillingController::class, 'validatePromo'])
+            ->name('tenant.subscription.validate_promo');
         Route::post('/subscription/checkout', [SubscriptionBillingController::class, 'createCheckout'])
             ->name('tenant.subscription.checkout');
         Route::get('/subscription/return', [SubscriptionBillingController::class, 'return'])

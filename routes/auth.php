@@ -28,6 +28,15 @@ Route::middleware('guest')->group(function () {
     Route::post('register/resend-code', [ClinicRegistrationController::class, 'resendCode'])
         ->name('register.resend_code');
 
+    Route::post('register/send-phone-otp', [ClinicRegistrationController::class, 'sendPhoneOtp'])
+        ->name('register.send_phone_otp');
+
+    Route::post('register/verify-phone-otp', [ClinicRegistrationController::class, 'verifyPhoneOtp'])
+        ->name('register.verify_phone_otp');
+
+    Route::post('register/resend-phone-otp', [ClinicRegistrationController::class, 'resendPhoneOtp'])
+        ->name('register.resend_phone_otp');
+
     Route::get('register/success', [ClinicRegistrationController::class, 'success'])
         ->name('register.success');
 

@@ -57,6 +57,10 @@ interface ChangePlanProps {
         effective_date?: string | null;
     } | null;
     periodEnd?: string | null;
+    activePromo?: {
+        code: string;
+        eligible_plans: string[];
+    } | null;
     plans: PlanItem[];
 }
 
@@ -65,6 +69,7 @@ export default function ChangePlan({
     currentPlan,
     pendingPlan,
     periodEnd,
+    activePromo,
     plans,
 }: ChangePlanProps) {
     const [selectedUpgradePlan, setSelectedUpgradePlan] = useState<PlanItem | null>(null);
@@ -260,6 +265,15 @@ export default function ChangePlan({
                             </span>
                         </div>
 
+                        {activePromo && activePromo.eligible_plans && activePromo.eligible_plans.length > 0 && !activePromo.eligible_plans.includes(selectedUpgradePlan.slug) && (
+                            <div className="mt-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
+                                <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                                <span>
+                                    <strong>Promo notice:</strong> Your active promo code (<strong>{activePromo.code}</strong>) is not eligible for the {selectedUpgradePlan.name} plan and will end upon switching.
+                                </span>
+                            </div>
+                        )}
+
                         <div className="mt-4">
                             <label className="flex items-start gap-2.5 cursor-pointer text-xs text-slate-600 dark:text-slate-300">
                                 <input
@@ -330,6 +344,15 @@ export default function ChangePlan({
                                     No money is refunded for the current period, but starting {periodEnd}, you will be billed {selectedDowngradePlan.formatted_price} monthly.
                                 </span>
                             </div>
+
+                            {activePromo && activePromo.eligible_plans && activePromo.eligible_plans.length > 0 && !activePromo.eligible_plans.includes(selectedDowngradePlan.slug) && (
+                                <div className="mt-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-800 dark:text-amber-300 flex items-start gap-1.5">
+                                    <AlertCircle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                                    <span>
+                                        <strong>Promo notice:</strong> Your active promo code (<strong>{activePromo.code}</strong>) is not eligible for the {selectedDowngradePlan.name} plan and will end upon switching.
+                                    </span>
+                                </div>
+                            )}
                         </div>
 
                         <div className="mt-6 flex items-center justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">

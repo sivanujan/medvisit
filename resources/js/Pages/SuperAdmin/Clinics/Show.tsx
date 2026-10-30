@@ -88,6 +88,18 @@ interface ShowProps {
         metadata: any;
         created_at_human: string;
     }>;
+    agreement_acceptances?: Array<{
+        id: number;
+        user_name: string;
+        user_email: string;
+        terms_version: string;
+        privacy_version: string;
+        refund_version: string;
+        dispute_version: string;
+        accepted_at: string;
+        ip_address: string | null;
+        user_agent: string | null;
+    }>;
     exports: Array<{
         id: string;
         status: string;
@@ -107,10 +119,11 @@ export default function ClinicShow({
     messaging,
     notes,
     auditLogs,
+    agreement_acceptances = [],
     exports,
     plans,
 }: ShowProps) {
-    const [activeTab, setActiveTab] = useState<'overview' | 'billing' | 'messaging' | 'notes' | 'audit'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'billing' | 'messaging' | 'notes' | 'audit' | 'agreements'>('overview');
 
     // Modals
     const [impersonateModalOpen, setImpersonateModalOpen] = useState(false);
@@ -314,6 +327,7 @@ export default function ClinicShow({
                     { id: 'billing', label: 'Billing & Invoices', icon: CreditCard },
                     { id: 'messaging', label: 'Messaging & OTP', icon: MessageSquare },
                     { id: 'notes', label: `Internal Notes (${notes.length})`, icon: FileText },
+                    { id: 'agreements', label: `Agreements (${agreement_acceptances.length})`, icon: ShieldCheck },
                     { id: 'audit', label: 'Audit Trail', icon: Shield },
                 ].map((tab) => {
                     const Icon = tab.icon;
@@ -701,6 +715,80 @@ export default function ClinicShow({
                                             )}
                                         </div>
                                         <span className="text-[11px] text-slate-400">{log.created_at_human}</span>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </GlassCard>
+                </div>
+            )}
+
+            {/* TAB 6: AGREEMENTS & LEGAL ACCEPTANCES */}
+            {activeTab === 'agreements' && (
+                <div className="space-y-4 mt-6">
+                    <GlassCard className="p-5">
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                    <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                                    Legal Agreement Acceptances
+                                </h3>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                    Read-only record of Terms & Conditions, Privacy, Refund, and Dispute policy versions accepted by clinic administrators.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            {agreement_acceptances.length === 0 ? (
+                                <div className="text-xs text-slate-400 py-8 text-center bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-200/40 dark:border-white/5">
+                                    No legal agreement acceptance records found for this clinic.
+                                </div>
+                            ) : (
+                                agreement_acceptances.map((acc) => (
+                                    <div
+                                        key={acc.id}
+                                        className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-white/5 space-y-2.5 text-xs"
+                                    >
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-2 border-b border-slate-200/50 dark:border-white/5">
+                                            <div className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                                                <span>{acc.user_name}</span>
+                                                <span className="text-slate-400 font-normal">({acc.user_email})</span>
+                                            </div>
+                                            <span className="text-slate-500 dark:text-slate-400 text-[11px] font-mono">
+                                                {new Date(acc.accepted_at).toLocaleString()}
+                                            </span>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                                            <div className="p-2 rounded-lg bg-white dark:bg-slate-900/60 border border-slate-200/50 dark:border-white/5">
+                                                <div className="text-slate-400 text-[10px]">Terms Version</div>
+                                                <div className="font-mono font-bold text-slate-800 dark:text-slate-200">{acc.terms_version}</div>
+                                            </div>
+                                            <div className="p-2 rounded-lg bg-white dark:bg-slate-900/60 border border-slate-200/50 dark:border-white/5">
+                                                <div className="text-slate-400 text-[10px]">Privacy Version</div>
+                                                <div className="font-mono font-bold text-slate-800 dark:text-slate-200">{acc.privacy_version}</div>
+                                            </div>
+                                            <div className="p-2 rounded-lg bg-white dark:bg-slate-900/60 border border-slate-200/50 dark:border-white/5">
+                                                <div className="text-slate-400 text-[10px]">Refund Version</div>
+                                                <div className="font-mono font-bold text-slate-800 dark:text-slate-200">{acc.refund_version}</div>
+                                            </div>
+                                            <div className="p-2 rounded-lg bg-white dark:bg-slate-900/60 border border-slate-200/50 dark:border-white/5">
+                                                <div className="text-slate-400 text-[10px]">Dispute Version</div>
+                                                <div className="font-mono font-bold text-slate-800 dark:text-slate-200">{acc.dispute_version}</div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-slate-400 pt-1">
+                                            {acc.ip_address && (
+                                                <span>IP: <strong className="font-mono text-slate-600 dark:text-slate-300">{acc.ip_address}</strong></span>
+                                            )}
+                                            {acc.user_agent && (
+                                                <span className="truncate max-w-md" title={acc.user_agent}>
+                                                    UA: {acc.user_agent}
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                 ))
                             )}

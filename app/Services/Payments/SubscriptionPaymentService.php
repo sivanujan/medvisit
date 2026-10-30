@@ -6,10 +6,12 @@ namespace App\Services\Payments;
 
 use App\Models\PaymentTransaction;
 use App\Models\Plan;
+use App\Models\PromoCodeRedemption;
 use App\Models\Subscription;
 use App\Models\SubscriptionInvoice;
 use App\Models\Tenant;
 use App\Services\AuditLogger;
+use App\Services\Billing\PromoCodeService;
 use App\Services\Billing\SubscriptionNotificationService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -120,6 +122,18 @@ class SubscriptionPaymentService
                 'payment_method' => $method,
                 'receipt_number' => $receiptNumber,
             ]);
+
+            // Activate promo code redemption if present
+            if ($invoice->promo_id) {
+                $redemption = PromoCodeRedemption::where('promo_code_id', $invoice->promo_id)
+                    ->where('tenant_id', $invoice->tenant_id)
+                    ->where('status', PromoCodeRedemption::STATUS_RESERVED)
+                    ->first();
+
+                if ($redemption) {
+                    app(PromoCodeService::class)->activate($redemption, $invoice);
+                }
+            }
 
             // Lock subscription for updating
             $subscription = Subscription::where('id', $invoice->subscription_id)
@@ -306,6 +320,14 @@ class SubscriptionPaymentService
             // Notify billing contact
             $failureMessage = $rawPayload['payment']['failureMessage'] ?? null;
             $this->notificationService->sendPaymentFailed($invoice, $failureMessage);
+
+            // Release any reserved promo code redemption
+            if ($invoice->promo_id) {
+                PromoCodeRedemption::where('promo_code_id', $invoice->promo_id)
+                    ->where('tenant_id', $invoice->tenant_id)
+                    ->where('status', PromoCodeRedemption::STATUS_RESERVED)
+                    ->update(['status' => PromoCodeRedemption::STATUS_RELEASED]);
+            }
 
             Log::info("SubscriptionPaymentService: Recorded failed payment transaction for invoice [{$reference}]");
         });

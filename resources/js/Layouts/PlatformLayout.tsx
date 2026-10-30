@@ -28,6 +28,8 @@ import {
     Headphones,
     RotateCcw,
     AlertTriangle,
+    Tag,
+    Globe,
 } from 'lucide-react';
 import { MedVisitIcon } from '@/Components/ApplicationLogo';
 import ThemeToggle from '@/Components/Common/ThemeToggle';
@@ -52,6 +54,7 @@ const PLATFORM_BREADCRUMBS: Record<string, { group: string; page: string }> = {
     '/super-admin/refunds': { group: 'Business', page: 'Refund Requests' },
     '/super-admin/incidents': { group: 'Business', page: 'Platform Incidents' },
     '/super-admin/plans': { group: 'Business', page: 'Subscription Plans' },
+    '/super-admin/promotions': { group: 'Business', page: 'Promotions & Invites' },
     '/super-admin/leads': { group: 'Business', page: 'Leads & Demos CRM' },
     '/super-admin/medicines': { group: 'Content', page: 'Global Medicine Catalog' },
     '/super-admin/announcements': { group: 'Content', page: 'Broadcast Announcements' },
@@ -60,6 +63,7 @@ const PLATFORM_BREADCRUMBS: Record<string, { group: string; page: string }> = {
     '/super-admin/otp-usage': { group: 'Usage & Health', page: 'Messaging & OTP Usage' },
     '/super-admin/system-health': { group: 'Usage & Health', page: 'System Health & Queue' },
     '/super-admin/audit-logs': { group: 'Admin', page: 'Platform Audit Log' },
+    '/super-admin/reserved-subdomains': { group: 'Admin', page: 'Reserved Subdomains' },
     '/super-admin/settings': { group: 'Admin', page: 'Platform Settings' },
     '/super-admin/admins': { group: 'Admin', page: 'Admin Users & 2FA' },
     '/super-admin/support': { group: 'Support', page: 'Support Inbox' },
@@ -181,6 +185,12 @@ export default function PlatformLayout({
                     badge: undefined,
                 },
                 {
+                    name: 'Promotions & Invites',
+                    href: '/super-admin/promotions',
+                    icon: Tag,
+                    badge: undefined,
+                },
+                {
                     name: 'Leads & Demos CRM',
                     href: '/super-admin/leads',
                     icon: UserCheck,
@@ -247,6 +257,12 @@ export default function PlatformLayout({
                     name: 'Platform Audit Log',
                     href: '/super-admin/audit-logs',
                     icon: Shield,
+                    badge: undefined,
+                },
+                {
+                    name: 'Reserved Subdomains',
+                    href: '/super-admin/reserved-subdomains',
+                    icon: Globe,
                     badge: undefined,
                 },
                 {

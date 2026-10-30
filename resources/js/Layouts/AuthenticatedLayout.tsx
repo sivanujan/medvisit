@@ -44,6 +44,7 @@ import DemoTopBanner from '@/Components/Demo/DemoTopBanner';
 import CommandPaletteModal from '@/Components/Layout/CommandPaletteModal';
 import NotificationDropdown from '@/Components/Layout/NotificationDropdown';
 import SupportChatWidget from '@/Components/SupportChat/SupportChatWidget';
+import AgreementReacceptanceModal from '@/Components/Legal/AgreementReacceptanceModal';
 import { getAvatarInitial } from '@/Utils/name';
 import { usePermission } from '@/Hooks/usePermission';
 import { getSubscriptionStatusDescriptor } from '@/Utils/subscriptionStatus';
@@ -95,7 +96,8 @@ export default function AuthenticatedLayout({
     breadcrumbs: customBreadcrumbs,
     children,
 }: AuthenticatedLayoutProps) {
-    const { auth, tenant, impersonation } = usePage<{
+    const { auth, tenant, impersonation, requiresAgreementReacceptance } = usePage<{
+        requiresAgreementReacceptance?: boolean;
         auth: {
             user: {
                 id: number;
@@ -1217,6 +1219,9 @@ export default function AuthenticatedLayout({
 
             {/* Clinic Support Chat Widget */}
             <SupportChatWidget />
+
+            {/* Mandatory Agreement Re-Acceptance Modal */}
+            <AgreementReacceptanceModal isOpen={!!requiresAgreementReacceptance} />
         </div>
     );
 }

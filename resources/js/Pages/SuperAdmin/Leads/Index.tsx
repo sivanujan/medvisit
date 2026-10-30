@@ -156,6 +156,8 @@ export default function LeadsIndex({
         phone: '',
         plan: 'standard',
         tenant_id: '',
+        override_reserved: false,
+        override_reason: '',
     });
 
     const handleFilterChange = (params: Record<string, string>) => {
@@ -1090,6 +1092,35 @@ export default function LeadsIndex({
                                     <span className="px-3 py-2 text-xs font-semibold bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-r-xl text-slate-500">
                                         .medvisit.lk
                                     </span>
+                                </div>
+                                {convertForm.errors.subdomain && (
+                                    <p className="mt-1 text-xs text-rose-500 font-medium">{convertForm.errors.subdomain}</p>
+                                )}
+
+                                <div className="mt-2.5 p-2.5 rounded-xl border border-amber-200 dark:border-amber-900/40 bg-amber-50/70 dark:bg-amber-950/20 space-y-2">
+                                    <label className="flex items-center gap-2 cursor-pointer text-xs text-amber-900 dark:text-amber-200 font-semibold select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={convertForm.data.override_reserved}
+                                            onChange={(e) => convertForm.setData('override_reserved', e.target.checked)}
+                                            className="rounded border-amber-400 text-amber-600 focus:ring-amber-500 h-3.5 w-3.5"
+                                        />
+                                        <span>Super Admin Override: allow reserved / restricted subdomain</span>
+                                    </label>
+                                    {convertForm.data.override_reserved && (
+                                        <div>
+                                            <input
+                                                type="text"
+                                                placeholder="Enter reason for overriding reserved subdomain (audit-logged)..."
+                                                value={convertForm.data.override_reason}
+                                                onChange={(e) => convertForm.setData('override_reason', e.target.value)}
+                                                className="w-full text-xs rounded-lg border border-amber-300 dark:border-amber-800 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-slate-900 dark:text-white"
+                                            />
+                                            {convertForm.errors.override_reason && (
+                                                <p className="mt-1 text-[11px] text-rose-500 font-medium">{convertForm.errors.override_reason}</p>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 

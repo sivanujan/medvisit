@@ -48,6 +48,7 @@ class ClinicRegistrationOtpTest extends TestCase
             'password' => 'SecurePass123!',
             'password_confirmation' => 'SecurePass123!',
             'terms' => true,
+            'agreement_authority' => true,
         ];
 
         $response = $this->postJson(route('register.send_code'), $payload);
@@ -241,11 +242,14 @@ class ClinicRegistrationOtpTest extends TestCase
         $token = 'test-unverified-token';
         PendingRegistration::create([
             'email' => 'unverified@medvisit.lk',
+            'phone' => '+94779998877',
             'token' => $token,
             'code_hash' => Hash::make('123456'),
             'attempts' => 0,
             'expires_at' => now()->addMinutes(10),
             'verified_at' => null, // NOT verified
+            'phone_verified_at' => now(),
+            'phone_signed_token' => 'signed-token-unverified',
             'payload' => Crypt::encryptString(json_encode([])),
         ]);
 
@@ -263,7 +267,9 @@ class ClinicRegistrationOtpTest extends TestCase
             'password' => 'Secret123Pass!',
             'password_confirmation' => 'Secret123Pass!',
             'terms' => true,
+            'agreement_authority' => true,
             'registration_token' => $token,
+            'phone_token' => 'signed-token-unverified',
         ];
 
         // Server must refuse to create clinic
@@ -282,13 +288,17 @@ class ClinicRegistrationOtpTest extends TestCase
         Mail::fake();
 
         $token = 'test-verified-token';
+        $phoneToken = 'signed-phone-token-siva-123456789012345678';
         $pending = PendingRegistration::create([
             'email' => 'siva@medvisit.lk',
+            'phone' => '+94771234567',
             'token' => $token,
             'code_hash' => Hash::make('123456'),
             'attempts' => 0,
             'expires_at' => now()->addMinutes(10),
             'verified_at' => now(), // VERIFIED
+            'phone_verified_at' => now(),
+            'phone_signed_token' => $phoneToken,
             'payload' => Crypt::encryptString(json_encode([])),
         ]);
 
@@ -306,7 +316,9 @@ class ClinicRegistrationOtpTest extends TestCase
             'password' => 'SecretPass123!',
             'password_confirmation' => 'SecretPass123!',
             'terms' => true,
+            'agreement_authority' => true,
             'registration_token' => $token,
+            'phone_token' => $phoneToken,
         ];
 
         $response = $this->post('/register', $payload);
@@ -341,13 +353,17 @@ class ClinicRegistrationOtpTest extends TestCase
         Mail::fake();
 
         $token = 'test-token-autologin';
+        $phoneToken = 'signed-phone-token-autologin-1234567890';
         PendingRegistration::create([
             'email' => 'autologin@medvisit.lk',
+            'phone' => '+94775556677',
             'token' => $token,
             'code_hash' => Hash::make('123456'),
             'attempts' => 0,
             'expires_at' => now()->addMinutes(10),
             'verified_at' => now(),
+            'phone_verified_at' => now(),
+            'phone_signed_token' => $phoneToken,
             'payload' => Crypt::encryptString(json_encode([])),
         ]);
 
@@ -365,7 +381,9 @@ class ClinicRegistrationOtpTest extends TestCase
             'password' => 'Passw0rdSecure!',
             'password_confirmation' => 'Passw0rdSecure!',
             'terms' => true,
+            'agreement_authority' => true,
             'registration_token' => $token,
+            'phone_token' => $phoneToken,
         ];
 
         $this->post('/register', $payload);

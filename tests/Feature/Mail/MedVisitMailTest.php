@@ -117,7 +117,10 @@ class MedVisitMailTest extends TestCase
             'code_hash' => Hash::make('123456'),
             'attempts' => 0,
             'expires_at' => now()->addMinutes(10),
+            'phone' => '+94712345678',
             'verified_at' => now(),
+            'phone_verified_at' => now(),
+            'phone_signed_token' => 'signed-phone-token-mail-test-123',
             'payload' => Crypt::encryptString(json_encode([])),
         ]);
 
@@ -135,7 +138,9 @@ class MedVisitMailTest extends TestCase
             'password' => 'SecurePass123!',
             'password_confirmation' => 'SecurePass123!',
             'terms' => true,
+            'agreement_authority' => true,
             'registration_token' => $token,
+            'phone_token' => 'signed-phone-token-mail-test-123',
         ];
 
         $response = $this->post('/register', $payload);

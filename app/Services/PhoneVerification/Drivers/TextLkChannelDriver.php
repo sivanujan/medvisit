@@ -17,7 +17,7 @@ class TextLkChannelDriver implements ChannelDriverInterface
     {
         $mode = strtolower((string) config('services.textlk.mode', 'oauth'));
         $token = (string) config('services.textlk.api_token');
-        $senderId = substr((string) config('services.textlk.sender_id', 'MedVisit'), 0, 11);
+        $senderId = substr((string) config('services.textlk.sender_id', 'medvisit'), 0, 11);
         $apiUrl = rtrim((string) config('services.textlk.api_url', 'https://app.text.lk/api/v3'), '/');
         $httpUrl = rtrim((string) config('services.textlk.http_url', 'https://app.text.lk/api/http'), '/');
 

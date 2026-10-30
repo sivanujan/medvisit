@@ -32,6 +32,7 @@ class PlatformPhaseBTest extends TestCase
             'phone' => '077 123 4567',
             'email' => 'samantha@colomboclinic.lk',
             'city' => 'Colombo 03',
+            'source' => 'website_form',
             'notes' => 'Looking for appointment queuing and SMS tokens.',
         ]);
 

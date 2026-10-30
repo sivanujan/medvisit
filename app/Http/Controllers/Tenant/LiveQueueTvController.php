@@ -294,7 +294,7 @@ class LiveQueueTvController extends Controller
         $tenant = tenant();
         $nameDisplayMode = ($tenant && $tenant->is_demo)
             ? 'token_only'
-            : (string) ($tenant->tv_name_display_mode ?? 'token_only');
+            : (string) ($request->query('name_display_mode') ?? $device?->name_display_mode ?? $tenant->tv_name_display_mode ?? 'token_only');
 
         // Session/Doctor filter scoped to device or query override
         $filterDoctorIds = null;

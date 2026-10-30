@@ -39,6 +39,11 @@ class SubscriptionInvoice extends Model
         'invoice_number',
         'receipt_number',
         'amount_cents',
+        'original_amount_cents',
+        'discount_cents',
+        'promo_code',
+        'promo_id',
+        'invite_id',
         'period_start',
         'period_end',
         'due_date',
@@ -52,12 +57,24 @@ class SubscriptionInvoice extends Model
     protected $casts = [
         'is_test' => 'boolean',
         'amount_cents' => 'integer',
+        'original_amount_cents' => 'integer',
+        'discount_cents' => 'integer',
         'period_start' => 'datetime',
         'period_end' => 'datetime',
         'due_date' => 'datetime',
         'paid_at' => 'datetime',
         'billing_details' => 'array',
     ];
+
+    public function promo(): BelongsTo
+    {
+        return $this->belongsTo(PromoCode::class, 'promo_id');
+    }
+
+    public function invite(): BelongsTo
+    {
+        return $this->belongsTo(SubscriptionInvite::class, 'invite_id');
+    }
 
     public function subscription(): BelongsTo
     {

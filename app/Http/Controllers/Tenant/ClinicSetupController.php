@@ -514,7 +514,7 @@ class ClinicSetupController extends Controller
                 // Step 8: Pharmacy Module
                 $validated = $request->validate([
                     'pharmacy_enabled' => ['required', 'boolean'],
-                    'stock_reduction_mode' => ['nullable', 'string', 'in:dispense,consultation'],
+                    'stock_reduction_mode' => ['nullable', 'string', 'in:dispense,consultation,bill,finalize'],
                 ]);
 
                 $planSlug = (string) ($tenant->subscription?->plan?->slug ?? $tenant->plan ?? 'pro');

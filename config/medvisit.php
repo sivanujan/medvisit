@@ -10,6 +10,9 @@ return [
     // Domain shown to people (e.g. "yourclinic.medvisit.lk"), independent of the request host.
     'public_domain' => env('APP_PUBLIC_DOMAIN', 'medvisit.lk'),
 
+    // Daily global cap for registration phone OTP dispatches (alerts Telegram once if hit)
+    'registration_otp_daily_limit' => (int) env('REGISTRATION_OTP_DAILY_LIMIT', 100),
+
     // Templates under development mode: allows clinics to preview, test, and apply premium templates freely
     'templates_under_development' => env('TEMPLATES_UNDER_DEVELOPMENT', true),
 

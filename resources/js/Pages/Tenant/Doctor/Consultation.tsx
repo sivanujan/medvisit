@@ -225,6 +225,8 @@ export default function Consultation({
     const [showAddendumModal, setShowAddendumModal] = useState(false);
     const [addendumText, setAddendumText] = useState('');
     const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
+    const [showFinalizeModal, setShowFinalizeModal] = useState(false);
+    const [dontAskAgainFinalize, setDontAskAgainFinalize] = useState(false);
     const [newTemplateName, setNewTemplateName] = useState('');
     const [newTemplateShared, setNewTemplateShared] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -527,23 +529,18 @@ export default function Consultation({
         );
     };
 
-    const finalizeConsultation = () => {
-        if (isSubmitting) return;
-        if (!diagnosis && !chiefComplaint && items.length === 0) {
-            alert('Please add at least a chief complaint, diagnosis, or prescribed medicine before finalizing.');
-            return;
-        }
-
-        if (
-            !confirm(
-                'Finalize consultation and prescription? This locks medicine items and notifies the pharmacy/billing.'
-            )
-        ) {
-            return;
-        }
-
+    const executeFinalize = () => {
         setIsSubmitting(true);
         setSubmitError(null);
+        setShowFinalizeModal(false);
+
+        if (dontAskAgainFinalize) {
+            try {
+                localStorage.setItem('medvisit_skip_finalize_confirm', 'true');
+            } catch {
+                // Storage unavailable, ignore
+            }
+        }
 
         router.post(
             `/doctor/consultation/${token.id}/finalize`,
@@ -575,10 +572,31 @@ export default function Consultation({
                 onSuccess: () => setIsSubmitting(false),
                 onError: (errors) => {
                     setIsSubmitting(false);
-                    setSubmitError(Object.values(errors)[0] as string || 'Failed to finalize consultation.');
+                    setSubmitError((Object.values(errors)[0] as string) || 'Failed to finalize consultation.');
                 },
             }
         );
+    };
+
+    const handleFinalizeClick = () => {
+        if (isSubmitting) return;
+        if (!diagnosis && !chiefComplaint && items.length === 0) {
+            setSubmitError('Please add at least a chief complaint, diagnosis, or prescribed medicine before finalizing.');
+            return;
+        }
+
+        let skipConfirm = false;
+        try {
+            skipConfirm = localStorage.getItem('medvisit_skip_finalize_confirm') === 'true';
+        } catch {
+            skipConfirm = false;
+        }
+
+        if (skipConfirm) {
+            executeFinalize();
+        } else {
+            setShowFinalizeModal(true);
+        }
     };
 
     const submitAddendum = (e: React.FormEvent) => {
@@ -1316,7 +1334,7 @@ export default function Consultation({
 
                                     <button
                                         type="button"
-                                        onClick={finalizeConsultation}
+                                        onClick={handleFinalizeClick}
                                         disabled={isSubmitting}
                                         className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-lg shadow-primary/25 transition-all disabled:opacity-50 hover:-translate-y-0.5"
                                     >
@@ -1526,6 +1544,89 @@ export default function Consultation({
                                     </button>
                                 </div>
                             </form>
+                        </div>
+                    </div>
+                )}
+
+                {/* FINALIZE CONFIRMATION MODAL */}
+                {showFinalizeModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+                        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-white/10 p-6 max-w-md w-full shadow-2xl space-y-5">
+                            <div className="flex items-start gap-3.5">
+                                <div className="p-3 rounded-2xl bg-gradient-to-tr from-[#1E6FD9]/15 to-[#0E9E8F]/15 border border-[#1E6FD9]/20 text-[#1E6FD9] dark:text-[#5c9df4] shrink-0">
+                                    <CheckCircle2 className="w-6 h-6" />
+                                </div>
+                                <div className="space-y-1">
+                                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                                        Finalize consultation & prescription?
+                                    </h3>
+                                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                                        This locks the prescribed medications, issues the official prescription slip, and notifies the dispensary and billing desk.
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Brief Summary Box */}
+                            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-white/5 space-y-2 text-xs">
+                                <div className="flex justify-between items-center text-slate-500 dark:text-slate-400">
+                                    <span>Patient</span>
+                                    <span className="font-bold text-slate-800 dark:text-slate-200">
+                                        {token.patient.name} (#{token.token_display || token.token_number})
+                                    </span>
+                                </div>
+                                <div className="flex justify-between items-center text-slate-500 dark:text-slate-400">
+                                    <span>Medications</span>
+                                    <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                        {items.length} item{items.length !== 1 ? 's' : ''} prescribed
+                                    </span>
+                                </div>
+                                {(diagnosis || chiefComplaint) && (
+                                    <div className="flex justify-between items-center text-slate-500 dark:text-slate-400">
+                                        <span>Diagnosis</span>
+                                        <span className="font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[200px]">
+                                            {diagnosis || chiefComplaint}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Don't ask again checkbox */}
+                            <label className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/30 border border-slate-200/60 dark:border-white/5 cursor-pointer select-none text-xs text-slate-600 dark:text-slate-300 transition-colors hover:bg-slate-100/60 dark:hover:bg-slate-800/50">
+                                <input
+                                    type="checkbox"
+                                    checked={dontAskAgainFinalize}
+                                    onChange={(e) => setDontAskAgainFinalize(e.target.checked)}
+                                    className="mt-0.5 w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary/20 shrink-0 cursor-pointer"
+                                />
+                                <div className="space-y-0.5">
+                                    <span className="font-semibold text-slate-800 dark:text-slate-200 block">
+                                        Don't ask me again on this device
+                                    </span>
+                                    <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
+                                        Future consultations will finalize immediately without this confirmation.
+                                    </span>
+                                </div>
+                            </label>
+
+                            {/* Actions */}
+                            <div className="flex items-center justify-end gap-2.5 pt-1">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowFinalizeModal(false)}
+                                    className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                >
+                                    Review Details
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={executeFinalize}
+                                    disabled={isSubmitting}
+                                    className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-md shadow-primary/25 transition-all cursor-pointer flex items-center gap-1.5 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50"
+                                >
+                                    <CheckCircle2 className="w-4 h-4" />
+                                    <span>{isSubmitting ? 'Finalizing...' : 'Yes, Finalize & Lock'}</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}

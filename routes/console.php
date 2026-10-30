@@ -59,3 +59,6 @@ Schedule::command('demo:reset')
 Schedule::command('demo:refresh-today')
     ->hourly()
     ->timezone('Asia/Colombo');
+
+// Release abandoned promo code reservations
+Schedule::command('promo:release-expired-reservations')->everyFiveMinutes();

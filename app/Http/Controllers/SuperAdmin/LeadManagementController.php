@@ -7,6 +7,7 @@ namespace App\Http\Controllers\SuperAdmin;
 use App\Http\Controllers\Controller;
 use App\Models\Lead;
 use App\Models\Tenant;
+use App\Rules\SubdomainRule;
 use App\Services\AuditLogger;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -282,11 +283,27 @@ class LeadManagementController extends Controller
         }
 
         // Create a new tenant
+        $allowOverride = $request->boolean('override_reserved');
+        $overrideReason = trim((string) $request->input('override_reason', ''));
+
+        if ($allowOverride && empty($overrideReason)) {
+            return back()->withErrors(['override_reason' => 'An override reason is required when bypassing reserved subdomains.']);
+        }
+
         $validated = $request->validate([
-            'subdomain' => ['required', 'string', 'alpha_dash', 'min:3', 'max:50', 'unique:tenants,id', 'unique:tenants,subdomain'],
+            'subdomain' => [
+                'required',
+                'string',
+                new SubdomainRule(
+                    allowReservedOverride: $allowOverride,
+                    clinicName: $request->input('clinic_name')
+                ),
+            ],
             'clinic_name' => ['required', 'string', 'max:150'],
             'phone' => ['required', 'string', 'max:30'],
             'plan' => ['nullable', 'string'],
+            'override_reserved' => ['nullable', 'boolean'],
+            'override_reason' => ['nullable', 'string', 'max:255'],
         ]);
 
         $subdomain = Str::lower($validated['subdomain']);
@@ -316,8 +333,25 @@ class LeadManagementController extends Controller
             'resource' => $lead,
             'tenant_id' => $tenant->id,
             'user' => $request->user(),
-            'metadata' => ['mode' => 'created_new', 'tenant_id' => $tenant->id, 'subdomain' => $subdomain],
+            'metadata' => [
+                'mode' => 'created_new',
+                'tenant_id' => $tenant->id,
+                'subdomain' => $subdomain,
+                'override_reserved' => $allowOverride,
+                'override_reason' => $allowOverride ? $overrideReason : null,
+            ],
         ]);
+
+        if ($allowOverride) {
+            AuditLogger::log('superadmin.subdomain.reserved_override', [
+                'tenant_id' => $tenant->id,
+                'user' => $request->user(),
+                'metadata' => [
+                    'subdomain' => $subdomain,
+                    'reason' => $overrideReason,
+                ],
+            ]);
+        }
 
         return back()->with('success', "New clinic '{$tenant->name}' created with 30-day trial and linked to lead.");
     }

@@ -20,7 +20,9 @@ use App\Http\Controllers\SuperAdmin\PlatformAuditLogController;
 use App\Http\Controllers\SuperAdmin\PlatformDashboardController;
 use App\Http\Controllers\SuperAdmin\PlatformIncidentController;
 use App\Http\Controllers\SuperAdmin\PlatformSettingsController;
+use App\Http\Controllers\SuperAdmin\PromotionManagementController;
 use App\Http\Controllers\SuperAdmin\RefundManagementController;
+use App\Http\Controllers\SuperAdmin\ReservedSubdomainController;
 use App\Http\Controllers\SuperAdmin\SubscriptionManagementController;
 use App\Http\Controllers\SuperAdmin\SupportInboxController;
 use App\Http\Controllers\SuperAdmin\SystemHealthController;
@@ -29,9 +31,13 @@ use App\Http\Controllers\Support\SupportBroadcastAuthController;
 use App\Http\Controllers\Support\SupportChatWidgetController;
 use App\Http\Controllers\Webhooks\PaymentsLkWebhookController;
 use App\Http\Controllers\Webhooks\WhatsAppWebhookController;
+use App\Models\Plan;
+use App\Models\PromoCode;
 use App\Models\Tenant;
 use App\Models\TvPairingCode;
+use App\Services\Billing\PromoCodeService;
 use Illuminate\Foundation\Application;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -214,6 +220,34 @@ Route::domain('{central_domain}')
                     ->name('super_admin.plans.toggle_active');
                 Route::delete('/super-admin/plans/{plan}', [PlanManagementController::class, 'destroy'])
                     ->name('super_admin.plans.destroy');
+
+                // Promotions, Promo Codes & Free-Access Invites
+                Route::get('/super-admin/promotions', [PromotionManagementController::class, 'index'])
+                    ->name('super_admin.promotions.index');
+                Route::post('/super-admin/promotions/codes', [PromotionManagementController::class, 'storePromo'])
+                    ->name('super_admin.promotions.codes.store');
+                Route::put('/super-admin/promotions/codes/{promoCode}', [PromotionManagementController::class, 'updatePromo'])
+                    ->name('super_admin.promotions.codes.update');
+                Route::post('/super-admin/promotions/codes/{promoCode}/toggle-active', [PromotionManagementController::class, 'togglePromoActive'])
+                    ->name('super_admin.promotions.codes.toggle_active');
+                Route::delete('/super-admin/promotions/codes/{promoCode}', [PromotionManagementController::class, 'destroyPromo'])
+                    ->name('super_admin.promotions.codes.destroy');
+                Route::post('/super-admin/promotions/invites', [PromotionManagementController::class, 'storeInvite'])
+                    ->name('super_admin.promotions.invites.store');
+                Route::post('/super-admin/promotions/invites/{invite}/resend', [PromotionManagementController::class, 'resendInvite'])
+                    ->name('super_admin.promotions.invites.resend');
+                Route::post('/super-admin/promotions/invites/{invite}/revoke', [PromotionManagementController::class, 'revokeInvite'])
+                    ->name('super_admin.promotions.invites.revoke');
+                Route::get('/super-admin/promotions/redemptions/export', [PromotionManagementController::class, 'exportRedemptionsCsv'])
+                    ->name('super_admin.promotions.redemptions.export');
+
+                // Reserved Subdomains
+                Route::get('/super-admin/reserved-subdomains', [ReservedSubdomainController::class, 'index'])
+                    ->name('super_admin.reserved_subdomains.index');
+                Route::post('/super-admin/reserved-subdomains', [ReservedSubdomainController::class, 'store'])
+                    ->name('super_admin.reserved_subdomains.store');
+                Route::delete('/super-admin/reserved-subdomains/{reservedSubdomain}', [ReservedSubdomainController::class, 'destroy'])
+                    ->name('super_admin.reserved_subdomains.destroy');
 
                 // Leads & Demos CRM
                 Route::get('/super-admin/leads', [LeadManagementController::class, 'index'])
@@ -421,7 +455,17 @@ Route::domain('{central_domain}')
             ->name('announcements.notifications');
         Route::post('/api/announcements/{id}/read', [ClinicAnnouncementController::class, 'markRead'])
             ->name('announcements.mark_read');
-        if (app()->environment('local')) {
+        if (app()->environment('local', 'testing')) {
+            Route::get('/dev/preview/errors/{code?}', function () {
+                $rawCode = request()->route('code') ?? request()->query('code', '404');
+                $status = (int) $rawCode;
+                if (! in_array($status, [403, 404, 419, 429, 500, 503])) {
+                    $status = 404;
+                }
+
+                return response()->view('errors.'.$status, ['code' => $status], $status);
+            })->name('dev.preview.errors');
+
             Route::get('/dev/preview/register-success', function () {
                 return Inertia::render('Auth/RegisterClinicSuccess', [
                     'registration' => [
@@ -438,32 +482,28 @@ Route::domain('{central_domain}')
             })->name('dev.preview.register-success');
 
             Route::get('/dev/preview/subscribe', function () {
-                $configPlans = config('medvisit_public.plans', []);
-                $plans = [
-                    [
-                        'slug' => 'basic',
-                        'name' => 'Basic',
-                        'price_cents' => (int) ($configPlans['basic']['price_cents'] ?? 700000),
-                        'features' => (array) ($configPlans['basic']['features'] ?? []),
-                        'recommended' => false,
-                    ],
-                    [
-                        'slug' => 'pro',
-                        'name' => 'Pro',
-                        'price_cents' => (int) ($configPlans['pro']['price_cents'] ?? 900000),
-                        'features' => (array) ($configPlans['pro']['features'] ?? []),
-                        'recommended' => true,
-                    ],
-                    [
-                        'slug' => 'advanced',
-                        'name' => 'Advanced',
-                        'price_cents' => (int) ($configPlans['advanced']['price_cents'] ?? 1500000),
-                        'features' => (array) ($configPlans['advanced']['features'] ?? []),
-                        'recommended' => false,
-                    ],
-                ];
+                $plans = Plan::where('is_active', true)
+                    ->whereIn('slug', ['basic', 'pro', 'advanced'])
+                    ->orderBy('price_cents')
+                    ->get()
+                    ->map(function (Plan $plan) {
+                        $configDef = config("medvisit_public.plans.{$plan->slug}", []);
 
-                $sharedFeatures = [
+                        return [
+                            'id' => $plan->slug,
+                            'name' => $plan->name,
+                            'price' => $plan->price_cents / 100,
+                            'price_formatted' => $plan->formatted_price,
+                            'price_cents' => $plan->price_cents,
+                            'interval' => 'per month',
+                            'target' => 'per clinic',
+                            'badge' => $configDef['badge'] ?? ($plan->slug === 'pro' ? 'Most popular' : null),
+                            'description' => $configDef['description'] ?? "MedVisit {$plan->name} plan.",
+                            'features' => ! empty($plan->features) ? $plan->features : ($configDef['features'] ?? []),
+                        ];
+                    });
+
+                $sharedFeatures = config('medvisit_public.shared_features', [
                     'Online appointments & channeling schedules',
                     'Token numbers & live queue',
                     'Live Queue TV Display',
@@ -472,7 +512,7 @@ Route::domain('{central_domain}')
                     'Fees & payouts calculation',
                     'Dedicated email & WhatsApp support',
                     'Automatic daily cloud backups',
-                ];
+                ]);
 
                 return Inertia::render('Subscription/Subscribe', [
                     'tenant' => [
@@ -492,6 +532,50 @@ Route::domain('{central_domain}')
                     'statusParam' => request()->query('status'),
                 ]);
             })->name('dev.preview.subscribe');
+
+            $promoValidationHandler = function (Request $request, PromoCodeService $service) {
+                $rawCode = (string) $request->input('code');
+                $code = strtoupper(trim($rawCode));
+                $planSlug = (string) $request->input('plan_slug', 'pro');
+                $plan = Plan::where('slug', $planSlug)->first() ?? Plan::where('slug', 'pro')->first();
+
+                $promo = PromoCode::where('code', $code)->first();
+
+                if (! $promo) {
+                    return response()->json(['message' => "The promo code '{$code}' is invalid."], 422);
+                }
+                if (! $promo->isActive()) {
+                    return response()->json(['message' => "The promo code '{$code}' has expired or is inactive."], 422);
+                }
+
+                if ($plan && ! $promo->isPlanEligible($plan->slug)) {
+                    return response()->json(['message' => "The promo code '{$code}' is not valid for the {$plan->name} plan."], 422);
+                }
+
+                $calc = $service->calculateDiscount($promo, $plan?->price_cents ?? 900000);
+
+                return response()->json([
+                    'valid' => true,
+                    'code' => $promo->code,
+                    'type' => $promo->type,
+                    'value' => $promo->value,
+                    'duration' => $promo->duration,
+                    'duration_months' => $promo->duration_months,
+                    'discount_cents' => $calc['discount_cents'],
+                    'final_amount_cents' => $calc['final_amount_cents'],
+                    'discount_formatted' => $calc['discount_formatted'],
+                    'final_formatted' => $calc['final_formatted'],
+                    'summary_text' => $calc['summary_text'],
+                    'renewal_text' => $calc['renewal_text'],
+                ]);
+            };
+
+            Route::post('/dev/preview/validate-promo', $promoValidationHandler)
+                ->withoutMiddleware([ValidateCsrfToken::class])
+                ->name('dev.preview.validate_promo');
+
+            Route::post('/subscription/validate-promo', $promoValidationHandler)
+                ->withoutMiddleware([ValidateCsrfToken::class]);
 
             Route::get('/dev/preview/dashboard', function () {
                 $isSetup = request()->query('mode') === 'setup';

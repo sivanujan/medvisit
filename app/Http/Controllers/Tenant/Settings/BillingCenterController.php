@@ -455,6 +455,10 @@ class BillingCenterController extends Controller
                 'name' => $currentPlan->name,
                 'formatted_price' => $currentPlan->formatted_price,
             ] : null,
+            'activePromo' => $subscription?->promo_snapshot ? [
+                'code' => $subscription->promo_snapshot['code'] ?? null,
+                'eligible_plans' => (array) ($subscription->promo_snapshot['eligible_plans'] ?? []),
+            ] : null,
             'pendingPlan' => $subscription?->pendingPlan ? [
                 'id' => $subscription->pendingPlan->id,
                 'name' => $subscription->pendingPlan->name,

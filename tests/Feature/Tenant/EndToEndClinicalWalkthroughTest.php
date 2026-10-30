@@ -167,7 +167,7 @@ class EndToEndClinicalWalkthroughTest extends TestCase
         $this->assertEquals('called', $tokens[0]->status);
 
         // Check Live Queue TV API
-        $tvDataUrl = "http://suwasetha.{$this->baseDomain}/queue/tv/data";
+        $tvDataUrl = "http://suwasetha.{$this->baseDomain}/queue/tv/data?name_display_mode=full_name";
         $tvResponse = $this->actingAs($this->adminUser)->get($tvDataUrl);
         $tvResponse->assertOk();
 

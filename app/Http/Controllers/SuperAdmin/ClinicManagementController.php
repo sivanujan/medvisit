@@ -6,6 +6,7 @@ namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\ExportClinicDataJob;
+use App\Models\AgreementAcceptance;
 use App\Models\AuditEvent;
 use App\Models\BookingToken;
 use App\Models\ClinicDataExport;
@@ -248,7 +249,26 @@ class ClinicManagementController extends Controller
                 'created_at' => $e->created_at?->diffForHumans(),
             ]);
 
+        // 8. Legal Agreement Acceptances
+        $agreementAcceptances = AgreementAcceptance::where('tenant_id', $tenant->id)
+            ->with('user:id,name,email')
+            ->latest('id')
+            ->get()
+            ->map(fn ($a) => [
+                'id' => $a->id,
+                'user_name' => $a->user?->name ?? 'Unknown',
+                'user_email' => $a->user?->email ?? '',
+                'terms_version' => $a->terms_version,
+                'privacy_version' => $a->privacy_version,
+                'refund_version' => $a->refund_version,
+                'dispute_version' => $a->dispute_version,
+                'accepted_at' => $a->accepted_at?->toIso8601String(),
+                'ip_address' => $a->ip_address,
+                'user_agent' => $a->user_agent,
+            ]);
+
         return Inertia::render('SuperAdmin/Clinics/Show', [
+            'agreement_acceptances' => $agreementAcceptances,
             'clinic' => [
                 'id' => $tenant->id,
                 'name' => $tenant->name,

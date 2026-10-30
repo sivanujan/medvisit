@@ -42,6 +42,10 @@ class Subscription extends Model
         'notes',
         'terms_accepted_at',
         'terms_version',
+        'active_promo_id',
+        'promo_snapshot',
+        'promo_months_remaining',
+        'invite_id',
     ];
 
     protected $casts = [
@@ -52,7 +56,41 @@ class Subscription extends Model
         'trial_ends_at' => 'datetime',
         'activated_at' => 'datetime',
         'terms_accepted_at' => 'datetime',
+        'promo_snapshot' => 'array',
+        'promo_months_remaining' => 'integer',
     ];
+
+    public function activePromo(): BelongsTo
+    {
+        return $this->belongsTo(PromoCode::class, 'active_promo_id');
+    }
+
+    public function invite(): BelongsTo
+    {
+        return $this->belongsTo(SubscriptionInvite::class, 'invite_id');
+    }
+
+    public function promoRedemptions(): HasMany
+    {
+        return $this->hasMany(PromoCodeRedemption::class);
+    }
+
+    public function hasActivePromo(): bool
+    {
+        if (! $this->active_promo_id || empty($this->promo_snapshot)) {
+            return false;
+        }
+
+        $duration = $this->promo_snapshot['duration'] ?? null;
+        if ($duration === PromoCode::DURATION_FOREVER) {
+            return true;
+        }
+        if ($duration === PromoCode::DURATION_REPEATING) {
+            return ($this->promo_months_remaining ?? 0) > 0;
+        }
+
+        return true;
+    }
 
     public function plan(): BelongsTo
     {

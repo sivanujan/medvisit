@@ -6,15 +6,20 @@ namespace App\Http\Controllers\Tenant;
 
 use App\Contracts\PaymentGateway;
 use App\Http\Controllers\Controller;
+use App\Mail\Subscription\ZeroAmountInvoiceMail;
 use App\Models\PaymentTransaction;
 use App\Models\Plan;
+use App\Models\PromoCode;
 use App\Models\Subscription;
 use App\Models\SubscriptionInvoice;
+use App\Services\AuditLogger;
+use App\Services\Billing\PromoCodeService;
 use App\Services\Payments\SubscriptionPaymentService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
@@ -36,18 +41,36 @@ class SubscriptionBillingController extends Controller
 
         $subscription = $tenant->subscription()->with('plan')->first();
 
-        // Single source of truth for plans and shared features from config
-        $plansConfig = config('medvisit_public.plans', []);
+        // Single source of truth: plans table
+        $plans = Plan::where('is_active', true)
+            ->whereIn('slug', ['basic', 'pro', 'advanced'])
+            ->orderBy('price_cents')
+            ->get()
+            ->map(function (Plan $plan) {
+                $configDef = config("medvisit_public.plans.{$plan->slug}", []);
+
+                return [
+                    'id' => $plan->slug,
+                    'name' => $plan->name,
+                    'price' => $plan->price_cents / 100,
+                    'price_formatted' => $plan->formatted_price,
+                    'price_cents' => $plan->price_cents,
+                    'interval' => 'per month',
+                    'target' => 'per clinic',
+                    'badge' => $configDef['badge'] ?? ($plan->slug === 'pro' ? 'Most popular' : null),
+                    'description' => $configDef['description'] ?? "MedVisit {$plan->name} plan.",
+                    'features' => ! empty($plan->features) ? $plan->features : ($configDef['features'] ?? []),
+                ];
+            });
+
         $sharedFeatures = config('medvisit_public.shared_features', []);
 
         // Determine preselected plan slug (default to 'pro')
         $currentPlanSlug = $subscription?->plan?->slug ?? $tenant->plan ?? 'pro';
-        if (! isset($plansConfig[$currentPlanSlug])) {
+        if (! $plans->contains('id', $currentPlanSlug)) {
             $currentPlanSlug = 'pro';
         }
 
-        // NOTE: We do NOT generate an invoice on page view/refresh!
-        // The invoice number is generated ONLY when the user clicks "Pay".
         $statusParam = $request->query('status');
 
         return Inertia::render('Subscription/Subscribe', [
@@ -68,7 +91,7 @@ class SubscriptionBillingController extends Controller
                 'current_period_end' => $subscription->current_period_end?->toDateString(),
                 'plan_slug' => $currentPlanSlug,
             ] : null,
-            'plans' => array_values($plansConfig),
+            'plans' => $plans->values()->all(),
             'sharedFeatures' => $sharedFeatures,
             'defaultPlanSlug' => $currentPlanSlug,
             'currency' => config('medvisit.currency', 'LKR'),
@@ -79,9 +102,63 @@ class SubscriptionBillingController extends Controller
     }
 
     /**
-     * Initiate a hosted Payments.lk checkout.
+     * Validate a promo code via AJAX and return calculated discount breakdown.
      */
-    public function createCheckout(Request $request, PaymentGateway $gateway): SymfonyResponse
+    public function validatePromo(Request $request, PromoCodeService $promoService): JsonResponse
+    {
+        try {
+            $tenant = tenant();
+            $ip = (string) $request->ip();
+
+            $promoService->ensureNotRateLimited($ip);
+
+            $validated = $request->validate([
+                'code' => ['required', 'string', 'max:64'],
+                'plan_slug' => ['required', 'string', 'in:basic,pro,advanced'],
+            ]);
+
+            $plan = Plan::where('slug', $validated['plan_slug'])->where('is_active', true)->firstOrFail();
+            $promo = $promoService->validateForCheckout((string) $validated['code'], $tenant, $plan);
+            $calc = $promoService->calculateDiscount($promo, $plan->price_cents);
+
+            $promoService->clearRateLimit($ip);
+
+            return response()->json([
+                'valid' => true,
+                'code' => $promo->code,
+                'type' => $promo->type,
+                'value' => $promo->value,
+                'duration' => $promo->duration,
+                'duration_months' => $promo->duration_months,
+                'discount_cents' => $calc['discount_cents'],
+                'final_amount_cents' => $calc['final_amount_cents'],
+                'discount_formatted' => $calc['discount_formatted'],
+                'final_formatted' => $calc['final_formatted'],
+                'summary_text' => $calc['summary_text'],
+                'renewal_text' => $calc['renewal_text'],
+            ]);
+        } catch (ValidationException $e) {
+            $msg = $e->validator->errors()->first('code')
+                ?: $e->validator->errors()->first('plan_slug')
+                ?: $e->getMessage();
+
+            return response()->json([
+                'valid' => false,
+                'message' => $msg,
+                'errors' => $e->validator->errors()->toArray(),
+            ], 422);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'valid' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    /**
+     * Initiate a hosted Payments.lk checkout (or Rs. 0 immediate activation).
+     */
+    public function createCheckout(Request $request, PaymentGateway $gateway, PromoCodeService $promoService): SymfonyResponse
     {
         $tenant = tenant();
         $user = $request->user();
@@ -93,24 +170,25 @@ class SubscriptionBillingController extends Controller
         $request->validate([
             'terms_accepted' => ['required', 'accepted'],
             'plan_slug' => ['nullable', 'string', 'in:basic,pro,advanced'],
+            'promo_code' => ['nullable', 'string', 'max:64'],
         ], [
             'terms_accepted.accepted' => 'You must accept the Terms and Conditions and Refund Policy to proceed.',
         ]);
 
         $selectedPlanSlug = (string) $request->input('plan_slug', 'pro');
-        $plansConfig = config('medvisit_public.plans');
-        if (empty($plansConfig) || ! is_array($plansConfig)) {
-            throw new \RuntimeException("Plan configuration 'medvisit_public.plans' is missing.");
-        }
-        if (! isset($plansConfig[$selectedPlanSlug])) {
-            throw new \RuntimeException("Requested plan [{$selectedPlanSlug}] is not defined in config('medvisit_public.plans').");
-        }
+        $plan = Plan::where('slug', $selectedPlanSlug)->where('is_active', true)->firstOrFail();
+        $planPriceCents = $plan->price_cents;
 
-        $plan = Plan::forSlug($selectedPlanSlug);
-        if (! $plan) {
-            throw new \RuntimeException("Unable to initialize plan [{$selectedPlanSlug}] from canonical config.");
+        $promo = null;
+        $discountCents = 0;
+        $finalAmountCents = $planPriceCents;
+
+        if ($rawCode = $request->input('promo_code')) {
+            $promo = $promoService->validateForCheckout((string) $rawCode, $tenant, $plan);
+            $calc = $promoService->calculateDiscount($promo, $planPriceCents);
+            $discountCents = $calc['discount_cents'];
+            $finalAmountCents = $calc['final_amount_cents'];
         }
-        $planPriceCents = (int) $plansConfig[$selectedPlanSlug]['price_cents'];
 
         $subscription = $tenant->subscription;
         if (! $subscription) {
@@ -126,21 +204,25 @@ class SubscriptionBillingController extends Controller
         $termsVersion = (string) config('medvisit_public.policies.terms_version', '2026-10-21');
 
         $subscription->update([
-            'plan_id' => $plan?->id ?? $subscription->plan_id,
+            'plan_id' => $plan->id,
             'terms_accepted_at' => $now,
             'terms_version' => $termsVersion,
         ]);
 
         $tenant->update(['plan' => $selectedPlanSlug]);
 
-        // Invoice is created/updated ONLY when the user clicks Pay
+        // Invoice is created/updated ONLY when the user clicks Pay/Activate
         $invoice = $subscription->latestUnpaidInvoice();
         if (! $invoice) {
             $invoice = SubscriptionInvoice::create([
                 'tenant_id' => $tenant->id,
                 'subscription_id' => $subscription->id,
                 'invoice_number' => SubscriptionInvoice::generateInvoiceNumber(),
-                'amount_cents' => $planPriceCents,
+                'amount_cents' => $finalAmountCents,
+                'original_amount_cents' => $planPriceCents,
+                'discount_cents' => $discountCents,
+                'promo_code' => $promo?->code,
+                'promo_id' => $promo?->id,
                 'period_start' => $now,
                 'period_end' => $now->copy()->addMonth(),
                 'due_date' => $now->copy()->addDays(3),
@@ -148,10 +230,71 @@ class SubscriptionBillingController extends Controller
             ]);
         } else {
             $invoice->update([
-                'amount_cents' => $planPriceCents,
+                'amount_cents' => $finalAmountCents,
+                'original_amount_cents' => $planPriceCents,
+                'discount_cents' => $discountCents,
+                'promo_code' => $promo?->code,
+                'promo_id' => $promo?->id,
             ]);
         }
 
+        $redemption = null;
+        if ($promo) {
+            $redemption = $promoService->reserve($promo, $tenant, $subscription, $plan, $invoice);
+        }
+
+        // RS. 0 INVOICE PATH: Skip Payments.lk checkout completely
+        if ($finalAmountCents === 0) {
+            $invoice->update([
+                'status' => SubscriptionInvoice::STATUS_PAID,
+                'paid_at' => $now,
+                'payment_method' => 'promo',
+                'receipt_number' => null, // Never consume a receipt number on Rs. 0
+            ]);
+
+            if ($redemption) {
+                $promoService->activate($redemption, $invoice);
+            }
+
+            // If extra trial days, subscription remains in trial with extended date
+            if ($promo && $promo->type === PromoCode::TYPE_EXTRA_TRIAL_DAYS) {
+                $subscription->update([
+                    'status' => Subscription::STATUS_ACTIVE,
+                ]);
+            } else {
+                $subscription->update([
+                    'status' => Subscription::STATUS_ACTIVE,
+                    'activated_at' => $now,
+                    'current_period_start' => $now,
+                    'current_period_end' => $now->copy()->addMonth(),
+                ]);
+            }
+
+            $tenant->update(['status' => 'active']);
+
+            // Email the clinic
+            $coveredBy = $promo ? "promo code {$promo->code}" : 'special offer';
+            Mail::to($user->email)->queue(
+                new ZeroAmountInvoiceMail(
+                    $invoice,
+                    $tenant->name,
+                    $coveredBy,
+                    route('tenant.settings.billing')
+                )
+            );
+
+            AuditLogger::log('subscription.zero_amount_activated', [
+                'tenant_id' => $tenant->id,
+                'invoice_number' => $invoice->invoice_number,
+                'promo_code' => $promo?->code,
+            ]);
+
+            $destUrl = $tenant->needsSetup() ? route('tenant.setup') : route('tenant.dashboard');
+
+            return Inertia::location($destUrl);
+        }
+
+        // STANDARD PAID PATH: Payments.lk checkout
         $successUrl = route('tenant.subscription.return');
         $cancelUrl = $request->boolean('from_suspended') || $request->input('return_to_suspended')
             ? route('tenant.suspended', ['status' => 'cancelled'])

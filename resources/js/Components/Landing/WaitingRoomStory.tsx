@@ -112,10 +112,16 @@ export default function WaitingRoomStory() {
         animFrame.current = requestAnimationFrame(tick);
     };
 
-    // Auto-play when scrolled into view
+    // Auto-play when scrolled into view (once only, disabled with prefers-reduced-motion)
     useEffect(() => {
         if (reduced) {
+            if (animFrame.current) {
+                cancelAnimationFrame(animFrame.current);
+                animFrame.current = null;
+            }
+            currentP.current = 1;
             if (ref.current) ref.current.style.setProperty('--p', '1');
+            setP(1);
             return;
         }
 
@@ -127,6 +133,14 @@ export default function WaitingRoomStory() {
             return () => clearTimeout(timer);
         }
     }, [inView, reduced]);
+
+    useEffect(() => {
+        return () => {
+            if (animFrame.current) {
+                cancelAnimationFrame(animFrame.current);
+            }
+        };
+    }, []);
 
     const handleReplay = () => {
         if (animFrame.current) cancelAnimationFrame(animFrame.current);

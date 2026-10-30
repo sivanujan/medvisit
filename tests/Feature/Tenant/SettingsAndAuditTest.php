@@ -109,6 +109,7 @@ class SettingsAndAuditTest extends TestCase
             'default_max_tokens' => 25,
             'cancellation_window_hours' => 3,
             'auto_generate_days' => 45,
+            'token_number_format' => 'with_doctor_code',
         ]);
 
         $response->assertRedirect();

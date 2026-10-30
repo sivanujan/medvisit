@@ -43,7 +43,41 @@ class ClinicRegistrationRequest extends FormRequest
     }
 
     /**
-     * Normalize a Sri Lankan phone number (+94 prefix, accepts and strips leading 0).
+     * Normalize a Sri Lankan mobile phone number to compact E.164 (+947XXXXXXXX).
+     */
+    public static function normalizeSriLankanMobile(?string $phone): ?string
+    {
+        if ($phone === null) {
+            return null;
+        }
+
+        $trimmed = trim($phone);
+        if ($trimmed === '') {
+            return '';
+        }
+
+        $digits = preg_replace('/\D/', '', $trimmed) ?? '';
+        if ($digits === '') {
+            return $trimmed;
+        }
+
+        if (str_starts_with($digits, '94') && strlen($digits) === 11) {
+            return '+'.$digits;
+        }
+
+        if (str_starts_with($digits, '0') && strlen($digits) === 10) {
+            return '+94'.substr($digits, 1);
+        }
+
+        if (strlen($digits) === 9 && str_starts_with($digits, '7')) {
+            return '+94'.$digits;
+        }
+
+        return '+'.$digits;
+    }
+
+    /**
+     * Normalize a general Sri Lankan phone number (+94 prefix, accepts and strips leading 0).
      */
     public static function normalizePhone(?string $phone): ?string
     {
@@ -94,7 +128,7 @@ class ClinicRegistrationRequest extends FormRequest
         }
 
         if ($this->has('mobile')) {
-            $merge['mobile'] = self::normalizePhone((string) $this->input('mobile'));
+            $merge['mobile'] = self::normalizeSriLankanMobile((string) $this->input('mobile'));
         }
 
         if ($this->has('subdomain')) {
@@ -126,7 +160,10 @@ class ClinicRegistrationRequest extends FormRequest
             'clinic_phone' => ['required', 'string', 'max:30'],
 
             // Step 2: Subdomain / Web address
-            'subdomain' => ['required', 'string', new SubdomainRule],
+            'subdomain' => ['required', 'string', new SubdomainRule(
+                clinicName: $this->input('clinic_name'),
+                city: $this->input('city')
+            )],
 
             // Step 3: Admin account
             'name' => ['required', 'string', 'max:120'],
@@ -139,14 +176,17 @@ class ClinicRegistrationRequest extends FormRequest
                 'unique:users,email',
                 new NotDisposableEmail,
             ],
-            'mobile' => ['required', 'string', 'max:30'],
+            'mobile' => ['required', 'string', 'regex:/^\+947[0-9]{8}$/'],
             'password' => [
                 'required',
                 'confirmed',
                 Password::min(8)->letters()->mixedCase()->numbers(),
             ],
             'terms' => ['accepted'],
+            'agreement_authority' => ['accepted'],
             'registration_token' => ['required', 'string'],
+            'phone_token' => ['required', 'string'],
+            'invite_token' => ['nullable', 'string'],
         ];
     }
 
@@ -159,10 +199,13 @@ class ClinicRegistrationRequest extends FormRequest
     {
         return [
             'honeypot.max' => 'Spam bot submission detected.',
-            'terms.accepted' => 'You must agree to the Terms of Service and Privacy Policy to register.',
+            'terms.accepted' => 'You must agree to the Terms & Conditions, Privacy Policy, Refund Policy and Dispute Policy to register.',
+            'agreement_authority.accepted' => 'You must confirm that you are authorised to register this clinic and responsible for its information and data.',
             'clinic_type.in' => 'Please select a valid clinic type.',
             'district.in' => 'Please select one of Sri Lanka’s 25 administrative districts.',
             'password.min' => 'Password must be at least 8 characters with uppercase, lowercase, and numbers.',
+            'mobile.regex' => 'Please enter a valid Sri Lankan mobile number (e.g. 0771234567 or +94771234567).',
+            'phone_token.required' => 'Your mobile phone number must be verified with an OTP code before launching.',
         ];
     }
 }

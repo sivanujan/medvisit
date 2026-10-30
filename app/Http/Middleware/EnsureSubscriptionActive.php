@@ -14,8 +14,16 @@ class EnsureSubscriptionActive
      * Routes explicitly permitted when subscription is inactive or pending payment.
      */
     protected array $allowedRouteNames = [
+        'agreements.accept',
         'tenant.suspended',
+        'tenant.subscription.subscribe',
+        'tenant.subscription.validate_promo',
+        'tenant.subscription.checkout',
+        'tenant.subscription.return',
+        'tenant.subscription.check_status',
+        'tenant.subscription.inactive',
         'tenant.billing.subscribe',
+        'tenant.billing.validate_promo',
         'tenant.billing.checkout',
         'tenant.billing.return',
         'tenant.billing.check_status',
@@ -82,6 +90,7 @@ class EnsureSubscriptionActive
         $adminBillingRoutes = [
             'tenant.suspended',
             'tenant.subscription.subscribe',
+            'tenant.subscription.validate_promo',
             'tenant.subscription.checkout',
             'tenant.subscription.return',
             'tenant.subscription.check_status',

@@ -194,6 +194,51 @@ class TelegramNotificationService
     }
 
     /**
+     * Send alert when daily registration phone OTP cap is reached (at most once per day).
+     */
+    public function sendRegistrationOtpCapAlert(int $dailyCount, int $limit): bool
+    {
+        $today = now()->toDateString();
+        $cacheKey = "telegram_alert_otp_cap:{$today}";
+        if (Cache::has($cacheKey)) {
+            return false;
+        }
+
+        $botToken = (string) config('services.telegram.bot_token');
+        $chatId = (string) config('services.telegram.chat_id');
+
+        if (empty($botToken) || empty($chatId)) {
+            Log::warning("[TelegramNotificationService] Daily OTP limit reached ({$dailyCount}/{$limit}), but Telegram is not configured.");
+            Cache::put($cacheKey, true, now()->endOfDay());
+
+            return false;
+        }
+
+        $text = "⚠️ *MedVisit Alert: Daily Registration OTP Cap Reached*\n\n"
+            ."*Current Daily OTP Dispatches:* {$dailyCount}\n"
+            ."*Configured Daily Limit:* {$limit}\n"
+            ."*Date:* {$today}\n\n"
+            .'Registration phone OTP dispatches have been capped for the remainder of the day to protect SMS quota.';
+
+        try {
+            $response = Http::timeout(8)->post("https://api.telegram.org/bot{$botToken}/sendMessage", [
+                'chat_id' => $chatId,
+                'text' => $text,
+                'parse_mode' => 'Markdown',
+                'disable_web_page_preview' => true,
+            ]);
+
+            Cache::put($cacheKey, true, now()->endOfDay());
+
+            return $response->successful();
+        } catch (\Throwable $e) {
+            Log::error('Telegram OTP cap alert exception: '.$e->getMessage());
+
+            return false;
+        }
+    }
+
+    /**
      * Escape special Markdown characters for Telegram Markdown v1.
      */
     protected static function escapeMarkdown(string $text): string

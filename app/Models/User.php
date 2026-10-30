@@ -10,6 +10,8 @@ use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Mail;
@@ -34,8 +36,10 @@ class User extends Authenticatable implements MustVerifyEmail
         'tenant_id',
         'name',
         'email',
+        'phone',
         'password',
         'email_verified_at',
+        'phone_verified_at',
         'is_active',
         'avatar_path',
         'avatar_url',
@@ -77,6 +81,7 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return [
             'email_verified_at' => 'datetime',
+            'phone_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
             'two_factor_recovery_codes' => 'array',
@@ -89,6 +94,40 @@ class User extends Authenticatable implements MustVerifyEmail
     public function tenant(): BelongsTo
     {
         return $this->belongsTo(Tenant::class, 'tenant_id');
+    }
+
+    public function agreementAcceptances(): HasMany
+    {
+        return $this->hasMany(AgreementAcceptance::class);
+    }
+
+    public function latestAgreementAcceptance(): HasOne
+    {
+        return $this->hasOne(AgreementAcceptance::class)->latestOfMany('accepted_at');
+    }
+
+    public function hasAcceptedLatestAgreements(): bool
+    {
+        $versions = [
+            'terms' => (string) (config('legal.versions.terms') ?: config('legal.terms_version')),
+            'privacy' => (string) (config('legal.versions.privacy') ?: config('legal.privacy_version')),
+            'refund' => (string) (config('legal.versions.refund') ?: config('legal.refund_version')),
+            'dispute' => (string) (config('legal.versions.dispute') ?: config('legal.dispute_version')),
+        ];
+        $latest = $this->latestAgreementAcceptance;
+
+        if (! $latest) {
+            return false;
+        }
+
+        foreach ($versions as $key => $ver) {
+            $col = "{$key}_version";
+            if (! isset($latest->{$col}) || strcmp((string) $latest->{$col}, (string) $ver) < 0) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

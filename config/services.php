@@ -38,7 +38,7 @@ return [
     'textlk' => [
         'mode' => env('TEXTLK_MODE', 'oauth'),
         'api_token' => env('TEXTLK_API_TOKEN'),
-        'sender_id' => env('TEXTLK_SENDER_ID', 'MedVisit'),
+        'sender_id' => env('TEXTLK_SENDER_ID', 'medvisit'),
         'api_url' => env('TEXTLK_API_URL', 'https://app.text.lk/api/v3'),
         'http_url' => env('TEXTLK_HTTP_URL', 'https://app.text.lk/api/http'),
     ],

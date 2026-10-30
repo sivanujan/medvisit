@@ -36,6 +36,7 @@ interface Props {
     checkingSubdomain?: boolean;
     subdomainResult?: SubdomainResult | null;
     isVerified?: boolean;
+    phoneIsVerified?: boolean;
     publicDomain?: string;
     isMobileCollapsible?: boolean;
 }
@@ -74,6 +75,7 @@ export default function LiveClinicPreview({
     checkingSubdomain = false,
     subdomainResult = null,
     isVerified = false,
+    phoneIsVerified = false,
     publicDomain = 'medvisit.lk',
     isMobileCollapsible = false,
 }: Props) {
@@ -297,18 +299,30 @@ export default function LiveClinicPreview({
                                 </div>
                             </div>
 
-                            {/* Verification Badge (Step 4) */}
+                            {/* Verification Badges (Step 4+) */}
                             {step >= 4 && (
-                                <div>
+                                <div className="flex flex-wrap items-center gap-1.5">
                                     {isVerified ? (
                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
                                             <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                                            <span>Verified</span>
+                                            <span>Email ✓</span>
                                         </span>
                                     ) : (
                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 animate-pulse">
                                             <Mail className="w-3 h-3" />
-                                            <span>Awaiting Code</span>
+                                            <span>Email...</span>
+                                        </span>
+                                    )}
+
+                                    {phoneIsVerified ? (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                                            <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                            <span>Phone ✓</span>
+                                        </span>
+                                    ) : (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 animate-pulse">
+                                            <Phone className="w-3 h-3" />
+                                            <span>SMS...</span>
                                         </span>
                                     )}
                                 </div>

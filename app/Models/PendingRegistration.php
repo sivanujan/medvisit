@@ -19,12 +19,19 @@ class PendingRegistration extends Model
      */
     protected $fillable = [
         'email',
+        'phone',
         'token',
         'code_hash',
+        'phone_code_hash',
         'attempts',
+        'phone_attempts',
         'expires_at',
+        'phone_expires_at',
         'resend_available_at',
+        'phone_resend_available_at',
         'verified_at',
+        'phone_verified_at',
+        'phone_signed_token',
         'payload',
         'ip_address',
     ];
@@ -38,9 +45,13 @@ class PendingRegistration extends Model
     {
         return [
             'expires_at' => 'datetime',
+            'phone_expires_at' => 'datetime',
             'resend_available_at' => 'datetime',
+            'phone_resend_available_at' => 'datetime',
             'verified_at' => 'datetime',
+            'phone_verified_at' => 'datetime',
             'attempts' => 'integer',
+            'phone_attempts' => 'integer',
         ];
     }
 
@@ -66,6 +77,30 @@ class PendingRegistration extends Model
     public function hasExceededAttempts(): bool
     {
         return $this->attempts >= 5;
+    }
+
+    /**
+     * Determine if the phone verification code has expired.
+     */
+    public function isPhoneExpired(): bool
+    {
+        return $this->phone_expires_at === null || $this->phone_expires_at->isPast();
+    }
+
+    /**
+     * Determine if the registration phone has already been verified.
+     */
+    public function isPhoneVerified(): bool
+    {
+        return $this->phone_verified_at !== null;
+    }
+
+    /**
+     * Determine if the maximum number of phone attempts (5) has been reached.
+     */
+    public function hasExceededPhoneAttempts(): bool
+    {
+        return $this->phone_attempts >= 5;
     }
 
     /**

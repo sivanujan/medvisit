@@ -37,6 +37,7 @@ class Tenant extends BaseTenant
         'trial_ended_reminder_sent_at',
         'fee_settings',
         'token_number_format',
+        'tv_name_display_mode',
         'online_booking_enabled',
         'require_phone_verification',
         'phone_verification_methods',
@@ -74,6 +75,27 @@ class Tenant extends BaseTenant
         'free_template_changed_at' => 'datetime',
         'advanced_free_template_override' => 'integer',
     ];
+
+    protected static function booted(): void
+    {
+        parent::booted();
+
+        static::forceDeleted(function (Tenant $tenant) {
+            $subdomain = strtolower((string) ($tenant->subdomain ?? $tenant->id));
+            if ($subdomain !== '') {
+                $holdDays = (int) config('reserved_subdomains.hold_days', 90);
+                ReservedSubdomain::updateOrCreate(
+                    ['subdomain' => $subdomain],
+                    [
+                        'reason' => 'released_clinic',
+                        'notes' => "Held after permanent deletion of clinic '{$tenant->name}' ({$tenant->id})",
+                        'held_until' => now()->addDays($holdDays),
+                        'original_tenant_id' => (string) $tenant->id,
+                    ]
+                );
+            }
+        });
+    }
 
     public static function getCustomColumns(): array
     {
@@ -338,6 +360,11 @@ class Tenant extends BaseTenant
         return $this->hasMany(SubscriptionInvoice::class, 'tenant_id');
     }
 
+    public function promoRedemptions(): HasMany
+    {
+        return $this->hasMany(PromoCodeRedemption::class, 'tenant_id');
+    }
+
     public function paymentTransactions(): HasMany
     {
         return $this->hasMany(PaymentTransaction::class, 'tenant_id');
@@ -454,6 +481,30 @@ class Tenant extends BaseTenant
         }
 
         return $val !== null ? (bool) $val : false;
+    }
+
+    /**
+     * Waiting room TV patient name masking mode ('token_only', 'full_name', 'first_only', 'initial_last').
+     */
+    public function getTvNameDisplayModeAttribute(): string
+    {
+        $val = $this->getAttributeFromArray('tv_name_display_mode');
+        if ($val === null && isset($this->attributes['data'])) {
+            $data = is_array($this->attributes['data']) ? $this->attributes['data'] : json_decode((string) $this->attributes['data'], true);
+            $val = $data['tv_name_display_mode'] ?? null;
+        }
+
+        return (string) ($val ?? 'token_only');
+    }
+
+    public function setTvNameDisplayModeAttribute($value): void
+    {
+        $data = $this->data ?? [];
+        if (is_string($data)) {
+            $data = json_decode($data, true) ?: [];
+        }
+        $data['tv_name_display_mode'] = (string) $value;
+        $this->attributes['data'] = json_encode($data);
     }
 
     /**

@@ -159,6 +159,20 @@ class HandleInertiaRequests extends Middleware
                 return 0;
             }, 0, false),
             'turnstileSiteKey' => config('services.turnstile.site_key'),
+            'requiresAgreementReacceptance' => rescue(function () use ($request) {
+                $user = $request->user();
+                if ($user && $user->hasRole('clinic_admin')) {
+                    return ! $user->hasAcceptedLatestAgreements();
+                }
+
+                return false;
+            }, false, false),
+            'legalVersions' => config('legal.versions', [
+                'terms' => '2026-10-28',
+                'privacy' => '2026-10-27',
+                'refund' => '2026-10-28',
+                'dispute' => '2026-10-21',
+            ]),
             'reverb' => [
                 'key' => config('broadcasting.connections.reverb.key') ?? config('reverb.apps.apps.0.key'),
                 'host' => config('broadcasting.connections.reverb.options.host') ?? env('REVERB_HOST', 'localhost'),

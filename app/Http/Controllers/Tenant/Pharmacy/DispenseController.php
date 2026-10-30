@@ -93,13 +93,13 @@ class DispenseController extends Controller
             $query->where(function ($q) use ($term, $search, $digits, $normalizedPhone, $parsedToken) {
                 $q->whereRaw('LOWER(prescription_number) LIKE ?', [$term])
                     ->orWhereHas('token', function ($tq) use ($term, $parsedToken) {
-                        if ($parsedToken) {
+                        if ($parsedToken && $parsedToken['number'] <= 32767) {
                             $tq->where('token_number', $parsedToken['number']);
                             if ($parsedToken['code'] !== null) {
                                 $tq->whereHas('doctorSession', fn ($sq) => $sq->where('doctor_token_code', $parsedToken['code']));
                             }
                         } else {
-                            $tq->where('token_number', 'LIKE', $term);
+                            $tq->whereRaw('CAST(token_number AS TEXT) LIKE ?', [$term]);
                         }
                     })
                     ->orWhereHas('doctor', fn ($dq) => $dq->whereRaw('LOWER(name) LIKE ?', [$term]))

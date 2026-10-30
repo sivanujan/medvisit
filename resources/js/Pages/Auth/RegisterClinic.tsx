@@ -20,6 +20,10 @@ import {
     ChevronDown,
     ChevronUp,
     ShieldCheck,
+    Phone,
+    Smartphone,
+    RefreshCw,
+    FileText,
 } from 'lucide-react';
 import RegistrationHeader from '@/Components/Registration/RegistrationHeader';
 import LiveClinicPreview from '@/Components/Registration/LiveClinicPreview';
@@ -32,6 +36,23 @@ interface Props {
     clinicTypes: string[];
     centralDomain: string;
     publicDomain?: string;
+    turnstileSiteKey?: string;
+    legalVersions?: {
+        terms: string;
+        privacy: string;
+        refund: string;
+        dispute: string;
+    };
+    invite?: {
+        token: string;
+        email: string;
+        recipient_name?: string | null;
+        clinic_name?: string | null;
+        plan_slug: string;
+        plan_name: string;
+        free_period_text: string;
+    } | null;
+    inviteError?: string | null;
 }
 
 interface SubdomainCheckResult {
@@ -48,7 +69,7 @@ const STEPS = [
     { num: 1, label: 'Clinic', icon: Building2 },
     { num: 2, label: 'Web address', icon: Globe },
     { num: 3, label: 'Admin', icon: UserCheck },
-    { num: 4, label: 'Verify', icon: Mail },
+    { num: 4, label: 'Verify', icon: ShieldCheck },
     { num: 5, label: 'Launch', icon: CheckCircle2 },
 ] as const;
 
@@ -57,6 +78,10 @@ export default function RegisterClinic({
     clinicTypes,
     centralDomain,
     publicDomain = 'medvisit.lk',
+    turnstileSiteKey,
+    legalVersions,
+    invite,
+    inviteError,
 }: Props) {
     const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
     const [showPassword, setShowPassword] = useState(false);
@@ -68,7 +93,7 @@ export default function RegisterClinic({
     const [checkingSubdomain, setCheckingSubdomain] = useState(false);
     const [subdomainResult, setSubdomainResult] = useState<SubdomainCheckResult | null>(null);
 
-    // OTP verification state (Step 4)
+    // OTP verification state (Step 4: Email Code)
     const [digits, setDigits] = useState<string[]>(['', '', '', '', '', '']);
     const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
     const [sendingCode, setSendingCode] = useState(false);
@@ -81,6 +106,25 @@ export default function RegisterClinic({
     const [expirySeconds, setExpirySeconds] = useState(600);
     const [resendCooldown, setResendCooldown] = useState(60);
     const [devCode, setDevCode] = useState<string | null>(null);
+
+    // Phone SMS OTP state (Step 4: Mobile SMS)
+    const [phoneDigits, setPhoneDigits] = useState<string[]>(['', '', '', '', '', '']);
+    const phoneInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+    const [phoneSendingCode, setPhoneSendingCode] = useState(false);
+    const [phoneVerifyingCode, setPhoneVerifyingCode] = useState(false);
+    const [phoneResendingCode, setPhoneResendingCode] = useState(false);
+    const [phoneOtpError, setPhoneOtpError] = useState<string | null>(null);
+    const [phoneOtpSuccess, setPhoneOtpSuccess] = useState<string | null>(null);
+    const [phoneIsLocked, setPhoneIsLocked] = useState(false);
+    const [phoneIsVerified, setPhoneIsVerified] = useState(false);
+    const [phoneExpirySeconds, setPhoneExpirySeconds] = useState(300);
+    const [phoneResendCooldown, setPhoneResendCooldown] = useState(60);
+    const [phoneDevCode, setPhoneDevCode] = useState<string | null>(null);
+    const [phoneAttemptsRemaining, setPhoneAttemptsRemaining] = useState<number | null>(null);
+    const [isEditingPhone, setIsEditingPhone] = useState(false);
+    const [editedPhone, setEditedPhone] = useState('');
+    const [turnstileToken, setTurnstileToken] = useState<string>('');
+    const turnstileContainerRef = useRef<HTMLDivElement>(null);
 
     // Field refs for programmatic focus on validation failure
     const clinicNameRef = useRef<HTMLInputElement>(null);
@@ -96,23 +140,27 @@ export default function RegisterClinic({
     const passwordRef = useRef<HTMLInputElement>(null);
     const passwordConfirmRef = useRef<HTMLInputElement>(null);
     const termsRef = useRef<HTMLInputElement>(null);
+    const authorityRef = useRef<HTMLInputElement>(null);
 
     const { data, setData, post, processing, errors, setError, clearErrors } = useForm({
         honeypot: '',
-        clinic_name: '',
+        clinic_name: invite?.clinic_name || '',
         clinic_type: 'medical centre',
         district: 'Colombo',
         city: '',
         address: '',
         clinic_phone: '',
         subdomain: '',
-        name: '',
-        email: '',
+        name: invite?.recipient_name || '',
+        email: invite?.email || '',
         mobile: '',
         password: '',
         password_confirmation: '',
         terms: false as boolean,
+        agreement_authority: false as boolean,
         registration_token: '',
+        phone_token: '',
+        invite_token: invite?.token || '',
     });
 
     // Restore draft from sessionStorage on mount (excluding passwords & tokens)
@@ -213,7 +261,11 @@ export default function RegisterClinic({
                 'X-CSRF-TOKEN': csrfToken,
                 Accept: 'application/json',
             },
-            body: JSON.stringify({ subdomain: debouncedSubdomain }),
+            body: JSON.stringify({
+                subdomain: debouncedSubdomain,
+                clinic_name: data.clinic_name,
+                city: data.city,
+            }),
         })
             .then((res) => {
                 if (!res.ok) throw new Error(`Status ${res.status}`);
@@ -236,17 +288,54 @@ export default function RegisterClinic({
         };
     }, [debouncedSubdomain]);
 
-    // Timer countdown for Step 4
+    // Timer countdowns for Step 4
     useEffect(() => {
-        if (step !== 4 || isVerified) return;
+        if (step !== 4) return;
 
         const timer = setInterval(() => {
-            setExpirySeconds((prev) => (prev > 0 ? prev - 1 : 0));
+            if (!isVerified) {
+                setExpirySeconds((prev) => (prev > 0 ? prev - 1 : 0));
+            }
             setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+
+            if (!phoneIsVerified) {
+                setPhoneExpirySeconds((prev) => (prev > 0 ? prev - 1 : 0));
+            }
+            setPhoneResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
         }, 1000);
 
         return () => clearInterval(timer);
-    }, [step, isVerified]);
+    }, [step, isVerified, phoneIsVerified]);
+
+    // Handle Turnstile widget mounting for phone OTP in Step 4
+    useEffect(() => {
+        if (step !== 4) return;
+
+        let widgetId: string | null = null;
+        const siteKey = turnstileSiteKey || '1x00000000000000000000AA';
+
+        if (typeof window !== 'undefined' && (window as any).turnstile && turnstileContainerRef.current) {
+            try {
+                widgetId = (window as any).turnstile.render(turnstileContainerRef.current, {
+                    sitekey: siteKey,
+                    callback: (token: string) => setTurnstileToken(token),
+                    'error-callback': () => setTurnstileToken('mock-turnstile-token'),
+                });
+            } catch {
+                // Ignore render error
+            }
+        }
+
+        return () => {
+            if (widgetId && (window as any).turnstile) {
+                try {
+                    (window as any).turnstile.remove(widgetId);
+                } catch {
+                    // Ignore remove error
+                }
+            }
+        };
+    }, [step, turnstileSiteKey]);
 
     const formatTimer = (totalSeconds: number) => {
         const mins = Math.floor(totalSeconds / 60);
@@ -375,8 +464,11 @@ export default function RegisterClinic({
             errs.password_confirmation = 'Passwords do not match.';
             passwordConfirmRef.current?.focus();
         } else if (!data.terms) {
-            errs.terms = 'You must accept the Terms and Privacy Policy to continue.';
+            errs.terms = 'You must agree to the Terms, Privacy, Refund, and Dispute policies to continue.';
             termsRef.current?.focus();
+        } else if (!data.agreement_authority) {
+            errs.agreement_authority = 'You must confirm your authority to register this clinic and agree to the Data Processing Addendum.';
+            authorityRef.current?.focus();
         }
 
         if (Object.keys(errs).length > 0) {
@@ -426,6 +518,9 @@ export default function RegisterClinic({
             setSendingCode(false);
             setStep(4);
 
+            // Trigger Phone SMS OTP immediately for Step 4
+            handleSendPhoneOtp(resData.token);
+
             setTimeout(() => {
                 inputRefs.current[0]?.focus();
             }, 150);
@@ -435,7 +530,72 @@ export default function RegisterClinic({
         }
     };
 
-    // Verify OTP code (Step 4 -> Step 5)
+    // Send or Resend Phone SMS OTP (Step 4)
+    const handleSendPhoneOtp = async (regToken?: string, targetPhone?: string) => {
+        const token = regToken || data.registration_token;
+        if (!token) return;
+
+        setPhoneSendingCode(true);
+        setPhoneOtpError(null);
+        setPhoneOtpSuccess(null);
+
+        const csrfToken =
+            (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
+
+        try {
+            const bodyPayload: Record<string, any> = {
+                token,
+                cf_turnstile_response: turnstileToken || 'mock-turnstile-token',
+            };
+            if (targetPhone) {
+                bodyPayload.mobile = targetPhone;
+            }
+
+            const res = await fetch(route('register.send_phone_otp'), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    Accept: 'application/json',
+                },
+                body: JSON.stringify(bodyPayload),
+            });
+
+            const resData = await res.json();
+
+            if (!res.ok) {
+                setPhoneOtpError(resData.message || 'Failed to send phone OTP.');
+                if (resData.locked) setPhoneIsLocked(true);
+                setPhoneSendingCode(false);
+                return;
+            }
+
+            setPhoneExpirySeconds(resData.expires_in_seconds || 300);
+            setPhoneResendCooldown(resData.resend_cooldown_seconds || 60);
+            if (resData.dev_code) {
+                setPhoneDevCode(resData.dev_code);
+            }
+            if (targetPhone) {
+                setData('mobile', targetPhone);
+                setIsEditingPhone(false);
+            }
+            setPhoneDigits(['', '', '', '', '', '']);
+            setPhoneIsLocked(false);
+            setPhoneAttemptsRemaining(null);
+            setPhoneOtpSuccess('SMS verification code sent.');
+            setTimeout(() => setPhoneOtpSuccess(null), 4000);
+            setPhoneSendingCode(false);
+
+            setTimeout(() => {
+                phoneInputRefs.current[0]?.focus();
+            }, 150);
+        } catch {
+            setPhoneOtpError('Network error while requesting SMS OTP.');
+            setPhoneSendingCode(false);
+        }
+    };
+
+    // Verify Email code (Step 4)
     const handleVerifyCode = async (codeToVerify?: string) => {
         const code = codeToVerify || digits.join('');
         if (code.length !== 6 || verifyingCode) return;
@@ -475,17 +635,84 @@ export default function RegisterClinic({
             setOtpSuccess('Email verified successfully!');
             setVerifyingCode(false);
 
-            // Auto-advance to Step 5
-            setTimeout(() => {
-                setStep(5);
-            }, 600);
+            // Auto-advance to Step 5 only if phone is also verified
+            if (phoneIsVerified) {
+                setTimeout(() => {
+                    setStep(5);
+                }, 600);
+            }
         } catch {
             setOtpError('Network error while verifying code. Please try again.');
             setVerifyingCode(false);
         }
     };
 
-    // Resend verification code
+    // Verify Phone SMS code (Step 4)
+    const handleVerifyPhoneOtp = async (codeToVerify?: string) => {
+        const code = codeToVerify || phoneDigits.join('');
+        if (code.length !== 6 || phoneVerifyingCode || !data.registration_token) return;
+
+        setPhoneVerifyingCode(true);
+        setPhoneOtpError(null);
+
+        const csrfToken =
+            (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
+
+        try {
+            const res = await fetch(route('register.verify_phone_otp'), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    Accept: 'application/json',
+                },
+                body: JSON.stringify({
+                    token: data.registration_token,
+                    code,
+                }),
+            });
+
+            const resData = await res.json();
+
+            if (!res.ok) {
+                setPhoneOtpError(resData.message || 'Incorrect SMS code.');
+                if (resData.locked) {
+                    setPhoneIsLocked(true);
+                }
+                if (resData.attempts_remaining !== undefined) {
+                    setPhoneAttemptsRemaining(resData.attempts_remaining);
+                }
+                setPhoneVerifyingCode(false);
+                return;
+            }
+
+            setPhoneIsVerified(true);
+            setData('phone_token', resData.phone_token);
+            setPhoneOtpSuccess('Mobile phone verified successfully!');
+            setPhoneAttemptsRemaining(null);
+            setPhoneVerifyingCode(false);
+
+            // Auto-advance to Step 5 only if email is also verified
+            if (isVerified) {
+                setTimeout(() => {
+                    setStep(5);
+                }, 600);
+            }
+        } catch {
+            setPhoneOtpError('Network error while verifying SMS OTP.');
+            setPhoneVerifyingCode(false);
+        }
+    };
+
+    // Resend Phone SMS OTP
+    const handleResendPhoneOtp = async () => {
+        if (phoneResendCooldown > 0 || phoneResendingCode || !data.registration_token) return;
+        setPhoneResendingCode(true);
+        await handleSendPhoneOtp();
+        setPhoneResendingCode(false);
+    };
+
+    // Resend Email code
     const handleResendCode = async () => {
         if (resendCooldown > 0 || resendingCode || !data.registration_token) return;
 
@@ -592,6 +819,66 @@ export default function RegisterClinic({
         } else {
             const nextIndex = Math.min(pasted.length, 5);
             inputRefs.current[nextIndex]?.focus();
+        }
+    };
+
+    // Phone SMS OTP Input Handlers
+    const handlePhoneDigitChange = (index: number, value: string) => {
+        if (phoneIsLocked || phoneIsVerified) return;
+
+        const cleanDigit = value.replace(/\D/g, '').slice(-1);
+        const newDigits = [...phoneDigits];
+        newDigits[index] = cleanDigit;
+        setPhoneDigits(newDigits);
+        setPhoneOtpError(null);
+
+        if (cleanDigit && index < 5) {
+            phoneInputRefs.current[index + 1]?.focus();
+        }
+
+        if (cleanDigit && index === 5) {
+            const fullCode = newDigits.join('');
+            if (fullCode.length === 6) {
+                handleVerifyPhoneOtp(fullCode);
+            }
+        }
+    };
+
+    const handlePhoneDigitKeyDown = (index: number, e: KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Backspace') {
+            if (!phoneDigits[index] && index > 0) {
+                phoneInputRefs.current[index - 1]?.focus();
+            }
+        } else if (e.key === 'ArrowLeft' && index > 0) {
+            phoneInputRefs.current[index - 1]?.focus();
+        } else if (e.key === 'ArrowRight' && index < 5) {
+            phoneInputRefs.current[index + 1]?.focus();
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            handleVerifyPhoneOtp();
+        }
+    };
+
+    const handlePhoneDigitPaste = (e: React.ClipboardEvent) => {
+        e.preventDefault();
+        if (phoneIsLocked || phoneIsVerified) return;
+
+        const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+        if (!pasted) return;
+
+        const newDigits = ['', '', '', '', '', ''];
+        for (let i = 0; i < 6; i++) {
+            newDigits[i] = pasted[i] || '';
+        }
+        setPhoneDigits(newDigits);
+        setPhoneOtpError(null);
+
+        if (pasted.length === 6) {
+            phoneInputRefs.current[5]?.focus();
+            handleVerifyPhoneOtp(pasted);
+        } else {
+            const nextIndex = Math.min(pasted.length, 5);
+            phoneInputRefs.current[nextIndex]?.focus();
         }
     };
 
@@ -713,6 +1000,7 @@ export default function RegisterClinic({
                             checkingSubdomain={checkingSubdomain}
                             subdomainResult={subdomainResult}
                             isVerified={isVerified}
+                            phoneIsVerified={phoneIsVerified}
                             publicDomain={publicDomain}
                             isMobileCollapsible={true}
                         />
@@ -1345,34 +1633,67 @@ export default function RegisterClinic({
                                             </div>
                                         </div>
 
-                                        {/* Terms Checkbox */}
-                                        <div className="pt-1">
-                                            <label className="flex items-start gap-2.5 cursor-pointer">
-                                                <input
-                                                    ref={termsRef}
-                                                    type="checkbox"
-                                                    checked={data.terms}
-                                                    onChange={(e) => {
-                                                        setData('terms', e.target.checked);
-                                                        clearErrors('terms');
-                                                    }}
-                                                    className="w-4 h-4 mt-0.5 rounded border-slate-300 text-primary focus:ring-primary/20"
-                                                />
-                                                <span className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                                                    I accept the{' '}
-                                                    <Link href="/terms" target="_blank" className="text-primary font-bold hover:underline">
-                                                        Terms and Conditions
-                                                    </Link>{' '}
-                                                    and{' '}
-                                                    <Link href="/privacy-policy" target="_blank" className="text-primary font-bold hover:underline">
-                                                        Privacy Policy
-                                                    </Link>
-                                                    .
-                                                </span>
-                                            </label>
-                                            {errors.terms && (
-                                                <p className="mt-1 text-xs text-rose-500 font-medium">{errors.terms}</p>
-                                            )}
+                                        {/* Mandatory Agreements Checkboxes */}
+                                        <div className="pt-2 space-y-3">
+                                            {/* Checkbox 1: Legal Policies */}
+                                            <div>
+                                                <label className="flex items-start gap-2.5 cursor-pointer">
+                                                    <input
+                                                        ref={termsRef}
+                                                        type="checkbox"
+                                                        checked={data.terms}
+                                                        onChange={(e) => {
+                                                            setData('terms', e.target.checked);
+                                                            clearErrors('terms');
+                                                        }}
+                                                        className="w-4 h-4 mt-0.5 rounded border-slate-300 dark:border-slate-700 text-primary focus:ring-primary/20"
+                                                    />
+                                                    <span className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                                                        I agree to the{' '}
+                                                        <Link href="/terms" target="_blank" className="text-primary font-bold hover:underline">
+                                                            Terms of Service
+                                                        </Link>
+                                                        ,{' '}
+                                                        <Link href="/privacy-policy" target="_blank" className="text-primary font-bold hover:underline">
+                                                            Privacy Policy
+                                                        </Link>
+                                                        ,{' '}
+                                                        <Link href="/refund-policy" target="_blank" className="text-primary font-bold hover:underline">
+                                                            Refund Policy
+                                                        </Link>
+                                                        , and{' '}
+                                                        <Link href="/dispute-policy" target="_blank" className="text-primary font-bold hover:underline">
+                                                            Dispute Resolution Policy
+                                                        </Link>
+                                                        . <span className="text-rose-500 font-bold">*</span>
+                                                    </span>
+                                                </label>
+                                                {errors.terms && (
+                                                    <p className="mt-1 text-xs text-rose-500 font-medium pl-6.5">{errors.terms}</p>
+                                                )}
+                                            </div>
+
+                                            {/* Checkbox 2: Authority & DPA */}
+                                            <div>
+                                                <label className="flex items-start gap-2.5 cursor-pointer">
+                                                    <input
+                                                        ref={authorityRef}
+                                                        type="checkbox"
+                                                        checked={data.agreement_authority}
+                                                        onChange={(e) => {
+                                                            setData('agreement_authority', e.target.checked);
+                                                            clearErrors('agreement_authority');
+                                                        }}
+                                                        className="w-4 h-4 mt-0.5 rounded border-slate-300 dark:border-slate-700 text-primary focus:ring-primary/20"
+                                                    />
+                                                    <span className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                                                        I confirm I am authorised to register this clinic and agree to the Data Processing Addendum. <span className="text-rose-500 font-bold">*</span>
+                                                    </span>
+                                                </label>
+                                                {errors.agreement_authority && (
+                                                    <p className="mt-1 text-xs text-rose-500 font-medium pl-6.5">{errors.agreement_authority}</p>
+                                                )}
+                                            </div>
                                         </div>
 
                                         {otpError && (
@@ -1415,7 +1736,7 @@ export default function RegisterClinic({
                                     </motion.div>
                                 )}
 
-                                {/* STEP 4: VERIFY EMAIL */}
+                                {/* STEP 4: VERIFY EMAIL & MOBILE */}
                                 {step === 4 && (
                                     <motion.div
                                         key="step4"
@@ -1427,121 +1748,312 @@ export default function RegisterClinic({
                                     >
                                         <div className="space-y-1">
                                             <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-                                                <Mail className="w-5 h-5 text-primary" />
-                                                Verify email
+                                                <ShieldCheck className="w-5 h-5 text-primary" />
+                                                Verify contact details
                                             </h2>
                                             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                                                We sent a 6-digit confirmation code to{' '}
-                                                <strong className="text-slate-900 dark:text-white font-mono font-bold">
-                                                    {data.email}
-                                                </strong>
-                                                .
+                                                Verify both your work email and mobile phone number to activate your clinic.
                                             </p>
                                         </div>
 
-                                        {devCode && (
-                                            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs flex items-center justify-between gap-2">
-                                                <span>Dev Code: <strong className="font-mono font-bold">{devCode}</strong></span>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        const parts = devCode.split('');
-                                                        setDigits(parts);
-                                                        handleVerifyCode(devCode);
-                                                    }}
-                                                    className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 font-semibold cursor-pointer text-[11px]"
-                                                >
-                                                    Auto-fill
-                                                </button>
-                                            </div>
-                                        )}
-
-                                        {/* 6-Digit OTP Boxes */}
-                                        <div className="py-2">
-                                            <div
-                                                className="flex items-center justify-center gap-2 sm:gap-3"
-                                                onPaste={handleDigitPaste}
-                                            >
-                                                {digits.map((digit, idx) => (
-                                                    <input
-                                                        key={idx}
-                                                        ref={(el) => (inputRefs.current[idx] = el)}
-                                                        type="text"
-                                                        inputMode="numeric"
-                                                        maxLength={1}
-                                                        value={digit}
-                                                        disabled={isLocked || isVerified}
-                                                        onChange={(e) => handleDigitChange(idx, e.target.value)}
-                                                        onKeyDown={(e) => handleDigitKeyDown(idx, e)}
-                                                        className={`w-11 h-14 sm:w-13 sm:h-16 text-center font-mono font-black text-2xl sm:text-3xl rounded-2xl border transition-all duration-200 outline-none select-all ${
-                                                            digit
-                                                                ? 'border-primary bg-primary/5 text-primary-700 dark:text-primary-300 ring-2 ring-primary/20'
-                                                                : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white'
-                                                        } ${
-                                                            isLocked ? 'opacity-50 cursor-not-allowed' : 'focus:border-primary focus:ring-4 focus:ring-primary/20'
-                                                        }`}
-                                                        aria-label={`Digit ${idx + 1}`}
-                                                    />
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        {/* OTP status messages */}
-                                        {otpError && (
-                                            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs flex items-center justify-between gap-2">
+                                        {/* Card A: Email Verification */}
+                                        <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/80 dark:border-white/10 space-y-3">
+                                            <div className="flex items-center justify-between gap-2">
                                                 <div className="flex items-center gap-2">
-                                                    <AlertCircle className="w-4 h-4 shrink-0" />
-                                                    <span>{otpError}</span>
+                                                    <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                                                        <Mail className="w-4 h-4" />
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                                                            1. Work Email
+                                                        </h3>
+                                                        <p className="text-xs font-mono font-medium text-slate-600 dark:text-slate-300">
+                                                            {data.email}
+                                                        </p>
+                                                    </div>
                                                 </div>
-                                                {isLocked && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={handleResendCode}
-                                                        className="font-bold underline cursor-pointer shrink-0"
-                                                    >
-                                                        Request new code
-                                                    </button>
-                                                )}
-                                            </div>
-                                        )}
-
-                                        {otpSuccess && (
-                                            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2 justify-center">
-                                                <Check className="w-4 h-4 text-emerald-500" />
-                                                <span className="font-semibold">{otpSuccess}</span>
-                                            </div>
-                                        )}
-
-                                        {/* Timer countdown & Resend */}
-                                        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
-                                            <div className="flex items-center gap-1.5 font-medium">
-                                                <Clock className="w-3.5 h-3.5 text-slate-400" />
-                                                {expirySeconds > 0 ? (
-                                                    <span>
-                                                        Code expires in{' '}
-                                                        <strong className="font-mono text-primary font-bold">
-                                                            {formatTimer(expirySeconds)}
-                                                        </strong>
+                                                {isVerified ? (
+                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                                                        <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                                        <span>Verified</span>
                                                     </span>
                                                 ) : (
-                                                    <span className="text-rose-500 font-bold">Code has expired</span>
+                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 animate-pulse">
+                                                        <span>Awaiting Code</span>
+                                                    </span>
                                                 )}
                                             </div>
 
-                                            <button
-                                                type="button"
-                                                disabled={resendCooldown > 0 || resendingCode}
-                                                onClick={handleResendCode}
-                                                className="font-bold text-xs text-primary hover:underline disabled:text-slate-400 disabled:no-underline disabled:cursor-not-allowed cursor-pointer"
-                                            >
-                                                {resendingCode ? (
-                                                    <span>Resending...</span>
-                                                ) : resendCooldown > 0 ? (
-                                                    <span>Resend code in {resendCooldown}s</span>
+                                            {!isVerified ? (
+                                                <>
+                                                    {devCode && (
+                                                        <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-[11px] flex items-center justify-between gap-2">
+                                                            <span>Dev Email Code: <strong className="font-mono font-bold">{devCode}</strong></span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const parts = devCode.split('');
+                                                                    setDigits(parts);
+                                                                    handleVerifyCode(devCode);
+                                                                }}
+                                                                className="px-2 py-0.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 font-semibold cursor-pointer text-[10px]"
+                                                            >
+                                                                Auto-fill
+                                                            </button>
+                                                        </div>
+                                                    )}
+
+                                                                                            {/* 6-Digit Email Boxes */}
+                                                    <div className="py-1">
+                                                        <div
+                                                            className="flex items-center justify-center gap-2 sm:gap-2.5"
+                                                            onPaste={handleDigitPaste}
+                                                        >
+                                                            {digits.map((digit, idx) => (
+                                                                <input
+                                                                    key={idx}
+                                                                    ref={(el) => (inputRefs.current[idx] = el)}
+                                                                    type="text"
+                                                                    inputMode="numeric"
+                                                                    maxLength={1}
+                                                                    value={digit}
+                                                                    disabled={isLocked || isVerified}
+                                                                    onChange={(e) => handleDigitChange(idx, e.target.value)}
+                                                                    onKeyDown={(e) => handleDigitKeyDown(idx, e)}
+                                                                    className={`w-10 h-12 sm:w-11 sm:h-13 text-center font-mono font-bold text-xl rounded-xl border transition-all duration-200 outline-none select-all ${
+                                                                        digit
+                                                                            ? 'border-primary bg-primary/5 text-primary-700 dark:text-primary-300 ring-2 ring-primary/20'
+                                                                            : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white'
+                                                                    } ${
+                                                                        isLocked ? 'opacity-50 cursor-not-allowed' : 'focus:border-primary focus:ring-2 focus:ring-primary/20'
+                                                                    }`}
+                                                                    aria-label={`Email code digit ${idx + 1}`}
+                                                                />
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    {otpError && (
+                                                        <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs flex items-center justify-between gap-2">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                                                <span>{otpError}</span>
+                                                            </div>
+                                                            {isLocked && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={handleResendCode}
+                                                                    className="font-bold underline cursor-pointer shrink-0 text-xs"
+                                                                >
+                                                                    New code
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Timer & Resend */}
+                                                    <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                                                        <div className="flex items-center gap-1">
+                                                            <Clock className="w-3 h-3 text-slate-400" />
+                                                            {expirySeconds > 0 ? (
+                                                                <span>Expires in <strong className="font-mono text-primary font-bold">{formatTimer(expirySeconds)}</strong></span>
+                                                            ) : (
+                                                                <span className="text-rose-500 font-bold">Expired</span>
+                                                            )}
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            disabled={resendCooldown > 0 || resendingCode}
+                                                            onClick={handleResendCode}
+                                                            className="font-bold text-primary hover:underline disabled:text-slate-400 disabled:no-underline disabled:cursor-not-allowed cursor-pointer"
+                                                        >
+                                                            {resendingCode ? 'Sending...' : resendCooldown > 0 ? `Resend (${resendCooldown}s)` : 'Resend code'}
+                                                        </button>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5">
+                                                    <Check className="w-3.5 h-3.5" /> Work email verified.
+                                                </p>
+                                            )}
+                                        </div>
+
+                                        {/* Card B: Mobile SMS OTP */}
+                                        <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/80 dark:border-white/10 space-y-3">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-8 h-8 rounded-lg bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center">
+                                                        <Smartphone className="w-4 h-4" />
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                                                            2. Owner Mobile Phone
+                                                        </h3>
+                                                        <p className="text-xs font-mono font-medium text-slate-600 dark:text-slate-300">
+                                                            +94 {data.mobile}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                {phoneIsVerified ? (
+                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                                                        <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                                        <span>Verified</span>
+                                                    </span>
                                                 ) : (
-                                                    <span>Resend code</span>
+                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 animate-pulse">
+                                                        <span>Awaiting SMS</span>
+                                                    </span>
                                                 )}
-                                            </button>
+                                            </div>
+
+                                            {!phoneIsVerified ? (
+                                                <>
+                                                    {/* Change Number Option */}
+                                                    <div className="flex items-center justify-between text-xs">
+                                                        <span className="text-slate-500 dark:text-slate-400 text-[11px]">
+                                                            SMS code sent via MedVisit
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setIsEditingPhone(!isEditingPhone);
+                                                                setEditedPhone(data.mobile);
+                                                            }}
+                                                            className="text-primary hover:underline font-semibold text-[11px] cursor-pointer"
+                                                        >
+                                                            {isEditingPhone ? 'Cancel' : 'Change number'}
+                                                        </button>
+                                                    </div>
+
+                                                    {/* Inline Number Edit */}
+                                                    {isEditingPhone && (
+                                                        <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-2">
+                                                            <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                                                                New Sri Lankan mobile number:
+                                                            </label>
+                                                            <div className="flex gap-2">
+                                                                <div className="flex-1 flex h-9 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 overflow-hidden text-xs">
+                                                                    <span className="flex items-center px-2 bg-slate-100 dark:bg-slate-800 text-[11px] font-bold text-slate-600 dark:text-slate-300 border-r border-slate-200 dark:border-slate-700">
+                                                                        +94
+                                                                    </span>
+                                                                    <input
+                                                                        type="tel"
+                                                                        value={editedPhone}
+                                                                        placeholder="77 123 4567"
+                                                                        onChange={(e) => setEditedPhone(e.target.value.replace(/\D/g, '').slice(0, 9))}
+                                                                        className="w-full px-2 text-xs font-medium text-slate-900 dark:text-white bg-transparent outline-none"
+                                                                    />
+                                                                </div>
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={editedPhone.replace(/\D/g, '').length < 9 || phoneSendingCode}
+                                                                    onClick={() => handleSendPhoneOtp(undefined, editedPhone)}
+                                                                    className="px-3 h-9 rounded-lg bg-primary text-white font-bold text-xs hover:bg-primary-600 disabled:opacity-50 cursor-pointer"
+                                                                >
+                                                                    {phoneSendingCode ? 'Sending...' : 'Send OTP'}
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Turnstile Container */}
+                                                    <div ref={turnstileContainerRef} className="my-1 flex justify-center" />
+
+                                                    {phoneDevCode && (
+                                                        <div className="p-2 rounded-xl bg-teal-500/10 border border-teal-500/30 text-teal-700 dark:text-teal-300 text-[11px] flex items-center justify-between gap-2">
+                                                            <span>Dev SMS OTP: <strong className="font-mono font-bold">{phoneDevCode}</strong></span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const parts = phoneDevCode.split('');
+                                                                    setPhoneDigits(parts);
+                                                                    handleVerifyPhoneOtp(phoneDevCode);
+                                                                }}
+                                                                className="px-2 py-0.5 rounded-lg bg-teal-500/20 hover:bg-teal-500/30 font-semibold cursor-pointer text-[10px]"
+                                                            >
+                                                                Auto-fill
+                                                            </button>
+                                                        </div>
+                                                    )}
+
+                                                    {/* 6-Digit Phone SMS Boxes */}
+                                                    <div className="py-1">
+                                                        <div
+                                                            className="flex items-center justify-center gap-2 sm:gap-2.5"
+                                                            onPaste={handlePhoneDigitPaste}
+                                                        >
+                                                            {phoneDigits.map((digit, idx) => (
+                                                                <input
+                                                                    key={idx}
+                                                                    ref={(el) => (phoneInputRefs.current[idx] = el)}
+                                                                    type="text"
+                                                                    inputMode="numeric"
+                                                                    maxLength={1}
+                                                                    value={digit}
+                                                                    disabled={phoneIsLocked || phoneIsVerified}
+                                                                    onChange={(e) => handlePhoneDigitChange(idx, e.target.value)}
+                                                                    onKeyDown={(e) => handlePhoneDigitKeyDown(idx, e)}
+                                                                    className={`w-10 h-12 sm:w-11 sm:h-13 text-center font-mono font-bold text-xl rounded-xl border transition-all duration-200 outline-none select-all ${
+                                                                        digit
+                                                                            ? 'border-teal-500 bg-teal-500/5 text-teal-700 dark:text-teal-300 ring-2 ring-teal-500/20'
+                                                                            : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white'
+                                                                    } ${
+                                                                        phoneIsLocked ? 'opacity-50 cursor-not-allowed' : 'focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20'
+                                                                    }`}
+                                                                    aria-label={`Phone OTP digit ${idx + 1}`}
+                                                                />
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    {phoneOtpError && (
+                                                        <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs flex items-center justify-between gap-2">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                                                <span>{phoneOtpError}</span>
+                                                            </div>
+                                                            {phoneAttemptsRemaining !== null && (
+                                                                <span className="font-bold text-[11px] text-rose-600">
+                                                                    ({phoneAttemptsRemaining} left)
+                                                                </span>
+                                                            )}
+                                                            {phoneIsLocked && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={handleResendPhoneOtp}
+                                                                    className="font-bold underline cursor-pointer shrink-0 text-xs"
+                                                                >
+                                                                    New OTP
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Timer & Resend */}
+                                                    <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                                                        <div className="flex items-center gap-1">
+                                                            <Clock className="w-3 h-3 text-slate-400" />
+                                                            {phoneExpirySeconds > 0 ? (
+                                                                <span>Expires in <strong className="font-mono text-teal-600 dark:text-teal-400 font-bold">{formatTimer(phoneExpirySeconds)}</strong></span>
+                                                            ) : (
+                                                                <span className="text-rose-500 font-bold">Expired</span>
+                                                            )}
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            disabled={phoneResendCooldown > 0 || phoneResendingCode}
+                                                            onClick={handleResendPhoneOtp}
+                                                            className="font-bold text-teal-600 dark:text-teal-400 hover:underline disabled:text-slate-400 disabled:no-underline disabled:cursor-not-allowed cursor-pointer"
+                                                        >
+                                                            {phoneResendingCode ? 'Sending...' : phoneResendCooldown > 0 ? `Resend (${phoneResendCooldown}s)` : 'Resend SMS OTP'}
+                                                        </button>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5">
+                                                    <Check className="w-3.5 h-3.5" /> Mobile phone number verified.
+                                                </p>
+                                            )}
                                         </div>
 
                                         {/* Actions */}
@@ -1557,26 +2069,12 @@ export default function RegisterClinic({
 
                                             <button
                                                 type="button"
-                                                disabled={digits.join('').length !== 6 || verifyingCode || isLocked}
-                                                onClick={() => handleVerifyCode()}
-                                                className="h-12 px-7 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-primary to-primary-600 hover:from-primary-600 hover:to-primary-700 shadow-md shadow-primary/25 hover:shadow-lg transition-all duration-200 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                                                disabled={!isVerified || !phoneIsVerified}
+                                                onClick={() => setStep(5)}
+                                                className="h-12 px-7 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-primary to-primary-600 hover:from-primary-600 hover:to-primary-700 shadow-md shadow-primary/25 hover:shadow-lg transition-all duration-200 flex items-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                                             >
-                                                {verifyingCode ? (
-                                                    <>
-                                                        <RotateCw className="w-4 h-4 animate-spin" />
-                                                        <span>Verifying...</span>
-                                                    </>
-                                                ) : isVerified ? (
-                                                    <>
-                                                        <Check className="w-4 h-4" />
-                                                        <span>Verified</span>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <span>Confirm Code</span>
-                                                        <ArrowRight className="w-4 h-4" />
-                                                    </>
-                                                )}
+                                                <span>Continue to Launch</span>
+                                                <ArrowRight className="w-4 h-4" />
                                             </button>
                                         </div>
                                     </motion.div>
@@ -1650,22 +2148,23 @@ export default function RegisterClinic({
 
                                             {/* Admin Details */}
                                             <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-white/10 flex items-start justify-between">
-                                                <div className="space-y-0.5 text-xs">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-[10px] font-bold uppercase tracking-wider text-accent">
-                                                            3. Admin account
-                                                        </span>
-                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
-                                                            <Check className="w-3 h-3 text-emerald-600" />
-                                                            Verified
-                                                        </span>
-                                                    </div>
+                                                <div className="space-y-1.5 text-xs flex-1">
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-accent">
+                                                        3. Admin account
+                                                    </span>
                                                     <p className="font-bold text-sm text-slate-900 dark:text-white">
                                                         {data.name}
                                                     </p>
-                                                    <p className="text-slate-500 dark:text-slate-400">
-                                                        {data.email} • +94 {data.mobile}
-                                                    </p>
+                                                    <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                                                            <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                                            <span>{data.email}</span>
+                                                        </span>
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                                                            <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                                            <span>+94 {data.mobile}</span>
+                                                        </span>
+                                                    </div>
                                                 </div>
                                                 <button
                                                     type="button"
@@ -1674,6 +2173,17 @@ export default function RegisterClinic({
                                                 >
                                                     Edit
                                                 </button>
+                                            </div>
+
+                                            {/* Mandatory Agreements Accepted */}
+                                            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-white/10 space-y-1 text-xs">
+                                                <div className="flex items-center gap-1.5 font-bold text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                                                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                                    <span>4. Mandatory agreements accepted</span>
+                                                </div>
+                                                <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                                                    Terms of Service ({legalVersions?.terms || '2026-10-28'}), Privacy Policy ({legalVersions?.privacy || '2026-10-27'}), Refund Policy ({legalVersions?.refund || '2026-10-28'}), Dispute Resolution Policy ({legalVersions?.dispute || '2026-10-21'}), and Data Processing Addendum.
+                                                </p>
                                             </div>
                                         </div>
 
@@ -1691,7 +2201,7 @@ export default function RegisterClinic({
 
                                             <button
                                                 type="submit"
-                                                disabled={processing || !data.registration_token}
+                                                disabled={processing || !data.registration_token || !data.phone_token}
                                                 className="h-12 px-8 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-primary via-primary-600 to-secondary hover:shadow-xl shadow-lg shadow-primary/30 transition-all duration-200 flex items-center gap-2 cursor-pointer disabled:opacity-50"
                                             >
                                                 {processing ? (
@@ -1737,6 +2247,7 @@ export default function RegisterClinic({
                         checkingSubdomain={checkingSubdomain}
                         subdomainResult={subdomainResult}
                         isVerified={isVerified}
+                            phoneIsVerified={phoneIsVerified}
                         publicDomain={publicDomain}
                     />
                 </div>

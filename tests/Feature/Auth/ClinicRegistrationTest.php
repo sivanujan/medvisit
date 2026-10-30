@@ -82,13 +82,17 @@ class ClinicRegistrationTest extends TestCase
         Notification::fake();
 
         $token = 'test-token-happy-path';
+        $phoneToken = 'signed-phone-token-happy-path-1234567890';
         PendingRegistration::create([
             'email' => 'bandara@ruhunuclinic.lk',
+            'phone' => '+94771234567',
             'token' => $token,
             'code_hash' => Hash::make('123456'),
             'attempts' => 0,
             'expires_at' => now()->addMinutes(10),
             'verified_at' => now(),
+            'phone_verified_at' => now(),
+            'phone_signed_token' => $phoneToken,
             'payload' => Crypt::encryptString(json_encode([])),
         ]);
 
@@ -106,7 +110,9 @@ class ClinicRegistrationTest extends TestCase
             'password' => 'Passw0rd123!',
             'password_confirmation' => 'Passw0rd123!',
             'terms' => true,
+            'agreement_authority' => true,
             'registration_token' => $token,
+            'phone_token' => $phoneToken,
         ];
 
         $response = $this->post('/register', $payload);
@@ -270,13 +276,17 @@ class ClinicRegistrationTest extends TestCase
         Notification::fake();
 
         $token = 'test-token-sigiriya';
+        $phoneToken = 'signed-phone-token-sigiriya-1234567890';
         PendingRegistration::create([
             'email' => 'perera@sigiriya.lk',
+            'phone' => '+94773334455',
             'token' => $token,
             'code_hash' => Hash::make('123456'),
             'attempts' => 0,
             'expires_at' => now()->addMinutes(10),
             'verified_at' => now(),
+            'phone_verified_at' => now(),
+            'phone_signed_token' => $phoneToken,
             'payload' => Crypt::encryptString(json_encode([])),
         ]);
 
@@ -295,7 +305,9 @@ class ClinicRegistrationTest extends TestCase
             'password' => 'Secret123Pass!',
             'password_confirmation' => 'Secret123Pass!',
             'terms' => true,
+            'agreement_authority' => true,
             'registration_token' => $token,
+            'phone_token' => $phoneToken,
         ];
 
         $this->post('/register', $payload);
@@ -349,13 +361,17 @@ class ClinicRegistrationTest extends TestCase
         Notification::fake();
 
         $token = 'test-token-phone-norm';
+        $phoneToken = 'signed-phone-token-norm-1234567890';
         PendingRegistration::create([
             'email' => 'phone-norm@testclinic.lk',
+            'phone' => '+94771234567',
             'token' => $token,
             'code_hash' => Hash::make('123456'),
             'attempts' => 0,
             'expires_at' => now()->addMinutes(10),
             'verified_at' => now(),
+            'phone_verified_at' => now(),
+            'phone_signed_token' => $phoneToken,
             'payload' => Crypt::encryptString(json_encode([])),
         ]);
 
@@ -374,7 +390,9 @@ class ClinicRegistrationTest extends TestCase
             'password' => 'Passw0rd123!',
             'password_confirmation' => 'Passw0rd123!',
             'terms' => true,
+            'agreement_authority' => true,
             'registration_token' => $token,
+            'phone_token' => $phoneToken,
         ];
 
         $response = $this->post('/register', $payload);

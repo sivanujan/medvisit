@@ -540,7 +540,7 @@ class ClinicSettingsController extends Controller
             'pharmacy_enabled' => ['required', 'boolean'],
             'default_reorder_level' => ['required', 'integer', 'min:0', 'max:10000'],
             'expiring_soon_threshold_days' => ['required', 'integer', 'min:7', 'max:365'],
-            'stock_reduction_mode' => ['nullable', 'string', 'in:dispense,consultation'],
+            'stock_reduction_mode' => ['nullable', 'string', 'in:dispense,consultation,bill,finalize'],
             'prescription_print_enabled' => ['nullable', 'boolean'],
             'prescription_print_language' => ['nullable', 'string', 'in:en,ta,si'],
             'prescription_print_show_doctor_reg' => ['nullable', 'boolean'],

@@ -15,6 +15,7 @@ import {
     Receipt,
     RefreshCw,
     Info,
+    Tag,
 } from 'lucide-react';
 import LegalFooter from '@/Components/Public/LegalFooter';
 import { PageProps } from '@/types';
@@ -84,6 +85,21 @@ export default function Subscribe({
     const [clientError, setClientError] = useState<string | null>(null);
     const [mobileSummaryOpen, setMobileSummaryOpen] = useState(false);
 
+    // Promo code state
+    const [promoInputOpen, setPromoInputOpen] = useState(false);
+    const [promoCodeInput, setPromoCodeInput] = useState('');
+    const [applyingPromo, setApplyingPromo] = useState(false);
+    const [promoError, setPromoError] = useState<string | null>(null);
+    const [appliedPromo, setAppliedPromo] = useState<{
+        code: string;
+        discount_cents: number;
+        final_amount_cents: number;
+        discount_formatted: string;
+        final_formatted: string;
+        summary_text: string;
+        renewal_text: string;
+    } | null>(null);
+
     const { flash, tenant: tenantProp } = usePage<PageProps>().props;
 
     const selectedPlan = plans.find((p) => p.id === selectedPlanId) || plans[0] || {
@@ -97,6 +113,100 @@ export default function Subscribe({
         badge: 'Most popular',
         description: 'Comprehensive OPD channeling, queue management, and electronic prescriptions.',
         features: [],
+    };
+
+    // Auto re-validate promo code when plan changes
+    useEffect(() => {
+        if (appliedPromo) {
+            handleApplyPromo(appliedPromo.code, selectedPlan.id);
+        }
+    }, [selectedPlanId]);
+
+    const handleApplyPromo = async (codeToApply?: string, planSlugOverride?: string) => {
+        const code = (codeToApply || promoCodeInput).trim().toUpperCase();
+        if (!code) {
+            setPromoError('Please enter a promo code.');
+            return;
+        }
+
+        setApplyingPromo(true);
+        setPromoError(null);
+
+        const planSlug = planSlugOverride || selectedPlan?.id || (selectedPlan as any)?.slug || 'pro';
+
+        // Same-origin relative endpoint always works across both central preview and tenant domains
+        let endpoint = '/subscription/validate-promo';
+        if (typeof window !== 'undefined' && window.location.pathname.includes('/dev/preview')) {
+            endpoint = '/dev/preview/validate-promo';
+        }
+
+        const csrfToken =
+            (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
+
+        try {
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    Accept: 'application/json',
+                },
+                body: JSON.stringify({
+                    code,
+                    plan_slug: planSlug,
+                }),
+            });
+
+            if (res.redirected) {
+                setPromoError('Session or gateway redirect encountered. Please try again.');
+                setAppliedPromo(null);
+                setApplyingPromo(false);
+                return;
+            }
+
+            let data: any = null;
+            try {
+                const text = await res.text();
+                data = JSON.parse(text);
+            } catch {
+                data = null;
+            }
+
+            if (!res.ok || !data || !data.code || typeof data.discount_cents === 'undefined') {
+                const errMsg =
+                    data?.message ||
+                    data?.errors?.code?.[0] ||
+                    data?.errors?.plan_slug?.[0] ||
+                    'Invalid promo code. Please check and try again.';
+                setPromoError(errMsg);
+                setAppliedPromo(null);
+                setApplyingPromo(false);
+                return;
+            }
+
+            setAppliedPromo({
+                code: String(data.code),
+                discount_cents: Number(data.discount_cents),
+                final_amount_cents: Number(data.final_amount_cents),
+                discount_formatted: String(data.discount_formatted || 'Rs. 0.00'),
+                final_formatted: String(data.final_formatted || selectedPlan.price_formatted),
+                summary_text: String(data.summary_text || ''),
+                renewal_text: String(data.renewal_text || ''),
+            });
+            setPromoError(null);
+            setApplyingPromo(false);
+        } catch (err: any) {
+            setPromoError(err?.message || 'Network error validating promo code.');
+            setAppliedPromo(null);
+            setApplyingPromo(false);
+        }
+    };
+
+    const handleRemovePromo = () => {
+        setAppliedPromo(null);
+        setPromoCodeInput('');
+        setPromoError(null);
     };
 
     const baseCentralDomain = tenantProp?.base_domain || 'medvisit.lk';
@@ -123,6 +233,7 @@ export default function Subscribe({
             {
                 terms_accepted: true,
                 plan_slug: selectedPlan.id,
+                promo_code: appliedPromo?.code || undefined,
             },
             {
                 onError: (errors) => {
@@ -425,23 +536,114 @@ export default function Subscribe({
                                 </div>
                             </div>
 
+                            {/* Promo Code Section */}
+                            <div className="space-y-2">
+                                {!appliedPromo ? (
+                                    <>
+                                        {!promoInputOpen ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => setPromoInputOpen(true)}
+                                                className="text-xs font-semibold text-primary hover:underline flex items-center gap-1.5 cursor-pointer"
+                                            >
+                                                <Tag className="w-3.5 h-3.5" />
+                                                <span>Have a promo code?</span>
+                                            </button>
+                                        ) : (
+                                            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-white/10 space-y-2">
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        type="text"
+                                                        value={promoCodeInput}
+                                                        onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase())}
+                                                        placeholder="Enter promo code"
+                                                        className="w-full text-xs px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 font-mono font-bold uppercase text-slate-900 dark:text-white"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        disabled={applyingPromo || !promoCodeInput.trim()}
+                                                        onClick={() => handleApplyPromo()}
+                                                        className="px-4 py-2 rounded-xl bg-primary hover:bg-primary-600 text-white font-bold text-xs shrink-0 cursor-pointer disabled:opacity-50"
+                                                    >
+                                                        {applyingPromo ? 'Checking...' : 'Apply'}
+                                                    </button>
+                                                </div>
+                                                {promoError && (
+                                                    <p className="text-xs text-rose-500 font-medium flex items-center gap-1">
+                                                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                                        <span>{promoError}</span>
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs flex items-center justify-between gap-3">
+                                        <div className="flex items-center gap-2.5">
+                                            <Tag className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                            <div>
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="font-mono font-bold text-emerald-700 dark:text-emerald-300">
+                                                        {appliedPromo.code}
+                                                    </span>
+                                                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-semibold">
+                                                        {appliedPromo.summary_text}
+                                                    </span>
+                                                </div>
+                                                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                                    {appliedPromo.renewal_text}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={handleRemovePromo}
+                                            className="text-xs text-rose-500 hover:text-rose-600 font-semibold cursor-pointer underline"
+                                        >
+                                            Remove
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
                             {/* Total Due Today (Animated roll on switch) */}
-                            <div className="flex justify-between items-baseline pt-1">
-                                <span className="font-bold text-slate-900 dark:text-white text-sm sm:text-base">
-                                    Total due today
-                                </span>
-                                <AnimatePresence mode="wait">
-                                    <motion.span
-                                        key={selectedPlan.id}
-                                        initial={{ opacity: 0, y: -6 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, y: 6 }}
-                                        transition={{ duration: 0.15 }}
-                                        className="text-3xl font-extrabold text-primary dark:text-primary-400 tracking-tight"
-                                    >
-                                        {selectedPlan.price_formatted}
-                                    </motion.span>
-                                </AnimatePresence>
+                            <div className="space-y-1 pt-1 border-t border-slate-200/80 dark:border-white/10">
+                                {appliedPromo && (
+                                    <div className="flex justify-between items-center text-xs text-slate-500 pb-1">
+                                        <span>Plan price</span>
+                                        <span className="line-through">{selectedPlan.price_formatted}</span>
+                                    </div>
+                                )}
+                                {appliedPromo && (
+                                    <div className="flex justify-between items-center text-xs font-semibold text-emerald-600 dark:text-emerald-400 pb-1">
+                                        <span>Discount ({appliedPromo.code})</span>
+                                        <span>- {appliedPromo.discount_formatted}</span>
+                                    </div>
+                                )}
+
+                                <div className="flex justify-between items-baseline pt-1">
+                                    <span className="font-bold text-slate-900 dark:text-white text-sm sm:text-base">
+                                        Total due today
+                                    </span>
+                                    <AnimatePresence mode="wait">
+                                        <motion.span
+                                            key={(selectedPlan?.id || (selectedPlan as any)?.slug || 'pro') + (appliedPromo?.final_formatted || '')}
+                                            initial={{ opacity: 0, y: -6 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: 6 }}
+                                            transition={{ duration: 0.15 }}
+                                            className="text-3xl font-extrabold text-primary dark:text-primary-400 tracking-tight"
+                                        >
+                                            {appliedPromo?.final_formatted || selectedPlan?.price_formatted || 'Rs. 9,000.00'}
+                                        </motion.span>
+                                    </AnimatePresence>
+                                </div>
+
+                                {appliedPromo && (
+                                    <p className="text-[11px] text-slate-500 text-right">
+                                        Renews at {selectedPlan?.price_formatted || 'Rs. 9,000.00'}/mo ({appliedPromo.renewal_text})
+                                    </p>
+                                )}
                             </div>
 
                             {/* Checkout Form */}
@@ -484,25 +686,32 @@ export default function Subscribe({
                                     </label>
                                 </div>
 
-                                {/* Pay Button: visible but disabled with hint if unchecked */}
+                                {/* Pay / Activate Button */}
                                 <div className="space-y-2">
                                     <button
                                         type="submit"
                                         disabled={isSubmitting || !termsAccepted}
                                         className={`group relative w-full h-12 sm:h-12.5 px-6 rounded-xl font-semibold text-sm sm:text-base flex items-center justify-center gap-2.5 transition-all duration-200 ${
                                             termsAccepted && !isSubmitting
-                                                ? 'bg-primary hover:bg-primary-600 text-white shadow-[0_4px_16px_rgba(30,111,217,0.35),inset_0_1px_0_rgba(255,255,255,0.25)] hover:shadow-[0_6px_20px_rgba(30,111,217,0.45),inset_0_1px_0_rgba(255,255,255,0.3)] hover:-translate-y-0.5 active:translate-y-0 cursor-pointer border border-primary-500/50'
+                                                ? appliedPromo && appliedPromo.final_amount_cents === 0
+                                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-[0_4px_16px_rgba(14,158,143,0.35)] cursor-pointer border border-emerald-500/50'
+                                                    : 'bg-primary hover:bg-primary-600 text-white shadow-[0_4px_16px_rgba(30,111,217,0.35),inset_0_1px_0_rgba(255,255,255,0.25)] hover:shadow-[0_6px_20px_rgba(30,111,217,0.45),inset_0_1px_0_rgba(255,255,255,0.3)] hover:-translate-y-0.5 active:translate-y-0 cursor-pointer border border-primary-500/50'
                                                 : 'bg-slate-100 dark:bg-slate-800/80 text-slate-400 dark:text-slate-500 cursor-not-allowed border border-slate-200/80 dark:border-slate-700/60 shadow-xs'
                                         }`}
                                     >
                                         {isSubmitting ? (
                                             <>
                                                 <Loader2 className="w-4 h-4 animate-spin text-white" />
-                                                <span>Redirecting to secure checkout…</span>
+                                                <span>Processing...</span>
+                                            </>
+                                        ) : appliedPromo && appliedPromo.final_amount_cents === 0 ? (
+                                            <>
+                                                <CheckCircle2 className="w-4 h-4" />
+                                                <span>Activate Clinic Workspace (Free)</span>
                                             </>
                                         ) : (
                                             <>
-                                                <span>Pay {selectedPlan.price_formatted} securely</span>
+                                                <span>Pay {appliedPromo?.final_formatted || selectedPlan?.price_formatted || 'Rs. 9,000.00'} securely</span>
                                                 <ArrowRight className={`w-4 h-4 ${termsAccepted ? 'transition-transform group-hover:translate-x-1' : ''}`} />
                                             </>
                                         )}

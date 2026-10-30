@@ -394,7 +394,8 @@ class PublicCalendlyBookingTest extends TestCase
         $icsResponse->assertOk();
         $icsResponse->assertHeader('Content-Type', 'text/calendar; charset=utf-8');
         $this->assertStringContainsString('BEGIN:VCALENDAR', $icsResponse->getContent());
-        $this->assertStringContainsString("Doctor Channeling: Token #{$token->token_number}", $icsResponse->getContent());
+        $tokenFormatted = sprintf('%02d', $token->token_number);
+        $this->assertStringContainsString("Doctor Channeling: Token #{$tokenFormatted}", $icsResponse->getContent());
     }
 
     public function test_cleanup_duplicate_sessions_artisan_command(): void
@@ -445,17 +446,16 @@ class PublicCalendlyBookingTest extends TestCase
 
         $response = $this->get("http://sivacli.{$this->baseDomain}/book");
 
-        $response->assertStatus(503);
+        $response->assertStatus(200);
         $response->assertInertia(fn ($page) => $page
             ->component('Public/BookingUnavailable')
             ->where('clinicName', 'Siva Clinic Care')
         );
 
-        // JSON API endpoint returns 503 JSON
+        // JSON API endpoint returns 200 JSON with mode booking_off
         $jsonResponse = $this->getJson("http://sivacli.{$this->baseDomain}/book/api/availability/dr-k-sivalingam");
-        $jsonResponse->assertStatus(503);
-        $jsonResponse->assertJsonFragment([
-            'message' => 'Online booking is currently disabled for this clinic. Please contact the clinic directly.',
-        ]);
+        $jsonResponse->assertStatus(200);
+        $jsonResponse->assertJsonFragment(['mode' => 'booking_off']);
+        $this->assertStringContainsString('takes appointments by phone or at the reception', $jsonResponse->json('message'));
     }
 }
