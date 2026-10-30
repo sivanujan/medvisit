@@ -45,6 +45,7 @@ import CommandPaletteModal from '@/Components/Layout/CommandPaletteModal';
 import NotificationDropdown from '@/Components/Layout/NotificationDropdown';
 import SupportChatWidget from '@/Components/SupportChat/SupportChatWidget';
 import AgreementReacceptanceModal from '@/Components/Legal/AgreementReacceptanceModal';
+import { getCentralUrl } from '@/Utils/centralUrl';
 import { getAvatarInitial } from '@/Utils/name';
 import { usePermission } from '@/Hooks/usePermission';
 import { getSubscriptionStatusDescriptor } from '@/Utils/subscriptionStatus';
@@ -1184,7 +1185,7 @@ export default function AuthenticatedLayout({
                     <footer className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-4 border-t border-slate-200/60 dark:border-white/5 text-[11px] text-slate-400 dark:text-slate-500 flex flex-wrap items-center justify-between gap-3 shrink-0">
                         <div className="flex items-center gap-2">
                             <a
-                                href="https://medvisit.lk"
+                                href={getCentralUrl('/')}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="hover:text-slate-600 dark:hover:text-slate-300 hover:underline transition-colors"
@@ -1193,13 +1194,13 @@ export default function AuthenticatedLayout({
                             </a>
                         </div>
                         <div className="flex items-center gap-4">
-                            <a href="https://medvisit.lk/terms" target="_blank" rel="noopener noreferrer" className="hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+                            <a href={getCentralUrl('/terms')} target="_blank" rel="noopener noreferrer" className="hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
                                 Terms
                             </a>
-                            <a href="https://medvisit.lk/privacy-policy" target="_blank" rel="noopener noreferrer" className="hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+                            <a href={getCentralUrl('/privacy-policy')} target="_blank" rel="noopener noreferrer" className="hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
                                 Privacy
                             </a>
-                            <a href="https://medvisit.lk/refund-policy" target="_blank" rel="noopener noreferrer" className="hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+                            <a href={getCentralUrl('/refund-policy')} target="_blank" rel="noopener noreferrer" className="hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
                                 Refunds
                             </a>
                             <a href="mailto:support@medvisit.lk" className="hover:text-slate-600 dark:hover:text-slate-300 transition-colors">

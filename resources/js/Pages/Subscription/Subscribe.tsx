@@ -18,6 +18,7 @@ import {
     Tag,
 } from 'lucide-react';
 import LegalFooter from '@/Components/Public/LegalFooter';
+import { getCentralUrl as resolveCentralUrl } from '@/Utils/centralUrl';
 import { PageProps } from '@/types';
 import '@/Components/Registration/registration.css';
 
@@ -210,13 +211,7 @@ export default function Subscribe({
     };
 
     const baseCentralDomain = tenantProp?.base_domain || 'medvisit.lk';
-    const getCentralUrl = (path: string) => {
-        if (typeof window !== 'undefined') {
-            const port = window.location.port ? `:${window.location.port}` : '';
-            return `${window.location.protocol}//${baseCentralDomain}${port}${path}`;
-        }
-        return `https://${baseCentralDomain}${path}`;
-    };
+    const getCentralUrl = (path: string) => resolveCentralUrl(path, baseCentralDomain);
 
     const handleCheckout = (e: React.FormEvent) => {
         e.preventDefault();

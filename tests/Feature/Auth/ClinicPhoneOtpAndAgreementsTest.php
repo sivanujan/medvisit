@@ -358,6 +358,32 @@ class ClinicPhoneOtpAndAgreementsTest extends TestCase
         $this->assertFalse($admin->hasAcceptedLatestAgreements());
     }
 
+    public function test_shared_legal_urls_point_to_central_domain_when_accessed_on_tenant_subdomain(): void
+    {
+        $tenant = Tenant::factory()->active()->create([
+            'id' => 'siva-legal-check',
+            'subdomain' => 'siva-legal-check',
+            'setup_completed_at' => now(),
+        ]);
+
+        $admin = User::factory()->clinicAdmin()->create([
+            'tenant_id' => 'siva-legal-check',
+            'email' => 'admin@sivalegal.lk',
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->get("http://siva-legal-check.{$this->baseDomain}/dashboard");
+
+        $response->assertStatus(200);
+        $response->assertInertia(fn ($page) => $page
+            ->has('legalUrls')
+            ->where('legalUrls.terms', "http://{$this->baseDomain}/terms")
+            ->where('legalUrls.privacy', "http://{$this->baseDomain}/privacy-policy")
+            ->where('legalUrls.refund', "http://{$this->baseDomain}/refund-policy")
+            ->where('legalUrls.dispute', "http://{$this->baseDomain}/dispute-policy")
+        );
+    }
+
     public function test_owner_registering_second_clinic_with_same_phone_is_allowed_but_duplicate_email_is_blocked(): void
     {
         // 1. Existing clinic owner with email 'owner@firstclinic.lk' and phone '+94771234567'

@@ -4,6 +4,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { PageHeader } from '@/Components/UI/PageHeader';
 import { GlassCard } from '@/Components/UI/GlassCard';
 import Modal from '@/Components/Modal';
+import { getCentralUrl } from '@/Utils/centralUrl';
 import {
     CreditCard,
     CheckCircle2,
@@ -1796,7 +1797,7 @@ export default function BillingCenter({
                             />
                             <span className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
                                 I confirm this refund request is accurate and agree to the{' '}
-                                <a href="/refund-policy" target="_blank" rel="noopener noreferrer" className="text-[#1E6FD9] underline">
+                                <a href={getCentralUrl('/refund-policy')} target="_blank" rel="noopener noreferrer" className="text-[#1E6FD9] underline">
                                     MedVisit Refund Policy
                                 </a>. Requests are reviewed within 2 business days. If approved, funds are returned to the original payment source and a Credit Note will be generated.
                             </span>

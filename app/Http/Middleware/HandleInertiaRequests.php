@@ -173,6 +173,31 @@ class HandleInertiaRequests extends Middleware
                 'refund' => '2026-10-28',
                 'dispute' => '2026-10-21',
             ]),
+            'central_base_url' => rescue(function () use ($request) {
+                $baseDomain = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
+                $port = $request->getPort();
+                $portSuffix = ($port && ! in_array($port, [80, 443], true)) ? ":{$port}" : '';
+
+                return $request->getScheme()."://{$baseDomain}{$portSuffix}";
+            }, 'https://medvisit.lk', false),
+            'legalUrls' => rescue(function () use ($request) {
+                $baseDomain = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
+                $port = $request->getPort();
+                $portSuffix = ($port && ! in_array($port, [80, 443], true)) ? ":{$port}" : '';
+                $centralBase = $request->getScheme()."://{$baseDomain}{$portSuffix}";
+
+                return [
+                    'terms' => "{$centralBase}/terms",
+                    'privacy' => "{$centralBase}/privacy-policy",
+                    'refund' => "{$centralBase}/refund-policy",
+                    'dispute' => "{$centralBase}/dispute-policy",
+                ];
+            }, [
+                'terms' => 'https://medvisit.lk/terms',
+                'privacy' => 'https://medvisit.lk/privacy-policy',
+                'refund' => 'https://medvisit.lk/refund-policy',
+                'dispute' => 'https://medvisit.lk/dispute-policy',
+            ], false),
             'reverb' => [
                 'key' => config('broadcasting.connections.reverb.key') ?? config('reverb.apps.apps.0.key'),
                 'host' => config('broadcasting.connections.reverb.options.host') ?? env('REVERB_HOST', 'localhost'),

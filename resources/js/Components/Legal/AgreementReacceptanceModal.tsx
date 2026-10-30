@@ -1,12 +1,20 @@
 import React, { useState } from 'react';
-import { router } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
 import { ShieldCheck, ExternalLink, RotateCw, AlertCircle } from 'lucide-react';
+import { getCentralUrl } from '@/Utils/centralUrl';
 
 interface Props {
     isOpen: boolean;
 }
 
 export default function AgreementReacceptanceModal({ isOpen }: Props) {
+    const { legalUrls, tenant } = usePage().props as any;
+
+    const termsUrl = legalUrls?.terms || getCentralUrl('/terms', tenant?.base_domain);
+    const privacyUrl = legalUrls?.privacy || getCentralUrl('/privacy-policy', tenant?.base_domain);
+    const refundUrl = legalUrls?.refund || getCentralUrl('/refund-policy', tenant?.base_domain);
+    const disputeUrl = legalUrls?.dispute || getCentralUrl('/dispute-policy', tenant?.base_domain);
+
     const [termsAccepted, setTermsAccepted] = useState(false);
     const [authorityAccepted, setAuthorityAccepted] = useState(false);
     const [processing, setProcessing] = useState(false);
@@ -65,7 +73,7 @@ export default function AgreementReacceptanceModal({ isOpen }: Props) {
                 {/* Policies Links Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                     <a
-                        href="/terms"
+                        href={termsUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200/60 dark:border-white/10 hover:border-teal-500/50 hover:bg-teal-500/5 transition flex items-center justify-between text-slate-800 dark:text-slate-200 font-medium group"
@@ -74,7 +82,7 @@ export default function AgreementReacceptanceModal({ isOpen }: Props) {
                         <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-teal-500 transition-colors" />
                     </a>
                     <a
-                        href="/privacy-policy"
+                        href={privacyUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200/60 dark:border-white/10 hover:border-teal-500/50 hover:bg-teal-500/5 transition flex items-center justify-between text-slate-800 dark:text-slate-200 font-medium group"
@@ -83,7 +91,7 @@ export default function AgreementReacceptanceModal({ isOpen }: Props) {
                         <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-teal-500 transition-colors" />
                     </a>
                     <a
-                        href="/refund-policy"
+                        href={refundUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200/60 dark:border-white/10 hover:border-teal-500/50 hover:bg-teal-500/5 transition flex items-center justify-between text-slate-800 dark:text-slate-200 font-medium group"
@@ -92,7 +100,7 @@ export default function AgreementReacceptanceModal({ isOpen }: Props) {
                         <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-teal-500 transition-colors" />
                     </a>
                     <a
-                        href="/dispute-policy"
+                        href={disputeUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200/60 dark:border-white/10 hover:border-teal-500/50 hover:bg-teal-500/5 transition flex items-center justify-between text-slate-800 dark:text-slate-200 font-medium group"
@@ -114,10 +122,10 @@ export default function AgreementReacceptanceModal({ isOpen }: Props) {
                         />
                         <span className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed select-none">
                             I agree to the{' '}
-                            <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-teal-600 dark:text-teal-400 underline font-semibold">Terms & Conditions</a>,{' '}
-                            <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-teal-600 dark:text-teal-400 underline font-semibold">Privacy Policy</a>,{' '}
-                            <a href="/refund-policy" target="_blank" rel="noopener noreferrer" className="text-teal-600 dark:text-teal-400 underline font-semibold">Refund Policy</a>, and{' '}
-                            <a href="/dispute-policy" target="_blank" rel="noopener noreferrer" className="text-teal-600 dark:text-teal-400 underline font-semibold">Dispute Policy</a>.
+                            <a href={termsUrl} target="_blank" rel="noopener noreferrer" className="text-teal-600 dark:text-teal-400 underline font-semibold">Terms & Conditions</a>,{' '}
+                            <a href={privacyUrl} target="_blank" rel="noopener noreferrer" className="text-teal-600 dark:text-teal-400 underline font-semibold">Privacy Policy</a>,{' '}
+                            <a href={refundUrl} target="_blank" rel="noopener noreferrer" className="text-teal-600 dark:text-teal-400 underline font-semibold">Refund Policy</a>, and{' '}
+                            <a href={disputeUrl} target="_blank" rel="noopener noreferrer" className="text-teal-600 dark:text-teal-400 underline font-semibold">Dispute Policy</a>.
                         </span>
                     </label>
 
