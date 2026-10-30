@@ -143,6 +143,7 @@ export default function RefundsShow({
         refund_method: 'payments_lk_dashboard',
         refund_reference: '',
         admin_note: '',
+        cancel_subscription: true,
     });
 
     const handleRecheck = () => {
@@ -773,10 +774,34 @@ export default function RefundsShow({
                             onChange={(e) => processForm.setData('refund_method', e.target.value)}
                             className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                         >
-                            <option value="payments_lk_dashboard">Payments.lk Merchant Dashboard (Card Reversal)</option>
+                            <option value="payments_lk_dashboard">Payments.lk Merchant Dashboard (Card Reversal) — Recommended</option>
                             <option value="bank_transfer">Direct Bank Transfer</option>
                             <option value="api">Automated Gateway API</option>
                         </select>
+                        {processForm.data.refund_method === 'payments_lk_dashboard' && (
+                            <p className="mt-1 text-[11px] text-emerald-600 dark:text-emerald-400">
+                                Card reversal reverses funds directly back to the clinic's original debit/credit card.
+                            </p>
+                        )}
+                    </div>
+
+                    <div>
+                        <label className="flex items-start gap-2.5 cursor-pointer p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10">
+                            <input
+                                type="checkbox"
+                                checked={processForm.data.cancel_subscription}
+                                onChange={(e) => processForm.setData('cancel_subscription', e.target.checked)}
+                                className="mt-0.5 rounded border-slate-300 dark:border-white/10 text-emerald-600 focus:ring-emerald-500 w-4 h-4"
+                            />
+                            <div className="text-xs">
+                                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                    Cancel subscription and revoke plan access
+                                </span>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                    Immediately cancels future renewals and sets clinic status to expired.
+                                </p>
+                            </div>
+                        </label>
                     </div>
 
                     <div>

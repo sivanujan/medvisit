@@ -344,6 +344,57 @@ class RefundWorkflowTest extends TestCase
         Mail::assertQueued(RefundCompletedMail::class);
     }
 
+    public function test_processing_refund_with_payments_lk_cancels_subscription_and_sends_email(): void
+    {
+        Mail::fake();
+
+        $env = $this->createClinicEnvironment('cancelsubclinic');
+
+        Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
+        $superAdmin = User::factory()->create([
+            'email' => 'super2@medvisit.lk',
+        ]);
+        $superAdmin->assignRole('super_admin');
+
+        $refund = RefundRequest::create([
+            'tenant_id' => $env['tenant']->id,
+            'payment_id' => $env['payment']->id,
+            'requested_by_user_id' => $env['admin']->id,
+            'requested_amount_cents' => 900000,
+            'approved_amount_cents' => 900000,
+            'reason_type' => RefundRequest::REASON_OTHER,
+            'description' => 'Owner requested full card reversal and cancellation.',
+            'status' => RefundRequest::STATUS_APPROVED,
+            'eligibility' => RefundRequest::ELIGIBILITY_ELIGIBLE,
+        ]);
+
+        $response = $this->actingAs($superAdmin)
+            ->post("http://{$this->baseDomain}/super-admin/refunds/{$refund->id}/process", [
+                'refund_method' => RefundRequest::METHOD_PAYMENTS_LK_DASHBOARD,
+                'refund_reference' => 'PLK-CARD-REV-112233',
+                'cancel_subscription' => true,
+                'admin_note' => 'Reversed via Payments.lk Merchant Dashboard to original card.',
+            ]);
+
+        $response->assertRedirect();
+
+        // 1. Refund marked refunded with Payments.lk method
+        $refund = $refund->fresh();
+        $this->assertEquals(RefundRequest::STATUS_REFUNDED, $refund->status);
+        $this->assertEquals(RefundRequest::METHOD_PAYMENTS_LK_DASHBOARD, $refund->refund_method);
+        $this->assertEquals('PLK-CARD-REV-112233', $refund->refund_reference);
+
+        // 2. Subscription cancelled & tenant expired
+        $subscription = $env['subscription']->fresh();
+        $this->assertEquals(Subscription::STATUS_CANCELLED, $subscription->status);
+        $this->assertEquals('expired', $env['tenant']->fresh()->status);
+
+        // 3. RefundCompletedMail queued with Credit Note attachment
+        Mail::assertQueued(RefundCompletedMail::class, function (RefundCompletedMail $mail) {
+            return $mail->refundRequest->credit_note_number !== null;
+        });
+    }
+
     public function test_credit_note_pdf_generation_and_tenant_download_isolation(): void
     {
         $env = $this->createClinicEnvironment('pdfclinic');

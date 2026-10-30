@@ -412,6 +412,7 @@ class RefundManagementController extends Controller
             'refund_method' => ['required', 'string', 'in:payments_lk_dashboard,bank_transfer,api'],
             'refund_reference' => ['required', 'string', 'min:3', 'max:100'],
             'admin_note' => ['nullable', 'string', 'max:2000'],
+            'cancel_subscription' => ['nullable', 'boolean'],
         ]);
 
         try {
@@ -420,6 +421,7 @@ class RefundManagementController extends Controller
                 'reference' => (string) $request->input('refund_reference'),
                 'admin_id' => auth()->id(),
                 'admin_note' => $request->input('admin_note'),
+                'cancel_subscription' => $request->boolean('cancel_subscription', true),
             ]);
 
             return back()->with('success', "Refund completed successfully. Credit Note {$refundRequest->credit_note_number} generated.");

@@ -94,16 +94,24 @@ class ManualRefundProcessor implements RefundProcessor
             $subscription = $invoice?->subscription ?? Subscription::where('tenant_id', $lockedRequest->tenant_id)->latest('id')->first();
             $tenant = $lockedRequest->tenant;
 
-            if ($lockedRequest->reason_type === RefundRequest::REASON_FIRST_PAYMENT_UNUSED) {
+            $shouldCancelPlan = ($context['cancel_subscription'] ?? true)
+                && $lockedRequest->reason_type !== RefundRequest::REASON_TEMPLATE_PURCHASE;
+
+            if ($subscription && $shouldCancelPlan) {
+                $reasonLabel = $lockedRequest->decision_reason ?: match ($lockedRequest->reason_type) {
+                    RefundRequest::REASON_FIRST_PAYMENT_UNUSED => 'First payment refunded under 7-day guarantee',
+                    RefundRequest::REASON_CHARGED_AFTER_CANCELLATION => 'Refunded after cancellation',
+                    default => 'Subscription payment refunded',
+                };
+
                 // End subscription and access now
-                if ($subscription) {
-                    $subscription->update([
-                        'status' => Subscription::STATUS_CANCELLED,
-                        'cancelled_at' => Carbon::now('Asia/Colombo'),
-                        'current_period_end' => Carbon::now('Asia/Colombo'),
-                        'cancellation_reason' => 'First payment refunded under 7-day guarantee',
-                    ]);
-                }
+                $subscription->update([
+                    'status' => Subscription::STATUS_CANCELLED,
+                    'cancelled_at' => Carbon::now('Asia/Colombo'),
+                    'current_period_end' => Carbon::now('Asia/Colombo'),
+                    'cancellation_reason' => $reasonLabel,
+                ]);
+
                 if ($tenant) {
                     $tenant->update(['status' => 'expired']);
                 }
@@ -151,7 +159,11 @@ class ManualRefundProcessor implements RefundProcessor
             }
 
             // 6. Send Refund Completed Email with Credit Note PDF
-            $clinicEmail = $tenant?->billingDetail?->billing_email ?? $lockedRequest->requestedBy?->email;
+            $clinicEmail = $tenant?->billingDetail?->billing_email
+                ?? $lockedRequest->requestedBy?->email
+                ?? $tenant?->email
+                ?? $tenant?->users()->whereHas('roles', fn ($q) => $q->where('name', 'clinic_admin'))->value('email');
+
             if ($clinicEmail) {
                 try {
                     $pdfBinary = $this->pdfService->generatePdf($lockedRequest);

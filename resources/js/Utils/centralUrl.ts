@@ -29,3 +29,4 @@ export function getCentralUrl(path: string, fallbackBaseDomain?: string): string
     const portSuffix = port && port !== '80' && port !== '443' ? `:${port}` : '';
     return `${protocol}//${centralHostname}${portSuffix}${cleanPath}`;
 }
+
