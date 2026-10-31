@@ -50,17 +50,28 @@ class PharmacyPermissionsTest extends TestCase
             'email' => 'admin@helasetha.lk',
         ]);
 
-        // Accessing pharmacy index returns 403
+        // Accessing pharmacy index via HTML redirects to dashboard with notice
         $response = $this->actingAs($admin)
             ->get("http://{$this->disabledTenant->subdomain}.{$this->baseDomain}/pharmacy/medicines");
 
-        $response->assertStatus(403);
+        $response->assertRedirect();
 
-        // Accessing GRN create returns 403
+        // JSON / API request returns 403
+        $responseJson = $this->actingAs($admin)
+            ->getJson("http://{$this->disabledTenant->subdomain}.{$this->baseDomain}/pharmacy/medicines");
+
+        $responseJson->assertStatus(403);
+
+        // Accessing GRN create via HTML redirects
         $responseReceipt = $this->actingAs($admin)
             ->get("http://{$this->disabledTenant->subdomain}.{$this->baseDomain}/pharmacy/receipts/create");
 
-        $responseReceipt->assertStatus(403);
+        $responseReceipt->assertRedirect();
+
+        $responseReceiptJson = $this->actingAs($admin)
+            ->getJson("http://{$this->disabledTenant->subdomain}.{$this->baseDomain}/pharmacy/receipts/create");
+
+        $responseReceiptJson->assertStatus(403);
     }
 
     public function test_receptionist_can_view_stock_but_cannot_receive_or_adjust(): void

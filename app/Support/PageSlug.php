@@ -14,6 +14,31 @@ class PageSlug
     public const MAX_LENGTH = 60;
 
     /**
+     * Reserved slugs that cannot be used by custom clinic pages.
+     * Prevents collisions with tenant routes, central legal documents, and system paths.
+     */
+    public const RESERVED_SLUGS = [
+        'terms',
+        'privacy-policy',
+        'refund-policy',
+        'dispute-policy',
+        'privacy',
+        'refund',
+        'dispute',
+        'login',
+        'logout',
+        'register',
+        'book',
+        'queue',
+        'dashboard',
+        'settings',
+        'admin',
+        'demo',
+        'clinic',
+        'impersonate',
+    ];
+
+    /**
      * Validation rules for a page slug. Uniqueness deliberately counts
      * soft-deleted rows so a restore can never collide.
      *
@@ -27,7 +52,14 @@ class PageSlug
             $unique->ignore($ignoreId);
         }
 
-        return ['required', 'string', 'max:'.self::MAX_LENGTH, 'regex:'.self::PATTERN, $unique];
+        return [
+            'required',
+            'string',
+            'max:'.self::MAX_LENGTH,
+            'regex:'.self::PATTERN,
+            Rule::notIn(self::RESERVED_SLUGS),
+            $unique,
+        ];
     }
 
     /**

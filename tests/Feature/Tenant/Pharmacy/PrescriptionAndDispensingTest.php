@@ -650,10 +650,13 @@ class PrescriptionAndDispensingTest extends TestCase
         $this->tenant->pharmacy_enabled = false;
         $this->tenant->save();
 
-        // Dispense counter access returns 403
+        // Dispense counter access redirects to dashboard with notice, JSON returns 403
         $urlDispense = "http://{$this->tenant->subdomain}.{$this->baseDomain}/pharmacy/dispense";
         $dispenseRes = $this->actingAs($this->pharmacistUser)->get($urlDispense);
-        $dispenseRes->assertStatus(403);
+        $dispenseRes->assertRedirect();
+
+        $dispenseJson = $this->actingAs($this->pharmacistUser)->getJson($urlDispense);
+        $dispenseJson->assertStatus(403);
 
         // But doctor can still write prescriptions
         $urlConsultation = "http://{$this->tenant->subdomain}.{$this->baseDomain}/doctor/consultation/{$this->token->id}";

@@ -6,6 +6,7 @@ namespace App\Console\Commands;
 
 use App\Mail\Subscription\RefundSlaOverdueAdminMail;
 use App\Models\RefundRequest;
+use App\Services\TelegramNotificationService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -43,11 +44,21 @@ class CheckRefundSlasCommand extends Command
             return $r->created_at->diffInWeekdays($now) >= 2;
         });
 
-        // 2. Approved requests not marked refunded after > 5 working days
+        // 2. Approved requests waiting for manual Payments.lk refund
         $approvedRequests = RefundRequest::with('tenant')
             ->whereIn('status', [RefundRequest::STATUS_APPROVED, RefundRequest::STATUS_PROCESSING])
             ->whereNotNull('decided_at')
             ->get();
+
+        // Telegram reminder for any approved refund pending manual Payments.lk execution >= 2 days
+        $telegram = app(TelegramNotificationService::class);
+        foreach ($approvedRequests as $appReq) {
+            $daysPending = (int) $appReq->decided_at->diffInDays($now);
+            if ($daysPending >= 2) {
+                $this->warn("Dispatching Telegram reminder for refund {$appReq->public_id} ({$daysPending} days pending)...");
+                $telegram->sendPendingRefundReminder($appReq, $daysPending);
+            }
+        }
 
         $unrefundedOverdue = $approvedRequests->filter(function (RefundRequest $r) use ($now) {
             return $r->decided_at?->diffInWeekdays($now) >= 5;

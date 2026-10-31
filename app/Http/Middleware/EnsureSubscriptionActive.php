@@ -15,6 +15,10 @@ class EnsureSubscriptionActive
      */
     protected array $allowedRouteNames = [
         'agreements.accept',
+        'tenant.legal.terms',
+        'tenant.legal.privacy',
+        'tenant.legal.refund',
+        'tenant.legal.dispute',
         'tenant.suspended',
         'tenant.subscription.subscribe',
         'tenant.subscription.validate_promo',

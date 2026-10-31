@@ -21,11 +21,18 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // 1. Roles
+        // 1. Roles (Required in all environments)
         $superAdminRole = Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
         $clinicAdminRole = Role::firstOrCreate(['name' => 'clinic_admin', 'guard_name' => 'web']);
         $doctorRole = Role::firstOrCreate(['name' => 'doctor', 'guard_name' => 'web']);
         $receptionistRole = Role::firstOrCreate(['name' => 'receptionist', 'guard_name' => 'web']);
+
+        $this->call(PlanMatrixSeeder::class);
+
+        // Demo / Development accounts must NEVER be created in production environments
+        if (app()->environment('production')) {
+            return;
+        }
 
         // 2. Demo Tenant
         $demoTenant = Tenant::firstOrCreate(

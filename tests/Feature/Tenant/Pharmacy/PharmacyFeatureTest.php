@@ -501,10 +501,17 @@ class PharmacyFeatureTest extends TestCase
         ]);
         $userB->givePermissionTo('pharmacy.view');
 
+        // HTML request redirects to dashboard with lock panel / warning
         $response = $this->actingAs($userB)
             ->get("http://{$this->tenantB->subdomain}.{$this->baseDomain}/pharmacy/medicines");
 
-        $response->assertStatus(403);
+        $response->assertRedirect();
+
+        // JSON / API request returns 403 forbidden
+        $responseJson = $this->actingAs($userB)
+            ->getJson("http://{$this->tenantB->subdomain}.{$this->baseDomain}/pharmacy/medicines");
+
+        $responseJson->assertStatus(403);
 
         // Clinic Alpha has pharmacy_enabled = true
         $responseAlpha = $this->actingAs($this->userA)

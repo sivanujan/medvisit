@@ -105,9 +105,9 @@ export default function RefundsIndex({ refunds, filters, counts }: Props) {
             case 'refunded':
                 return <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">Refunded</span>;
             case 'approved':
-                return <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/30">Approved</span>;
+                return <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/30">Approved — waiting for refund</span>;
             case 'processing':
-                return <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/30 animate-pulse">Processing</span>;
+                return <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/30 animate-pulse">Approved — waiting for refund</span>;
             case 'under_review':
                 return <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30">Under Review</span>;
             case 'rejected':
@@ -179,13 +179,13 @@ export default function RefundsIndex({ refunds, filters, counts }: Props) {
                         }`}
                     >
                         <div className="flex items-center justify-between text-xs font-medium text-slate-500 dark:text-slate-400">
-                            <span>Ready to Execute</span>
+                            <span>Approved — waiting for refund</span>
                             <Clock className="w-3.5 h-3.5 text-blue-500" />
                         </div>
                         <div className="mt-2 text-2xl font-bold text-[#1E6FD9] dark:text-blue-400">
                             {counts.processing}
                         </div>
-                        <div className="mt-1 text-xs text-slate-500">Payments.lk dashboard reversal</div>
+                        <div className="mt-1 text-xs text-slate-500">Payments.lk dashboard action</div>
                     </button>
 
                     <button
@@ -241,7 +241,20 @@ export default function RefundsIndex({ refunds, filters, counts }: Props) {
                             />
                         </div>
 
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
+                            <select
+                                value={statusFilter}
+                                onChange={(e) => handleFilterChange(e.target.value)}
+                                className="px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-white/10 bg-white/50 dark:bg-slate-800/50 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#1E6FD9]/30"
+                            >
+                                <option value="">All Statuses</option>
+                                <option value="approved">Approved — waiting for refund</option>
+                                <option value="requested">Needs Review (Requested)</option>
+                                <option value="refunded">Refunded (Completed)</option>
+                                <option value="rejected">Rejected</option>
+                                <option value="cancelled_by_clinic">Withdrawn</option>
+                            </select>
+
                             <select
                                 value={reasonFilter}
                                 onChange={(e) => {

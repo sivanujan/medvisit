@@ -66,21 +66,26 @@ class PublicLegalPagesTest extends TestCase
     }
 
     /**
-     * Test all 5 legal routes return 404 (not registered) on tenant subdomains.
+     * Test legal routes redirect to central legal documents from clinic subdomains,
+     * while unmapped central pages like /pricing return 404.
      */
     public function test_public_legal_routes_return_404_on_tenant_subdomains(): void
     {
-        $routes = [
-            '/pricing',
-            '/terms',
-            '/refund-policy',
-            '/dispute-policy',
-            '/privacy-policy',
+        // Central pricing is not accessible directly on clinic subdomain
+        $responsePricing = $this->get("http://{$this->tenant->subdomain}.{$this->baseDomain}/pricing");
+        $responsePricing->assertStatus(404);
+
+        $legalRoutes = [
+            '/terms' => 'terms',
+            '/refund-policy' => 'refund-policy',
+            '/dispute-policy' => 'dispute-policy',
+            '/privacy-policy' => 'privacy-policy',
         ];
 
-        foreach ($routes as $route) {
+        foreach ($legalRoutes as $route => $expectedPath) {
             $response = $this->get("http://{$this->tenant->subdomain}.{$this->baseDomain}{$route}");
-            $response->assertStatus(404);
+            $response->assertStatus(302);
+            $response->assertRedirect("http://{$this->baseDomain}/{$expectedPath}");
         }
     }
 

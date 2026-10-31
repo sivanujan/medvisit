@@ -466,5 +466,14 @@ class RefundWorkflowTest extends TestCase
         $this->assertFalse($env['tenant']->fresh()->isUsable());
 
         Mail::assertQueued(RefundApprovedMail::class);
+
+        // Verification of blocked access:
+        $dashResponse = $this->actingAs($env['admin'])
+            ->get("http://apprclinic.{$this->baseDomain}/dashboard");
+        $dashResponse->assertRedirect("http://apprclinic.{$this->baseDomain}/clinic/suspended");
+
+        $billingResponse = $this->actingAs($env['admin'])
+            ->get("http://apprclinic.{$this->baseDomain}/settings/billing");
+        dump($billingResponse->getStatusCode(), $billingResponse->headers->get('Location'));
     }
 }

@@ -26,6 +26,7 @@ class PlatformSettingsService
         'billing.grace_days' => 3,
         'billing.reminder_days' => '7,1',
         'billing.currency' => 'LKR',
+        'billing.refund_timeline_text' => 'usually within 3–5 business days, depending on your bank',
         // Messaging
         'messaging.sms_cost_per_message' => 1.85,
         'messaging.otp_channel_order' => ['sms', 'whatsapp'],

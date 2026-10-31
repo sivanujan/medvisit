@@ -17,14 +17,19 @@ class Plan extends Model
         'slug',
         'price_cents',
         'billing_interval',
+        'description',
         'features',
+        'limits',
         'is_active',
+        'is_public',
     ];
 
     protected $casts = [
         'price_cents' => 'integer',
         'features' => 'array',
+        'limits' => 'array',
         'is_active' => 'boolean',
+        'is_public' => 'boolean',
     ];
 
     public function subscriptions(): HasMany
@@ -38,7 +43,49 @@ class Plan extends Model
     }
 
     /**
-     * Resolve plan model by slug, syncing from config('medvisit_public.plans') if missing.
+     * Check if this plan permits a specific feature flag.
+     */
+    public function allowsFeature(string $feature): bool
+    {
+        $features = $this->features ?? [];
+
+        if (isset($features[$feature])) {
+            return (bool) $features[$feature];
+        }
+
+        if (in_array($feature, $features, true)) {
+            return true;
+        }
+
+        $configFeatures = config("plans.tiers.{$this->slug}.features");
+        if (isset($configFeatures[$feature])) {
+            return (bool) $configFeatures[$feature];
+        }
+
+        return false;
+    }
+
+    /**
+     * Get a numeric resource limit (-1 indicates unlimited).
+     */
+    public function getLimit(string $limitKey, int $default = 0): int
+    {
+        $limits = $this->limits ?? [];
+
+        if (isset($limits[$limitKey])) {
+            return (int) $limits[$limitKey];
+        }
+
+        $configLimits = config("plans.tiers.{$this->slug}.limits");
+        if (isset($configLimits[$limitKey])) {
+            return (int) $configLimits[$limitKey];
+        }
+
+        return $default;
+    }
+
+    /**
+     * Resolve plan model by slug, syncing from config('plans.tiers') if missing.
      */
     public static function forSlug(string $slug): ?self
     {
@@ -47,15 +94,18 @@ class Plan extends Model
             return $plan;
         }
 
-        $config = config("medvisit_public.plans.{$slug}");
+        $config = config("plans.tiers.{$slug}") ?? config("medvisit_public.plans.{$slug}");
         if ($config) {
             return static::create([
                 'name' => $config['name'] ?? ucfirst($slug),
                 'slug' => $slug,
                 'price_cents' => (int) ($config['price_cents'] ?? 0),
-                'billing_interval' => 'month',
+                'billing_interval' => $config['billing_interval'] ?? 'month',
+                'description' => $config['description'] ?? null,
+                'limits' => $config['limits'] ?? [],
                 'features' => $config['features'] ?? [],
                 'is_active' => true,
+                'is_public' => (bool) ($config['is_public'] ?? true),
             ]);
         }
 

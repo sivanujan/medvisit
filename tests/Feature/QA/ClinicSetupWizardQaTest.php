@@ -5,6 +5,7 @@ namespace Tests\Feature\QA;
 use App\Mail\Clinic\ClinicReadyMail;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\Plans\PlanGate;
 use Carbon\Carbon;
 use Database\Seeders\QaScenarioSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -136,6 +137,9 @@ class ClinicSetupWizardQaTest extends TestCase
         tenancy()->end();
 
         // Step 8: Pharmacy on Basic Plan (tenant B: apexcare) is blocked with upgrade message
+        config(['plans.gating_enabled' => true]);
+        PlanGate::clearCache();
+
         $adminB = User::withoutGlobalScopes()->where('email', 'admin@apexcare.test')->firstOrFail();
         $responsePharmacyBasic = $this->actingAs($adminB)
             ->postJson("http://apexcare.{$this->baseDomain}/setup/step/8", [

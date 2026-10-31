@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Billing;
 
+use App\Mail\Subscription\SmsQuotaThresholdMail;
 use App\Mail\Subscription\SubscriptionCancelledMail;
 use App\Mail\Subscription\SubscriptionPastDueMail;
 use App\Mail\Subscription\SubscriptionPaymentFailedMail;
@@ -300,6 +301,43 @@ class SubscriptionNotificationService
             ->where('event_type', $eventType)
             ->where('reference', $reference)
             ->exists();
+    }
+
+    /**
+     * Send 80% or 100% SMS threshold notification (idempotent per threshold event).
+     */
+    public function sendSmsThresholdNotice(Tenant $tenant, int $percent, int $used, int $limit): void
+    {
+        $eventType = "sms_threshold_{$percent}";
+        $period = Carbon::now('Asia/Colombo')->format('Y-m');
+        $reference = "sms:{$period}:{$percent}";
+
+        $recipients = $this->resolveRecipients($tenant);
+        $billingUrl = $this->resolveBillingUrl($tenant);
+
+        foreach ($recipients as $email) {
+            if (! $this->shouldSend($tenant->id, $eventType, "{$reference}:{$email}")) {
+                continue;
+            }
+
+            $mailable = new SmsQuotaThresholdMail(
+                $tenant,
+                $percent,
+                $used,
+                $limit,
+                $billingUrl
+            );
+
+            Mail::to($email)->queue($mailable);
+
+            $this->markSent($tenant->id, $eventType, "{$reference}:{$email}", $email, [
+                'percent' => $percent,
+                'used' => $used,
+                'limit' => $limit,
+            ]);
+
+            Log::info("SubscriptionNotificationService: Queued SMS {$percent}% threshold alert to [{$email}] for tenant [{$tenant->id}]");
+        }
     }
 
     /**

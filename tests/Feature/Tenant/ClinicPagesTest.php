@@ -290,6 +290,19 @@ class ClinicPagesTest extends TestCase
         }
     }
 
+    public function test_cannot_create_page_with_reserved_legal_slug(): void
+    {
+        $this->actingAs($this->adminA)
+            ->postJson($this->urlA('/website/pages'), ['title' => 'Terms', 'slug' => 'terms', 'source' => 'blank'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['slug']);
+
+        $this->actingAs($this->adminA)
+            ->postJson($this->urlA('/website/pages'), ['title' => 'Privacy', 'slug' => 'privacy-policy', 'source' => 'blank'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['slug']);
+    }
+
     public function test_database_rejects_second_homepage_for_same_tenant(): void
     {
         $this->makePage('home', ['is_homepage' => true]);

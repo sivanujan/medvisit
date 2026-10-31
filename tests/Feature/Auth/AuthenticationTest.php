@@ -19,9 +19,12 @@ class AuthenticationTest extends TestCase
         $response->assertStatus(200);
     }
 
-    public function test_demo_credentials_are_only_displayed_in_local_environment(): void
+    public function test_demo_credentials_are_only_displayed_in_local_environment_with_dev_quick_login(): void
     {
-        // Demo accounts live on the platform admin page only, and only locally.
+        // 1. By default, even in local environment, showDemoCredentials is false when DEV_QUICK_LOGIN is false
+        $this->app->detectEnvironment(fn () => 'local');
+        config(['auth.dev_quick_login' => false]);
+
         $response = $this->get('/admin/login');
         $response->assertStatus(200);
         $response->assertInertia(fn ($page) => $page
@@ -29,13 +32,52 @@ class AuthenticationTest extends TestCase
             ->where('showDemoCredentials', false)
         );
 
-        $this->app->detectEnvironment(fn () => 'local');
+        // 2. Only when both local environment AND auth.dev_quick_login is true, showDemoCredentials is true
+        config(['auth.dev_quick_login' => true]);
         $responseLocal = $this->get('/admin/login');
         $responseLocal->assertStatus(200);
         $responseLocal->assertInertia(fn ($page) => $page
             ->component('Auth/AdminLogin')
             ->where('showDemoCredentials', true)
         );
+
+        // 3. In production, never shown even if dev_quick_login was set
+        $this->app->detectEnvironment(fn () => 'production');
+        $responseProd = $this->get('/admin/login');
+        $responseProd->assertStatus(200);
+        $responseProd->assertInertia(fn ($page) => $page
+            ->component('Auth/AdminLogin')
+            ->where('showDemoCredentials', false)
+        );
+
+        // Reset environment back to testing
+        $this->app->detectEnvironment(fn () => 'testing');
+    }
+
+    public function test_superadmin_cannot_authenticate_with_password123_when_password_is_password123_exclamation(): void
+    {
+        $superadmin = User::factory()->create([
+            'email' => 'superadmin@medvisit.test',
+            'password' => bcrypt('Password123!'),
+            'tenant_id' => null,
+        ]);
+
+        // Attempting with 'Password123' (missing exclamation mark) MUST strictly fail
+        $response = $this->from('/login')->post('/login', [
+            'email' => 'superadmin@medvisit.test',
+            'password' => 'Password123',
+        ]);
+
+        $this->assertGuest();
+        $response->assertSessionHasErrors('email');
+
+        // Attempting with correct 'Password123!' succeeds
+        $responseSuccess = $this->post('/login', [
+            'email' => 'superadmin@medvisit.test',
+            'password' => 'Password123!',
+        ]);
+
+        $this->assertAuthenticatedAs($superadmin);
     }
 
     public function test_central_login_is_the_clinic_finder_without_admin_props(): void

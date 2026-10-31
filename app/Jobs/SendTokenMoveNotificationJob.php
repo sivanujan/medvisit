@@ -6,6 +6,8 @@ namespace App\Jobs;
 
 use App\Models\AuditEvent;
 use App\Models\BookingToken;
+use App\Models\Tenant;
+use App\Services\Plans\PlanGate;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -43,7 +45,18 @@ class SendTokenMoveNotificationJob implements ShouldQueue
         $message = "MedVisit: Your appointment for {$patient->name} has been moved to {$docName} on {$dateFormatted} at approx. {$approxTime}. Your new token is #{$newToken->token_number}.";
 
         $tenantId = $newToken->tenant_id;
+        $tenant = Tenant::find($tenantId);
         $phone = $patient->phone;
+
+        // PlanGate SMS allowance check
+        if ($tenant) {
+            $allowance = app(PlanGate::class)->checkSmsAllowance($tenant, 'queue_alert');
+            if (! $allowance['allowed']) {
+                Log::info("SendTokenMoveNotificationJob: Skipped SMS for tenant [{$tenantId}] - {$allowance['reason']}");
+
+                return;
+            }
+        }
 
         // Check if SMS provider is configured
         $token = (string) config('services.textlk.api_token');
@@ -78,6 +91,9 @@ class SendTokenMoveNotificationJob implements ShouldQueue
 
                 if ($res->successful()) {
                     $sent = true;
+                    if ($tenant) {
+                        app(PlanGate::class)->recordSmsSent($tenant, 'queue_alert');
+                    }
                 } else {
                     $error = $res->body();
                 }

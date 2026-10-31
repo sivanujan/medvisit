@@ -10,6 +10,7 @@ use App\Models\Doctor;
 use App\Models\DoctorSession;
 use App\Models\TvDevice;
 use App\Models\TvPairingCode;
+use App\Services\Plans\PlanGate;
 use App\Support\TvDisplayHelper;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -100,6 +101,17 @@ class LiveQueueTvController extends Controller
 
         $code = trim((string) $request->input('code'));
         $tenantId = tenant('id');
+        $tenant = tenant();
+        $planGate = app(PlanGate::class);
+
+        if ($planGate->isOverLimit($tenant, 'tv_screens')) {
+            $limit = $planGate->limit($tenant, 'tv_screens');
+            $plan = $planGate->resolvePlan($tenant);
+
+            return response()->json([
+                'message' => "Maximum limit of {$limit} paired TV screen(s) reached on your {$plan->name} plan. Please upgrade to connect additional screens.",
+            ], 422);
+        }
 
         $pairingCode = TvPairingCode::where('tenant_id', $tenantId)
             ->where('code', $code)
@@ -176,11 +188,36 @@ class LiveQueueTvController extends Controller
      */
     public function createPairingCode(Request $request): JsonResponse
     {
+        $tenant = tenant();
+        $planGate = app(PlanGate::class);
+
+        if ($planGate->isOverLimit($tenant, 'tv_screens')) {
+            $limit = $planGate->limit($tenant, 'tv_screens');
+            $plan = $planGate->resolvePlan($tenant);
+
+            return response()->json([
+                'message' => "You have reached the maximum limit of {$limit} paired TV screen(s) on your {$plan->name} plan. Upgrade to connect additional screens.",
+                'error' => 'plan_limit_reached',
+                'resource' => 'tv_screens',
+                'limit' => $limit,
+                'upgrade_url' => route('tenant.settings.billing.change_plan'),
+            ], 422);
+        }
+
         $request->validate([
             'device_name' => ['nullable', 'string', 'max:50'],
             'doctor_ids' => ['nullable', 'array'],
             'doctor_ids.*' => ['integer'],
         ]);
+
+        if (! empty($request->input('doctor_ids')) && ! $planGate->allows($tenant, 'tv_multi_room')) {
+            return response()->json([
+                'message' => 'Multi-room / per-doctor TV queue filters are available on the Pro and Advanced plans. Please upgrade to filter TV displays by doctor.',
+                'error' => 'plan_locked',
+                'feature' => 'tv_multi_room',
+                'upgrade_url' => route('tenant.settings.billing.change_plan'),
+            ], 422);
+        }
 
         $code = TvPairingCode::createCode(
             tenantId: tenant('id'),
@@ -296,12 +333,16 @@ class LiveQueueTvController extends Controller
             ? 'token_only'
             : (string) ($request->query('name_display_mode') ?? $device?->name_display_mode ?? $tenant->tv_name_display_mode ?? 'token_only');
 
-        // Session/Doctor filter scoped to device or query override
+        // Session/Doctor filter scoped to device or query override (requires tv_multi_room feature on plan)
         $filterDoctorIds = null;
-        if ($device && ! empty($device->doctor_ids)) {
-            $filterDoctorIds = $device->doctor_ids;
-        } elseif ($request->filled('doctor_ids')) {
-            $filterDoctorIds = array_filter(array_map('intval', explode(',', (string) $request->query('doctor_ids'))));
+        $planAllowsMultiRoom = app(PlanGate::class)->allows($tenant, 'tv_multi_room');
+
+        if ($planAllowsMultiRoom) {
+            if ($device && ! empty($device->doctor_ids)) {
+                $filterDoctorIds = $device->doctor_ids;
+            } elseif ($request->filled('doctor_ids')) {
+                $filterDoctorIds = array_filter(array_map('intval', explode(',', (string) $request->query('doctor_ids'))));
+            }
         }
 
         $today = Carbon::today('Asia/Colombo')->toDateString();

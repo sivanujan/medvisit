@@ -137,6 +137,71 @@ class TelegramNotificationService
     }
 
     /**
+     * Send a reminder to Telegram when an approved refund has been pending manual Payments.lk execution for >= 2 days.
+     */
+    public function sendPendingRefundReminder(RefundRequest $refundRequest, int $daysPending): bool
+    {
+        // Suppress Telegram alerts for demo sandbox
+        if ($refundRequest->tenant_id && ($refundRequest->tenant_id === config('demo.tenant_id', 'demo') || $refundRequest->tenant?->is_demo)) {
+            Log::info("Telegram alert suppressed for demo refund reminder {$refundRequest->id}");
+
+            return true;
+        }
+
+        $cacheKey = "telegram_alert_pending_refund:{$refundRequest->id}";
+        if (Cache::has($cacheKey)) {
+            Log::info("Telegram pending refund reminder throttled for {$refundRequest->id}");
+
+            return false;
+        }
+
+        $botToken = (string) config('services.telegram.bot_token');
+        $chatId = (string) config('services.telegram.chat_id');
+
+        if (empty($botToken) || empty($chatId)) {
+            Log::info('Telegram pending refund notification skipped: missing bot token or chat ID.');
+
+            return false;
+        }
+
+        $clinicName = $refundRequest->tenant?->name ?? 'Clinic';
+        $amount = $refundRequest->formatted_approved_amount ?? $refundRequest->formatted_requested_amount;
+        $reviewUrl = url("/super-admin/refunds/{$refundRequest->id}");
+
+        $text = "⏳ *Refund Pending Payments.lk Action — Reminder*\n\n"
+            .'*Clinic:* '.self::escapeMarkdown($clinicName)."\n"
+            .'*Amount:* '.self::escapeMarkdown($amount)."\n"
+            .'*Pending Duration:* '.$daysPending." day(s) since approval\n"
+            ."*Status:* Approved — waiting for Payments.lk refund\n"
+            .'*Reference:* `'.self::escapeMarkdown($refundRequest->public_id)."`\n\n"
+            ."Please execute the refund in Payments.lk dashboard, then mark completed in MedVisit.\n"
+            ."👉 [Complete Refund in Admin Console]({$reviewUrl})";
+
+        try {
+            $response = Http::timeout(8)->post("https://api.telegram.org/bot{$botToken}/sendMessage", [
+                'chat_id' => $chatId,
+                'text' => $text,
+                'parse_mode' => 'Markdown',
+                'disable_web_page_preview' => true,
+            ]);
+
+            if ($response->successful()) {
+                Cache::put($cacheKey, true, now()->addHours(24));
+
+                return true;
+            }
+
+            Log::warning('Telegram send pending refund reminder failed: '.$response->body());
+
+            return false;
+        } catch (\Throwable $e) {
+            Log::error('Telegram pending refund reminder exception: '.$e->getMessage());
+
+            return false;
+        }
+    }
+
+    /**
      * Send a notification to Telegram when a new demo lead or guided demo request is created.
      * Debounced to at most once per lead phone per 24 hours.
      */

@@ -15,6 +15,7 @@ use App\Models\VisitType;
 use App\Services\AuditLogger;
 use App\Services\FeeResolutionService;
 use App\Services\Media\ImageProcessingService;
+use App\Services\Plans\PlanGate;
 use App\Services\SessionGeneratorService;
 use App\Support\TokenHelper;
 use Carbon\Carbon;
@@ -395,6 +396,28 @@ class DoctorController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        $tenant = tenant();
+        $planGate = app(PlanGate::class);
+
+        if ($planGate->isOverLimit($tenant, 'doctors')) {
+            $limit = $planGate->limit($tenant, 'doctors');
+            $plan = $planGate->resolvePlan($tenant);
+            $nextPlan = $plan?->slug === 'basic' ? 'Pro' : 'Advanced';
+            $nextLimit = $plan?->slug === 'basic' ? 'up to 8' : 'unlimited';
+            $msg = "You've reached {$limit} doctors on {$plan->name}. Upgrade to {$nextPlan} for {$nextLimit} doctors.";
+
+            return redirect()->back()->withInput()->withErrors([
+                'limit' => $msg,
+            ])->with('plan_limit_reached', [
+                'resource' => 'doctors',
+                'limit' => $limit,
+                'plan' => $plan?->name ?? 'Basic',
+                'upgrade_plan' => $nextPlan,
+                'upgrade_url' => route('tenant.settings.billing.change_plan'),
+                'message' => $msg,
+            ]);
+        }
+
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:20'],
             'name' => ['required', 'string', 'max:255'],

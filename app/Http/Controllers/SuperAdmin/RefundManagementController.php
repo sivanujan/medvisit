@@ -47,7 +47,11 @@ class RefundManagementController extends Controller
             ->latest('id');
 
         if ($status) {
-            $query->where('status', $status);
+            if ($status === 'approved' || $status === 'approved_waiting') {
+                $query->whereIn('status', [RefundRequest::STATUS_APPROVED, RefundRequest::STATUS_PROCESSING]);
+            } else {
+                $query->where('status', $status);
+            }
         }
 
         if ($reason) {
@@ -88,6 +92,16 @@ class RefundManagementController extends Controller
                 'formatted_approved_amount' => $r->formatted_approved_amount,
                 'eligibility' => $r->eligibility,
                 'status' => $r->status,
+                'status_label' => match ($r->status) {
+                    RefundRequest::STATUS_APPROVED => 'Approved — waiting for refund',
+                    RefundRequest::STATUS_REFUNDED => 'Refunded',
+                    RefundRequest::STATUS_PROCESSING => 'Processing refund',
+                    RefundRequest::STATUS_UNDER_REVIEW => 'Under review',
+                    RefundRequest::STATUS_REQUESTED => 'Requested',
+                    RefundRequest::STATUS_REJECTED => 'Rejected',
+                    RefundRequest::STATUS_CANCELLED_BY_CLINIC => 'Withdrawn',
+                    default => ucfirst(str_replace('_', ' ', $r->status)),
+                },
                 'credit_note_number' => $r->credit_note_number,
                 'created_at' => $r->created_at->toIso8601String(),
                 'created_at_human' => $r->created_at->diffForHumans(),
@@ -213,6 +227,17 @@ class RefundManagementController extends Controller
                 'eligibility' => $refundRequest->eligibility,
                 'eligibility_checks' => $refundRequest->eligibility_checks,
                 'status' => $refundRequest->status,
+                'status_label' => match ($refundRequest->status) {
+                    RefundRequest::STATUS_APPROVED => 'Approved — waiting for refund',
+                    RefundRequest::STATUS_REFUNDED => 'Refunded',
+                    RefundRequest::STATUS_PROCESSING => 'Processing refund',
+                    RefundRequest::STATUS_UNDER_REVIEW => 'Under review',
+                    RefundRequest::STATUS_REQUESTED => 'Requested',
+                    RefundRequest::STATUS_REJECTED => 'Rejected',
+                    RefundRequest::STATUS_CANCELLED_BY_CLINIC => 'Withdrawn',
+                    default => ucfirst(str_replace('_', ' ', $refundRequest->status)),
+                },
+                'refund_type' => $refundRequest->refund_type ?? ($refundRequest->approved_amount_cents && $refundRequest->approved_amount_cents < ($payment->amount_cents ?? 0) ? RefundRequest::TYPE_PARTIAL : RefundRequest::TYPE_FULL),
                 'admin_note' => $refundRequest->admin_note,
                 'decision_reason' => $refundRequest->decision_reason,
                 'decided_at' => $refundRequest->decided_at?->format('d M Y H:i'),
@@ -305,11 +330,13 @@ class RefundManagementController extends Controller
 
         $request->validate([
             'approved_amount_cents' => ['required', 'integer', 'min:1', "max:{$maxAllowed}"],
+            'refund_type' => ['nullable', 'string', 'in:full,partial'],
             'admin_note' => ['nullable', 'string', 'max:2000'],
             'decision_reason' => ['nullable', 'string', 'max:2000'],
         ]);
 
         $approvedAmount = (int) $request->input('approved_amount_cents');
+        $refundType = $request->input('refund_type') ?: ($approvedAmount < ($payment->amount_cents ?? 0) ? RefundRequest::TYPE_PARTIAL : RefundRequest::TYPE_FULL);
         $adminNote = $request->input('admin_note');
         $decisionReason = $request->input('decision_reason');
 
@@ -326,6 +353,7 @@ class RefundManagementController extends Controller
         $refundRequest->update([
             'status' => RefundRequest::STATUS_APPROVED,
             'approved_amount_cents' => $approvedAmount,
+            'refund_type' => $refundType,
             'eligibility' => $eval['eligibility'],
             'eligibility_checks' => $eval['checks'],
             'admin_note' => $adminNote ? trim(($refundRequest->admin_note ? $refundRequest->admin_note."\n\n" : '').$adminNote) : $refundRequest->admin_note,
@@ -334,13 +362,14 @@ class RefundManagementController extends Controller
             'decided_at' => Carbon::now('Asia/Colombo'),
         ]);
 
-        // Cancel subscription and revoke clinic workspace access immediately upon refund approval
+        // Cancel subscription and revoke clinic workspace access ONLY for full refunds
+        // Partial refunds / service credits (e.g. downtime compensation) keep subscription and clinic access ACTIVE
         $payment = $refundRequest->payment;
         $invoice = $payment?->invoice;
         $subscription = $invoice?->subscription ?? Subscription::where('tenant_id', $refundRequest->tenant_id)->latest('id')->first();
         $tenant = $refundRequest->tenant;
 
-        if ($subscription && $refundRequest->reason_type !== RefundRequest::REASON_TEMPLATE_PURCHASE) {
+        if ($refundType === RefundRequest::TYPE_FULL && $subscription && $refundRequest->reason_type !== RefundRequest::REASON_TEMPLATE_PURCHASE) {
             $reasonLabel = $decisionReason ?: match ($refundRequest->reason_type) {
                 RefundRequest::REASON_FIRST_PAYMENT_UNUSED => 'First payment refunded under 7-day guarantee',
                 RefundRequest::REASON_CHARGED_AFTER_CANCELLATION => 'Refunded after cancellation',
@@ -359,24 +388,37 @@ class RefundManagementController extends Controller
             }
         }
 
-        // Send approval email to clinic
-        $tenant = $refundRequest->tenant;
-        $clinicEmail = $tenant?->billingDetail?->billing_email ?? $refundRequest->requestedBy?->email;
-        $billingUrl = $tenant ? $tenant->url('/settings/billing') : url('/login');
-
-        if ($clinicEmail) {
-            try {
-                Mail::to($clinicEmail)->send(new RefundApprovedMail(
-                    $refundRequest,
-                    $tenant?->name ?? 'Clinic',
-                    $billingUrl
-                ));
-            } catch (\Throwable $e) {
-                Log::warning("Failed to dispatch refund approval email: {$e->getMessage()}");
-            }
+        // Audit Log Step 1: Approve Refund (Decision recorded, waiting for manual Payments.lk refund)
+        try {
+            AuditLogger::log('subscription.refund_approved', [
+                'tenant_id' => $refundRequest->tenant_id,
+                'resource' => $refundRequest,
+                'user_id' => auth()->id(),
+                'metadata' => [
+                    'step' => 'step_1_approve',
+                    'refund_request_id' => $refundRequest->id,
+                    'approved_amount_cents' => $approvedAmount,
+                    'refund_type' => $refundType,
+                    'decision_reason' => $decisionReason,
+                    'status' => RefundRequest::STATUS_APPROVED,
+                    'status_label' => 'Approved — waiting for refund',
+                    'note' => $refundType === RefundRequest::TYPE_FULL
+                        ? 'Approved full refund by super admin; waiting for manual Payments.lk dashboard refund. Clinic workspace access ended.'
+                        : 'Approved partial refund / service credit by super admin; waiting for manual Payments.lk dashboard refund. Clinic workspace access kept active.',
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning("Could not write refund approval audit log: {$e->getMessage()}");
         }
 
-        return back()->with('success', 'Refund of Rs. '.number_format($approvedAmount / 100, 2).' approved. You can now execute and mark it as refunded.');
+        // NOTE: NO email sent to clinic yet in Step 1.
+        // RefundApprovedMail is sent in Step 2 when the refund is executed in Payments.lk and marked completed.
+
+        $accessMsg = $refundType === RefundRequest::TYPE_FULL
+            ? 'Clinic workspace access has ended.'
+            : 'Clinic workspace access remains active (partial refund / service credit).';
+
+        return back()->with('success', 'Refund of Rs. '.number_format($approvedAmount / 100, 2).' approved — waiting for manual Payments.lk refund. '.$accessMsg);
     }
 
     /**
@@ -437,6 +479,7 @@ class RefundManagementController extends Controller
         $request->validate([
             'refund_method' => ['required', 'string', 'in:payments_lk_dashboard,bank_transfer,api'],
             'refund_reference' => ['required', 'string', 'min:3', 'max:100'],
+            'refund_date' => ['required', 'date'],
             'admin_note' => ['nullable', 'string', 'max:2000'],
             'cancel_subscription' => ['nullable', 'boolean'],
         ]);
@@ -445,12 +488,13 @@ class RefundManagementController extends Controller
             $this->refundProcessor->process($refundRequest, [
                 'method' => (string) $request->input('refund_method'),
                 'reference' => (string) $request->input('refund_reference'),
+                'refund_date' => (string) $request->input('refund_date'),
                 'admin_id' => auth()->id(),
                 'admin_note' => $request->input('admin_note'),
                 'cancel_subscription' => $request->boolean('cancel_subscription', true),
             ]);
 
-            return back()->with('success', "Refund completed successfully. Credit Note {$refundRequest->credit_note_number} generated.");
+            return back()->with('success', "Refund completed successfully. Credit Note {$refundRequest->credit_note_number} generated and clinic notified.");
         } catch (\Throwable $e) {
             return back()->with('error', "Refund processing failed: {$e->getMessage()}");
         }

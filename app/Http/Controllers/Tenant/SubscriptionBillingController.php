@@ -176,6 +176,15 @@ class SubscriptionBillingController extends Controller
         ]);
 
         $selectedPlanSlug = (string) $request->input('plan_slug', 'pro');
+
+        $plansConfig = config('medvisit_public.plans');
+        if (empty($plansConfig) || ! is_array($plansConfig)) {
+            throw new \RuntimeException("Plan configuration 'medvisit_public.plans' is missing.");
+        }
+        if (! isset($plansConfig[$selectedPlanSlug])) {
+            throw new \RuntimeException("Requested plan [{$selectedPlanSlug}] is not defined in config('medvisit_public.plans').");
+        }
+
         $plan = Plan::where('slug', $selectedPlanSlug)->where('is_active', true)->firstOrFail();
         $planPriceCents = $plan->price_cents;
 

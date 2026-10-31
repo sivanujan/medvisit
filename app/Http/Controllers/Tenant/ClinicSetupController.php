@@ -12,6 +12,7 @@ use App\Models\Doctor;
 use App\Models\Tenant;
 use App\Services\AuditLogger;
 use App\Services\Media\ImageProcessingService;
+use App\Services\Plans\PlanGate;
 use App\Support\ClinicWebsite;
 use App\Support\PrintSettings;
 use Carbon\Carbon;
@@ -75,7 +76,7 @@ class ClinicSetupController extends Controller
         $servicesSec = collect($draftSections)->firstWhere('type', 'services') ?? [];
         $look = ClinicWebsite::draftLook($tenant);
         $planSlug = (string) ($tenant->subscription?->plan?->slug ?? $tenant->plan ?? 'pro');
-        $planAllowsPharmacy = in_array($planSlug, ['pro', 'advanced', 'comp', 'standard', 'medvisit-standard'], true);
+        $planAllowsPharmacy = app(PlanGate::class)->allows($tenant, 'pharmacy');
 
         // Calculate active doctors count
         $doctorsCount = Doctor::where('tenant_id', $tenant->id)
@@ -517,8 +518,7 @@ class ClinicSetupController extends Controller
                     'stock_reduction_mode' => ['nullable', 'string', 'in:dispense,consultation,bill,finalize'],
                 ]);
 
-                $planSlug = (string) ($tenant->subscription?->plan?->slug ?? $tenant->plan ?? 'pro');
-                $planAllowsPharmacy = in_array($planSlug, ['pro', 'advanced', 'comp', 'standard', 'medvisit-standard'], true);
+                $planAllowsPharmacy = app(PlanGate::class)->allows($tenant, 'pharmacy');
 
                 if ($validated['pharmacy_enabled'] && ! $planAllowsPharmacy) {
                     throw ValidationException::withMessages([

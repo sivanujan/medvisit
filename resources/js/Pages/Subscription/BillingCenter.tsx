@@ -1025,14 +1025,14 @@ export default function BillingCenter({
                                                                     </span>
                                                                 )}
                                                                 {inv.latest_refund.status === 'approved' && (
-                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-700 dark:text-teal-400 font-medium text-[10px]">
-                                                                        <CheckCircle2 className="w-2.5 h-2.5" />
-                                                                        <span>Approved</span>
+                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-400 font-medium text-[10px]">
+                                                                        <Clock className="w-2.5 h-2.5" />
+                                                                        <span>Approved — waiting for refund</span>
                                                                     </span>
                                                                 )}
                                                                 {inv.latest_refund.status === 'refunded' && (
-                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-700 dark:text-purple-400 font-medium text-[10px]">
-                                                                        <RotateCcw className="w-2.5 h-2.5" />
+                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-medium text-[10px]">
+                                                                        <CheckCircle2 className="w-2.5 h-2.5" />
                                                                         <span>Refunded</span>
                                                                     </span>
                                                                 )}

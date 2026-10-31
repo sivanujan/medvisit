@@ -749,8 +749,10 @@ export default function AuthenticatedLayout({
                         cleanPlan = cleanPlan.charAt(0).toUpperCase() + cleanPlan.slice(1);
                     }
                     const status = tenant?.status || 'active';
+                    const subStatus = (tenant as any)?.subscription_status;
+                    const isCancelled = subStatus === 'cancelled' || status === 'cancelled';
                     const daysLeft = tenant?.subscription_days_left ?? null;
-                    const isDueSoon = daysLeft !== null && daysLeft >= 0 && daysLeft <= 5;
+                    const isDueSoon = !isCancelled && daysLeft !== null && daysLeft >= 0 && daysLeft <= 5;
                     const isOverdue = status === 'expired' || status === 'overdue' || (daysLeft !== null && daysLeft < 0);
                     const isSuspended = status === 'suspended';
 
@@ -762,10 +764,14 @@ export default function AuthenticatedLayout({
                         badgeClass = 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-300';
                         icon = <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />;
                         text = 'Suspended';
+                    } else if (isCancelled) {
+                        badgeClass = 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-300';
+                        icon = <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />;
+                        text = `${cleanPlan} · Cancelled`;
                     } else if (isOverdue) {
                         badgeClass = 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-300';
                         icon = <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />;
-                        text = `${cleanPlan} · Overdue`;
+                        text = `${cleanPlan} · Expired`;
                     } else if (isDueSoon) {
                         badgeClass = 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300';
                         icon = <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />;

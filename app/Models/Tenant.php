@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Services\PlatformSettingsService;
+use App\Services\Plans\PlanGate;
 use App\Support\SiteKit;
 use App\Support\TokenHelper;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -490,23 +490,12 @@ class Tenant extends BaseTenant
      */
     public function getTvNameDisplayModeAttribute(): string
     {
-        $val = $this->getAttributeFromArray('tv_name_display_mode');
-        if ($val === null && isset($this->attributes['data'])) {
-            $data = is_array($this->attributes['data']) ? $this->attributes['data'] : json_decode((string) $this->attributes['data'], true);
-            $val = $data['tv_name_display_mode'] ?? null;
-        }
-
-        return (string) ($val ?? 'token_only');
+        return (string) ($this->getAttributeFromArray('tv_name_display_mode') ?? 'token_only');
     }
 
     public function setTvNameDisplayModeAttribute($value): void
     {
-        $data = $this->data ?? [];
-        if (is_string($data)) {
-            $data = json_decode($data, true) ?: [];
-        }
-        $data['tv_name_display_mode'] = (string) $value;
-        $this->attributes['data'] = json_encode($data);
+        $this->attributes['tv_name_display_mode'] = (string) $value;
     }
 
     /**
@@ -536,6 +525,11 @@ class Tenant extends BaseTenant
     /**
      * Get the clean display name of the clinic's current subscription plan.
      */
+    public function isComp(): bool
+    {
+        return (bool) $this->subscription?->isComp() || (string) ($this->plan ?? '') === 'comp';
+    }
+
     public function currentPlanDisplayName(): string
     {
         $sub = $this->subscription;
@@ -638,13 +632,11 @@ class Tenant extends BaseTenant
             return max(0, (int) $this->advanced_free_template_override);
         }
 
-        $planSlug = strtolower((string) ($this->plan ?? ''));
-        if ($planSlug === 'advanced') {
-            $settings = app(PlatformSettingsService::class)->all();
-
-            return (int) ($settings['templates.free_templates_included_with_advanced'] ?? 1);
+        $limit = app(PlanGate::class)->limit($this, 'free_premium_templates');
+        if ($limit === -1) {
+            return 1;
         }
 
-        return 0;
+        return max(0, $limit);
     }
 }

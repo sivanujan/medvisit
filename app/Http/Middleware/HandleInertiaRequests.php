@@ -58,6 +58,7 @@ class HandleInertiaRequests extends Middleware
                 'subdomain' => $tenant->subdomain,
                 'is_demo' => (bool) ($tenant->is_demo ?? false),
                 'status' => $tenant->status,
+                'subscription_status' => rescue(fn () => $tenant->subscription?->status, 'none', false),
                 'phone' => $tenant->phone,
                 'address' => (string) ($tenant->formatted_address ?: $tenant->address ?: ''),
                 'address_line' => (string) ($tenant->address_line ?? ''),
@@ -69,9 +70,13 @@ class HandleInertiaRequests extends Middleware
                 'trial_days_left' => $tenant->trial_ends_at ? max(0, (int) now()->diffInDays($tenant->trial_ends_at, false)) : 14,
                 'is_trial' => $tenant->status === 'trialing' || ($tenant->trial_ends_at && now()->lt($tenant->trial_ends_at)),
                 'subscription_days_left' => rescue(function () use ($tenant) {
-                    $sub = Subscription::where('tenant_id', $tenant->id)->first();
+                    $sub = Subscription::where('tenant_id', $tenant->id)->latest('id')->first();
 
-                    return ($sub && $sub->current_period_end) ? (int) now()->diffInDays($sub->current_period_end, false) : null;
+                    if (! $sub || $sub->status === Subscription::STATUS_CANCELLED) {
+                        return 0;
+                    }
+
+                    return ($sub->current_period_end) ? max(0, (int) now()->diffInDays($sub->current_period_end, false)) : null;
                 }, null, false),
                 'base_domain' => config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost')),
                 'website_theme' => $tenant->website_theme ?? 'medvisit-teal',

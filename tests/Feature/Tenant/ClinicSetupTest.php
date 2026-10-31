@@ -9,6 +9,7 @@ use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\Plans\PlanGate;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
@@ -348,6 +349,9 @@ class ClinicSetupTest extends TestCase
 
     public function test_step_8_pharmacy_prevents_enabling_on_basic_plan_and_allows_on_pro(): void
     {
+        config(['plans.gating_enabled' => true]);
+        PlanGate::clearCache();
+
         // 1. Basic plan clinic
         $basicPlan = Plan::firstOrCreate(
             ['slug' => 'basic'],

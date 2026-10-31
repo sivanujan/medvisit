@@ -41,6 +41,10 @@ class RefundRequest extends Model
 
     public const STATUS_CANCELLED_BY_CLINIC = 'cancelled_by_clinic';
 
+    public const TYPE_FULL = 'full';
+
+    public const TYPE_PARTIAL = 'partial';
+
     public const ELIGIBILITY_ELIGIBLE = 'eligible';
 
     public const ELIGIBILITY_PARTIALLY_ELIGIBLE = 'partially_eligible';
@@ -68,6 +72,7 @@ class RefundRequest extends Model
         'eligibility',
         'eligibility_checks',
         'status',
+        'refund_type',
         'admin_note',
         'decision_reason',
         'decided_by_admin_id',

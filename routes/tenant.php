@@ -93,6 +93,43 @@ Route::middleware([
         return redirect("{$scheme}://{$centralHost}{$portSuffix}/demo");
     })->name('tenant.demo.redirect');
 
+    // Central Legal Documents Redirects (ensures links clicked on clinic subdomains smoothly load central policies)
+    Route::get('/terms', function () {
+        $centralHost = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
+        $port = request()->getPort();
+        $portSuffix = ($port && ! in_array($port, [80, 443])) ? ":{$port}" : '';
+        $scheme = request()->getScheme();
+
+        return redirect("{$scheme}://{$centralHost}{$portSuffix}/terms");
+    })->name('tenant.legal.terms');
+
+    Route::get('/privacy-policy', function () {
+        $centralHost = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
+        $port = request()->getPort();
+        $portSuffix = ($port && ! in_array($port, [80, 443])) ? ":{$port}" : '';
+        $scheme = request()->getScheme();
+
+        return redirect("{$scheme}://{$centralHost}{$portSuffix}/privacy-policy");
+    })->name('tenant.legal.privacy');
+
+    Route::get('/refund-policy', function () {
+        $centralHost = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
+        $port = request()->getPort();
+        $portSuffix = ($port && ! in_array($port, [80, 443])) ? ":{$port}" : '';
+        $scheme = request()->getScheme();
+
+        return redirect("{$scheme}://{$centralHost}{$portSuffix}/refund-policy");
+    })->name('tenant.legal.refund');
+
+    Route::get('/dispute-policy', function () {
+        $centralHost = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
+        $port = request()->getPort();
+        $portSuffix = ($port && ! in_array($port, [80, 443])) ? ":{$port}" : '';
+        $scheme = request()->getScheme();
+
+        return redirect("{$scheme}://{$centralHost}{$portSuffix}/dispute-policy");
+    })->name('tenant.legal.dispute');
+
     // 2. Tenant Public Landing & Public Online Booking
     Route::get('/', [ClinicWebsiteController::class, 'publicHome'])
         ->name('tenant.home');

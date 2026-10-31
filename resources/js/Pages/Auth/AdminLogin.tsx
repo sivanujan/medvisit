@@ -30,7 +30,13 @@ export default function AdminLogin({ status, showDemoCredentials = false }: Prop
         });
     };
 
-    const fillDemo = (email: string) => setData({ email, password: 'Password123!', remember: false });
+    const fillDemo = (email: string) => {
+        setData((prev) => ({
+            ...prev,
+            email,
+            password: 'Password123!',
+        }));
+    };
 
     return (
         <div className="ca-root flex min-h-[100dvh] flex-col antialiased">
@@ -110,6 +116,7 @@ export default function AdminLogin({ status, showDemoCredentials = false }: Prop
                                         </button>
                                     ))}
                                 </div>
+                                <p className="mt-2 text-xs text-[color:var(--ca-muted)]">Password: <code className="font-mono text-slate-800 dark:text-slate-200">Password123!</code></p>
                             </div>
                         )}
                     </div>

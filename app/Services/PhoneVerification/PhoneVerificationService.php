@@ -13,6 +13,7 @@ use App\Services\PhoneVerification\Drivers\FakeChannelDriver;
 use App\Services\PhoneVerification\Drivers\LogChannelDriver;
 use App\Services\PhoneVerification\Drivers\TextLkChannelDriver;
 use App\Services\PhoneVerification\Drivers\WhatsAppChannelDriver;
+use App\Services\Plans\PlanGate;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
@@ -236,6 +237,18 @@ class PhoneVerificationService
 
         $isDemo = (bool) ($tenant && $tenant->is_demo);
 
+        // PlanGate SMS allowance check for tenant-scoped OTP sends
+        if ($tenant && $channel === 'textlk' && ! $isDemo) {
+            $allowance = app(PlanGate::class)->checkSmsAllowance($tenant, 'patient_otp');
+            if (! $allowance['allowed']) {
+                return [
+                    'success' => false,
+                    'fallback_to_web' => (bool) ($allowance['fallback_to_web'] ?? false),
+                    'error' => $allowance['reason'] ?? 'Clinic monthly SMS quota reached.',
+                ];
+            }
+        }
+
         // Generate 6-digit random code (fixed 123456 for demo sandbox)
         $plainCode = $isDemo ? '123456' : sprintf('%06d', random_int(100000, 999999));
         $codeHash = hash('sha256', $plainCode);
@@ -286,6 +299,10 @@ class PhoneVerificationService
                 'success' => false,
                 'error' => $result['error'] ?? 'Failed to send verification code.',
             ];
+        }
+
+        if ($tenant && $channel === 'textlk' && ! $isDemo) {
+            app(PlanGate::class)->recordSmsSent($tenant, 'patient_otp');
         }
 
         $responseData = $result['data'] ?? [];

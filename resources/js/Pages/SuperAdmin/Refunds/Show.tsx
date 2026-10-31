@@ -45,6 +45,7 @@ interface Props {
             evidence: Record<string, any>;
         }>;
         status: string;
+        refund_type?: 'full' | 'partial';
         admin_note: string | null;
         decision_reason: string | null;
         decided_at: string | null;
@@ -128,8 +129,12 @@ export default function RefundsShow({
     const [showProcessModal, setShowProcessModal] = useState(false);
     const [isRechecking, setIsRechecking] = useState(false);
 
+    const initialApprovedAmount = refundRequest.eligible_amount_cents > 0 ? refundRequest.eligible_amount_cents : payment.max_refundable_cents;
+    const initialRefundType = (refundRequest.refund_type as 'full' | 'partial') || (initialApprovedAmount < (payment.amount_cents ?? 0) ? 'partial' : 'full');
+
     const approveForm = useForm({
-        approved_amount_cents: refundRequest.eligible_amount_cents > 0 ? refundRequest.eligible_amount_cents : payment.max_refundable_cents,
+        approved_amount_cents: initialApprovedAmount,
+        refund_type: initialRefundType,
         admin_note: '',
         decision_reason: '',
     });
@@ -142,6 +147,7 @@ export default function RefundsShow({
     const processForm = useForm({
         refund_method: 'payments_lk_dashboard',
         refund_reference: '',
+        refund_date: new Date().toISOString().split('T')[0],
         admin_note: '',
         cancel_subscription: true,
     });
@@ -193,7 +199,7 @@ export default function RefundsShow({
                                 <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white font-display">
                                     Refund Request <code className="text-[#1E6FD9] dark:text-blue-400">{refundRequest.public_id}</code>
                                 </h1>
-                                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider ${
+                                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
                                     refundRequest.status === 'refunded'
                                         ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
                                         : refundRequest.status === 'approved'
@@ -202,7 +208,7 @@ export default function RefundsShow({
                                         ? 'bg-rose-500/10 text-rose-600 border border-rose-500/20'
                                         : 'bg-amber-500/10 text-amber-600 border border-amber-500/20'
                                 }`}>
-                                    {refundRequest.status.replace('_', ' ')}
+                                    {refundRequest.status === 'approved' ? 'Approved — waiting for refund' : refundRequest.status.replace('_', ' ')}
                                 </span>
                             </div>
                             <p className="text-xs text-slate-500 mt-0.5">
@@ -465,7 +471,7 @@ export default function RefundsShow({
                                             <li>
                                                 Refund <strong>{refundRequest.formatted_approved_amount}</strong> to card <code className="font-mono">•••• {payment.card_last4 || '0008'}</code> (Checkout ID: <code className="text-xs">{payment.gateway_checkout_id}</code>).
                                             </li>
-                                            <li>Enter the refund reference below to finalize.</li>
+                                            <li>Enter the Payments.lk refund reference and execution date below to finalize.</li>
                                         </ol>
                                     </div>
 
@@ -475,7 +481,7 @@ export default function RefundsShow({
                                         className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm transition-colors flex items-center justify-center gap-2"
                                     >
                                         <CheckCircle2 className="w-4 h-4" />
-                                        Mark as Refunded
+                                        Mark Refund Completed (Step 2)
                                     </button>
                                 </div>
                             )}
@@ -618,10 +624,10 @@ export default function RefundsShow({
             >
                 <form onSubmit={handleApprove} className="p-6 space-y-4">
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white font-display">
-                        Approve Refund Request
+                        Step 1: Approve Refund Request
                     </h3>
                     <p className="text-xs text-slate-600 dark:text-slate-400">
-                        Review the approved amount. This will set the request status to <strong>Approved</strong> and notify the clinic.
+                        This records the approval decision and ends the clinic's workspace access immediately. The status will become <strong className="text-blue-600 dark:text-blue-400">Approved — waiting for refund</strong>. <strong>NO email will be sent to the clinic yet</strong> until you execute the refund in Payments.lk and complete Step 2.
                     </p>
 
                     <div>
@@ -636,7 +642,14 @@ export default function RefundsShow({
                                 min="1"
                                 max={payment.max_refundable_cents / 100}
                                 value={approveForm.data.approved_amount_cents / 100}
-                                onChange={(e) => approveForm.setData('approved_amount_cents', Math.round(parseFloat(e.target.value || '0') * 100))}
+                                onChange={(e) => {
+                                    const val = Math.round(parseFloat(e.target.value || '0') * 100);
+                                    approveForm.setData((prev) => ({
+                                        ...prev,
+                                        approved_amount_cents: val,
+                                        refund_type: val < payment.amount_cents ? 'partial' : prev.refund_type,
+                                    }));
+                                }}
                                 className="w-full pl-10 pr-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                                 required
                             />
@@ -644,6 +657,43 @@ export default function RefundsShow({
                         <span className="text-[11px] text-slate-500 mt-0.5 block">
                             Maximum refundable: Rs. {(payment.max_refundable_cents / 100).toFixed(2)}
                         </span>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                            Refund Type & Access Effect
+                        </label>
+                        <div className="space-y-2">
+                            <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition ${approveForm.data.refund_type === 'full' ? 'border-rose-500/50 bg-rose-50/50 dark:bg-rose-950/20' : 'border-slate-200 dark:border-white/10'}`}>
+                                <input
+                                    type="radio"
+                                    name="refund_type"
+                                    value="full"
+                                    checked={approveForm.data.refund_type === 'full'}
+                                    onChange={() => approveForm.setData('refund_type', 'full')}
+                                    className="mt-0.5 text-rose-600 focus:ring-rose-500"
+                                />
+                                <div className="text-xs">
+                                    <span className="font-semibold text-slate-900 dark:text-white block">Full refund — cancel subscription</span>
+                                    <span className="text-slate-500 dark:text-slate-400">Ends clinic workspace access immediately upon approval.</span>
+                                </div>
+                            </label>
+
+                            <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition ${approveForm.data.refund_type === 'partial' ? 'border-emerald-500/50 bg-emerald-50/50 dark:bg-emerald-950/20' : 'border-slate-200 dark:border-white/10'}`}>
+                                <input
+                                    type="radio"
+                                    name="refund_type"
+                                    value="partial"
+                                    checked={approveForm.data.refund_type === 'partial'}
+                                    onChange={() => approveForm.setData('refund_type', 'partial')}
+                                    className="mt-0.5 text-emerald-600 focus:ring-emerald-500"
+                                />
+                                <div className="text-xs">
+                                    <span className="font-semibold text-slate-900 dark:text-white block">Partial refund / service credit — keep subscription active</span>
+                                    <span className="text-slate-500 dark:text-slate-400">For downtime compensation, SLA credits, or partial invoice refunds. Clinic access continues uninterrupted.</span>
+                                </div>
+                            </label>
+                        </div>
                     </div>
 
                     <div>
@@ -685,7 +735,7 @@ export default function RefundsShow({
                             disabled={approveForm.processing}
                             className="px-4 py-2 text-xs font-semibold rounded-xl bg-[#0E9E8F] text-white hover:bg-[#0b8276] disabled:opacity-50"
                         >
-                            Confirm Approval
+                            Approve Refund (Step 1)
                         </button>
                     </div>
                 </form>
@@ -759,10 +809,10 @@ export default function RefundsShow({
             >
                 <form onSubmit={handleProcess} className="p-6 space-y-4">
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white font-display">
-                        Mark as Refunded
+                        Step 2: Mark Refund Completed
                     </h3>
                     <p className="text-xs text-slate-600 dark:text-slate-400">
-                        Record the manual refund execution. An official Credit Note will be generated and emailed to the clinic with attached PDF.
+                        Record the manual Payments.lk refund execution. An official Credit Note will be generated, the status will update to <strong className="text-emerald-600">Refunded</strong>, and the <strong>RefundApprovedMail</strong> will be dispatched to the clinic with the Credit Note attached.
                     </p>
 
                     <div>
@@ -785,37 +835,33 @@ export default function RefundsShow({
                         )}
                     </div>
 
-                    <div>
-                        <label className="flex items-start gap-2.5 cursor-pointer p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                Payments.lk Refund Reference (Required)
+                            </label>
                             <input
-                                type="checkbox"
-                                checked={processForm.data.cancel_subscription}
-                                onChange={(e) => processForm.setData('cancel_subscription', e.target.checked)}
-                                className="mt-0.5 rounded border-slate-300 dark:border-white/10 text-emerald-600 focus:ring-emerald-500 w-4 h-4"
+                                type="text"
+                                placeholder="e.g. ref_pay_rev_98721 or Tx 2026103001"
+                                value={processForm.data.refund_reference}
+                                onChange={(e) => processForm.setData('refund_reference', e.target.value)}
+                                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono"
+                                required
                             />
-                            <div className="text-xs">
-                                <span className="font-semibold text-slate-800 dark:text-slate-200">
-                                    Cancel subscription and revoke plan access
-                                </span>
-                                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                    Immediately cancels future renewals and sets clinic status to expired.
-                                </p>
-                            </div>
-                        </label>
-                    </div>
+                        </div>
 
-                    <div>
-                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                            Gateway or Bank Reference ID (Required)
-                        </label>
-                        <input
-                            type="text"
-                            placeholder="e.g. ref_pay_rev_98721 or Bank Tx 20261022001"
-                            value={processForm.data.refund_reference}
-                            onChange={(e) => processForm.setData('refund_reference', e.target.value)}
-                            className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono"
-                            required
-                        />
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                Refund Execution Date (Required)
+                            </label>
+                            <input
+                                type="date"
+                                value={processForm.data.refund_date}
+                                onChange={(e) => processForm.setData('refund_date', e.target.value)}
+                                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                required
+                            />
+                        </div>
                     </div>
 
                     <div>
@@ -826,7 +872,7 @@ export default function RefundsShow({
                             rows={2}
                             value={processForm.data.admin_note}
                             onChange={(e) => processForm.setData('admin_note', e.target.value)}
-                            placeholder="e.g. Reversal executed via merchant portal by Thanarasan."
+                            placeholder="e.g. Reversal executed via merchant portal by Super Admin."
                             className="w-full p-2.5 text-xs rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                         />
                     </div>
@@ -841,10 +887,10 @@ export default function RefundsShow({
                         </button>
                         <button
                             type="submit"
-                            disabled={processForm.processing || !processForm.data.refund_reference.trim()}
+                            disabled={processForm.processing || !processForm.data.refund_reference.trim() || !processForm.data.refund_date}
                             className="px-4 py-2 text-xs font-semibold rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
                         >
-                            Finalize & Issue Credit Note
+                            Mark Refund Completed & Email Clinic
                         </button>
                     </div>
                 </form>

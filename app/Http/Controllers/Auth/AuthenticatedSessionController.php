@@ -26,7 +26,7 @@ class AuthenticatedSessionController extends Controller
         if ($isAdmin) {
             return Inertia::render('Auth/AdminLogin', [
                 'status' => session('status'),
-                'showDemoCredentials' => app()->environment('local'),
+                'showDemoCredentials' => app()->environment('local') && config('auth.dev_quick_login', false),
             ]);
         }
 

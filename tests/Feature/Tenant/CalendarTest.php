@@ -27,6 +27,8 @@ class CalendarTest extends TestCase
     {
         parent::setUp();
 
+        Carbon::setTestNow('2026-10-22 10:00:00');
+
         $this->baseDomain = config('medvisit.base_domain', 'medvisit.localhost');
 
         $this->tenant = Tenant::factory()->active()->create([
@@ -41,6 +43,12 @@ class CalendarTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'email' => 'admin@suwa.lk',
         ]);
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        parent::tearDown();
     }
 
     public function test_week_view_returns_sessions_for_given_week_range(): void
@@ -115,16 +123,17 @@ class CalendarTest extends TestCase
             ->get("http://suwa.{$this->baseDomain}/calendar?view=week&date=2026-10-21");
 
         $response->assertStatus(200);
-        $response->assertInertia(fn (Assert $page) => $page
-            ->component('Calendar/Index')
-            ->where('view', 'week')
-            ->where('startDate', '2026-10-19')
-            ->where('endDate', '2026-10-25')
-            ->has('days', 7)
-            ->has('sessions', 3)
-            ->where('sessions.0.session_date', '2026-10-19')
-            ->where('sessions.1.session_date', '2026-10-21')
-            ->where('sessions.2.session_date', '2026-10-23')
+        $response->assertInertia(
+            fn (Assert $page) => $page
+                ->component('Calendar/Index')
+                ->where('view', 'week')
+                ->where('startDate', '2026-10-19')
+                ->where('endDate', '2026-10-25')
+                ->has('days', 7)
+                ->has('sessions', 3)
+                ->where('sessions.0.session_date', '2026-10-19')
+                ->where('sessions.1.session_date', '2026-10-21')
+                ->where('sessions.2.session_date', '2026-10-23')
         );
     }
 
@@ -170,12 +179,13 @@ class CalendarTest extends TestCase
             ->get("http://suwa.{$this->baseDomain}/calendar?view=day&date=2026-10-22");
 
         $response->assertStatus(200);
-        $response->assertInertia(fn (Assert $page) => $page
-            ->component('Calendar/Index')
-            ->where('view', 'day')
-            ->where('selectedDate', '2026-10-22')
-            ->has('sessions', 1)
-            ->where('sessions.0.session_date', '2026-10-22')
+        $response->assertInertia(
+            fn (Assert $page) => $page
+                ->component('Calendar/Index')
+                ->where('view', 'day')
+                ->where('selectedDate', '2026-10-22')
+                ->has('sessions', 1)
+                ->where('sessions.0.session_date', '2026-10-22')
         );
     }
 
@@ -240,16 +250,17 @@ class CalendarTest extends TestCase
             ->get("http://suwa.{$this->baseDomain}/calendar?view=day&date=2026-10-22");
 
         $response->assertStatus(200);
-        $response->assertInertia(fn (Assert $page) => $page
-            ->component('Calendar/Index')
-            ->where('sessions.0.effective_status', 'overrunning')
-            ->where('sessions.0.status_label', 'Overrunning')
-            ->where('sessions.0.is_overrunning', true)
-            ->where('sessions.1.effective_status', 'not_started')
-            ->where('sessions.1.status_label', 'Not started')
-            ->where('sessions.1.is_past_unstarted', true)
-            ->where('tenant.live_sessions_count', 0)
-            ->where('tenant.overrunning_sessions_count', 1)
+        $response->assertInertia(
+            fn (Assert $page) => $page
+                ->component('Calendar/Index')
+                ->where('sessions.0.effective_status', 'overrunning')
+                ->where('sessions.0.status_label', 'Overrunning')
+                ->where('sessions.0.is_overrunning', true)
+                ->where('sessions.1.effective_status', 'not_started')
+                ->where('sessions.1.status_label', 'Not started')
+                ->where('sessions.1.is_past_unstarted', true)
+                ->where('tenant.live_sessions_count', 0)
+                ->where('tenant.overrunning_sessions_count', 1)
         );
 
         Carbon::setTestNow(); // reset

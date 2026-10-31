@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Refunds;
 
 use App\Contracts\RefundProcessor;
-use App\Mail\Subscription\RefundCompletedMail;
+use App\Mail\Subscription\RefundApprovedMail;
 use App\Models\PaymentTransaction;
 use App\Models\RefundRequest;
 use App\Models\Subscription;
@@ -74,10 +74,14 @@ class ManualRefundProcessor implements RefundProcessor
 
             // 2. Update Refund Request
             $oldStatus = $lockedRequest->status;
+            $refundDate = ! empty($context['refund_date'])
+                ? Carbon::parse($context['refund_date'])->setTimezone('Asia/Colombo')
+                : Carbon::now('Asia/Colombo');
+
             $lockedRequest->status = RefundRequest::STATUS_REFUNDED;
             $lockedRequest->refund_method = $context['method'] ?? RefundRequest::METHOD_PAYMENTS_LK_DASHBOARD;
             $lockedRequest->refund_reference = $context['reference'];
-            $lockedRequest->refunded_at = Carbon::now('Asia/Colombo');
+            $lockedRequest->refunded_at = $refundDate;
 
             if (! empty($context['admin_note'])) {
                 $lockedRequest->admin_note = trim(($lockedRequest->admin_note ? $lockedRequest->admin_note."\n\n" : '').$context['admin_note']);
@@ -94,7 +98,11 @@ class ManualRefundProcessor implements RefundProcessor
             $subscription = $invoice?->subscription ?? Subscription::where('tenant_id', $lockedRequest->tenant_id)->latest('id')->first();
             $tenant = $lockedRequest->tenant;
 
-            $shouldCancelPlan = ($context['cancel_subscription'] ?? true)
+            $isPartial = ($lockedRequest->refund_type === RefundRequest::TYPE_PARTIAL)
+                || (($context['cancel_subscription'] ?? true) === false);
+
+            $shouldCancelPlan = ! $isPartial
+                && ($context['cancel_subscription'] ?? true)
                 && $lockedRequest->reason_type !== RefundRequest::REASON_TEMPLATE_PURCHASE;
 
             if ($subscription && $shouldCancelPlan) {
@@ -139,17 +147,19 @@ class ManualRefundProcessor implements RefundProcessor
 
             // 5. Audit Logging
             try {
-                AuditLogger::log('subscription.refund_processed', [
+                AuditLogger::log('subscription.refund_completed', [
                     'tenant_id' => $lockedRequest->tenant_id,
                     'resource' => $lockedRequest,
                     'user_id' => $context['admin_id'] ?? null,
                     'metadata' => [
+                        'step' => 'step_2_mark_refund_completed',
                         'refund_request_id' => $lockedRequest->id,
                         'credit_note_number' => $lockedRequest->credit_note_number,
                         'payment_id' => $payment->id,
                         'amount_cents' => $approvedAmountCents,
                         'method' => $lockedRequest->refund_method,
                         'reference' => $lockedRequest->refund_reference,
+                        'refund_date' => $lockedRequest->refunded_at?->toIso8601String(),
                         'old_status' => $oldStatus,
                         'new_status' => RefundRequest::STATUS_REFUNDED,
                     ],
@@ -158,7 +168,7 @@ class ManualRefundProcessor implements RefundProcessor
                 Log::warning("Could not write refund audit log: {$e->getMessage()}");
             }
 
-            // 6. Send Refund Completed Email with Credit Note PDF
+            // 6. Send Refund Approved & Completed Email with Credit Note PDF
             $clinicEmail = $tenant?->billingDetail?->billing_email
                 ?? $lockedRequest->requestedBy?->email
                 ?? $tenant?->email
@@ -167,9 +177,14 @@ class ManualRefundProcessor implements RefundProcessor
             if ($clinicEmail) {
                 try {
                     $pdfBinary = $this->pdfService->generatePdf($lockedRequest);
-                    Mail::to($clinicEmail)->send(new RefundCompletedMail($lockedRequest, $pdfBinary));
+                    Mail::to($clinicEmail)->send(new RefundApprovedMail(
+                        $lockedRequest,
+                        $tenant?->name ?? 'Clinic',
+                        $tenant ? $tenant->url('/settings/billing') : url('/login'),
+                        $pdfBinary
+                    ));
                 } catch (\Throwable $e) {
-                    Log::warning("Could not dispatch refund completed email: {$e->getMessage()}");
+                    Log::warning("Could not dispatch refund approved/completed email: {$e->getMessage()}");
                 }
             }
 

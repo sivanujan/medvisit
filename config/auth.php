@@ -20,6 +20,8 @@ return [
         'passwords' => env('AUTH_PASSWORD_BROKER', 'users'),
     ],
 
+    'dev_quick_login' => (bool) env('DEV_QUICK_LOGIN', false),
+
     /*
     |--------------------------------------------------------------------------
     | Authentication Guards

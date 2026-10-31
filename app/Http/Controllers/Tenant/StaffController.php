@@ -9,6 +9,7 @@ use App\Mail\StaffInviteMail;
 use App\Models\Doctor;
 use App\Models\StaffInvitation;
 use App\Models\User;
+use App\Services\Plans\PlanGate;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -178,7 +179,28 @@ class StaffController extends Controller
      */
     public function invite(Request $request): RedirectResponse
     {
-        $tenantId = tenant('id');
+        $tenant = tenant();
+        $tenantId = $tenant->id;
+        $planGate = app(PlanGate::class);
+
+        if ($planGate->isOverLimit($tenant, 'staff')) {
+            $limit = $planGate->limit($tenant, 'staff');
+            $plan = $planGate->resolvePlan($tenant);
+            $nextPlan = $plan?->slug === 'basic' ? 'Pro' : 'Advanced';
+            $nextLimit = $plan?->slug === 'basic' ? 'up to 15' : 'unlimited';
+            $msg = "You've reached {$limit} active staff on {$plan->name}. Upgrade to {$nextPlan} for {$nextLimit} staff users.";
+
+            return redirect()->back()->withInput()->withErrors([
+                'email' => $msg,
+            ])->with('plan_limit_reached', [
+                'resource' => 'staff',
+                'limit' => $limit,
+                'plan' => $plan?->name ?? 'Basic',
+                'upgrade_plan' => $nextPlan,
+                'upgrade_url' => route('tenant.settings.billing.change_plan'),
+                'message' => $msg,
+            ]);
+        }
 
         $validated = $request->validate([
             'email' => ['required', 'email', 'max:255'],

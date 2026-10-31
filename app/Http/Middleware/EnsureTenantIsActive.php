@@ -20,7 +20,7 @@ class EnsureTenantIsActive
     {
         $tenant = tenant();
 
-        if ($tenant && (!$tenant->isUsable())) {
+        if ($tenant && (! $tenant->isUsable())) {
             // Allow viewing the suspension page, subscribe/checkout, payment return/status, and logging out
             if ($request->routeIs(
                 'tenant.suspended',
@@ -37,11 +37,11 @@ class EnsureTenantIsActive
             return redirect()->route('tenant.suspended');
         }
 
-        if ($request->user() && $tenant && $request->user()->tenant_id !== $tenant->id && !$request->user()->hasRole('super_admin')) {
+        if ($request->user() && $tenant && $request->user()->tenant_id !== $tenant->id && ! $request->user()->hasRole('super_admin')) {
             abort(403, 'Unauthorized tenant access.');
         }
 
-        if ($request->user() && !(bool) ($request->user()->is_active ?? true)) {
+        if ($request->user() && ! (bool) ($request->user()->is_active ?? true)) {
             Auth::guard('web')->logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
