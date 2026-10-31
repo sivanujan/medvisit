@@ -658,9 +658,14 @@ class ClinicRegistrationController extends Controller
         ]);
 
         if (! $dispatchSuccess) {
+            $userMsg = (config('app.debug') && $errorMessage)
+                ? "Unable to send SMS: {$errorMessage}"
+                : 'Unable to send SMS verification code right now. Please try again in a moment.';
+
             return response()->json([
-                'message' => 'Unable to send SMS verification code right now. Please try again in a moment.',
-            ], 500);
+                'message' => $userMsg,
+                'gateway_error' => config('app.debug') ? $errorMessage : null,
+            ], 422);
         }
 
         return response()->json([

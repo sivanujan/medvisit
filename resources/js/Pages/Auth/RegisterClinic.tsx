@@ -491,16 +491,19 @@ export default function RegisterClinic({
                 body: JSON.stringify(data),
             });
 
-            const resData = await res.json();
+            const isJson = res.headers.get('content-type')?.includes('application/json');
+            const resData = isJson ? await res.json().catch(() => ({})) : {};
 
             if (!res.ok) {
-                if (res.status === 422 && resData.errors) {
+                if (res.status === 419) {
+                    setOtpError('Session expired. Please refresh the page and try again.');
+                } else if (res.status === 422 && resData.errors) {
                     Object.entries(resData.errors).forEach(([field, msgs]) => {
                         const firstMsg = Array.isArray(msgs) ? msgs[0] : (msgs as string);
                         setError(field as any, firstMsg);
                     });
                 } else {
-                    setOtpError(resData.message || 'Failed to send verification code.');
+                    setOtpError(resData?.message || `Failed to send verification code (Status ${res.status}).`);
                 }
                 setSendingCode(false);
                 return;
@@ -561,11 +564,16 @@ export default function RegisterClinic({
                 body: JSON.stringify(bodyPayload),
             });
 
-            const resData = await res.json();
+            const isJson = res.headers.get('content-type')?.includes('application/json');
+            const resData = isJson ? await res.json().catch(() => ({})) : {};
 
             if (!res.ok) {
-                setPhoneOtpError(resData.message || 'Failed to send phone OTP.');
-                if (resData.locked) setPhoneIsLocked(true);
+                if (res.status === 419) {
+                    setPhoneOtpError('Session expired. Please refresh the page and try again.');
+                } else {
+                    setPhoneOtpError(resData?.message || `Failed to send phone OTP (Status ${res.status}).`);
+                }
+                if (resData?.locked) setPhoneIsLocked(true);
                 setPhoneSendingCode(false);
                 return;
             }
@@ -620,11 +628,16 @@ export default function RegisterClinic({
                 }),
             });
 
-            const resData = await res.json();
+            const isJson = res.headers.get('content-type')?.includes('application/json');
+            const resData = isJson ? await res.json().catch(() => ({})) : {};
 
             if (!res.ok) {
-                setOtpError(resData.message || 'Incorrect verification code.');
-                if (resData.locked) {
+                if (res.status === 419) {
+                    setOtpError('Session expired. Please refresh the page and try again.');
+                } else {
+                    setOtpError(resData?.message || 'Incorrect verification code.');
+                }
+                if (resData?.locked) {
                     setIsLocked(true);
                 }
                 setVerifyingCode(false);
@@ -672,14 +685,19 @@ export default function RegisterClinic({
                 }),
             });
 
-            const resData = await res.json();
+            const isJson = res.headers.get('content-type')?.includes('application/json');
+            const resData = isJson ? await res.json().catch(() => ({})) : {};
 
             if (!res.ok) {
-                setPhoneOtpError(resData.message || 'Incorrect SMS code.');
-                if (resData.locked) {
+                if (res.status === 419) {
+                    setPhoneOtpError('Session expired. Please refresh the page and try again.');
+                } else {
+                    setPhoneOtpError(resData?.message || 'Incorrect SMS code.');
+                }
+                if (resData?.locked) {
                     setPhoneIsLocked(true);
                 }
-                if (resData.attempts_remaining !== undefined) {
+                if (resData?.attempts_remaining !== undefined) {
                     setPhoneAttemptsRemaining(resData.attempts_remaining);
                 }
                 setPhoneVerifyingCode(false);
@@ -734,10 +752,15 @@ export default function RegisterClinic({
                 }),
             });
 
-            const resData = await res.json();
+            const isJson = res.headers.get('content-type')?.includes('application/json');
+            const resData = isJson ? await res.json().catch(() => ({})) : {};
 
             if (!res.ok) {
-                setOtpError(resData.message || 'Failed to resend code.');
+                if (res.status === 419) {
+                    setOtpError('Session expired. Please refresh the page and try again.');
+                } else {
+                    setOtpError(resData?.message || 'Failed to resend code.');
+                }
                 setResendingCode(false);
                 return;
             }
