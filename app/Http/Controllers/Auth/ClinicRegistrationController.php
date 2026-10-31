@@ -277,7 +277,8 @@ class ClinicRegistrationController extends Controller
         $email = Str::lower(trim($validated['email']));
         $ip = $request->ip();
 
-        // Rate limit sending: max 5 codes per email per hour and per IP
+        // Rate limit sending: configurable per email/IP per hour (default 15)
+        $maxHourlyAttempts = (int) config('medvisit.registration_hourly_limit', 15);
         $oneHourAgo = now()->subHour();
         $emailCount = PendingRegistration::where('email', $email)
             ->where('created_at', '>=', $oneHourAgo)
@@ -287,7 +288,7 @@ class ClinicRegistrationController extends Controller
             ->where('created_at', '>=', $oneHourAgo)
             ->count();
 
-        if ($emailCount >= 5 || $ipCount >= 5) {
+        if ($emailCount >= $maxHourlyAttempts || $ipCount >= $maxHourlyAttempts) {
             return response()->json([
                 'message' => 'Too many verification codes requested. Please wait an hour before requesting a new code.',
             ], 429);
@@ -564,7 +565,9 @@ class ClinicRegistrationController extends Controller
             ], 429);
         }
 
-        // 4. Rate limits: max 3 sends per number per hour; max 5 sends per IP per hour
+        // 4. Rate limits: configurable per phone (default 3) and per IP (default 10) per hour
+        $maxPhoneHourly = (int) config('medvisit.registration_phone_hourly_limit', 3);
+        $maxIpHourly = (int) config('medvisit.registration_hourly_limit', 10);
         $oneHourAgo = now()->subHour();
         $phoneCount = PendingRegistration::where('phone', $pending->phone)
             ->whereNotNull('phone_code_hash')
@@ -576,13 +579,13 @@ class ClinicRegistrationController extends Controller
             ->where('updated_at', '>=', $oneHourAgo)
             ->count();
 
-        if ($phoneCount >= 3) {
+        if ($phoneCount >= $maxPhoneHourly) {
             return response()->json([
                 'message' => 'Too many SMS requests for this phone number. Please wait an hour before requesting a new code.',
             ], 429);
         }
 
-        if ($ipCount >= 5) {
+        if ($ipCount >= $maxIpHourly) {
             return response()->json([
                 'message' => 'Too many verification requests from your connection. Please wait an hour before trying again.',
             ], 429);

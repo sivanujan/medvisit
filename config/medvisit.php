@@ -12,6 +12,8 @@ return [
 
     // Daily global cap for registration phone OTP dispatches (alerts Telegram once if hit)
     'registration_otp_daily_limit' => (int) env('REGISTRATION_OTP_DAILY_LIMIT', 100),
+    'registration_hourly_limit' => (int) env('REGISTRATION_HOURLY_LIMIT', 10),
+    'registration_phone_hourly_limit' => (int) env('REGISTRATION_PHONE_HOURLY_LIMIT', 3),
 
     // Templates under development mode: allows clinics to preview, test, and apply premium templates freely
     'templates_under_development' => env('TEMPLATES_UNDER_DEVELOPMENT', true),
