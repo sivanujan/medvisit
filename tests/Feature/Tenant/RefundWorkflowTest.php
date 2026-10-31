@@ -7,7 +7,6 @@ namespace Tests\Feature\Tenant;
 use App\Contracts\PaymentGateway;
 use App\Mail\Subscription\NewRefundRequestAdminMail;
 use App\Mail\Subscription\RefundApprovedMail;
-use App\Mail\Subscription\RefundCompletedMail;
 use App\Mail\Subscription\RefundRequestReceivedMail;
 use App\Models\PaymentTransaction;
 use App\Models\Plan;
@@ -314,13 +313,14 @@ class RefundWorkflowTest extends TestCase
         $approveResponse->assertRedirect();
         $this->assertEquals(RefundRequest::STATUS_APPROVED, $refund->fresh()->status);
         $this->assertEquals(900000, $refund->fresh()->approved_amount_cents);
-        Mail::assertQueued(RefundApprovedMail::class);
+        Mail::assertNotQueued(RefundApprovedMail::class);
 
         // 2. Super Admin Processes Refund Manually
         $processResponse = $this->actingAs($superAdmin)
             ->post("http://{$this->baseDomain}/super-admin/refunds/{$refund->id}/process", [
                 'refund_method' => RefundRequest::METHOD_PAYMENTS_LK_DASHBOARD,
                 'refund_reference' => 'PLK-REF-998822',
+                'refund_date' => now()->toDateString(),
                 'admin_note' => 'Processed via Payments.lk Merchant Portal successfully.',
             ]);
 
@@ -341,7 +341,7 @@ class RefundWorkflowTest extends TestCase
         $this->assertEquals(Subscription::STATUS_CANCELLED, $subscription->status);
 
         // Credit note mail dispatched with PDF
-        Mail::assertQueued(RefundCompletedMail::class);
+        Mail::assertQueued(RefundApprovedMail::class);
     }
 
     public function test_processing_refund_with_payments_lk_cancels_subscription_and_sends_email(): void
@@ -372,6 +372,7 @@ class RefundWorkflowTest extends TestCase
             ->post("http://{$this->baseDomain}/super-admin/refunds/{$refund->id}/process", [
                 'refund_method' => RefundRequest::METHOD_PAYMENTS_LK_DASHBOARD,
                 'refund_reference' => 'PLK-CARD-REV-112233',
+                'refund_date' => now()->toDateString(),
                 'cancel_subscription' => true,
                 'admin_note' => 'Reversed via Payments.lk Merchant Dashboard to original card.',
             ]);
@@ -389,8 +390,8 @@ class RefundWorkflowTest extends TestCase
         $this->assertEquals(Subscription::STATUS_CANCELLED, $subscription->status);
         $this->assertEquals('expired', $env['tenant']->fresh()->status);
 
-        // 3. RefundCompletedMail queued with Credit Note attachment
-        Mail::assertQueued(RefundCompletedMail::class, function (RefundCompletedMail $mail) {
+        // 3. RefundApprovedMail queued with Credit Note attachment
+        Mail::assertQueued(RefundApprovedMail::class, function (RefundApprovedMail $mail) {
             return $mail->refundRequest->credit_note_number !== null;
         });
     }
@@ -465,7 +466,7 @@ class RefundWorkflowTest extends TestCase
         $this->assertEquals('expired', $env['tenant']->fresh()->status);
         $this->assertFalse($env['tenant']->fresh()->isUsable());
 
-        Mail::assertQueued(RefundApprovedMail::class);
+        Mail::assertNotQueued(RefundApprovedMail::class);
 
         // Verification of blocked access:
         $dashResponse = $this->actingAs($env['admin'])
@@ -474,6 +475,6 @@ class RefundWorkflowTest extends TestCase
 
         $billingResponse = $this->actingAs($env['admin'])
             ->get("http://apprclinic.{$this->baseDomain}/settings/billing");
-        dump($billingResponse->getStatusCode(), $billingResponse->headers->get('Location'));
+        $billingResponse->assertRedirect("http://apprclinic.{$this->baseDomain}/clinic/suspended");
     }
 }

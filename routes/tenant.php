@@ -302,6 +302,7 @@ Route::middleware([
             Route::post('/refunds', [BillingCenterController::class, 'requestRefund'])->name('.refund.store');
             Route::post('/refunds/{refundRequest}/cancel', [BillingCenterController::class, 'cancelRefund'])->name('.refund.cancel');
             Route::get('/refunds/{refundRequest}/credit-note', [BillingCenterController::class, 'downloadCreditNote'])->name('.refund.credit_note');
+            Route::post('/sms-topup', [BillingCenterController::class, 'purchaseSmsPack'])->name('.sms_topup');
         });
 
         // Universal Clinical Routes (accessible to all authenticated staff: clinic_admin, doctor, receptionist)
@@ -591,49 +592,51 @@ Route::middleware([
             Route::post('/website/templates/revert', [WebsiteTemplateController::class, 'revert'])
                 ->name('tenant.website.templates.revert');
 
-            // Visual Page Builder & Media Library
-            Route::get('/website/builder/media', [ClinicWebsiteController::class, 'listMedia'])
-                ->name('tenant.website.builder.media');
-            Route::post('/website/builder/media/upload', [ClinicWebsiteController::class, 'uploadMedia'])
-                ->name('tenant.website.builder.media.upload');
-            Route::delete('/website/builder/media/{asset}', [ClinicWebsiteController::class, 'deleteMedia'])
-                ->name('tenant.website.builder.media.delete');
-            Route::patch('/website/builder/media/{asset}', [ClinicWebsiteController::class, 'updateMedia'])
-                ->name('tenant.website.builder.media.update');
+            // Visual Page Builder & Media Library (requires Pro or Advanced plan)
+            Route::middleware(['plan.allows:website_builder'])->group(function () {
+                Route::get('/website/builder/media', [ClinicWebsiteController::class, 'listMedia'])
+                    ->name('tenant.website.builder.media');
+                Route::post('/website/builder/media/upload', [ClinicWebsiteController::class, 'uploadMedia'])
+                    ->name('tenant.website.builder.media.upload');
+                Route::delete('/website/builder/media/{asset}', [ClinicWebsiteController::class, 'deleteMedia'])
+                    ->name('tenant.website.builder.media.delete');
+                Route::patch('/website/builder/media/{asset}', [ClinicWebsiteController::class, 'updateMedia'])
+                    ->name('tenant.website.builder.media.update');
 
-            Route::get('/website/builder/{page?}', [ClinicWebsiteController::class, 'showBuilder'])
-                ->whereNumber('page')
-                ->name('tenant.website.builder');
-            Route::post('/website/builder/{page}/save', [ClinicWebsiteController::class, 'saveBuilder'])
-                ->whereNumber('page')
-                ->name('tenant.website.builder.save');
-            Route::post('/website/builder/{page}/publish', [ClinicWebsiteController::class, 'publishBuilder'])
-                ->whereNumber('page')
-                ->name('tenant.website.builder.publish');
-            Route::get('/website/builder/{page}/revisions', [ClinicWebsiteController::class, 'listRevisions'])
-                ->whereNumber('page')
-                ->name('tenant.website.builder.revisions');
-            Route::post('/website/builder/{page}/revert/{revision}', [ClinicWebsiteController::class, 'revertRevision'])
-                ->whereNumber(['page', 'revision'])
-                ->name('tenant.website.builder.revert');
+                Route::get('/website/builder/{page?}', [ClinicWebsiteController::class, 'showBuilder'])
+                    ->whereNumber('page')
+                    ->name('tenant.website.builder');
+                Route::post('/website/builder/{page}/save', [ClinicWebsiteController::class, 'saveBuilder'])
+                    ->whereNumber('page')
+                    ->name('tenant.website.builder.save');
+                Route::post('/website/builder/{page}/publish', [ClinicWebsiteController::class, 'publishBuilder'])
+                    ->whereNumber('page')
+                    ->name('tenant.website.builder.publish');
+                Route::get('/website/builder/{page}/revisions', [ClinicWebsiteController::class, 'listRevisions'])
+                    ->whereNumber('page')
+                    ->name('tenant.website.builder.revisions');
+                Route::post('/website/builder/{page}/revert/{revision}', [ClinicWebsiteController::class, 'revertRevision'])
+                    ->whereNumber(['page', 'revision'])
+                    ->name('tenant.website.builder.revert');
 
-            // Multi-page management (JSON API)
-            Route::get('/website/pages', [ClinicPageController::class, 'index'])
-                ->name('tenant.website.pages.index');
-            Route::get('/website/pages/trash', [ClinicPageController::class, 'trash'])
-                ->name('tenant.website.pages.trash');
-            Route::post('/website/pages', [ClinicPageController::class, 'store'])
-                ->name('tenant.website.pages.store');
-            Route::post('/website/pages/{page}/duplicate', [ClinicPageController::class, 'duplicate'])
-                ->name('tenant.website.pages.duplicate');
-            Route::patch('/website/pages/{page}', [ClinicPageController::class, 'update'])
-                ->name('tenant.website.pages.update');
-            Route::delete('/website/pages/{page}', [ClinicPageController::class, 'destroy'])
-                ->name('tenant.website.pages.destroy');
-            Route::post('/website/pages/{pageId}/restore', [ClinicPageController::class, 'restore'])
-                ->name('tenant.website.pages.restore');
-            Route::post('/website/pages/{page}/homepage', [ClinicPageController::class, 'homepage'])
-                ->name('tenant.website.pages.homepage');
+                // Multi-page management (JSON API)
+                Route::get('/website/pages', [ClinicPageController::class, 'index'])
+                    ->name('tenant.website.pages.index');
+                Route::get('/website/pages/trash', [ClinicPageController::class, 'trash'])
+                    ->name('tenant.website.pages.trash');
+                Route::post('/website/pages', [ClinicPageController::class, 'store'])
+                    ->name('tenant.website.pages.store');
+                Route::post('/website/pages/{page}/duplicate', [ClinicPageController::class, 'duplicate'])
+                    ->name('tenant.website.pages.duplicate');
+                Route::patch('/website/pages/{page}', [ClinicPageController::class, 'update'])
+                    ->name('tenant.website.pages.update');
+                Route::delete('/website/pages/{page}', [ClinicPageController::class, 'destroy'])
+                    ->name('tenant.website.pages.destroy');
+                Route::post('/website/pages/{pageId}/restore', [ClinicPageController::class, 'restore'])
+                    ->name('tenant.website.pages.restore');
+                Route::post('/website/pages/{page}/homepage', [ClinicPageController::class, 'homepage'])
+                    ->name('tenant.website.pages.homepage');
+            });
 
             Route::get('/staff', [StaffController::class, 'index'])
                 ->name('tenant.staff');
@@ -657,6 +660,7 @@ Route::middleware([
             Route::get('/settings', [ClinicSettingsController::class, 'index'])
                 ->name('tenant.settings');
             Route::get('/settings/audit/export', [ClinicSettingsController::class, 'exportAuditLogs'])
+                ->middleware(['plan.allows:audit_export'])
                 ->name('tenant.settings.audit.export');
             Route::get('/settings/{section}', [ClinicSettingsController::class, 'index'])
                 ->where('section', 'profile|branding|hours|sessions|booking|prescriptions|billing|receipts|pharmacy|directory|audit|tv')

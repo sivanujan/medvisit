@@ -219,7 +219,7 @@ class PlanGate
     public function checkSmsAllowance(Tenant $tenant, string $smsType = 'queue_alert'): array
     {
         // System and registration authentication OTPs never count against clinic quota
-        if ($smsType === 'system_auth' || $smsType === 'registration_otp') {
+        if ($smsType === 'system_auth' || $smsType === 'registration_otp' || $smsType === 'system_alert' || $smsType === 'system') {
             return [
                 'allowed' => true,
                 'deduct_type' => 'exempt',
@@ -348,9 +348,9 @@ class PlanGate
             return false;
         }
 
-        $data = $tenant->data ?? [];
+        $isLaunchOffer = (bool) ($tenant->is_launch_offer ?? ($tenant->data['is_launch_offer'] ?? false));
 
-        return (bool) ($data['is_launch_offer'] ?? false)
+        return $isLaunchOffer
             && $tenant->subscription
             && $tenant->subscription->isActive()
             && $tenant->subscription->plan?->slug === 'advanced'

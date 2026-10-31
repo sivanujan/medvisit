@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AnnouncementRecipient;
 use App\Models\BookingToken;
 use App\Models\DoctorSession;
+use App\Services\Plans\PlanGate;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -85,6 +86,56 @@ class WorkspaceNotificationController extends Controller
                     'type' => 'announcement',
                     'tone' => in_array($rec->announcement->type, ['warning', 'maintenance', 'billing'], true) ? 'primary' : 'emerald',
                 ];
+            }
+
+            // 4. In-App Alerts for Launch Offer & SMS Quota (Clinic Admins)
+            if ($user->hasRole('clinic_admin') || $user->hasRole('super_admin')) {
+                $tenant = function_exists('tenant') ? tenant() : null;
+                if ($tenant) {
+                    $planGate = app(PlanGate::class);
+
+                    // Launch offer ending notice
+                    if ($planGate->isLaunchOfferActive($tenant)) {
+                        $end = $tenant->subscription?->current_period_end?->setTimezone('Asia/Colombo');
+                        $days = $end ? max(0, (int) ceil(Carbon::now('Asia/Colombo')->diffInDays($end, false))) : 0;
+                        if ($days <= 14) {
+                            $notifications[] = [
+                                'id' => 'launch_offer_ending',
+                                'title' => 'Launch Offer Ending Soon',
+                                'message' => "Your free Advanced plan concludes in {$days} day(s). Review your clinic usage and select a plan to continue without interruption.",
+                                'time' => "{$days}d remaining",
+                                'url' => '/settings/billing/change-plan',
+                                'type' => 'billing',
+                                'tone' => $days <= 3 ? 'primary' : 'amber',
+                            ];
+                        }
+                    }
+
+                    // SMS Quota alerts
+                    $summary = $planGate->summary($tenant);
+                    $smsQuota = $summary['sms_quota'] ?? null;
+                    if ($smsQuota && $smsQuota['is_exhausted']) {
+                        $notifications[] = [
+                            'id' => 'sms_quota_exhausted',
+                            'title' => 'Monthly SMS Limit Reached',
+                            'message' => "Clinic queue SMS alerts are paused ({$smsQuota['used']}/{$smsQuota['limit']}). Add an SMS pack to resume.",
+                            'time' => 'Action required',
+                            'url' => '/settings/billing',
+                            'type' => 'billing',
+                            'tone' => 'primary',
+                        ];
+                    } elseif ($smsQuota && $smsQuota['is_warning']) {
+                        $notifications[] = [
+                            'id' => 'sms_quota_warning',
+                            'title' => 'SMS Quota at 80%',
+                            'message' => "{$smsQuota['remaining']} SMS messages remaining in this billing cycle.",
+                            'time' => 'Low quota',
+                            'url' => '/settings/billing',
+                            'type' => 'billing',
+                            'tone' => 'amber',
+                        ];
+                    }
+                }
             }
         }
 

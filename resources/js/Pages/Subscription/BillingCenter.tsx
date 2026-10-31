@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Head, Link, useForm, router } from '@inertiajs/react';
+import { Head, Link, useForm, router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { PageHeader } from '@/Components/UI/PageHeader';
 import { GlassCard } from '@/Components/UI/GlassCard';
 import Modal from '@/Components/Modal';
+import PlanUsageCard from '@/Components/Plans/PlanUsageCard';
 import { getCentralUrl } from '@/Utils/centralUrl';
 import {
     CreditCard,
@@ -35,6 +36,8 @@ import {
     Receipt,
     Info,
     HelpCircle,
+    Globe,
+    MessageSquare,
 } from 'lucide-react';
 
 interface CurrentPlanInfo {
@@ -214,11 +217,27 @@ export default function BillingCenter({
     incidents = [],
 }: BillingCenterProps) {
     // Modals & Drawers state
+    const { planGate } = usePage<any>().props;
     const [showCancelModal, setShowCancelModal] = useState(false);
     const [showChangePlanModal, setShowChangePlanModal] = useState(false);
     const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
     const [planChangeConsent, setPlanChangeConsent] = useState(false);
     const [isSubmittingPlanChange, setIsSubmittingPlanChange] = useState(false);
+
+    // SMS Top-Up Pack Modal state
+    const [showSmsPackModal, setShowSmsPackModal] = useState(false);
+    const [selectedSmsPack, setSelectedSmsPack] = useState<'sms_500' | 'sms_1000' | 'sms_3000'>('sms_1000');
+    const [isPurchasingSms, setIsPurchasingSms] = useState(false);
+
+    const handleBuySmsPack = (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsPurchasingSms(true);
+        router.post('/settings/billing/sms-topup', {
+            pack_id: selectedSmsPack,
+        }, {
+            onFinish: () => setIsPurchasingSms(false),
+        });
+    };
 
     // Refund Modal State
     const [showRefundModal, setShowRefundModal] = useState(false);
@@ -752,6 +771,56 @@ export default function BillingCenter({
                                 Cancel subscription
                             </button>
                         )}
+                    </div>
+                </GlassCard>
+
+                {/* Plan & Usage / Quotas Card */}
+                {planGate && (
+                    <PlanUsageCard
+                        planName={planGate.plan_name || currentPlan?.name || 'Basic'}
+                        isComp={Boolean(planGate.is_comp || isComp)}
+                        isLaunchOffer={Boolean(planGate.is_launch_offer)}
+                        launchOfferUntil={planGate.launch_offer_until}
+                        doctorsUsed={planGate.usage?.doctors ?? 0}
+                        doctorsLimit={planGate.limits?.doctors ?? 3}
+                        staffUsed={planGate.usage?.staff ?? 0}
+                        staffLimit={planGate.limits?.staff ?? 5}
+                        tvScreensUsed={planGate.usage?.tv_screens ?? 0}
+                        tvScreensLimit={planGate.limits?.tv_screens ?? 1}
+                        smsUsed={planGate.sms_quota?.used ?? 0}
+                        smsLimit={planGate.sms_quota?.limit ?? 300}
+                        smsRemaining={planGate.sms_quota?.remaining ?? 300}
+                        onChangePlan={() => setShowChangePlanModal(true)}
+                        onBuySmsPack={() => setShowSmsPackModal(true)}
+                    />
+                )}
+
+                {/* Custom Domain Notice Card */}
+                <GlassCard className="p-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div className="flex items-start gap-3.5">
+                            <div className="p-2.5 rounded-xl bg-[#0E9E8F]/10 text-[#0E9E8F] shrink-0">
+                                <Globe className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                                    Custom Clinic Domain (e.g. yourclinic.lk)
+                                </h4>
+                                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 max-w-2xl leading-relaxed">
+                                    Want to host your patient channeling portal on your own branded domain? Custom domain setup with managed SSL certificate is available as an add-on service.
+                                </p>
+                                <p className="text-xs font-semibold text-[#1E6FD9] dark:text-[#3b82f6] mt-1.5 flex items-center gap-1.5">
+                                    <span>Contact us via WhatsApp:</span>
+                                    <a href="https://wa.me/94701291688" target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80">
+                                        070 129 1688
+                                    </a>
+                                    <span className="text-slate-400">·</span>
+                                    <a href="mailto:hello@medvisit.lk" className="underline hover:opacity-80">
+                                        hello@medvisit.lk
+                                    </a>
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 </GlassCard>
 
@@ -1863,6 +1932,139 @@ export default function BillingCenter({
                         </button>
                     </div>
                 </form>
+            </Modal>
+
+            {/* SMS Top-Up Pack Modal */}
+            <Modal
+                show={showSmsPackModal}
+                onClose={() => setShowSmsPackModal(false)}
+                maxWidth="lg"
+            >
+                <div className="p-6 sm:p-7 font-['Poppins',sans-serif]">
+                    <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 rounded-xl bg-[#1E6FD9]/10 text-[#1E6FD9]">
+                                <MessageSquare className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                                    Top up SMS credits
+                                </h3>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    Valid for 90 days. Used when monthly plan quota runs out.
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setShowSmsPackModal(false)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    <form onSubmit={handleBuySmsPack} className="mt-5 space-y-4">
+                        <div className="space-y-3">
+                            {[
+                                {
+                                    id: 'sms_500',
+                                    name: '500 SMS pack',
+                                    sms: '500 SMS',
+                                    price: 'Rs. 1,000',
+                                    rate: 'Rs. 2.00 / SMS',
+                                },
+                                {
+                                    id: 'sms_1000',
+                                    name: '1,000 SMS pack',
+                                    sms: '1,000 SMS',
+                                    price: 'Rs. 1,800',
+                                    rate: 'Rs. 1.80 / SMS',
+                                    badge: 'Popular',
+                                },
+                                {
+                                    id: 'sms_3000',
+                                    name: '3,000 SMS pack',
+                                    sms: '3,000 SMS',
+                                    price: 'Rs. 4,500',
+                                    rate: 'Rs. 1.50 / SMS',
+                                    badge: 'Best value',
+                                },
+                            ].map((pack) => {
+                                const isSelected = selectedSmsPack === pack.id;
+                                return (
+                                    <div
+                                        key={pack.id}
+                                        onClick={() => setSelectedSmsPack(pack.id as any)}
+                                        className={`p-4 rounded-2xl border transition cursor-pointer flex items-center justify-between ${
+                                            isSelected
+                                                ? 'bg-[#1E6FD9]/10 border-[#1E6FD9] ring-2 ring-[#1E6FD9]/30'
+                                                : 'bg-slate-50/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                                                isSelected
+                                                    ? 'border-[#1E6FD9] bg-[#1E6FD9]'
+                                                    : 'border-slate-400 dark:border-slate-600'
+                                            }`}>
+                                                {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm font-semibold text-slate-900 dark:text-white">
+                                                        {pack.name}
+                                                    </span>
+                                                    {pack.badge && (
+                                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#0E9E8F]/15 text-[#0E9E8F] border border-[#0E9E8F]/30">
+                                                            {pack.badge}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <span className="text-xs text-slate-500 dark:text-slate-400">
+                                                    {pack.rate} · Non-expiring queue alerts
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="text-base font-bold text-slate-900 dark:text-white">
+                                                {pack.price}
+                                            </span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 text-xs text-slate-600 dark:text-slate-400 space-y-1">
+                            <div className="flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
+                                <Sparkles className="w-3.5 h-3.5 text-[#1E6FD9]" />
+                                <span>Instant activation via Payments.lk</span>
+                            </div>
+                            <p>
+                                Payment is handled online with gapless receipt generation. SMS credits are valid for 90 days from the purchase date.
+                            </p>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
+                            <button
+                                type="button"
+                                onClick={() => setShowSmsPackModal(false)}
+                                className="px-4 py-2 rounded-xl text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white text-xs font-semibold cursor-pointer"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={isPurchasingSms}
+                                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1E6FD9] hover:bg-[#1557b0] text-white text-xs font-semibold shadow-sm transition cursor-pointer disabled:opacity-60"
+                            >
+                                <CreditCard className="w-4 h-4" />
+                                <span>{isPurchasingSms ? 'Redirecting...' : 'Proceed to checkout'}</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </Modal>
         </AuthenticatedLayout>
     );

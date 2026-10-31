@@ -48,6 +48,11 @@ class PlatformSettingsService
         'templates.free_templates_included_with_advanced' => 1,
         'templates.base_price_cents' => 350000,
         'templates.refund_policy' => 'option_a',
+        // Launch Offer
+        'launch_offer.enabled' => false,
+        'launch_offer.free_months' => 3,
+        'launch_offer.end_date' => null,
+        'launch_offer.sms_cap' => 500,
     ];
 
     /**
@@ -79,6 +84,14 @@ class PlatformSettingsService
         $all = $this->all();
 
         return $all[$key] ?? $default ?? (self::DEFAULTS[$key] ?? null);
+    }
+
+    /**
+     * Set a single setting value.
+     */
+    public function set(string $key, mixed $value, ?int $userId = null): void
+    {
+        $this->updateMany([$key => $value], $userId);
     }
 
     /**

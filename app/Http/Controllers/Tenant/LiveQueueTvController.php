@@ -275,6 +275,17 @@ class LiveQueueTvController extends Controller
             'doctor_ids.*' => ['integer'],
         ]);
 
+        $tenant = tenant();
+        $planGate = app(PlanGate::class);
+        if (! empty($validated['doctor_ids']) && ! $planGate->allows($tenant, 'tv_multi_room')) {
+            return response()->json([
+                'message' => 'Multi-room / per-doctor TV queue filters are available on the Pro and Advanced plans. Please upgrade to filter TV displays by doctor.',
+                'error' => 'plan_locked',
+                'feature' => 'tv_multi_room',
+                'upgrade_url' => route('tenant.settings.billing.change_plan'),
+            ], 422);
+        }
+
         $device->update($validated);
 
         return response()->json(['success' => true, 'device' => $device]);

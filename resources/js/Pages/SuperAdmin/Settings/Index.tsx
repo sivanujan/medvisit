@@ -14,6 +14,7 @@ import {
     Users,
     Wrench,
     Globe,
+    Sparkles,
 } from 'lucide-react';
 
 interface Props {
@@ -23,7 +24,7 @@ interface Props {
 }
 
 export default function PlatformSettingsIndex({ settings, plans = [], baseDomain }: Props) {
-    const [activeTab, setActiveTab] = useState<'general' | 'signups' | 'billing' | 'messaging' | 'security' | 'maintenance'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'signups' | 'launch_offer' | 'billing' | 'messaging' | 'security' | 'maintenance'>('general');
     const [form, setForm] = useState<Record<string, any>>({ ...settings });
     const [isDirty, setIsDirty] = useState(false);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -117,6 +118,7 @@ export default function PlatformSettingsIndex({ settings, plans = [], baseDomain
                     {[
                         { id: 'general', label: 'General', icon: Globe },
                         { id: 'signups', label: 'Clinics & Signups', icon: Users },
+                        { id: 'launch_offer', label: 'Launch Offer', icon: Sparkles },
                         { id: 'billing', label: 'Billing & Grace Days', icon: CreditCard },
                         { id: 'messaging', label: 'Messaging & OTP', icon: MessageSquare },
                         { id: 'security', label: 'Security & 2FA', icon: Shield },
@@ -280,6 +282,78 @@ export default function PlatformSettingsIndex({ settings, plans = [], baseDomain
                                     onChange={(e) => setForm({ ...form, 'signups.require_email_verification': e.target.checked })}
                                     className="w-4 h-4 rounded text-indigo-600"
                                 />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Launch Offer Tab */}
+                    {activeTab === 'launch_offer' && (
+                        <div className="space-y-4 max-w-2xl">
+                            <h3 className="text-sm font-bold text-slate-900 dark:text-white border-b border-slate-100 dark:border-white/5 pb-2">
+                                Platform Launch Offer Configuration
+                            </h3>
+
+                            <div className="flex items-center justify-between p-3.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.02]">
+                                <div>
+                                    <div className="font-bold text-xs text-slate-900 dark:text-white">Enable Launch Offer</div>
+                                    <div className="text-[11px] text-slate-500">
+                                        When active, new clinics register directly on the Advanced tier free of charge without entering a card.
+                                    </div>
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    checked={!!form['launch_offer.enabled']}
+                                    onChange={(e) => setForm({ ...form, 'launch_offer.enabled': e.target.checked })}
+                                    className="w-4 h-4 rounded text-indigo-600"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                        Free Advanced Duration
+                                    </label>
+                                    <select
+                                        value={form['launch_offer.free_months'] ?? 3}
+                                        onChange={(e) => setForm({ ...form, 'launch_offer.free_months': parseInt(e.target.value) || 3 })}
+                                        className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-sm"
+                                    >
+                                        <option value={1}>1 Month Free</option>
+                                        <option value={2}>2 Months Free</option>
+                                        <option value={3}>3 Months Free (Recommended)</option>
+                                    </select>
+                                    <p className="text-[11px] text-slate-400 mt-1">Replaces the 14-day standard trial without stacking.</p>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                        Offer Cutoff Date
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={form['launch_offer.end_date'] || ''}
+                                        onChange={(e) => setForm({ ...form, 'launch_offer.end_date': e.target.value })}
+                                        className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-sm"
+                                    />
+                                    <p className="text-[11px] text-slate-400 mt-1">Clinics registering after this date get the normal trial.</p>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                    Promotional SMS Abuse Cap
+                                </label>
+                                <input
+                                    type="number"
+                                    min={50}
+                                    max={5000}
+                                    value={form['launch_offer.sms_cap'] ?? 500}
+                                    onChange={(e) => setForm({ ...form, 'launch_offer.sms_cap': parseInt(e.target.value) || 500 })}
+                                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-sm"
+                                />
+                                <p className="text-[11px] text-slate-400 mt-1">
+                                    Total SMS messages allowed during the free launch offer window (default 500) to protect platform SMS gateway costs.
+                                </p>
                             </div>
                         </div>
                     )}

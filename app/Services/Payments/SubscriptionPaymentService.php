@@ -10,6 +10,7 @@ use App\Models\PromoCodeRedemption;
 use App\Models\Subscription;
 use App\Models\SubscriptionInvoice;
 use App\Models\Tenant;
+use App\Models\TenantSmsTopup;
 use App\Services\AuditLogger;
 use App\Services\Billing\PromoCodeService;
 use App\Services\Billing\SubscriptionNotificationService;
@@ -141,6 +142,35 @@ class SubscriptionPaymentService
                 ->first();
 
             if (! $subscription) {
+                return true;
+            }
+
+            // SMS TOP-UP INVOICES: Credit top-up pack, valid for 90 days
+            if ($invoice->type === SubscriptionInvoice::TYPE_SMS_TOPUP) {
+                $details = $invoice->billing_details ?? [];
+                $credits = (int) ($details['credits'] ?? 500);
+                $packId = (string) ($details['pack_id'] ?? 'sms_500');
+
+                TenantSmsTopup::create([
+                    'tenant_id' => $invoice->tenant_id,
+                    'pack_id' => $packId,
+                    'credits_total' => $credits,
+                    'credits_remaining' => $credits,
+                    'price_cents' => $invoice->amount_cents,
+                    'invoice_id' => $invoice->id,
+                    'expires_at' => Carbon::now('Asia/Colombo')->addDays(90),
+                ]);
+
+                AuditLogger::log('sms_topup.purchased', [
+                    'tenant_id' => $invoice->tenant_id,
+                    'pack_id' => $packId,
+                    'credits' => $credits,
+                    'invoice_number' => $invoice->invoice_number,
+                    'receipt_number' => $receiptNumber,
+                ]);
+
+                $this->notificationService->sendPaymentSuccess($invoice);
+
                 return true;
             }
 

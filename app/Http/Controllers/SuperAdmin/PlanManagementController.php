@@ -23,6 +23,7 @@ class PlanManagementController extends Controller
         $plans = Plan::withCount(['subscriptions' => function ($q) {
             $q->where('status', 'active');
         }])
+            ->orderBy('id', 'asc')
             ->get()
             ->map(fn ($p) => [
                 'id' => $p->id,
@@ -31,8 +32,11 @@ class PlanManagementController extends Controller
                 'price_cents' => $p->price_cents,
                 'price_lkr' => round($p->price_cents / 100, 2),
                 'billing_interval' => $p->billing_interval,
+                'description' => $p->description,
                 'features' => $p->features ?? [],
+                'limits' => $p->limits ?? [],
                 'is_active' => (bool) $p->is_active,
+                'is_public' => (bool) $p->is_public,
                 'active_subscribers_count' => $p->subscriptions_count,
                 'total_subscribers_count' => Subscription::where('plan_id', $p->id)->count(),
             ]);
@@ -84,17 +88,39 @@ class PlanManagementController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:100'],
             'price_lkr' => ['required', 'numeric', 'min:0'],
+            'description' => ['nullable', 'string', 'max:500'],
+            'is_public' => ['nullable', 'boolean'],
             'features' => ['nullable', 'array'],
+            'limits' => ['nullable', 'array'],
+            'limits.doctors' => ['nullable', 'integer'],
+            'limits.staff' => ['nullable', 'integer'],
+            'limits.tv_screens' => ['nullable', 'integer'],
+            'limits.sms_monthly' => ['nullable', 'integer'],
+            'limits.free_premium_templates' => ['nullable', 'integer'],
         ]);
 
         $newPriceCents = (int) round(((float) $validated['price_lkr']) * 100);
         $oldPriceCents = $plan->price_cents;
 
-        $plan->update([
+        $updateData = [
             'name' => $validated['name'],
             'price_cents' => $newPriceCents,
-            'features' => $validated['features'] ?? $plan->features,
-        ]);
+        ];
+
+        if (array_key_exists('description', $validated)) {
+            $updateData['description'] = $validated['description'];
+        }
+        if (array_key_exists('is_public', $validated)) {
+            $updateData['is_public'] = (bool) $validated['is_public'];
+        }
+        if (isset($validated['features'])) {
+            $updateData['features'] = $validated['features'];
+        }
+        if (isset($validated['limits'])) {
+            $updateData['limits'] = $validated['limits'];
+        }
+
+        $plan->update($updateData);
 
         AuditLogger::log('superadmin.plan.updated', [
             'resource' => $plan,

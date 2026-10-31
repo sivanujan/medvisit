@@ -35,7 +35,7 @@ return [
             'billing_interval' => 'month',
             'badge' => null,
             'is_public' => true,
-            'description' => 'Everything a small clinic needs to run its queue, bookings, prescriptions and billing.',
+            'description' => 'For solo & small practices getting started with digital channeling.',
             'limits' => [
                 'doctors' => 3,
                 'staff' => 5, // active staff users excluding clinic owner
@@ -78,7 +78,7 @@ return [
             'billing_interval' => 'month',
             'badge' => 'Most popular',
             'is_public' => true,
-            'description' => 'For growing clinics with a pharmacy, more doctors and multiple waiting rooms.',
+            'description' => 'For growing clinics that need in-house pharmacy, visual page builder and multi-doctor queues.',
             'limits' => [
                 'doctors' => 8,
                 'staff' => 15,
@@ -121,7 +121,7 @@ return [
             'billing_interval' => 'month',
             'badge' => null,
             'is_public' => true,
-            'description' => 'For busy medical centres: unlimited doctors, staff and screens, priority support.',
+            'description' => 'For busy medical centers and polyclinics needing unlimited scale and priority support.',
             'limits' => [
                 'doctors' => -1, // unlimited
                 'staff' => -1,   // unlimited

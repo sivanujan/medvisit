@@ -1,23 +1,106 @@
 import React, { useState } from 'react';
 import { Link } from '@inertiajs/react';
-import { Check, ShieldCheck, CreditCard, Sparkles, ArrowRight, HelpCircle, ChevronDown, CheckCircle2 } from 'lucide-react';
+import { Check, ShieldCheck, CreditCard, Sparkles, ArrowRight, HelpCircle, ChevronDown, CheckCircle2, Globe } from 'lucide-react';
 import PublicLegalLayout from '@/Layouts/PublicLegalLayout';
 import PolicyContactCard from '@/Components/Public/PolicyContactCard';
 import { defaultPublicConfig, PublicConfig } from '@/Config/medvisitPublic';
 
-interface Props {
-    config?: PublicConfig;
+interface PlanItem {
+    id: string;
+    name: string;
+    slug: string;
+    price: number;
+    price_formatted: string;
+    price_cents: number;
+    interval?: string;
+    target?: string;
+    badge?: string | null;
+    description: string;
+    limits?: {
+        doctors?: number;
+        staff?: number;
+        tv_screens?: number;
+        sms_monthly?: number;
+        free_premium_templates?: number;
+    };
+    features?: Record<string, any>;
+    highlighted_bullets?: string[];
 }
 
-export default function Pricing({ config = defaultPublicConfig }: Props) {
-    const plans = config.plans || defaultPublicConfig.plans;
+interface LaunchOffer {
+    is_active: boolean;
+    free_months: number;
+    end_date: string | null;
+    sms_cap: number;
+}
+
+interface Props {
+    config?: PublicConfig;
+    plans?: PlanItem[];
+    launchOffer?: LaunchOffer;
+}
+
+export default function Pricing({ config = defaultPublicConfig, plans: propPlans, launchOffer }: Props) {
+    const configPlans = config.plans || defaultPublicConfig.plans;
     const business = config.business || defaultPublicConfig.business;
     const sharedFeatures = config.shared_features || defaultPublicConfig.shared_features;
 
-    const planList = [
-        plans.basic,
-        plans.pro,
-        plans.advanced,
+    const planList: PlanItem[] = propPlans && propPlans.length > 0 ? propPlans : [
+        {
+            id: 'basic',
+            name: configPlans.basic.name,
+            slug: 'basic',
+            price: configPlans.basic.price,
+            price_formatted: configPlans.basic.price_formatted,
+            price_cents: configPlans.basic.price_cents,
+            description: 'For solo & small practices getting started with digital channeling.',
+            highlighted_bullets: [
+                'Up to 3 active doctors & 5 staff users',
+                'Live queue calling desk & patient tracker',
+                'Appointment booking & channeling calendar',
+                'Digital prescriptions & printable PDFs',
+                '1 waiting room TV display screen',
+                '300 SMS alerts per month included',
+                'Email support',
+            ],
+        },
+        {
+            id: 'pro',
+            name: configPlans.pro.name,
+            slug: 'pro',
+            price: configPlans.pro.price,
+            price_formatted: configPlans.pro.price_formatted,
+            price_cents: configPlans.pro.price_cents,
+            badge: 'Most popular',
+            description: 'For growing clinics that need in-house pharmacy, visual page builder and multi-doctor queues.',
+            highlighted_bullets: [
+                'Up to 8 active doctors & 15 staff users',
+                'Full in-house pharmacy & stock dispensing',
+                'Up to 3 waiting room TV screens with multi-room filter',
+                'MedVisit visual page builder for clinic site',
+                '1,000 SMS alerts per month included',
+                'Audit log export for compliance',
+                'Email & in-app chat support',
+            ],
+        },
+        {
+            id: 'advanced',
+            name: configPlans.advanced.name,
+            slug: 'advanced',
+            price: configPlans.advanced.price,
+            price_formatted: configPlans.advanced.price_formatted,
+            price_cents: configPlans.advanced.price_cents,
+            description: 'For busy medical centers and polyclinics needing unlimited scale and priority support.',
+            highlighted_bullets: [
+                'Unlimited active doctors & staff users',
+                'Unlimited paired waiting room TV screens',
+                'Full in-house pharmacy & stock dispensing',
+                'MedVisit visual page builder for clinic site',
+                '1 premium website template included free',
+                '3,000 SMS alerts per month included',
+                'Priority support (email & live chat)',
+            ],
+        },
     ];
 
     // FAQ Accordion State
@@ -81,6 +164,31 @@ export default function Pricing({ config = defaultPublicConfig }: Props) {
                 </p>
             </div>
 
+            {/* Launch Offer Banner (if active) */}
+            {launchOffer?.is_active && (
+                <div className="max-w-4xl mx-auto mb-10 p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-primary/15 via-secondary/15 to-[#FF7A59]/15 border border-primary/30 backdrop-blur-xl shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
+                    <div className="space-y-1">
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-primary text-white shadow-sm">
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span>Launch Special Offer</span>
+                        </div>
+                        <h3 className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white">
+                            🎉 All Advanced features free for your first {launchOffer.free_months} months
+                        </h3>
+                        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">
+                            Register your clinic now to unlock unlimited doctors, staff, TV screens, pharmacy and page builder with Rs. 0 charge. No credit card required.
+                        </p>
+                    </div>
+                    <a
+                        href="/register"
+                        className="px-6 py-3 rounded-2xl bg-primary hover:bg-primary-600 text-white text-xs font-bold transition shadow-md shrink-0 flex items-center gap-2"
+                    >
+                        <span>Claim launch offer</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                    </a>
+                </div>
+            )}
+
             {/* Plan Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 items-stretch mb-16">
                 {planList.map((plan) => {
@@ -138,7 +246,16 @@ export default function Pricing({ config = defaultPublicConfig }: Props) {
                                         Included with this plan:
                                     </p>
 
-                                    {plan.features && plan.features.length > 0 ? (
+                                    {plan.highlighted_bullets && plan.highlighted_bullets.length > 0 ? (
+                                        <ul className="space-y-2.5 text-xs text-slate-700 dark:text-slate-300">
+                                            {plan.highlighted_bullets.map((bullet, idx) => (
+                                                <li key={idx} className="flex items-start gap-2.5">
+                                                    <Check className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
+                                                    <span>{bullet}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    ) : plan.features && Array.isArray(plan.features) && plan.features.length > 0 ? (
                                         <ul className="space-y-2.5 text-xs text-slate-700 dark:text-slate-300">
                                             {plan.features.map((feat, idx) => (
                                                 <li key={idx} className="flex items-start gap-2.5">
@@ -229,6 +346,36 @@ export default function Pricing({ config = defaultPublicConfig }: Props) {
                         <span>Browse Templates</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                     </Link>
+                </div>
+            </div>
+
+            {/* Custom Domain Add-on Card */}
+            <div className="max-w-4xl mx-auto rounded-3xl p-6 sm:p-7 bg-white/80 dark:bg-slate-900/75 border border-slate-200/90 dark:border-white/10 backdrop-blur-xl shadow-sm mb-12 flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="flex items-start gap-4">
+                    <div className="p-3 rounded-2xl bg-secondary/10 text-secondary shrink-0">
+                        <Globe className="w-6 h-6" />
+                    </div>
+                    <div className="space-y-1 text-center sm:text-left">
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-secondary/15 text-secondary text-[11px] font-bold uppercase tracking-wider">
+                            <span>Add-On Service</span>
+                        </div>
+                        <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                            Custom Clinic Domain (e.g. yourclinic.lk)
+                        </h3>
+                        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 max-w-2xl leading-relaxed">
+                            Custom domain setup with fully managed SSL and DNS configuration is available as an add-on service.
+                        </p>
+                        <p className="text-xs font-semibold text-primary dark:text-blue-400 pt-1 flex items-center gap-1.5 justify-center sm:justify-start">
+                            <span>Contact us via WhatsApp:</span>
+                            <a href="https://wa.me/94701291688" target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80">
+                                070 129 1688
+                            </a>
+                            <span className="text-slate-400">·</span>
+                            <a href="mailto:hello@medvisit.lk" className="underline hover:opacity-80">
+                                hello@medvisit.lk
+                            </a>
+                        </p>
+                    </div>
                 </div>
             </div>
 

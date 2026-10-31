@@ -20,16 +20,19 @@ Schedule::command('announcements:process-scheduled')->everyMinute();
 // Business background jobs with heartbeat tracking
 Schedule::command('medvisit:send-trial-reminders')
     ->daily()
+    ->timezone('Asia/Colombo')
     ->before(fn () => SchedulerHeartbeat::updateOrCreate(['command' => 'medvisit:send-trial-reminders'], ['last_started_at' => now()]))
     ->after(fn () => SchedulerHeartbeat::updateOrCreate(['command' => 'medvisit:send-trial-reminders'], ['last_finished_at' => now(), 'status' => 'success']));
 
 Schedule::command('sessions:generate-from-templates --days=30')
     ->daily()
+    ->timezone('Asia/Colombo')
     ->before(fn () => SchedulerHeartbeat::updateOrCreate(['command' => 'sessions:generate-from-templates'], ['last_started_at' => now()]))
     ->after(fn () => SchedulerHeartbeat::updateOrCreate(['command' => 'sessions:generate-from-templates'], ['last_finished_at' => now(), 'status' => 'success']));
 
 Schedule::command('subscriptions:send-reminders')
     ->daily()
+    ->timezone('Asia/Colombo')
     ->before(fn () => SchedulerHeartbeat::updateOrCreate(['command' => 'subscriptions:send-reminders'], ['last_started_at' => now()]))
     ->after(fn () => SchedulerHeartbeat::updateOrCreate(['command' => 'subscriptions:send-reminders'], ['last_finished_at' => now(), 'status' => 'success']));
 
@@ -45,8 +48,22 @@ Schedule::command('clinic:send-setup-reminders')
 
 Schedule::command('medvisit:check-refund-slas')
     ->dailyAt('08:00')
+    ->timezone('Asia/Colombo')
     ->before(fn () => SchedulerHeartbeat::updateOrCreate(['command' => 'medvisit:check-refund-slas'], ['last_started_at' => now()]))
     ->after(fn () => SchedulerHeartbeat::updateOrCreate(['command' => 'medvisit:check-refund-slas'], ['last_finished_at' => now(), 'status' => 'success']));
+
+Schedule::command('medvisit:send-launch-offer-reminders')
+    ->dailyAt('09:00')
+    ->timezone('Asia/Colombo')
+    ->before(fn () => SchedulerHeartbeat::updateOrCreate(['command' => 'medvisit:send-launch-offer-reminders'], ['last_started_at' => now()]))
+    ->after(fn () => SchedulerHeartbeat::updateOrCreate(['command' => 'medvisit:send-launch-offer-reminders'], ['last_finished_at' => now(), 'status' => 'success']));
+
+// Daily SMS usage quota renewal check (resets when each clinic's own billing period renews)
+Schedule::command('medvisit:reset-monthly-sms')
+    ->dailyAt('00:05')
+    ->timezone('Asia/Colombo')
+    ->before(fn () => SchedulerHeartbeat::updateOrCreate(['command' => 'medvisit:reset-monthly-sms'], ['last_started_at' => now()]))
+    ->after(fn () => SchedulerHeartbeat::updateOrCreate(['command' => 'medvisit:reset-monthly-sms'], ['last_finished_at' => now(), 'status' => 'success']));
 
 // Public Demo Sandbox nightly reset (03:00 Asia/Colombo)
 Schedule::command('demo:reset')

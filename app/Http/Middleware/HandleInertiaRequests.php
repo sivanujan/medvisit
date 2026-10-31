@@ -7,6 +7,7 @@ use App\Models\RefundRequest;
 use App\Models\Subscription;
 use App\Models\SupportConversation;
 use App\Services\Demo\DemoModeService;
+use App\Services\Plans\PlanGate;
 use App\Support\PrintSettings;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -134,7 +135,10 @@ class HandleInertiaRequests extends Middleware
                 'error' => session('error'),
                 'issuedToken' => session('issuedToken'),
                 'createdSessionId' => session('createdSessionId'),
+                'plan_locked' => session('plan_locked'),
+                'plan_limit_reached' => session('plan_limit_reached'),
             ],
+            'planGate' => rescue(fn () => app(PlanGate::class)->summary($tenant), null, false),
             'impersonation' => session('medvisit_impersonating') ? [
                 'is_active' => true,
                 'impersonator_name' => session('impersonator_name', 'Platform Super Admin'),

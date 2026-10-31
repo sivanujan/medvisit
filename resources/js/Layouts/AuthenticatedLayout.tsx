@@ -36,6 +36,7 @@ import {
     AlertTriangle,
     ArrowRight,
     CheckCircle2,
+    Lock,
 } from 'lucide-react';
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import ThemeToggle from '@/Components/Common/ThemeToggle';
@@ -45,6 +46,9 @@ import CommandPaletteModal from '@/Components/Layout/CommandPaletteModal';
 import NotificationDropdown from '@/Components/Layout/NotificationDropdown';
 import SupportChatWidget from '@/Components/SupportChat/SupportChatWidget';
 import AgreementReacceptanceModal from '@/Components/Legal/AgreementReacceptanceModal';
+import LockedFeatureModal, { LockedFeatureDetails } from '@/Components/Plans/LockedFeatureModal';
+import PlanLimitReachedModal, { PlanLimitReachedDetails } from '@/Components/Plans/PlanLimitReachedModal';
+import LaunchOfferBanner from '@/Components/Plans/LaunchOfferBanner';
 import { getCentralUrl } from '@/Utils/centralUrl';
 import { getAvatarInitial } from '@/Utils/name';
 import { usePermission } from '@/Hooks/usePermission';
@@ -97,7 +101,7 @@ export default function AuthenticatedLayout({
     breadcrumbs: customBreadcrumbs,
     children,
 }: AuthenticatedLayoutProps) {
-    const { auth, tenant, impersonation, requiresAgreementReacceptance } = usePage<{
+    const { auth, tenant, impersonation, requiresAgreementReacceptance, planGate, flash } = usePage<{
         requiresAgreementReacceptance?: boolean;
         auth: {
             user: {
@@ -134,6 +138,31 @@ export default function AuthenticatedLayout({
             expires_at?: number;
             return_url?: string;
         } | null;
+        planGate?: {
+            plan: string;
+            plan_name: string;
+            is_comp: boolean;
+            is_launch_offer: boolean;
+            launch_offer_until?: string | null;
+            features: Record<string, boolean>;
+            limits: Record<string, number>;
+            usage: Record<string, number>;
+            sms_quota?: {
+                used: number;
+                limit: number;
+                remaining: number;
+                percent: number;
+                is_exhausted: boolean;
+                is_warning: boolean;
+            };
+        } | null;
+        flash?: {
+            success?: string | null;
+            error?: string | null;
+            warning?: string | null;
+            plan_locked?: LockedFeatureDetails | null;
+            plan_limit_reached?: PlanLimitReachedDetails | null;
+        };
     }>().props;
 
     const user = auth?.user ?? {
@@ -192,6 +221,26 @@ export default function AuthenticatedLayout({
     const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
     const [logoError, setLogoError] = useState(false);
     const userMenuRef = useRef<HTMLDivElement>(null);
+
+    // Plan Gating Modals (Locked Feature & Limit Reached)
+    const [lockedModalOpen, setLockedModalOpen] = useState(false);
+    const [lockedModalDetails, setLockedModalDetails] = useState<LockedFeatureDetails | null>(null);
+    const [limitModalOpen, setLimitModalOpen] = useState(false);
+    const [limitModalDetails, setLimitModalDetails] = useState<PlanLimitReachedDetails | null>(null);
+
+    useEffect(() => {
+        if (flash?.plan_locked) {
+            setLockedModalDetails(flash.plan_locked);
+            setLockedModalOpen(true);
+        }
+    }, [flash?.plan_locked]);
+
+    useEffect(() => {
+        if (flash?.plan_limit_reached) {
+            setLimitModalDetails(flash.plan_limit_reached);
+            setLimitModalOpen(true);
+        }
+    }, [flash?.plan_limit_reached]);
 
     // OS detection for command palette shortcut (Ctrl K on Windows/Linux, ⌘K on Mac)
     const [isMac, setIsMac] = useState(false);
@@ -413,6 +462,15 @@ export default function AuthenticatedLayout({
                     href: '/website/builder',
                     icon: LayoutTemplate,
                     visible: isClinicAdmin,
+                    locked: planGate ? !planGate.features?.website_builder : false,
+                    requiredPlan: 'Pro',
+                    lockedDetails: {
+                        feature: 'website_builder',
+                        title: 'MedVisit Visual Page Builder',
+                        required_plan: 'Pro',
+                        description: 'Customize your clinic website with live drag-and-drop sections, custom galleries, doctor bios, and visual themes.',
+                        upgrade_url: '/settings/billing/change-plan',
+                    },
                 },
                 {
                     name: 'Staff & Team',
@@ -434,7 +492,7 @@ export default function AuthenticatedLayout({
                 },
             ],
         },
-        ...(isPharmacyEnabled && can('pharmacy.view')
+        ...(isPharmacyEnabled && can('pharmacy.view') && (!planGate || planGate.features?.pharmacy)
             ? [
                   {
                       title: 'Pharmacy',
@@ -480,6 +538,44 @@ export default function AuthenticatedLayout({
                               href: '/pharmacy/import',
                               icon: FileSpreadsheet,
                               visible: can('pharmacy.import'),
+                          },
+                      ],
+                  },
+              ]
+            : (planGate && !planGate.features?.pharmacy && isClinicAdmin)
+            ? [
+                  {
+                      title: 'Pharmacy',
+                      items: [
+                          {
+                              name: 'Dispense Counter',
+                              href: '/pharmacy/dispense',
+                              icon: Pill,
+                              visible: true,
+                              locked: true,
+                              requiredPlan: 'Pro',
+                              lockedDetails: {
+                                  feature: 'pharmacy',
+                                  title: 'In-House Pharmacy & Dispensing',
+                                  required_plan: 'Pro',
+                                  description: 'Track internal medicine stock, register batches with GRN, and dispense electronic prescriptions directly at your counter.',
+                                  upgrade_url: '/settings/billing/change-plan',
+                              },
+                          },
+                          {
+                              name: 'Medicines & Stock',
+                              href: '/pharmacy/medicines',
+                              icon: Package,
+                              visible: true,
+                              locked: true,
+                              requiredPlan: 'Pro',
+                              lockedDetails: {
+                                  feature: 'pharmacy',
+                                  title: 'In-House Pharmacy & Dispensing',
+                                  required_plan: 'Pro',
+                                  description: 'Track internal medicine stock, register batches with GRN, and dispense electronic prescriptions directly at your counter.',
+                                  upgrade_url: '/settings/billing/change-plan',
+                              },
                           },
                       ],
                   },
@@ -685,9 +781,42 @@ export default function AuthenticatedLayout({
                                 )}
 
                                 <div className="space-y-1">
-                                    {visibleItems.map((item) => {
+                                    {visibleItems.map((item: any) => {
                                         const active = isItemActive(item.href);
                                         const Icon = item.icon;
+
+                                        if (item.locked) {
+                                            return (
+                                                <button
+                                                    key={item.name}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (item.lockedDetails) {
+                                                            setLockedModalDetails(item.lockedDetails);
+                                                            setLockedModalOpen(true);
+                                                        }
+                                                    }}
+                                                    title={collapsed ? `${item.name} (${item.requiredPlan || 'Pro'})` : undefined}
+                                                    className={`group relative flex items-center ${
+                                                        collapsed ? 'justify-center w-11 h-11 mx-auto' : 'justify-between px-3 py-2'
+                                                    } rounded-xl text-xs font-semibold text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-white/[0.04] transition-all duration-150 cursor-pointer w-full text-left`}
+                                                >
+                                                    <div className="flex items-center gap-2.5 min-w-0">
+                                                        <Icon className="w-[18px] h-[18px] shrink-0 text-slate-400 dark:text-slate-500" />
+                                                        {!collapsed && <span className="truncate">{item.name}</span>}
+                                                    </div>
+                                                    {!collapsed && (
+                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20 shrink-0">
+                                                            <Lock className="w-2.5 h-2.5" />
+                                                            <span>{item.requiredPlan || 'Pro'}</span>
+                                                        </span>
+                                                    )}
+                                                    {collapsed && (
+                                                        <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-500/80" />
+                                                    )}
+                                                </button>
+                                            );
+                                        }
 
                                         return (
                                             <Link
@@ -1133,9 +1262,36 @@ export default function AuthenticatedLayout({
                                             <div className="px-3 pb-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase">
                                                 {group.title}
                                             </div>
-                                            {visibleItems.map((item) => {
+                                            {visibleItems.map((item: any) => {
                                                 const active = isItemActive(item.href);
                                                 const Icon = item.icon;
+
+                                                if (item.locked) {
+                                                    return (
+                                                        <button
+                                                            key={item.name}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setMobileOpen(false);
+                                                                if (item.lockedDetails) {
+                                                                    setLockedModalDetails(item.lockedDetails);
+                                                                    setLockedModalOpen(true);
+                                                                }
+                                                            }}
+                                                            className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
+                                                        >
+                                                            <div className="flex items-center gap-3 min-w-0">
+                                                                <Icon className="w-4 h-4 text-slate-400 shrink-0" />
+                                                                <span className="truncate">{item.name}</span>
+                                                            </div>
+                                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                                                <Lock className="w-2.5 h-2.5" />
+                                                                <span>{item.requiredPlan || 'Pro'}</span>
+                                                            </span>
+                                                        </button>
+                                                    );
+                                                }
+
                                                 return (
                                                     <Link
                                                         key={item.name}
@@ -1184,6 +1340,11 @@ export default function AuthenticatedLayout({
                     {/* Standardized Page Content Body: max-w-[1440px], px-4 mobile / px-6 sm / px-8 lg */}
                     <main className="flex-1 w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6 min-w-0">
                         <BannerStack />
+                        <LaunchOfferBanner
+                            isLaunchOffer={planGate?.is_launch_offer}
+                            launchOfferUntil={planGate?.launch_offer_until}
+                            smsQuota={planGate?.sms_quota}
+                        />
                         {children}
                     </main>
 
@@ -1229,6 +1390,19 @@ export default function AuthenticatedLayout({
 
             {/* Mandatory Agreement Re-Acceptance Modal */}
             <AgreementReacceptanceModal isOpen={!!requiresAgreementReacceptance} />
+
+            {/* Plan Gating Modals */}
+            <LockedFeatureModal
+                isOpen={lockedModalOpen}
+                onClose={() => setLockedModalOpen(false)}
+                details={lockedModalDetails}
+            />
+
+            <PlanLimitReachedModal
+                isOpen={limitModalOpen}
+                onClose={() => setLimitModalOpen(false)}
+                details={limitModalDetails}
+            />
         </div>
     );
 }

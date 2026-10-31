@@ -47,6 +47,12 @@ class Plan extends Model
      */
     public function allowsFeature(string $feature): bool
     {
+        $aliases = [
+            'page_builder' => 'website_builder',
+            'audit_log_export' => 'audit_export',
+        ];
+        $feature = $aliases[$feature] ?? $feature;
+
         $features = $this->features ?? [];
 
         if (isset($features[$feature])) {

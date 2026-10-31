@@ -209,6 +209,14 @@ Route::domain('{central_domain}')
                 Route::delete('/super-admin/clinics/{clinicId}', [ClinicManagementController::class, 'destroy'])
                     ->name('super_admin.clinics.destroy');
 
+                // Custom Domains for Clinic
+                Route::post('/super-admin/clinics/{clinicId}/domains', [ClinicManagementController::class, 'addCustomDomain'])
+                    ->name('super_admin.clinics.domains.store');
+                Route::delete('/super-admin/clinics/{clinicId}/domains/{domainId}', [ClinicManagementController::class, 'removeCustomDomain'])
+                    ->name('super_admin.clinics.domains.destroy');
+                Route::post('/super-admin/clinics/{clinicId}/domains/{domainId}/verify', [ClinicManagementController::class, 'verifyCustomDomain'])
+                    ->name('super_admin.clinics.domains.verify');
+
                 // Plans Management
                 Route::get('/super-admin/plans', [PlanManagementController::class, 'index'])
                     ->name('super_admin.plans.index');
@@ -845,6 +853,74 @@ Route::domain('{central_domain}')
                     'setupDismissed' => true,
                 ]);
             })->name('dev.preview.dashboard');
+
+            Route::get('/dev/preview/billing', function () {
+                $tenant = Tenant::first() ?? Tenant::factory()->create();
+
+                return Inertia::render('Subscription/BillingCenter', [
+                    'tenant' => [
+                        'id' => $tenant->id,
+                        'name' => 'Apex Family Health Clinic',
+                        'email' => 'admin@apexfamily.lk',
+                        'phone' => '077 123 4567',
+                        'address' => '124 Galle Road, Colombo 03',
+                    ],
+                    'currentPlan' => [
+                        'name' => 'Basic',
+                        'price_cents' => 700000,
+                        'formatted_price' => 'Rs. 7,000',
+                        'status_key' => 'active',
+                        'status_label' => 'Active',
+                        'is_comp' => false,
+                        'is_trialing' => false,
+                        'is_cancelling' => false,
+                        'days_remaining' => 22,
+                        'formatted_period' => '15 Oct 2026 – 15 Nov 2026',
+                        'features' => [
+                            'Up to 3 active doctors & 5 staff users',
+                            '1 waiting room TV display screen',
+                            '300 SMS alerts per month included',
+                            'Online patient booking portal',
+                        ],
+                    ],
+                    'actions' => [
+                        'can_change_plan' => true,
+                        'can_cancel' => true,
+                        'can_resume' => false,
+                        'has_unpaid_invoice' => false,
+                    ],
+                    'billingDetails' => [
+                        'legal_name' => 'Apex Health Private Limited',
+                        'billing_email' => 'billing@apexfamily.lk',
+                        'phone' => '011 234 5678',
+                        'address' => '124 Galle Road, Colombo 03',
+                        'tax_id' => 'TAX-99887766',
+                    ],
+                    'paymentHistory' => [
+                        [
+                            'id' => 1,
+                            'invoice_number' => 'INV-2026-0012',
+                            'receipt_number' => 'REC-2026-0012',
+                            'description' => 'Basic plan · 1 month',
+                            'amount' => 'Rs. 7,000',
+                            'amount_cents' => 700000,
+                            'status' => 'paid',
+                            'status_label' => 'Paid',
+                            'date' => '15 Oct 2026',
+                            'payment_method_label' => 'Visa •••• 4242',
+                            'invoice_url' => '#',
+                            'receipt_url' => '#',
+                            'can_request_refund' => false,
+                        ],
+                    ],
+                    'upcomingInvoice' => [
+                        'date' => '15 Nov 2026',
+                        'amount' => 'Rs. 7,000',
+                        'plan_name' => 'Basic plan',
+                    ],
+                    'incidents' => [],
+                ]);
+            })->name('dev.preview.billing');
         }
 
         require __DIR__.'/auth.php';

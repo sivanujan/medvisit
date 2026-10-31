@@ -31,6 +31,8 @@ class SubscriptionInvoice extends Model
 
     public const TYPE_TEMPLATE_PURCHASE = 'template_purchase';
 
+    public const TYPE_SMS_TOPUP = 'sms_topup';
+
     protected $fillable = [
         'tenant_id',
         'subscription_id',

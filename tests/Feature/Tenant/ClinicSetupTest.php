@@ -64,7 +64,7 @@ class ClinicSetupTest extends TestCase
         $response = $this->actingAs($reception)->get("http://staffclinic.{$this->baseDomain}/dashboard");
 
         $response->assertStatus(200);
-        $response->assertSee('Setup/Waiting', false);
+        $response->assertInertia(fn ($page) => $page->component('Setup/Waiting'));
     }
 
     public function test_admin_and_staff_allowed_access_during_grace_period(): void
@@ -112,7 +112,7 @@ class ClinicSetupTest extends TestCase
 
         $response = $this->actingAs($admin)->get("http://viewcli.{$this->baseDomain}/setup");
         $response->assertStatus(200);
-        $response->assertSee('Setup/Index', false);
+        $response->assertInertia(fn ($page) => $page->component('Setup/Index'));
     }
 
     public function test_step_1_welcome_advances_step(): void

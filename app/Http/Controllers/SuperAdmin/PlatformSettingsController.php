@@ -42,7 +42,7 @@ class PlatformSettingsController extends Controller
     {
         $raw = $request->all();
         $normalized = [];
-        $knownGroups = ['general', 'signups', 'billing', 'messaging', 'security', 'maintenance'];
+        $knownGroups = ['general', 'signups', 'billing', 'messaging', 'security', 'maintenance', 'launch_offer'];
 
         foreach ($raw as $key => $val) {
             if (str_contains($key, '_') && ! str_contains($key, '.')) {
@@ -88,6 +88,12 @@ class PlatformSettingsController extends Controller
             // Maintenance
             'maintenance.enabled' => ['required', 'boolean'],
             'maintenance.banner_text' => ['required', 'string', 'max:500'],
+
+            // Launch Offer
+            'launch_offer.enabled' => ['nullable', 'boolean'],
+            'launch_offer.free_months' => ['nullable', 'integer', 'in:1,2,3'],
+            'launch_offer.end_date' => ['nullable', 'string'],
+            'launch_offer.sms_cap' => ['nullable', 'integer', 'min:50', 'max:5000'],
         ]);
 
         $settingsToUpdate = [];

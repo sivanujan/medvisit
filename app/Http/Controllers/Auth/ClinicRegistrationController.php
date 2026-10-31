@@ -21,6 +21,7 @@ use App\Rules\NotDisposableEmail;
 use App\Rules\SubdomainRule;
 use App\Services\AuditLogger;
 use App\Services\PhoneVerification\PhoneVerificationService;
+use App\Services\PlatformSettingsService;
 use App\Services\TelegramNotificationService;
 use App\Services\TurnstileService;
 use Illuminate\Http\JsonResponse;
@@ -831,14 +832,21 @@ class ClinicRegistrationController extends Controller
         $user = null;
 
         DB::transaction(function () use ($validated, $subdomain, $pending, $request, $invite, &$tenant, &$user) {
-            $planSlug = $invite ? $invite->plan_slug : 'pro';
-            $plan = Plan::forSlug($planSlug);
-            $planId = $plan ? $plan->id : 1;
-
             $trialDays = (int) config('medvisit.subscription.trial_days', 0);
             $now = now();
+            $isLaunchOffer = false;
+            $freeMonths = 3;
+
+            $platformSettings = app(PlatformSettingsService::class)->all();
+            $launchOfferEnabled = (bool) ($platformSettings['launch_offer.enabled'] ?? false);
+            $launchOfferEndDate = $platformSettings['launch_offer.end_date'] ?? null;
+            $isLaunchOfferEligible = $launchOfferEnabled && (! $launchOfferEndDate || Carbon::parse($launchOfferEndDate)->isFuture());
 
             if ($invite) {
+                $planSlug = $invite->plan_slug;
+                $plan = Plan::forSlug($planSlug);
+                $planId = $plan ? $plan->id : 1;
+
                 // Free invite replaces trial: active immediately until free period end
                 $freePeriodEnd = $invite->free_period_type === 'months'
                     ? $now->copy()->addMonths($invite->free_period_value)
@@ -852,7 +860,28 @@ class ClinicRegistrationController extends Controller
                 $currentPeriodEnd = $freePeriodEnd;
                 $activatedAt = $now;
                 $notes = "Registered via invite link ({$invite->free_period_value} {$invite->free_period_type} free on {$planSlug})";
+            } elseif ($isLaunchOfferEligible) {
+                // Launch Offer: Advanced plan free for N months, replacing normal 14-day trial
+                $isLaunchOffer = true;
+                $planSlug = 'advanced';
+                $plan = Plan::forSlug('advanced') ?? Plan::where('slug', 'advanced')->first();
+                $planId = $plan ? $plan->id : 5;
+                $freeMonths = max(1, min(3, (int) ($platformSettings['launch_offer.free_months'] ?? 3)));
+                $freePeriodEnd = $now->copy()->addMonths($freeMonths);
+
+                $tenantStatus = 'active';
+                $tenantTrialEnd = null;
+                $subStatus = Subscription::STATUS_ACTIVE;
+                $subTrialEnd = null;
+                $currentPeriodStart = $now;
+                $currentPeriodEnd = $freePeriodEnd;
+                $activatedAt = $now;
+                $notes = "Registered under MedVisit Launch Offer ({$freeMonths} months free on Advanced plan)";
             } else {
+                $planSlug = 'pro';
+                $plan = Plan::forSlug($planSlug);
+                $planId = $plan ? $plan->id : 1;
+
                 $tenantStatus = $trialDays > 0 ? 'trial' : 'pending_payment';
                 $tenantTrialEnd = $trialDays > 0 ? $now->copy()->addDays($trialDays) : null;
                 $subStatus = $trialDays > 0 ? Subscription::STATUS_ACTIVE : Subscription::STATUS_PENDING_PAYMENT;
@@ -879,6 +908,8 @@ class ClinicRegistrationController extends Controller
                     'currency' => 'LKR',
                     'timezone' => 'Asia/Colombo',
                     'token_reset' => 'daily',
+                    'is_launch_offer' => $isLaunchOffer,
+                    'launch_offer_expires_at' => $isLaunchOffer ? $freePeriodEnd->toIso8601String() : null,
                 ],
             ]);
 
@@ -921,32 +952,23 @@ class ClinicRegistrationController extends Controller
                     'registered_at' => $now,
                     'registered_tenant_id' => $tenant->id,
                 ]);
-            }
-
-            // If registered via invite, generate Rs. 0 invoice immediately
-            if ($invite) {
-                $invoice = SubscriptionInvoice::create([
+            } elseif ($isLaunchOffer) {
+                // Generate Rs. 0 invoice for Launch Offer
+                SubscriptionInvoice::create([
                     'tenant_id' => $tenant->id,
                     'subscription_id' => $subscription->id,
                     'invoice_number' => SubscriptionInvoice::generateInvoiceNumber(),
                     'amount_cents' => 0,
-                    'original_amount_cents' => $plan ? $plan->price_cents : 900000,
-                    'discount_cents' => $plan ? $plan->price_cents : 900000,
+                    'original_amount_cents' => $plan ? $plan->price_cents : 1500000,
+                    'discount_cents' => $plan ? $plan->price_cents : 1500000,
                     'status' => SubscriptionInvoice::STATUS_PAID,
                     'paid_at' => $now,
-                    'payment_method' => 'invite',
+                    'payment_method' => 'launch_offer',
                     'receipt_number' => null, // No receipt number for Rs. 0
-                    'invite_id' => $invite->id,
                     'period_start' => $currentPeriodStart,
                     'period_end' => $currentPeriodEnd,
                     'due_date' => $now,
-                    'notes' => "Covered by invite: {$invite->free_period_value} {$invite->free_period_type} free",
-                ]);
-
-                $invite->update([
-                    'status' => SubscriptionInvite::STATUS_REGISTERED,
-                    'registered_at' => $now,
-                    'registered_tenant_id' => $tenant->id,
+                    'notes' => "Covered by MedVisit Launch Offer: {$freeMonths} month(s) free on Advanced plan",
                 ]);
             }
 
@@ -975,14 +997,11 @@ class ClinicRegistrationController extends Controller
                     "special invitation ({$invite->free_period_value} {$invite->free_period_type} free)",
                     url('/settings/billing')
                 ));
-            }
-
-            if ($invite && isset($invoice)) {
-                $invite->update(['registered_user_id' => $user->id]);
+            } elseif ($isLaunchOffer && isset($invoice)) {
                 Mail::to($user->email)->queue(new ZeroAmountInvoiceMail(
                     $invoice,
                     $tenant->name,
-                    "special invitation ({$invite->free_period_value} {$invite->free_period_type} free)",
+                    "MedVisit Launch Offer ({$freeMonths} months free on Advanced plan)",
                     url('/settings/billing')
                 ));
             }
@@ -1007,7 +1026,7 @@ class ClinicRegistrationController extends Controller
                 'tenant_id' => $tenant->id,
                 'name' => $tenant->name,
                 'subdomain' => $subdomain,
-                'plan' => 'pro',
+                'plan' => $tenant->plan,
             ]);
 
             AuditLogger::log('user.created', [

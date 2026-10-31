@@ -8,6 +8,10 @@ use App\Contracts\PaymentGateway;
 use App\Http\Controllers\Controller;
 use App\Mail\Subscription\NewRefundRequestAdminMail;
 use App\Mail\Subscription\RefundRequestReceivedMail;
+use App\Models\BookingToken;
+use App\Models\DispenseRecord;
+use App\Models\Doctor;
+use App\Models\DoctorSession;
 use App\Models\PaymentTransaction;
 use App\Models\Plan;
 use App\Models\PlatformIncident;
@@ -15,6 +19,9 @@ use App\Models\RefundRequest;
 use App\Models\Subscription;
 use App\Models\SubscriptionInvoice;
 use App\Models\TenantBillingDetail;
+use App\Models\TenantSmsUsage;
+use App\Models\TvDevice;
+use App\Models\User;
 use App\Services\AuditLogger;
 use App\Services\Billing\CreditNotePdfService;
 use App\Services\Billing\SubscriptionNotificationService;
@@ -29,6 +36,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
@@ -433,15 +441,107 @@ class BillingCenterController extends Controller
 
         $currentPlan = $subscription?->plan;
 
+        $now = Carbon::now('Asia/Colombo');
+        $today = $now->toDateString();
+        $currentTime = $now->format('H:i:s');
+
+        $activeDoctors = Doctor::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->select('id', 'name', 'specialization')
+            ->get()
+            ->map(function (Doctor $doc) use ($today, $currentTime) {
+                $futureSessions = DoctorSession::where('doctor_id', $doc->id)
+                    ->whereNotIn('status', ['cancelled', 'completed'])
+                    ->where(function ($q) use ($today, $currentTime) {
+                        $q->where('session_date', '>', $today)
+                            ->orWhere(function ($q2) use ($today, $currentTime) {
+                                $q2->where('session_date', $today)
+                                    ->where(function ($q3) use ($currentTime) {
+                                        $q3->whereNull('end_time')
+                                            ->orWhere('end_time', '>=', $currentTime);
+                                    });
+                            });
+                    });
+
+                $futureSessionIds = (clone $futureSessions)->pluck('id');
+                $futureSessionsCount = $futureSessions->count();
+                $futureTokensCount = BookingToken::whereIn('doctor_session_id', $futureSessionIds)
+                    ->whereNotIn('status', [BookingToken::STATUS_CANCELLED, BookingToken::STATUS_COMPLETED])
+                    ->count();
+
+                return [
+                    'id' => $doc->id,
+                    'name' => $doc->name,
+                    'specialization' => $doc->specialization,
+                    'future_sessions_count' => $futureSessionsCount,
+                    'future_tokens_count' => $futureTokensCount,
+                ];
+            });
+        $activeStaff = User::where('tenant_id', $tenant->id)->where('is_active', true)->where('id', '!=', $user->id)->select('id', 'name', 'email')->get();
+        $activeTvs = TvDevice::where('tenant_id', $tenant->id)->whereNull('revoked_at')->select('id', 'name')->get();
+        $dispenseCount = class_exists(DispenseRecord::class)
+            ? DispenseRecord::where('tenant_id', $tenant->id)->count()
+            : 0;
+        $smsUsage = TenantSmsUsage::currentForTenant($tenant);
+
+        // Recommended plan based on actual clinic usage
+        if ($activeDoctors->count() > 8 || $activeStaff->count() > 15 || $activeTvs->count() > 3) {
+            $recommendedTier = 'Advanced';
+        } elseif ($activeDoctors->count() > 3 || $activeStaff->count() > 5 || $dispenseCount > 0) {
+            $recommendedTier = 'Pro';
+        } else {
+            $recommendedTier = 'Basic';
+        }
+
         $activeConfigSlugs = array_keys(config('medvisit_public.plans', ['basic' => [], 'pro' => [], 'advanced' => []]));
         $plans = Plan::where('is_active', true)
             ->whereIn('slug', $activeConfigSlugs)
             ->orderBy('price_cents', 'asc')
             ->get()
-            ->map(function (Plan $plan) use ($subscription, $currentPlan) {
+            ->map(function (Plan $plan) use ($subscription, $currentPlan, $activeDoctors, $activeStaff, $activeTvs, $dispenseCount, $recommendedTier) {
                 $isCurrent = $currentPlan && $currentPlan->id === $plan->id;
                 $isPending = $subscription && $subscription->pending_plan_id === $plan->id;
                 $configDef = config("medvisit_public.plans.{$plan->slug}", []);
+
+                $whatChanges = [];
+                if ($plan->slug === 'basic') {
+                    if ($activeDoctors->count() > 3) {
+                        $whatChanges[] = "3 of your {$activeDoctors->count()} doctors stay active (you choose which 3).";
+                    }
+                    if ($activeStaff->count() > 5) {
+                        $whatChanges[] = "5 of your {$activeStaff->count()} staff users stay active.";
+                    }
+                    if ($activeTvs->count() > 1) {
+                        $whatChanges[] = "1 of your {$activeTvs->count()} TV screens stays connected.";
+                    }
+                    if ($dispenseCount > 0) {
+                        $whatChanges[] = 'Pharmacy will be locked; your medicine stock and history remain kept.';
+                    }
+                    $whatChanges[] = 'Page builder locked; published website pages stay live.';
+                    $whatChanges[] = '300 SMS alerts per month.';
+                } elseif ($plan->slug === 'pro') {
+                    if ($activeDoctors->count() > 8) {
+                        $whatChanges[] = "8 of your {$activeDoctors->count()} doctors stay active.";
+                    }
+                    if ($activeStaff->count() > 15) {
+                        $whatChanges[] = "15 of your {$activeStaff->count()} staff users stay active.";
+                    }
+                    if ($activeTvs->count() > 3) {
+                        $whatChanges[] = "3 of your {$activeTvs->count()} TV screens stay connected.";
+                    }
+                    $whatChanges[] = 'In-house pharmacy & counter dispensing unlocked.';
+                    $whatChanges[] = 'MedVisit visual page builder unlocked.';
+                    $whatChanges[] = '1,000 SMS alerts per month.';
+                } elseif ($plan->slug === 'advanced') {
+                    $whatChanges = [
+                        'Unlimited active doctors and staff members.',
+                        'Unlimited waiting room TV displays.',
+                        'In-house pharmacy & visual page builder unlocked.',
+                        '1 free premium website template included.',
+                        '3,000 SMS alerts per month.',
+                        'Priority support.',
+                    ];
+                }
 
                 return [
                     'id' => $plan->id,
@@ -451,8 +551,11 @@ class BillingCenterController extends Controller
                     'formatted_price' => $plan->formatted_price,
                     'billing_interval' => $plan->billing_interval,
                     'badge' => $configDef['badge'] ?? ($plan->slug === 'pro' ? 'Most popular' : null),
-                    'description' => $configDef['description'] ?? null,
+                    'description' => $plan->description ?? ($configDef['description'] ?? null),
                     'features' => ! empty($plan->features) ? $plan->features : ($configDef['features'] ?? []),
+                    'limits' => $plan->limits ?? [],
+                    'what_changes' => $whatChanges,
+                    'is_recommended' => strcasecmp($plan->name, $recommendedTier) === 0,
                     'is_current' => $isCurrent,
                     'is_pending_downgrade' => $isPending,
                     'is_upgrade' => $currentPlan && $plan->price_cents > $currentPlan->price_cents,
@@ -482,6 +585,10 @@ class BillingCenterController extends Controller
             'periodEnd' => $subscription?->current_period_end?->setTimezone('Asia/Colombo')->format('d/m/Y'),
             'plans' => $plans,
             'sharedFeatures' => config('medvisit_public.shared_features', []),
+            'activeDoctors' => $activeDoctors,
+            'activeStaff' => $activeStaff,
+            'activeTvs' => $activeTvs,
+            'recommendedTier' => $recommendedTier,
         ]);
     }
 
@@ -604,11 +711,79 @@ class BillingCenterController extends Controller
 
         $validated = $request->validate([
             'plan_id' => ['required', 'exists:plans,id'],
+            'keep_active_doctor_ids' => ['nullable', 'array'],
+            'keep_active_doctor_ids.*' => ['integer'],
+            'keep_active_staff_ids' => ['nullable', 'array'],
+            'keep_active_staff_ids.*' => ['integer'],
+            'keep_active_tv_ids' => ['nullable', 'array'],
+            'keep_active_tv_ids.*' => ['integer'],
         ]);
 
         $newPlan = Plan::findOrFail($validated['plan_id']);
         if ($newPlan->price_cents >= $subscription->plan->price_cents) {
             return redirect()->back()->with('error', 'Selected plan is not a downgrade.');
+        }
+
+        // Apply active resource selections (deactivate excess, never delete data)
+        if (isset($validated['keep_active_doctor_ids'])) {
+            $keepDoctorIds = collect($validated['keep_active_doctor_ids'])->map(fn ($id) => (int) $id)->all();
+            $doctorsToDeactivate = Doctor::where('tenant_id', $tenant->id)
+                ->where('is_active', true)
+                ->whereNotIn('id', $keepDoctorIds)
+                ->get();
+
+            $now = Carbon::now('Asia/Colombo');
+            $today = $now->toDateString();
+            $currentTime = $now->format('H:i:s');
+
+            foreach ($doctorsToDeactivate as $doc) {
+                $futureSessionsQuery = DoctorSession::where('doctor_id', $doc->id)
+                    ->whereNotIn('status', ['cancelled', 'completed'])
+                    ->where(function ($q) use ($today, $currentTime) {
+                        $q->where('session_date', '>', $today)
+                            ->orWhere(function ($q2) use ($today, $currentTime) {
+                                $q2->where('session_date', $today)
+                                    ->where(function ($q3) use ($currentTime) {
+                                        $q3->whereNull('end_time')
+                                            ->orWhere('end_time', '>=', $currentTime);
+                                    });
+                            });
+                    });
+
+                $futureSessionIds = (clone $futureSessionsQuery)->pluck('id');
+                $futureTokensCount = BookingToken::whereIn('doctor_session_id', $futureSessionIds)
+                    ->whereNotIn('status', [BookingToken::STATUS_CANCELLED, BookingToken::STATUS_COMPLETED])
+                    ->count();
+
+                if ($futureTokensCount > 0) {
+                    throw ValidationException::withMessages([
+                        'keep_active_doctor_ids' => "Dr. {$doc->name} has {$futureTokensCount} upcoming booked patient token(s). You must cancel or reschedule their upcoming sessions before deactivating them.",
+                    ]);
+                }
+
+                // If doctor has empty future sessions (0 booked tokens), cancel them cleanly
+                $futureSessionsQuery->update([
+                    'status' => 'cancelled',
+                    'cancellation_reason' => 'Doctor deactivated on plan downgrade (scheduled for next billing cycle)',
+                ]);
+            }
+
+            Doctor::whereIn('id', $doctorsToDeactivate->pluck('id'))->update(['is_active' => false]);
+        }
+
+        if (isset($validated['keep_active_staff_ids'])) {
+            User::where('tenant_id', $tenant->id)
+                ->where('is_active', true)
+                ->where('id', '!=', $user->id)
+                ->whereNotIn('id', $validated['keep_active_staff_ids'])
+                ->update(['is_active' => false]);
+        }
+
+        if (isset($validated['keep_active_tv_ids'])) {
+            TvDevice::where('tenant_id', $tenant->id)
+                ->whereNull('revoked_at')
+                ->whereNotIn('id', $validated['keep_active_tv_ids'])
+                ->update(['revoked_at' => now()]);
         }
 
         $subscription->update([
@@ -934,5 +1109,95 @@ class BillingCenterController extends Controller
         }
 
         return $pdfService->downloadResponse($refundRequest);
+    }
+
+    /**
+     * Purchase an SMS Top-Up Pack via Payments.lk checkout.
+     */
+    public function purchaseSmsPack(Request $request, PaymentGateway $gateway): SymfonyResponse
+    {
+        $tenant = tenant();
+        $user = $request->user();
+
+        if ($user && ! $user->hasRole('clinic_admin') && ! $user->hasRole('super_admin')) {
+            abort(403, 'Only clinic administrators can purchase SMS top-up packs.');
+        }
+
+        $validated = $request->validate([
+            'pack_id' => ['required', 'string'],
+        ]);
+
+        $packs = collect(config('plans.sms_topup_packs', []));
+        $pack = $packs->firstWhere('id', $validated['pack_id']);
+
+        if (! $pack) {
+            return redirect()->back()->with('error', 'Selected SMS top-up pack was not found.');
+        }
+
+        $subscription = $tenant->subscription;
+        $now = Carbon::now('Asia/Colombo');
+        $invoiceNumber = SubscriptionInvoice::generateInvoiceNumber();
+
+        $invoice = SubscriptionInvoice::create([
+            'tenant_id' => $tenant->id,
+            'subscription_id' => $subscription?->id,
+            'invoice_number' => $invoiceNumber,
+            'type' => SubscriptionInvoice::TYPE_SMS_TOPUP,
+            'amount_cents' => $pack['price_cents'],
+            'original_amount_cents' => $pack['price_cents'],
+            'discount_cents' => 0,
+            'status' => SubscriptionInvoice::STATUS_UNPAID,
+            'period_start' => $now,
+            'period_end' => $now->copy()->addDays(90),
+            'due_date' => $now,
+            'billing_details' => [
+                'pack_id' => $pack['id'],
+                'credits' => $pack['credits'],
+                'rate_per_sms' => $pack['rate_per_sms'] ?? null,
+                'description' => "SMS Top-Up Pack ({$pack['credits']} SMS)",
+            ],
+            'notes' => "SMS Top-Up Pack: {$pack['credits']} SMS (valid 90 days)",
+        ]);
+
+        $successUrl = route('tenant.settings.billing', ['topup' => 'success']);
+        $cancelUrl = route('tenant.settings.billing', ['topup' => 'cancelled']);
+        $idempotencyKey = "sms-topup-{$invoice->invoice_number}-{$tenant->id}-".time();
+
+        try {
+            $checkout = $gateway->createCheckout([
+                'amountCents' => $invoice->amount_cents,
+                'description' => "MedVisit SMS Top-Up ({$pack['credits']} SMS - {$invoice->invoice_number})",
+                'reference' => $invoice->invoice_number,
+                'successUrl' => $successUrl,
+                'cancelUrl' => $cancelUrl,
+                'idempotencyKey' => $idempotencyKey,
+                'customer' => [
+                    'name' => $tenant->name,
+                    'email' => $user->email,
+                    'phone' => $tenant->phone,
+                ],
+            ]);
+
+            PaymentTransaction::create([
+                'tenant_id' => $tenant->id,
+                'invoice_id' => $invoice->id,
+                'gateway' => 'paymentslk',
+                'gateway_checkout_id' => $checkout['id'],
+                'amount_cents' => $invoice->amount_cents,
+                'currency' => 'LKR',
+                'status' => PaymentTransaction::STATUS_PENDING,
+                'idempotency_key' => $idempotencyKey,
+                'raw_payload' => $checkout['raw'] ?? [],
+            ]);
+
+            return Inertia::location($checkout['url']);
+        } catch (\Throwable $e) {
+            Log::error('SMS top-up checkout initiation failed', [
+                'tenant_id' => $tenant->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return redirect()->back()->with('error', 'Unable to initiate checkout with payment partner. Please try again.');
+        }
     }
 }

@@ -33,6 +33,8 @@ import {
     Gift,
     ShieldCheck,
     ArrowUpRight,
+    Globe,
+    RefreshCw,
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
@@ -100,6 +102,16 @@ interface ShowProps {
         ip_address: string | null;
         user_agent: string | null;
     }>;
+    customDomains?: Array<{
+        id: number;
+        domain: string;
+        status: 'pending' | 'active' | 'failed';
+        verified_at?: string | null;
+        last_checked_at?: string | null;
+        dns_records?: any;
+        failure_reason?: string | null;
+        cname_target: string;
+    }>;
     exports: Array<{
         id: string;
         status: string;
@@ -120,10 +132,11 @@ export default function ClinicShow({
     notes,
     auditLogs,
     agreement_acceptances = [],
+    customDomains = [],
     exports,
     plans,
 }: ShowProps) {
-    const [activeTab, setActiveTab] = useState<'overview' | 'billing' | 'messaging' | 'notes' | 'audit' | 'agreements'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'billing' | 'messaging' | 'notes' | 'agreements' | 'audit' | 'domains'>('overview');
 
     // Modals
     const [impersonateModalOpen, setImpersonateModalOpen] = useState(false);
@@ -140,6 +153,40 @@ export default function ClinicShow({
 
     const [noteText, setNoteText] = useState('');
     const [noteType, setNoteType] = useState('general');
+
+    // Custom Domain State
+    const [addDomainModalOpen, setAddDomainModalOpen] = useState(false);
+    const [newDomain, setNewDomain] = useState('');
+    const [isAddingDomain, setIsAddingDomain] = useState(false);
+    const [verifyingDomainId, setVerifyingDomainId] = useState<number | null>(null);
+
+    const handleAddDomain = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newDomain.trim()) return;
+        setIsAddingDomain(true);
+        router.post(`/super-admin/clinics/${clinic.id}/domains`, {
+            domain: newDomain.trim(),
+        }, {
+            onSuccess: () => {
+                setAddDomainModalOpen(false);
+                setNewDomain('');
+            },
+            onFinish: () => setIsAddingDomain(false),
+        });
+    };
+
+    const handleVerifyDomain = (domainId: number, force: boolean = false) => {
+        setVerifyingDomainId(domainId);
+        router.post(`/super-admin/clinics/${clinic.id}/domains/${domainId}/verify${force ? '?force_verify=1' : ''}`, {}, {
+            onFinish: () => setVerifyingDomainId(null),
+        });
+    };
+
+    const handleRemoveDomain = (domainId: number, domainName: string) => {
+        if (confirm(`Remove custom domain "${domainName}"? The clinic will no longer be accessible via this domain.`)) {
+            router.delete(`/super-admin/clinics/${clinic.id}/domains/${domainId}`);
+        }
+    };
 
     // Impersonation submit
     const handleImpersonate = (e: React.FormEvent) => {
@@ -327,6 +374,7 @@ export default function ClinicShow({
                     { id: 'billing', label: 'Billing & Invoices', icon: CreditCard },
                     { id: 'messaging', label: 'Messaging & OTP', icon: MessageSquare },
                     { id: 'notes', label: `Internal Notes (${notes.length})`, icon: FileText },
+                    { id: 'domains', label: `Custom Domains (${customDomains.length})`, icon: Globe },
                     { id: 'agreements', label: `Agreements (${agreement_acceptances.length})`, icon: ShieldCheck },
                     { id: 'audit', label: 'Audit Trail', icon: Shield },
                 ].map((tab) => {
@@ -797,6 +845,158 @@ export default function ClinicShow({
                 </div>
             )}
 
+            {/* TAB: CUSTOM DOMAINS */}
+            {activeTab === 'domains' && (
+                <div className="space-y-6 mt-6">
+                    <GlassCard className="p-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-5 border-b border-slate-200/80 dark:border-white/10">
+                            <div>
+                                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                    <Globe className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                                    <span>Custom Domains & DNS Verification</span>
+                                </h3>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                    Route branded clinic web traffic (e.g. channeling.drperera.lk) directly to this MedVisit tenant workspace.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setAddDomainModalOpen(true)}
+                                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition shrink-0 cursor-pointer"
+                            >
+                                <Plus className="w-4 h-4" />
+                                <span>Add Custom Domain</span>
+                            </button>
+                        </div>
+
+                        {/* DNS Instructions Callout */}
+                        <div className="mt-5 p-4 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200/80 dark:border-indigo-800/50 text-xs">
+                            <h4 className="font-bold text-indigo-950 dark:text-indigo-200 mb-2 flex items-center gap-2">
+                                <span>DNS Configuration Requirements</span>
+                            </h4>
+                            <p className="text-slate-600 dark:text-slate-300 leading-relaxed mb-3">
+                                Instruct the clinic or their domain administrator to add the following DNS record at their registrar (e.g. LK Domain Registry, Cloudflare, Namecheap):
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 font-mono text-[11px] mb-3">
+                                <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900/80 border border-indigo-100 dark:border-white/10">
+                                    <span className="text-[10px] text-slate-400 block font-sans">Record Type</span>
+                                    <span className="font-bold text-slate-900 dark:text-white">CNAME</span>
+                                </div>
+                                <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900/80 border border-indigo-100 dark:border-white/10">
+                                    <span className="text-[10px] text-slate-400 block font-sans">Host / Name</span>
+                                    <span className="font-bold text-slate-900 dark:text-white">www or channeling</span>
+                                </div>
+                                <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900/80 border border-indigo-100 dark:border-white/10 sm:col-span-2">
+                                    <span className="text-[10px] text-slate-400 block font-sans">Points to / Target</span>
+                                    <span className="font-bold text-indigo-600 dark:text-indigo-400">{customDomains[0]?.cname_target || 'medvisit.lk'}</span>
+                                </div>
+                            </div>
+                            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-[11px] text-amber-900 dark:text-amber-200 leading-relaxed">
+                                <strong>Important &mdash; Apex / Root Domain Restriction:</strong> An apex domain (e.g. <code>yourclinic.lk</code> without <code>www</code>) cannot use a CNAME record at many registrars (including LK Domain Registry) per RFC standards. For apex domains, instruct the clinic to point <strong><code>www.yourclinic.lk</code> &rarr; CNAME</strong> and set up a free <strong>301 URL Redirect</strong> from <code>yourclinic.lk</code> &rarr; <code>https://www.yourclinic.lk</code> at their registrar, or use an <strong>ALIAS/ANAME</strong> record if their DNS provider supports CNAME flattening.
+                            </div>
+                        </div>
+
+                        {/* Domain List */}
+                        <div className="mt-6 space-y-3">
+                            {customDomains.length === 0 ? (
+                                <div className="p-8 text-center rounded-2xl border border-dashed border-slate-200 dark:border-white/10">
+                                    <Globe className="w-8 h-8 text-slate-400 mx-auto mb-2 opacity-50" />
+                                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                        No custom domains mapped yet
+                                    </p>
+                                    <p className="text-[11px] text-slate-500 mt-1">
+                                        Click "Add Custom Domain" above to register a clinic's branded URL.
+                                    </p>
+                                </div>
+                            ) : (
+                                customDomains.map((d) => {
+                                    const isVerifying = verifyingDomainId === d.id;
+                                    return (
+                                        <div
+                                            key={d.id}
+                                            className="p-4 sm:p-5 rounded-2xl bg-white/60 dark:bg-slate-900/40 border border-slate-200/80 dark:border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                                        >
+                                            <div className="space-y-1.5 min-w-0">
+                                                <div className="flex flex-wrap items-center gap-2.5">
+                                                    <span className="font-mono text-sm font-bold text-slate-900 dark:text-white">
+                                                        {d.domain}
+                                                    </span>
+                                                    {d.status === 'active' ? (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                                            <CheckCircle2 className="w-3 h-3" />
+                                                            <span>Active & Verified</span>
+                                                        </span>
+                                                    ) : d.status === 'failed' ? (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                                                            <AlertTriangle className="w-3 h-3" />
+                                                            <span>Verification Failed</span>
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                                            <Clock className="w-3 h-3" />
+                                                            <span>Waiting for DNS</span>
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                <div className="text-[11px] text-slate-500 dark:text-slate-400 flex flex-wrap items-center gap-x-4 gap-y-1">
+                                                    <span>CNAME Target: <code className="text-indigo-600 dark:text-indigo-400 font-bold">{d.cname_target}</code></span>
+                                                    {d.verified_at && (
+                                                        <span>Verified: {d.verified_at}</span>
+                                                    )}
+                                                    {d.last_checked_at && (
+                                                        <span>Checked: {d.last_checked_at}</span>
+                                                    )}
+                                                </div>
+
+                                                {d.failure_reason && (
+                                                    <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium pt-0.5">
+                                                        Error: {d.failure_reason}
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+                                                <button
+                                                    type="button"
+                                                    disabled={isVerifying}
+                                                    onClick={() => handleVerifyDomain(d.id, false)}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold transition cursor-pointer disabled:opacity-50"
+                                                >
+                                                    <RefreshCw className={`w-3.5 h-3.5 ${isVerifying ? 'animate-spin' : ''}`} />
+                                                    <span>{isVerifying ? 'Checking...' : 'Check DNS'}</span>
+                                                </button>
+
+                                                {d.status !== 'active' && (
+                                                    <button
+                                                        type="button"
+                                                        disabled={isVerifying}
+                                                        onClick={() => handleVerifyDomain(d.id, true)}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition cursor-pointer disabled:opacity-50"
+                                                        title="Force verify without DNS lookup if confirmed in Cloudflare"
+                                                    >
+                                                        <span>Force verify</span>
+                                                    </button>
+                                                )}
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveDomain(d.id, d.domain)}
+                                                    className="p-1.5 rounded-xl text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition cursor-pointer"
+                                                    title="Remove Domain"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </GlassCard>
+                </div>
+            )}
+
             {/* Impersonation Reason Modal */}
             <GlassModal
                 isOpen={impersonateModalOpen}
@@ -960,6 +1160,56 @@ export default function ClinicShow({
                             className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50"
                         >
                             Confirm Suspension
+                        </button>
+                    </div>
+                </form>
+            </GlassModal>
+
+            {/* Add Custom Domain Modal */}
+            <GlassModal
+                isOpen={addDomainModalOpen}
+                onClose={() => setAddDomainModalOpen(false)}
+                title={`Add Custom Domain for ${clinic.name}`}
+            >
+                <form onSubmit={handleAddDomain} className="space-y-4">
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                            Domain Name (FQDN) *
+                        </label>
+                        <input
+                            type="text"
+                            required
+                            placeholder="channeling.myclinic.lk"
+                            value={newDomain}
+                            onChange={(e) => setNewDomain(e.target.value)}
+                            className="w-full p-3 text-xs rounded-xl border border-slate-300 dark:border-white/10 bg-white/80 dark:bg-slate-900/80 focus:ring-2 focus:ring-indigo-500 font-mono"
+                        />
+                        <p className="text-[11px] text-slate-500 mt-1">
+                            Enter the fully qualified domain or subdomain without http:// or trailing slashes.
+                        </p>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-white/5 text-xs text-slate-600 dark:text-slate-400 space-y-1">
+                        <div className="font-semibold text-slate-800 dark:text-slate-200">Required DNS Record:</div>
+                        <p className="font-mono text-[11px]">
+                            CNAME &rarr; medvisit.lk
+                        </p>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2.5 pt-2">
+                        <button
+                            type="button"
+                            onClick={() => setAddDomainModalOpen(false)}
+                            className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={!newDomain.trim() || isAddingDomain}
+                            className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition disabled:opacity-50"
+                        >
+                            {isAddingDomain ? 'Adding...' : 'Add Domain'}
                         </button>
                     </div>
                 </form>

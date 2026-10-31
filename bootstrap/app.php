@@ -49,7 +49,6 @@ return Application::configure(basePath: dirname(__DIR__))
             'role_or_permission' => RoleOrPermissionMiddleware::class,
             'pharmacy.enabled' => EnsurePharmacyEnabled::class,
             'plan.allows' => EnsurePlanAllows::class,
-            'plan.allows' => EnsurePlanAllows::class,
             'clinic.setup' => EnsureClinicSetupComplete::class,
         ]);
     })

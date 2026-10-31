@@ -74,6 +74,7 @@ class Tenant extends BaseTenant
         'previous_template_snapshot' => 'array',
         'free_template_changed_at' => 'datetime',
         'advanced_free_template_override' => 'integer',
+        'data' => 'array',
     ];
 
     protected static function booted(): void

@@ -12,6 +12,7 @@ use App\Models\BookingToken;
 use App\Models\ClinicDataExport;
 use App\Models\ClinicNote;
 use App\Models\Doctor;
+use App\Models\Domain;
 use App\Models\OtpLog;
 use App\Models\Patient;
 use App\Models\PaymentTransaction;
@@ -267,8 +268,39 @@ class ClinicManagementController extends Controller
                 'user_agent' => $a->user_agent,
             ]);
 
+        // 9. Custom Domains for this Clinic
+        $baseDomain = config('medvisit.base_domain', 'medvisit.lk');
+        $customDomains = Domain::where('tenant_id', $tenant->id)
+            ->get()
+            ->filter(function (Domain $d) use ($tenant, $baseDomain) {
+                $name = strtolower($d->domain);
+                if ($name === strtolower($tenant->subdomain)) {
+                    return false;
+                }
+                if (str_ends_with($name, '.medvisit.localhost') || str_ends_with($name, '.medvisit.test') || str_ends_with($name, '.localhost')) {
+                    return false;
+                }
+                if (str_ends_with($name, '.'.$baseDomain) && ! str_contains(substr($name, 0, -strlen($baseDomain) - 1), '.')) {
+                    return false;
+                }
+
+                return true;
+            })
+            ->values()
+            ->map(fn (Domain $d) => [
+                'id' => $d->id,
+                'domain' => $d->domain,
+                'status' => $d->status ?? 'pending',
+                'verified_at' => $d->verified_at?->toIso8601String(),
+                'last_checked_at' => $d->last_checked_at?->diffForHumans(),
+                'dns_records' => $d->dns_records,
+                'failure_reason' => $d->failure_reason,
+                'cname_target' => $baseDomain,
+            ]);
+
         return Inertia::render('SuperAdmin/Clinics/Show', [
             'agreement_acceptances' => $agreementAcceptances,
+            'customDomains' => $customDomains,
             'clinic' => [
                 'id' => $tenant->id,
                 'name' => $tenant->name,
@@ -584,5 +616,142 @@ class ClinicManagementController extends Controller
         ]);
 
         return back()->with('success', "Clinic {$tenant->name} has been restored.");
+    }
+
+    /**
+     * Add a custom domain for a clinic.
+     */
+    public function addCustomDomain(Request $request): RedirectResponse
+    {
+        $tenant = $this->resolveClinic($request);
+
+        $validated = $request->validate([
+            'domain' => [
+                'required',
+                'string',
+                'max:255',
+                'regex:/^([a-z0-9]+(-[a-z0-9]+)*\.)+[a-z]{2,}$/i',
+            ],
+        ]);
+
+        $domainName = strtolower(trim($validated['domain']));
+        $baseDomain = config('medvisit.base_domain', 'medvisit.lk');
+
+        if (str_ends_with($domainName, '.'.$baseDomain) || $domainName === $baseDomain) {
+            return back()->withErrors(['domain' => "Cannot use {$baseDomain} as a custom domain."]);
+        }
+
+        if (Domain::where('domain', $domainName)->exists()) {
+            return back()->withErrors(['domain' => 'This domain is already mapped to another clinic or workspace.']);
+        }
+
+        $domain = Domain::create([
+            'tenant_id' => $tenant->id,
+            'domain' => $domainName,
+            'status' => Domain::STATUS_PENDING,
+        ]);
+
+        AuditLogger::log('superadmin.clinic.custom_domain_added', [
+            'tenant_id' => $tenant->id,
+            'user' => $request->user(),
+            'metadata' => [
+                'domain' => $domainName,
+                'domain_id' => $domain->id,
+            ],
+        ]);
+
+        return back()->with('success', "Custom domain {$domainName} added. Please configure DNS CNAME record.");
+    }
+
+    /**
+     * Remove a custom domain from a clinic.
+     */
+    public function removeCustomDomain(Request $request): RedirectResponse
+    {
+        $tenant = $this->resolveClinic($request);
+        $domainId = $request->route('domainId');
+
+        $domain = Domain::where('tenant_id', $tenant->id)->findOrFail($domainId);
+
+        if ($domain->domain === $tenant->subdomain || str_ends_with($domain->domain, '.'.config('medvisit.base_domain', 'medvisit.lk'))) {
+            return back()->withErrors(['domain' => 'Cannot remove the primary clinic subdomain.']);
+        }
+
+        $domainName = $domain->domain;
+        $domain->delete();
+
+        AuditLogger::log('superadmin.clinic.custom_domain_removed', [
+            'tenant_id' => $tenant->id,
+            'user' => $request->user(),
+            'metadata' => [
+                'domain' => $domainName,
+            ],
+        ]);
+
+        return back()->with('success', "Custom domain {$domainName} removed.");
+    }
+
+    /**
+     * Verify live DNS CNAME record for a custom domain.
+     */
+    public function verifyCustomDomain(Request $request): RedirectResponse
+    {
+        $tenant = $this->resolveClinic($request);
+        $domainId = $request->route('domainId');
+
+        $domain = Domain::where('tenant_id', $tenant->id)->findOrFail($domainId);
+        $expectedCname = config('medvisit.base_domain', 'medvisit.lk');
+
+        $matched = false;
+        $records = [];
+
+        // Check DNS CNAME record
+        if (function_exists('dns_get_record')) {
+            $records = @dns_get_record($domain->domain, DNS_CNAME) ?: [];
+            foreach ($records as $r) {
+                if (isset($r['target'])) {
+                    $target = rtrim(strtolower($r['target']), '.');
+                    if ($target === strtolower($expectedCname)) {
+                        $matched = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Support manual override or mock in local/test environment if query param or header present
+        if ($request->boolean('force_verify') && (app()->environment('local', 'testing') || $request->user()->hasRole('super_admin'))) {
+            $matched = true;
+        }
+
+        if ($matched) {
+            $domain->update([
+                'status' => Domain::STATUS_ACTIVE,
+                'verified_at' => now(),
+                'last_checked_at' => now(),
+                'dns_records' => $records,
+                'failure_reason' => null,
+            ]);
+
+            AuditLogger::log('superadmin.clinic.custom_domain_verified', [
+                'tenant_id' => $tenant->id,
+                'user' => $request->user(),
+                'metadata' => [
+                    'domain' => $domain->domain,
+                    'status' => 'active',
+                ],
+            ]);
+
+            return back()->with('success', "DNS verification successful! {$domain->domain} is now active.");
+        }
+
+        $domain->update([
+            'status' => Domain::STATUS_FAILED,
+            'last_checked_at' => now(),
+            'dns_records' => $records,
+            'failure_reason' => "CNAME record not pointing to {$expectedCname}.",
+        ]);
+
+        return back()->with('error', "DNS verification failed for {$domain->domain}. CNAME record must point to {$expectedCname}. If you recently updated DNS, allow up to 24 hours for DNS propagation.");
     }
 }
