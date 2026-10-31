@@ -47,6 +47,7 @@ class SubscriptionBillingController extends Controller
             ->orderBy('price_cents')
             ->get()
             ->map(function (Plan $plan) {
+                $configTier = config("plans.tiers.{$plan->slug}", []);
                 $configDef = config("medvisit_public.plans.{$plan->slug}", []);
 
                 return [
@@ -57,8 +58,8 @@ class SubscriptionBillingController extends Controller
                     'price_cents' => $plan->price_cents,
                     'interval' => 'per month',
                     'target' => 'per clinic',
-                    'badge' => $configDef['badge'] ?? ($plan->slug === 'pro' ? 'Most popular' : null),
-                    'description' => $configDef['description'] ?? "MedVisit {$plan->name} plan.",
+                    'badge' => $configTier['badge'] ?? $configDef['badge'] ?? ($plan->slug === 'pro' ? 'Most popular' : null),
+                    'description' => $plan->description ?: ($configTier['description'] ?? $configDef['description'] ?? "MedVisit {$plan->name} plan."),
                     'features' => ! empty($plan->features) ? $plan->features : ($configDef['features'] ?? []),
                 ];
             });

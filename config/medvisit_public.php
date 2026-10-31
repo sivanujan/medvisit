@@ -59,7 +59,7 @@ return [
             'interval' => 'per month',
             'target' => 'per clinic',
             'badge' => null,
-            'description' => 'Essential clinic workflow, appointments, and live token management for single practices.',
+            'description' => 'Everything a small clinic needs to run its queue, bookings, prescriptions and billing.',
             'features' => [],
         ],
         'pro' => [
@@ -71,7 +71,7 @@ return [
             'interval' => 'per month',
             'target' => 'per clinic',
             'badge' => 'Most popular',
-            'description' => 'Comprehensive OPD channeling, SMS queue notifications, and automated prescription workflow.',
+            'description' => 'For growing clinics with a pharmacy, more doctors and multiple waiting rooms.',
             'features' => [],
         ],
         'advanced' => [
@@ -83,7 +83,7 @@ return [
             'interval' => 'per month',
             'target' => 'per clinic',
             'badge' => null,
-            'description' => 'High-capacity medical centers with multi-doctor rosters, in-house dispensing, and custom integrations.',
+            'description' => 'For busy medical centres: unlimited doctors, staff and screens, priority support.',
             'features' => [],
         ],
     ],

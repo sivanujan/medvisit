@@ -16,6 +16,7 @@ import {
     RefreshCw,
     Info,
     Tag,
+    Globe,
 } from 'lucide-react';
 import LegalFooter from '@/Components/Public/LegalFooter';
 import { getCentralUrl as resolveCentralUrl } from '@/Utils/centralUrl';
@@ -481,6 +482,36 @@ export default function Subscribe({
                                         <span className="leading-snug">{feat}</span>
                                     </div>
                                 ))}
+                            </div>
+                        </div>
+
+                        {/* Custom Clinic Domain Add-on Note */}
+                        <div className="p-4 sm:p-5 rounded-3xl bg-white/60 dark:bg-slate-900/50 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 flex flex-col sm:flex-row items-center sm:items-start gap-3.5 text-center sm:text-left">
+                            <div className="p-2.5 rounded-2xl bg-teal-500/10 text-teal-600 dark:text-teal-400 shrink-0">
+                                <Globe className="w-5 h-5" />
+                            </div>
+                            <div className="space-y-1 text-xs">
+                                <p className="font-bold text-slate-900 dark:text-white">
+                                    Want your own domain (e.g. yourclinic.lk)?
+                                </p>
+                                <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
+                                    Available as a separate service with fully managed SSL and DNS. Contact us via WhatsApp{' '}
+                                    <a
+                                        href="https://wa.me/94701291688"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="font-semibold text-teal-600 dark:text-teal-400 underline hover:opacity-80"
+                                    >
+                                        070 129 1688
+                                    </a>{' '}
+                                    or{' '}
+                                    <a
+                                        href="mailto:hello@medvisit.lk"
+                                        className="font-semibold text-teal-600 dark:text-teal-400 underline hover:opacity-80"
+                                    >
+                                        hello@medvisit.lk
+                                    </a>.
+                                </p>
                             </div>
                         </div>
                     </div>
