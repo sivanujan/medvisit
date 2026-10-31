@@ -254,7 +254,7 @@ export default function RegisterClinic({
         const csrfToken =
             (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
 
-        fetch(route('subdomain.check'), {
+        fetch('/check-subdomain', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -481,7 +481,7 @@ export default function RegisterClinic({
             (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
 
         try {
-            const res = await fetch(route('register.send_code'), {
+            const res = await fetch('/register/send-code', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -527,8 +527,9 @@ export default function RegisterClinic({
             setTimeout(() => {
                 inputRefs.current[0]?.focus();
             }, 150);
-        } catch {
-            setOtpError('Network error while requesting verification code. Please try again.');
+        } catch (err: any) {
+            console.error('[handleSendCode error]', err);
+            setOtpError(err?.message ? `Failed: ${err.message}` : 'Network error while requesting verification code. Please try again.');
             setSendingCode(false);
         }
     };
@@ -554,7 +555,7 @@ export default function RegisterClinic({
                 bodyPayload.mobile = targetPhone;
             }
 
-            const res = await fetch(route('register.send_phone_otp'), {
+            const res = await fetch('/register/send-phone-otp', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -597,8 +598,9 @@ export default function RegisterClinic({
             setTimeout(() => {
                 phoneInputRefs.current[0]?.focus();
             }, 150);
-        } catch {
-            setPhoneOtpError('Network error while requesting SMS OTP.');
+        } catch (err: any) {
+            console.error('[handleSendPhoneOtp error]', err);
+            setPhoneOtpError(err?.message ? `Failed: ${err.message}` : 'Network error while requesting SMS OTP.');
             setPhoneSendingCode(false);
         }
     };
@@ -615,7 +617,7 @@ export default function RegisterClinic({
             (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
 
         try {
-            const res = await fetch(route('register.verify_code'), {
+            const res = await fetch('/register/verify-code', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -654,8 +656,9 @@ export default function RegisterClinic({
                     setStep(5);
                 }, 600);
             }
-        } catch {
-            setOtpError('Network error while verifying code. Please try again.');
+        } catch (err: any) {
+            console.error('[handleVerifyCode error]', err);
+            setOtpError(err?.message ? `Failed: ${err.message}` : 'Network error while verifying code. Please try again.');
             setVerifyingCode(false);
         }
     };
@@ -672,7 +675,7 @@ export default function RegisterClinic({
             (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
 
         try {
-            const res = await fetch(route('register.verify_phone_otp'), {
+            const res = await fetch('/register/verify-phone-otp', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -716,8 +719,9 @@ export default function RegisterClinic({
                     setStep(5);
                 }, 600);
             }
-        } catch {
-            setPhoneOtpError('Network error while verifying SMS OTP.');
+        } catch (err: any) {
+            console.error('[handleVerifyPhoneOtp error]', err);
+            setPhoneOtpError(err?.message ? `Failed: ${err.message}` : 'Network error while verifying SMS OTP.');
             setPhoneVerifyingCode(false);
         }
     };
@@ -740,7 +744,7 @@ export default function RegisterClinic({
             (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
 
         try {
-            const res = await fetch(route('register.resend_code'), {
+            const res = await fetch('/register/resend-code', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -779,8 +783,9 @@ export default function RegisterClinic({
             setTimeout(() => {
                 inputRefs.current[0]?.focus();
             }, 100);
-        } catch {
-            setOtpError('Network error while resending code.');
+        } catch (err: any) {
+            console.error('[handleResendCode error]', err);
+            setOtpError(err?.message ? `Failed: ${err.message}` : 'Network error while resending code.');
             setResendingCode(false);
         }
     };
