@@ -54,11 +54,6 @@ export default function Templates({ templates, meta }: Props) {
 
     return (
         <PublicLegalLayout title={meta.title} description={meta.description} isWide={true}>
-            <Head>
-                <title>{meta.title}</title>
-                <meta name="description" content={meta.description} />
-            </Head>
-
             {/* Hero Section */}
             <div className="relative text-center max-w-4xl mx-auto mb-12 sm:mb-16 pt-4">
                 <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary/10 dark:bg-primary/20 border border-primary/20 text-primary-700 dark:text-primary-300 text-xs font-bold uppercase tracking-wider mb-4">

@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Tenant;
 use App\Models\WebsiteTemplate;
+use App\Support\SeoMeta;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -42,7 +43,7 @@ class PublicTemplateShowcaseController extends Controller
                 'title' => 'Designer Clinic Website Templates — MedVisit',
                 'description' => 'Browse beautiful, high-converting animated website templates crafted specifically for Sri Lankan medical centers, specialist suites, family practices, and dental clinics.',
             ],
-        ]);
+        ])->withViewData(['seo' => SeoMeta::forTemplates()->toViewData()]);
     }
 
     /**

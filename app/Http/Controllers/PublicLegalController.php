@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Plan;
 use App\Services\PlatformSettingsService;
+use App\Support\SeoMeta;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
@@ -57,7 +58,7 @@ class PublicLegalController extends Controller
             'config' => config('medvisit_public'),
             'plans' => $plans,
             'launchOffer' => $launchOffer,
-        ]);
+        ])->withViewData(['seo' => SeoMeta::forPricing()->toViewData()]);
     }
 
     /**
@@ -65,9 +66,15 @@ class PublicLegalController extends Controller
      */
     public function terms(Request $request): Response
     {
+        $seo = SeoMeta::forLegal(
+            'Terms and Conditions',
+            'Official terms and conditions for MedVisit clinic management and doctor channeling software.',
+            route('terms')
+        );
+
         return Inertia::render('Public/Legal/Terms', [
             'config' => config('medvisit_public'),
-        ]);
+        ])->withViewData(['seo' => $seo->toViewData()]);
     }
 
     /**
@@ -75,9 +82,15 @@ class PublicLegalController extends Controller
      */
     public function refundPolicy(Request $request): Response
     {
+        $seo = SeoMeta::forLegal(
+            'Refund Policy',
+            'MedVisit refund, cancellation, and dispute policy for clinic subscriptions and services.',
+            route('refund_policy')
+        );
+
         return Inertia::render('Public/Legal/RefundPolicy', [
             'config' => config('medvisit_public'),
-        ]);
+        ])->withViewData(['seo' => $seo->toViewData()]);
     }
 
     /**
@@ -85,9 +98,15 @@ class PublicLegalController extends Controller
      */
     public function disputePolicy(Request $request): Response
     {
+        $seo = SeoMeta::forLegal(
+            'Dispute Resolution Policy',
+            'MedVisit dispute resolution procedures and consumer protection for healthcare providers.',
+            route('dispute_policy')
+        );
+
         return Inertia::render('Public/Legal/DisputePolicy', [
             'config' => config('medvisit_public'),
-        ]);
+        ])->withViewData(['seo' => $seo->toViewData()]);
     }
 
     /**
@@ -95,8 +114,14 @@ class PublicLegalController extends Controller
      */
     public function privacyPolicy(Request $request): Response
     {
+        $seo = SeoMeta::forLegal(
+            'Privacy Policy',
+            'MedVisit privacy policy and data protection standards for clinics, doctors, and patients in Sri Lanka.',
+            route('privacy_policy')
+        );
+
         return Inertia::render('Public/Legal/PrivacyPolicy', [
             'config' => config('medvisit_public'),
-        ]);
+        ])->withViewData(['seo' => $seo->toViewData()]);
     }
 }

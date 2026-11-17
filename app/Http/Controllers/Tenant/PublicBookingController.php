@@ -16,6 +16,7 @@ use App\Models\Tenant;
 use App\Models\VisitType;
 use App\Services\FeeResolutionService;
 use App\Services\PhoneVerification\PhoneVerificationService;
+use App\Support\SeoMeta;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -111,7 +112,7 @@ class PublicBookingController extends Controller
             'doctors' => $doctors,
             'specialties' => $specialties,
             'allowAnyDoctor' => $allowAnyDoctor,
-        ]);
+        ])->withViewData(['seo' => SeoMeta::forTenantBooking($tenant)->toViewData()]);
     }
 
     /**
@@ -180,7 +181,7 @@ class PublicBookingController extends Controller
             'initialMonth' => $initialMonth,
             'initialAvailability' => $availability,
             'firstAvailableDate' => $firstAvailableDate,
-        ]);
+        ])->withViewData(['seo' => SeoMeta::forTenantBooking($tenant, $doctor)->toViewData()]);
     }
 
     /**
@@ -279,7 +280,7 @@ class PublicBookingController extends Controller
             ],
             'visitTypes' => $onlineVisitTypes,
             'arrivalNote' => $tenant->arrival_note ?? 'Please arrive 15 minutes prior to your approximate consultation time with previous medical prescriptions and reports.',
-        ]);
+        ])->withViewData(['seo' => SeoMeta::forTenantBooking($tenant, $doctor)->toViewData()]);
     }
 
     /**

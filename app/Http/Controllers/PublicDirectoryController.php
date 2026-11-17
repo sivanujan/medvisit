@@ -6,8 +6,11 @@ namespace App\Http\Controllers;
 
 use App\Models\DirectoryDoctor;
 use App\Models\DirectoryListing;
+use App\Models\WebsiteTemplate;
+use App\Support\SeoMeta;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
+use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -242,7 +245,7 @@ class PublicDirectoryController extends Controller
             'districts' => config('medvisit_public.directory.districts', []),
             'specialties' => $availableSpecialties,
             'fixedServices' => config('medvisit_public.directory.fixed_services', []),
-        ]);
+        ])->withViewData(['seo' => SeoMeta::forFind()->toViewData()]);
     }
 
     /**
@@ -293,7 +296,7 @@ class PublicDirectoryController extends Controller
                 'doctor_count' => $listing->doctor_count,
             ],
             'doctors' => $doctors,
-        ]);
+        ])->withViewData(['seo' => SeoMeta::forDirectoryClinic($listing)->toViewData()]);
     }
 
     /**
@@ -348,7 +351,7 @@ class PublicDirectoryController extends Controller
                 'session_schedules' => $doctor->session_schedules ?? [],
                 'booking_url' => $doctor->booking_url,
             ],
-        ]);
+        ])->withViewData(['seo' => SeoMeta::forDirectoryDoctor($listing, $doctor)->toViewData()]);
     }
 
     /**
@@ -359,7 +362,6 @@ class PublicDirectoryController extends Controller
         $baseUrl = rtrim(config('app.url', 'https://medvisit.lk'), '/');
 
         $staticPages = [
-            '',
             '/find',
             '/pricing',
             '/terms',
@@ -367,6 +369,16 @@ class PublicDirectoryController extends Controller
             '/dispute-policy',
             '/privacy-policy',
         ];
+
+        // Only include homepage if prelaunch redirect is inactive
+        if (! config('medvisit.prelaunch_mode', false)) {
+            array_unshift($staticPages, '');
+        }
+
+        // Include /templates only if public and indexable templates exist
+        if (Route::has('templates.index') && WebsiteTemplate::active()->exists()) {
+            $staticPages[] = '/templates';
+        }
 
         $xml = '<?xml version="1.0" encoding="UTF-8"?>'."\n";
         $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'."\n";
@@ -380,8 +392,8 @@ class PublicDirectoryController extends Controller
             $xml .= "  </url>\n";
         }
 
-        // Active clinic listings
-        $listings = DirectoryListing::active()->with(['activeDoctors'])->get();
+        // Active, paying or launch-offer clinic listings with directory opt-in
+        $listings = DirectoryListing::sitemapEligible()->with(['activeDoctors'])->get();
 
         foreach ($listings as $listing) {
             $updated = $listing->updated_at->toAtomString();

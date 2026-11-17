@@ -517,13 +517,22 @@ class Tenant extends BaseTenant
      */
     public static function urlForSubdomain(string $subdomain, string $path = ''): string
     {
-        $baseDomain = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
-        $appUrl = config('app.url', 'http://medvisit.localhost:8000');
-        $scheme = parse_url((string) $appUrl, PHP_URL_SCHEME) ?: 'http';
-        $port = parse_url((string) $appUrl, PHP_URL_PORT);
-        $portSuffix = ($port && ! in_array($port, [80, 443])) ? ":{$port}" : '';
+        $isProduction = app()->environment('production') || config('app.env') === 'production';
+
+        if ($isProduction) {
+            $scheme = 'https';
+            $baseDomain = config('medvisit.public_domain', 'medvisit.lk');
+            $portSuffix = '';
+        } else {
+            $baseDomain = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
+            $appUrl = config('app.url', 'http://medvisit.localhost:8000');
+            $scheme = parse_url((string) $appUrl, PHP_URL_SCHEME) ?: 'http';
+            $port = parse_url((string) $appUrl, PHP_URL_PORT);
+            $portSuffix = ($port && ! in_array($port, [80, 443])) ? ":{$port}" : '';
+        }
+
         $cleanPath = ltrim($path, '/');
-        $pathString = $cleanPath !== '' ? "/{$cleanPath}" : '';
+        $pathString = $cleanPath !== '' ? "/{$cleanPath}" : '/';
 
         return "{$scheme}://{$subdomain}.{$baseDomain}{$portSuffix}{$pathString}";
     }

@@ -34,5 +34,6 @@ export type PageProps<
         phase_2: boolean;
         ping_interval_seconds: number;
     };
+    base_domain?: string;
     publicConfig?: import('@/Config/medvisitPublic').PublicConfig;
 };

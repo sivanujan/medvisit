@@ -148,6 +148,7 @@ class HandleInertiaRequests extends Middleware
                 'return_url' => session('impersonation_return_url'),
             ] : null,
             'is_demo' => (bool) ($tenant?->is_demo ?? false),
+            'base_domain' => config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost')),
             'demo_roles' => ($tenant && $tenant->is_demo) ? (new DemoModeService)->getDemoRoles() : null,
             'publicConfig' => config('medvisit_public'),
             'waitingSupportCount' => rescue(function () use ($request) {

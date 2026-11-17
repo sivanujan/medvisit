@@ -46,13 +46,13 @@ function SiteHead({ seo, clinic, look, extraFonts }: { seo: Props['seo']; clinic
     return (
         <Head>
             <title>{seo.title || clinic.name}</title>
-            <meta name="description" content={seo.description} />
-            <meta property="og:type" content="website" />
-            <meta property="og:title" content={seo.title || clinic.name} />
-            <meta property="og:description" content={seo.description} />
-            {seo.image && <meta property="og:image" content={seo.image} />}
-            {seo.url && <meta property="og:url" content={seo.url} />}
-            <meta name="twitter:card" content="summary_large_image" />
+            <meta name="description" content={seo.description} head-key="description" />
+            <meta property="og:type" content="website" head-key="og:type" />
+            <meta property="og:title" content={seo.title || clinic.name} head-key="og:title" />
+            <meta property="og:description" content={seo.description} head-key="og:description" />
+            {seo.image && <meta property="og:image" content={seo.image} head-key="og:image" />}
+            {seo.url && <meta property="og:url" content={seo.url} head-key="og:url" />}
+            <meta name="twitter:card" content="summary_large_image" head-key="twitter:card" />
             {clinic.logo_url && <link rel="icon" href={clinic.logo_url} />}
             {fontHref && <link rel="stylesheet" href={fontHref} />}
             {extraFonts && <link rel="stylesheet" href={extraFonts} />}

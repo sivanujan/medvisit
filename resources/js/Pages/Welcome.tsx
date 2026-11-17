@@ -5,6 +5,7 @@ import LegalFooter from '@/Components/Public/LegalFooter';
 import LandingNav from '@/Components/Landing/LandingNav';
 import LandingPage from '@/Components/Landing/LandingPage';
 import { PageProps } from '@/types';
+import { getCentralUrl } from '@/Utils/centralUrl';
 
 interface Props extends PageProps {
     isCentral?: boolean;
@@ -28,15 +29,23 @@ export default function Welcome({
     if (!tenant) {
         return (
             <>
-                <Head title="MedVisit - Token queues and clinic management for Sri Lanka" />
+                <Head title="Token queues and clinic management for Sri Lanka">
+                    <meta
+                        name="description"
+                        content="Modern OPD clinic management software built for Sri Lankan clinics. Live queue TV display, doctor channeling tokens, digital prescriptions, inventory & billing."
+                        head-key="description"
+                    />
+                </Head>
                 <LandingPage canLogin={canLogin} canRegister={canRegister} />
             </>
         );
     }
 
+    const resolvedBaseDomain = (tenant as any)?.base_domain || 'medvisit.lk';
+
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased selection:bg-primary-100 selection:text-primary-800 relative overflow-hidden">
-            <Head title={`${tenant.name} - MedVisit Clinic Portal`} />
+            <Head title={`${tenant.name} - Clinic Portal`} />
 
             {/* Ambient Background Glow Layer */}
             <div aria-hidden="true" className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
@@ -49,7 +58,7 @@ export default function Welcome({
                 user={auth?.user}
                 canLogin={canLogin}
                 canRegister={canRegister}
-                tenantSubdomain={`${tenant.subdomain}.medvisit.test`}
+                tenantSubdomain={`${tenant.subdomain}.${resolvedBaseDomain}`}
             />
 
             <main className="mx-auto max-w-7xl px-4 sm:px-6 py-12 lg:py-20">
@@ -76,7 +85,7 @@ export default function Welcome({
                                 </Link>
                             )}
                             <a
-                                href="http://medvisit.test"
+                                href={getCentralUrl('/', resolvedBaseDomain)}
                                 className="rounded-2xl border border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 px-6 py-3.5 text-sm sm:text-base font-bold text-slate-700 dark:text-slate-200 backdrop-blur-md shadow-xs transition hover:bg-white dark:hover:bg-slate-800"
                             >
                                 &larr; MedVisit Platform

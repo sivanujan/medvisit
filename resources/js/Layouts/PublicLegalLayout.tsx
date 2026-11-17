@@ -21,10 +21,9 @@ export default function PublicLegalLayout({
 }: PropsWithChildren<Props>) {
     return (
         <div className="min-h-screen flex flex-col justify-between bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased selection:bg-primary-100 selection:text-primary-800 relative overflow-x-hidden">
-            <Head>
-                <title>{`${title} — MedVisit`}</title>
-                <meta name="description" content={description} />
-                <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+            <Head title={title}>
+                <meta name="description" content={description} head-key="description" />
+                <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" head-key="viewport" />
             </Head>
 
             {/* Print Stylesheet */}

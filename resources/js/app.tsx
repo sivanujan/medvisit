@@ -15,7 +15,13 @@ configureEcho({
 const appName = import.meta.env.VITE_APP_NAME || 'MedVisit';
 
 createInertiaApp({
-    title: (title) => `${title} - ${appName}`,
+    title: (title) => {
+        if (!title || !title.trim()) {
+            return appName;
+        }
+        const clean = title.replace(/\s*[-—•·|]\s*MedVisit(?:\s+(?:Platform|Clinic Control|Console|Clinic Portal|Pharmacy))?\s*$/i, '').trim();
+        return clean ? `${clean} — ${appName}` : appName;
+    },
     resolve: (name) =>
         resolvePageComponent(
             `./Pages/${name}.tsx`,

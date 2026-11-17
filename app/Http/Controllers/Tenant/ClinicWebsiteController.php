@@ -20,12 +20,14 @@ use App\Services\FeeResolutionService;
 use App\Services\Templates\TemplateService;
 use App\Support\ClinicWebsite;
 use App\Support\HtmlSanitizer;
+use App\Support\SeoMeta;
 use App\Support\SiteKit;
 use App\Support\SvgSanitizer;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -904,6 +906,14 @@ class ClinicWebsiteController extends Controller
         $customCss = $isPreview ? ($page?->css ?? $page?->published_css) : $page?->published_css;
         $contact = collect($sections)->firstWhere('type', 'contact') ?? [];
 
+        $seoMeta = $page && ! $page->is_homepage
+            ? SeoMeta::forTenantPage($tenant, $page)
+            : SeoMeta::forTenantHome($tenant, $page);
+
+        if ($isPreview) {
+            $seoMeta->robots = 'noindex, nofollow';
+        }
+
         return Inertia::render('Public/ClinicLanding', [
             'clinic' => [
                 'name' => (string) ($tenant->name ?? ''),
@@ -931,10 +941,10 @@ class ClinicWebsiteController extends Controller
             'doctors' => $doctors,
             'upcomingSessions' => $upcomingSessions,
             'seo' => [
-                'title' => $page?->seo_title ?? ($tenant->seo_title ?: ClinicWebsite::defaultSeoTitle($tenant)),
-                'description' => $page?->seo_description ?? ($tenant->seo_description ?: ClinicWebsite::defaultSeoDescription($tenant)),
-                'image' => $tenant->website_share_image ?: url('/share-image.png'),
-                'url' => $tenant->url('/'),
+                'title' => $seoMeta->title,
+                'description' => $seoMeta->description,
+                'image' => $seoMeta->ogImage,
+                'url' => $seoMeta->canonical,
             ],
             'siteKit' => SiteKit::resolveFor($tenant),
             'customPage' => $customHtml ? [
@@ -942,7 +952,7 @@ class ClinicWebsiteController extends Controller
                 'css' => $customCss,
                 'isPreview' => $isPreview,
             ] : null,
-        ]);
+        ])->withViewData(['seo' => $seoMeta->toViewData()]);
     }
 
     /**
@@ -1271,5 +1281,119 @@ class ClinicWebsiteController extends Controller
         }
 
         return redirect()->back()->with('success', 'Your appointment token has been cancelled.');
+    }
+
+    /**
+     * Dynamic robots.txt per tenant subdomain (GET /robots.txt).
+     * Demo tenants, inactive, suspended, or unpublished clinics: Disallow all + noindex header.
+     * Active clinics: Allow public pages, disallow internal staff areas, and specify tenant sitemap.
+     */
+    public function robots(): HttpResponse
+    {
+        $tenant = tenant();
+
+        if ((bool) $tenant->is_demo || ! ($tenant->website_published ?? true) || $tenant->status !== 'active') {
+            $content = "User-agent: *\nDisallow: /\n";
+
+            return response($content, 200, [
+                'Content-Type' => 'text/plain',
+                'X-Robots-Tag' => 'noindex, nofollow',
+            ]);
+        }
+
+        $sitemapUrl = $tenant->url('/sitemap.xml');
+
+        $content = "User-agent: *\n";
+        $content .= "Allow: /\n";
+        $content .= "Allow: /p/\n";
+        $content .= "Allow: /book\n";
+        $content .= "Allow: /queue\n";
+        $content .= "Allow: /share-image.png\n";
+        $content .= "Disallow: /dashboard\n";
+        $content .= "Disallow: /admin\n";
+        $content .= "Disallow: /reception\n";
+        $content .= "Disallow: /doctor\n";
+        $content .= "Disallow: /pharmacy\n";
+        $content .= "Disallow: /billing\n";
+        $content .= "Disallow: /settings\n";
+        $content .= "Disallow: /tokens/\n";
+        $content .= "Disallow: /login\n";
+        $content .= "Disallow: /password\n";
+        $content .= "Disallow: /tv\n";
+        $content .= "Disallow: /setup\n";
+        $content .= "Disallow: /api/\n\n";
+        $content .= "Sitemap: {$sitemapUrl}\n";
+
+        return response($content, 200, [
+            'Content-Type' => 'text/plain',
+        ]);
+    }
+
+    /**
+     * Dynamic sitemap.xml per tenant subdomain (GET /sitemap.xml).
+     * Includes root "/" and published "/p/{slug}" pages with lastmod from updated_at.
+     */
+    public function sitemap(): HttpResponse
+    {
+        $tenant = tenant();
+
+        if ((bool) $tenant->is_demo || ! ($tenant->website_published ?? true) || $tenant->status !== 'active') {
+            $xml = '<?xml version="1.0" encoding="UTF-8"?>'."\n";
+            $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'."\n";
+            $xml .= '</urlset>';
+
+            return response($xml, 200, [
+                'Content-Type' => 'application/xml',
+                'X-Robots-Tag' => 'noindex, nofollow',
+            ]);
+        }
+
+        $xml = '<?xml version="1.0" encoding="UTF-8"?>'."\n";
+        $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'."\n";
+
+        // 1. Root URL (clinic home with trailing slash)
+        $homeUrl = $tenant->url('/');
+        $tenantUpdated = ($tenant->updated_at ?? now())->toAtomString();
+        $xml .= "  <url>\n";
+        $xml .= "    <loc>{$homeUrl}</loc>\n";
+        $xml .= "    <lastmod>{$tenantUpdated}</lastmod>\n";
+        $xml .= "    <changefreq>daily</changefreq>\n";
+        $xml .= "    <priority>1.0</priority>\n";
+        $xml .= "  </url>\n";
+
+        // 2. Published pages
+        $pages = ClinicPage::forTenant((string) $tenant->id)
+            ->where('is_published', true)
+            ->where('is_homepage', false)
+            ->orderBy('sort_order')
+            ->get();
+
+        foreach ($pages as $page) {
+            $pageUrl = $tenant->url($page->publicUrl());
+            $pageUpdated = ($page->updated_at ?? $tenant->updated_at ?? now())->toAtomString();
+            $xml .= "  <url>\n";
+            $xml .= "    <loc>{$pageUrl}</loc>\n";
+            $xml .= "    <lastmod>{$pageUpdated}</lastmod>\n";
+            $xml .= "    <changefreq>weekly</changefreq>\n";
+            $xml .= "    <priority>0.8</priority>\n";
+            $xml .= "  </url>\n";
+        }
+
+        // 3. Online booking URL (if online booking is enabled for this clinic)
+        if ((bool) ($tenant->online_booking_enabled ?? true)) {
+            $bookUrl = $tenant->url('/book');
+            $xml .= "  <url>\n";
+            $xml .= "    <loc>{$bookUrl}</loc>\n";
+            $xml .= "    <lastmod>{$tenantUpdated}</lastmod>\n";
+            $xml .= "    <changefreq>daily</changefreq>\n";
+            $xml .= "    <priority>0.9</priority>\n";
+            $xml .= "  </url>\n";
+        }
+
+        $xml .= '</urlset>';
+
+        return response($xml, 200, [
+            'Content-Type' => 'application/xml',
+        ]);
     }
 }

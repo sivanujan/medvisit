@@ -97,15 +97,53 @@ class DirectoryListing extends Model
     }
 
     /**
+     * Scope for sitemap-eligible directory listings:
+     * Only active, paying or launch-offer clinics with directory opt-in.
+     * Excludes test, demo, inactive, or unpaid clinics.
+     *
+     * @param  Builder<DirectoryListing>  $query
+     */
+    public function scopeSitemapEligible(Builder $query): Builder
+    {
+        $demoTenantId = config('demo.tenant_id', 'demo');
+
+        return $query->where('is_active', true)
+            ->whereNotNull('consented_at')
+            ->whereHas('tenant', function (Builder $t) use ($demoTenantId) {
+                $t->where('status', 'active')
+                    ->where('is_demo', false)
+                    ->where('id', '!=', $demoTenantId)
+                    ->whereNotIn('subdomain', ['demo', 'test', 'normal'])
+                    ->where(function (Builder $sub) {
+                        // Paying clinic (has at least one paid invoice)
+                        $sub->whereHas('subscriptionInvoices', function (Builder $inv) {
+                            $inv->where('status', 'paid');
+                        })
+                        // OR active launch offer
+                            ->orWhere(function (Builder $launch) {
+                                $launch->where('data->is_launch_offer', true)
+                                    ->whereHas('subscription', function (Builder $s) {
+                                        $s->where('status', 'active')
+                                            ->where(function (Builder $exp) {
+                                                $exp->whereNull('current_period_end')
+                                                    ->orWhere('current_period_end', '>', now());
+                                            });
+                                    });
+                            });
+                    });
+            });
+    }
+
+    /**
      * Resolve the subdomain booking URL.
      */
     public function getSubdomainUrlAttribute(): string
     {
-        $baseDomain = config('medvisit.base_domain', config('tenancy.central_domains.0', 'medvisit.localhost'));
-        $scheme = app()->environment('local', 'testing') ? 'http' : 'https';
-        $port = request()->getPort();
-        $portStr = ($port && ! in_array($port, [80, 443], true)) ? ":{$port}" : '';
+        $tenant = $this->tenant;
+        if ($tenant) {
+            return $tenant->url('/');
+        }
 
-        return "{$scheme}://{$this->slug}.{$baseDomain}{$portStr}";
+        return Tenant::urlForSubdomain((string) $this->slug, '/');
     }
 }

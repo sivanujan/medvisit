@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedVisit — Coming soon</title>
+    
+    <!-- Search Engine & Robots -->
+    <meta name="description" content="Smart clinic management for Sri Lanka. Launching soon.">
+    <meta name="robots" content="noindex, nofollow">
+
+    <!-- Open Graph / Facebook / WhatsApp -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://medvisit.lk/coming">
+    <meta property="og:title" content="MedVisit — Coming soon">
+    <meta property="og:description" content="Smart clinic management for Sri Lanka. Launching soon.">
+    <meta property="og:image" content="https://medvisit.lk/og/medvisit-coming-soon.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="https://medvisit.lk/coming">
+    <meta name="twitter:title" content="MedVisit — Coming soon">
+    <meta name="twitter:description" content="Smart clinic management for Sri Lanka. Launching soon.">
+    <meta name="twitter:image" content="https://medvisit.lk/og/medvisit-coming-soon.png">
+
+    <!-- Favicon -->
+    <link rel="icon" href="/favicon.ico">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg: #0B1323;
+            --card-bg: rgba(15, 23, 42, 0.7);
+            --card-border: rgba(255, 255, 255, 0.1);
+            --primary: #0E9E8F;
+            --primary-glow: rgba(14, 158, 143, 0.25);
+            --accent: #1E6FD9;
+            --text-main: #FFFFFF;
+            --text-muted: #94A3B8;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            padding: 2rem 1.5rem;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Ambient background glow */
+        .glow-1 {
+            position: absolute;
+            top: -100px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 600px;
+            height: 350px;
+            background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .glow-2 {
+            position: absolute;
+            bottom: -50px;
+            right: 10%;
+            width: 400px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(30, 111, 217, 0.15) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        header {
+            position: relative;
+            z-index: 1;
+            margin-bottom: 2rem;
+        }
+
+        .logo {
+            font-size: 1.75rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            color: #FFFFFF;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .logo span {
+            color: var(--primary);
+        }
+
+        main {
+            position: relative;
+            z-index: 1;
+            max-width: 680px;
+            width: 100%;
+            text-align: center;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 24px;
+            padding: 3rem 2rem;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.35rem 0.85rem;
+            border-radius: 9999px;
+            background: rgba(14, 158, 143, 0.15);
+            border: 1px solid rgba(14, 158, 143, 0.3);
+            color: #2DD4BF;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 1.5rem;
+        }
+
+        .badge-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #2DD4BF;
+            box-shadow: 0 0 8px #2DD4BF;
+        }
+
+        h1 {
+            font-size: 2.25rem;
+            line-height: 1.25;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            letter-spacing: -0.02em;
+        }
+
+        p.description {
+            font-size: 1.05rem;
+            line-height: 1.6;
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            justify-content: center;
+            margin-bottom: 2rem;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.85rem 1.6rem;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), #0b8073);
+            color: #FFFFFF;
+            border: none;
+            box-shadow: 0 4px 15px rgba(14, 158, 143, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(14, 158, 143, 0.45);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            color: #E2E8F0;
+            border: 1px solid var(--card-border);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #FFFFFF;
+        }
+
+        footer {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            font-size: 0.85rem;
+            color: #64748B;
+            margin-top: 2rem;
+        }
+
+        footer a {
+            color: #94A3B8;
+            text-decoration: none;
+            margin: 0 0.5rem;
+            transition: color 0.2s;
+        }
+
+        footer a:hover {
+            color: #E2E8F0;
+        }
+
+        @media (max-width: 640px) {
+            h1 { font-size: 1.75rem; }
+            main { padding: 2rem 1.25rem; }
+            .btn { width: 100%; justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+    <div class="glow-1"></div>
+    <div class="glow-2"></div>
+
+    <header>
+        <a href="/" class="logo">
+            Med<span>Visit</span>
+        </a>
+    </header>
+
+    <main>
+        <div class="badge">
+            <span class="badge-dot"></span>
+            Launching Soon
+        </div>
+
+        <h1>Smart Clinic Management for Sri Lanka</h1>
+
+        <p class="description">
+            We are putting the final touches on MedVisit. Transform your clinic with live token queues, patient channeling, WhatsApp notifications, electronic prescriptions, and pharmacy billing in LKR.
+        </p>
+
+        <div class="actions">
+            <a href="https://wa.me/94771234567?text=Hi%20MedVisit%20Team,%20I'm%20interested%20in%20onboarding%20my%20clinic" class="btn btn-primary" target="_blank" rel="noopener">
+                Contact on WhatsApp
+            </a>
+            <a href="/pricing" class="btn btn-secondary">
+                View Pricing & Plans
+            </a>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; 2026 MedVisit (Pvt) Ltd. All rights reserved.</p>
+        <div style="margin-top: 0.5rem;">
+            <a href="/pricing">Pricing</a> &bull;
+            <a href="/terms">Terms</a> &bull;
+            <a href="/privacy-policy">Privacy</a> &bull;
+            <a href="/refund-policy">Refund Policy</a>
+        </div>
+    </footer>
+</body>
+</html>

@@ -82,7 +82,7 @@ export default function DoctorProfile({ listing, doctor }: Props) {
             isWide={true}
         >
             <Head>
-                <script type="application/ld+json">
+                <script type="application/ld+json" head-key="ldjson-0">
                     {JSON.stringify(jsonLd)}
                 </script>
             </Head>

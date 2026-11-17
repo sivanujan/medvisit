@@ -191,6 +191,13 @@ Route::middleware([
     Route::get('/share-image.png', [ClinicShareImageController::class, 'show'])
         ->name('tenant.share_image');
 
+    // Dynamic per-tenant SEO crawler files
+    Route::get('/robots.txt', [ClinicWebsiteController::class, 'robots'])
+        ->name('tenant.robots');
+
+    Route::get('/sitemap.xml', [ClinicWebsiteController::class, 'sitemap'])
+        ->name('tenant.sitemap');
+
     Route::get('/tokens/{token}/status', [ClinicWebsiteController::class, 'publicTokenStatus'])
         ->name('tenant.token.status');
 

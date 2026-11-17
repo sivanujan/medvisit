@@ -39,6 +39,7 @@ use App\Models\Tenant;
 use App\Models\TvPairingCode;
 use App\Services\Billing\PromoCodeService;
 use App\Services\Referrals\ReferralService;
+use App\Support\SeoMeta;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Http\Request;
@@ -65,13 +66,15 @@ Route::domain('{central_domain}')
     ]))
     ->group(function () {
         Route::get('/', function () {
+            $seo = SeoMeta::forHome();
+
             return Inertia::render('Welcome', [
                 'isCentral' => true,
                 'canLogin' => Route::has('login'),
                 'canRegister' => Route::has('register'),
                 'laravelVersion' => Application::VERSION,
                 'phpVersion' => PHP_VERSION,
-            ]);
+            ])->withViewData(['seo' => $seo->toViewData()]);
         })->name('home');
 
         // Referral link redirect
@@ -105,6 +108,26 @@ Route::domain('{central_domain}')
         Route::get('/clinics/{slug}', [PublicDirectoryController::class, 'showClinic'])->name('public.directory.clinic');
         Route::get('/doctors/{clinicSlug}/{doctorSlug}', [PublicDirectoryController::class, 'showDoctor'])->name('public.directory.doctor');
         Route::get('/sitemap.xml', [PublicDirectoryController::class, 'sitemap'])->name('public.directory.sitemap');
+        Route::get('/robots.txt', function () {
+            $content = implode("\n", [
+                'User-agent: *',
+                'Disallow: /super-admin/',
+                'Disallow: /super-admin',
+                'Disallow: /admin/login',
+                'Disallow: /login',
+                'Disallow: /register',
+                'Disallow: /password/',
+                'Disallow: /reset-password',
+                'Disallow: /two-factor-challenge',
+                'Disallow: /api/',
+                'Disallow: /_boost/',
+                'Disallow: /coming',
+                '',
+                'Sitemap: https://medvisit.lk/sitemap.xml',
+            ]);
+
+            return response($content, 200, ['Content-Type' => 'text/plain']);
+        })->name('public.robots');
 
         // Central TV Pairing redirect helper
         Route::get('/tv', function (Request $request) {
@@ -509,7 +532,7 @@ Route::domain('{central_domain}')
                     'registration' => [
                         'clinic_name' => 'Apex Family Health',
                         'subdomain' => 'apexfamily',
-                        'clinic_url' => 'http://apexfamily.medvisit.test',
+                        'clinic_url' => 'https://apexfamily.'.config('medvisit.base_domain', 'medvisit.lk'),
                         'admin_name' => 'Dr. Samantha Perera',
                         'admin_email' => 'samantha@apexfamily.lk',
                         'admin_phone' => '0771234567',

@@ -10,6 +10,19 @@ return [
     // Domain shown to people (e.g. "yourclinic.medvisit.lk"), independent of the request host.
     'public_domain' => env('APP_PUBLIC_DOMAIN', 'medvisit.lk'),
 
+    // Business organization info for Schema.org JSON-LD
+    'organization' => [
+        'name' => 'MedVisit',
+        'address' => [
+            'locality' => env('MEDVISIT_ADDRESS_LOCALITY', 'Kayts'),
+            'region' => env('MEDVISIT_ADDRESS_REGION', 'Jaffna'),
+            'country' => env('MEDVISIT_ADDRESS_COUNTRY', 'LK'),
+        ],
+    ],
+
+    // Prelaunch redirect mode: when true, homepage is excluded from sitemap and redirects to /coming
+    'prelaunch_mode' => (bool) env('PRELAUNCH_MODE', false),
+
     // Daily global cap for registration phone OTP dispatches (alerts Telegram once if hit)
     'registration_otp_daily_limit' => (int) env('REGISTRATION_OTP_DAILY_LIMIT', 100),
     'registration_hourly_limit' => (int) env('REGISTRATION_HOURLY_LIMIT', 10),
