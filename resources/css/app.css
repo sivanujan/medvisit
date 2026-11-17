@@ -44,7 +44,7 @@
 @font-face {
     font-family: 'Noto Sans Sinhala';
     font-style: normal;
-    font-weight: 400;
+    font-weight: 100 500;
     font-display: swap;
     src: url('/fonts/noto-sans-sinhala-400.woff2') format('woff2');
     unicode-range: U+0964-0965, U+0D81-0DF4, U+1CF2, U+200C-200D, U+25CC, U+111E1-111F4;
@@ -53,7 +53,7 @@
 @font-face {
     font-family: 'Noto Sans Sinhala';
     font-style: normal;
-    font-weight: 700;
+    font-weight: 600 900;
     font-display: swap;
     src: url('/fonts/noto-sans-sinhala-700.woff2') format('woff2');
     unicode-range: U+0964-0965, U+0D81-0DF4, U+1CF2, U+200C-200D, U+25CC, U+111E1-111F4;
@@ -63,7 +63,7 @@
 @font-face {
     font-family: 'Noto Sans Tamil';
     font-style: normal;
-    font-weight: 400;
+    font-weight: 100 500;
     font-display: swap;
     src: url('/fonts/noto-sans-tamil-400.woff2') format('woff2');
     unicode-range: U+0964-0965, U+0B82-0BFA, U+200C-200D, U+20B9, U+25CC;
@@ -72,7 +72,7 @@
 @font-face {
     font-family: 'Noto Sans Tamil';
     font-style: normal;
-    font-weight: 700;
+    font-weight: 600 900;
     font-display: swap;
     src: url('/fonts/noto-sans-tamil-700.woff2') format('woff2');
     unicode-range: U+0964-0965, U+0B82-0BFA, U+200C-200D, U+20B9, U+25CC;

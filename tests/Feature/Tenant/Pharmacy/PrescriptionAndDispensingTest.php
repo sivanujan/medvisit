@@ -1171,4 +1171,37 @@ class PrescriptionAndDispensingTest extends TestCase
             ->where('labels.doctor_signature', 'மருத்துவர் கையொப்பம்')
         );
     }
+
+    /**
+     * 19. Printable prescription in Sinhala renders localized Sinhala text.
+     */
+    public function test_prescription_print_in_sinhala_renders_sinhala_labels(): void
+    {
+        $this->tenant->prescription_print_language = 'si';
+        $this->tenant->save();
+
+        $rx = Prescription::create([
+            'tenant_id' => $this->tenant->id,
+            'booking_token_id' => $this->token->id,
+            'patient_id' => $this->patient->id,
+            'doctor_id' => $this->doctor->id,
+            'prescription_number' => 'RX-000089',
+            'status' => Prescription::STATUS_FINALIZED,
+            'stock_reduction_mode' => Prescription::MODE_DISPENSE,
+            'created_by' => $this->doctorUser->id,
+            'finalized_at' => now(),
+        ]);
+
+        $urlPrint = "http://{$this->tenant->subdomain}.{$this->baseDomain}/doctor/prescriptions/{$rx->id}/print";
+        $res = $this->actingAs($this->doctorUser)->get($urlPrint);
+        $res->assertOk();
+
+        // Inertia page receives Sinhala labels
+        $res->assertInertia(fn ($page) => $page
+            ->component('Tenant/Doctor/PrescriptionPrint')
+            ->where('labels.prescription', 'වෛද්‍ය බෙහෙත් වට්ටෝරුව')
+            ->where('labels.patient', 'රෝගියා')
+            ->where('labels.doctor_signature', 'වෛද්‍ය අත්සන')
+        );
+    }
 }

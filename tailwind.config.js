@@ -14,7 +14,7 @@ export default {
     theme: {
         extend: {
             fontFamily: {
-                sans: ['Poppins', ...defaultTheme.fontFamily.sans],
+                sans: ['Poppins', 'Noto Sans Sinhala', 'Noto Sans Tamil', ...defaultTheme.fontFamily.sans],
             },
             colors: {
                 primary: {

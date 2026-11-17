@@ -38,13 +38,16 @@ chown -R deploy:www-data "$APP_DIR"
 chmod 640 "$APP_DIR/.env"
 chmod -R 775 "$APP_DIR/storage" "$APP_DIR/bootstrap/cache"
 
-# 7. Update prelaunch static landing page if changed
+# 7. Update prelaunch static landing page if changed (non-fatal)
 if [ -f "$APP_DIR/resources/prelaunch/index.html" ]; then
     echo "📄 Syncing prelaunch coming-soon page (/var/www/prelaunch/index.html)..."
-    mkdir -p /var/www/prelaunch
-    cp "$APP_DIR/resources/prelaunch/index.html" /var/www/prelaunch/index.html
-    chmod 644 /var/www/prelaunch/index.html
-    chown deploy:www-data /var/www/prelaunch/index.html 2>/dev/null || true
+    if ( mkdir -p /var/www/prelaunch 2>/dev/null && cp "$APP_DIR/resources/prelaunch/index.html" /var/www/prelaunch/index.html 2>/dev/null ); then
+        chmod 644 /var/www/prelaunch/index.html 2>/dev/null || true
+        chown deploy:www-data /var/www/prelaunch/index.html 2>/dev/null || true
+        echo "✅ Prelaunch page updated."
+    else
+        echo "⚠️ WARNING: Could not copy to /var/www/prelaunch/index.html (check permissions: sudo chown -R deploy:www-data /var/www/prelaunch). Continuing deploy..."
+    fi
 fi
 
 # 8. Restart workers and WebSocket server
