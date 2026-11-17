@@ -54,7 +54,9 @@ export default function BookingStatus({
 
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-teal-100 selection:text-teal-900 font-sans flex flex-col">
-            <Head title={`Token Appointment - ${clinic.name}`} />
+            <Head title={`Token Appointment - ${clinic.name}`}>
+                <meta name="robots" content="noindex, nofollow" head-key="robots" />
+            </Head>
 
             <PublicSiteHeader
                 clinic={clinic}

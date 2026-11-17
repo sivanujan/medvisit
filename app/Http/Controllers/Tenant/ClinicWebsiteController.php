@@ -35,6 +35,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class ClinicWebsiteController extends Controller
 {
@@ -1181,7 +1182,7 @@ class ClinicWebsiteController extends Controller
     /**
      * Public Queue Status page (GET /queue).
      */
-    public function publicQueue(): Response
+    public function publicQueue(Request $request): SymfonyResponse
     {
         $tenant = tenant();
         $today = Carbon::today('Asia/Colombo')->toDateString();
@@ -1207,7 +1208,9 @@ class ClinicWebsiteController extends Controller
                 ];
             });
 
-        return Inertia::render('Public/QueueStatus', [
+        $seoMeta = SeoMeta::forTenantQueue($tenant);
+
+        $response = Inertia::render('Public/QueueStatus', [
             'clinic' => [
                 'name' => ucwords((string) ($tenant->name ?? 'Clinic')),
                 'subdomain' => $tenant->subdomain,
@@ -1221,13 +1224,17 @@ class ClinicWebsiteController extends Controller
             'footerConfig' => $this->resolvedChromeConfigs($tenant)[1],
             'theme' => $tenant->website_theme ?? 'medvisit-teal',
             'activeSessions' => $activeSessions,
-        ]);
+        ])->withViewData(['seo' => $seoMeta->toViewData()])->toResponse($request);
+
+        $response->headers->set('X-Robots-Tag', 'noindex, nofollow');
+
+        return $response;
     }
 
     /**
      * Public Token status and cancellation (GET /tokens/{signedToken}/status).
      */
-    public function publicTokenStatus(string $signedToken): Response
+    public function publicTokenStatus(Request $request, string $signedToken): SymfonyResponse
     {
         $tenant = tenant();
         $token = BookingToken::with(['doctorSession.doctor', 'patient'])
@@ -1249,7 +1256,9 @@ class ClinicWebsiteController extends Controller
             'signed_cancel_token' => $token->signed_cancel_token,
         ] : null;
 
-        return Inertia::render('Public/BookingStatus', [
+        $seoMeta = SeoMeta::forTenantTokenStatus($tenant);
+
+        $response = Inertia::render('Public/BookingStatus', [
             'clinic' => [
                 'name' => ucwords((string) ($tenant->name ?? 'Clinic')),
                 'subdomain' => $tenant->subdomain,
@@ -1263,7 +1272,11 @@ class ClinicWebsiteController extends Controller
             'footerConfig' => $this->resolvedChromeConfigs($tenant)[1],
             'theme' => $tenant->website_theme ?? 'medvisit-teal',
             'token' => $tokenData,
-        ]);
+        ])->withViewData(['seo' => $seoMeta->toViewData()])->toResponse($request);
+
+        $response->headers->set('X-Robots-Tag', 'noindex, nofollow');
+
+        return $response;
     }
 
     /**
@@ -1306,9 +1319,13 @@ class ClinicWebsiteController extends Controller
         $content = "User-agent: *\n";
         $content .= "Allow: /\n";
         $content .= "Allow: /p/\n";
-        $content .= "Allow: /book\n";
-        $content .= "Allow: /queue\n";
+        if ((bool) ($tenant->online_booking_enabled ?? true)) {
+            $content .= "Allow: /book\n";
+        } else {
+            $content .= "Disallow: /book\n";
+        }
         $content .= "Allow: /share-image.png\n";
+        $content .= "Disallow: /queue\n";
         $content .= "Disallow: /dashboard\n";
         $content .= "Disallow: /admin\n";
         $content .= "Disallow: /reception\n";

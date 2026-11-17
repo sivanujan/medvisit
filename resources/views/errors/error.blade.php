@@ -176,10 +176,8 @@
     <meta name="robots" content="noindex, nofollow">
     <title>{{ $pageTitle }} · {{ $isClinicDomain && $resolvedTenant ? $clinicName : 'MedVisit' }}</title>
 
-    <!-- Google Fonts: Poppins -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+    <!-- Self-hosted Fonts: Poppins -->
+    <link rel="preload" href="/fonts/poppins-400-latin.woff2" as="font" type="font/woff2" crossorigin>
 
     @if($resolvedTenant && !empty($resolvedTenant->favicon_url))
         <link rel="icon" href="{{ $resolvedTenant->favicon_url }}">
@@ -188,6 +186,27 @@
     @endif
 
     <style>
+        @font-face {
+            font-family: 'Poppins';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url('/fonts/poppins-400-latin.woff2') format('woff2');
+        }
+        @font-face {
+            font-family: 'Poppins';
+            font-style: normal;
+            font-weight: 600;
+            font-display: swap;
+            src: url('/fonts/poppins-600-latin.woff2') format('woff2');
+        }
+        @font-face {
+            font-family: 'Poppins';
+            font-style: normal;
+            font-weight: 700;
+            font-display: swap;
+            src: url('/fonts/poppins-700-latin.woff2') format('woff2');
+        }
         :root {
             --mv-blue: #1E6FD9;
             --mv-teal: #0E9E8F;

@@ -38,7 +38,16 @@ chown -R deploy:www-data "$APP_DIR"
 chmod 640 "$APP_DIR/.env"
 chmod -R 775 "$APP_DIR/storage" "$APP_DIR/bootstrap/cache"
 
-# 7. Restart workers and WebSocket server
+# 7. Update prelaunch static landing page if changed
+if [ -f "$APP_DIR/resources/prelaunch/index.html" ]; then
+    echo "📄 Syncing prelaunch coming-soon page (/var/www/prelaunch/index.html)..."
+    mkdir -p /var/www/prelaunch
+    cp "$APP_DIR/resources/prelaunch/index.html" /var/www/prelaunch/index.html
+    chmod 644 /var/www/prelaunch/index.html
+    chown deploy:www-data /var/www/prelaunch/index.html 2>/dev/null || true
+fi
+
+# 8. Restart workers and WebSocket server
 echo "🔄 Restarting queue workers and Reverb..."
 php artisan queue:restart
 sudo supervisorctl restart medvisit-worker-default:* medvisit-worker-pdfs:* medvisit-reverb

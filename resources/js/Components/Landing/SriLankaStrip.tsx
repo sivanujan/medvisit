@@ -15,27 +15,10 @@ const LANGUAGES = [
 ] as const;
 
 const CYCLE_MS = 2500;
-const FONT_LINK_ID = 'lp-noto-lk';
 
-/** Loads Noto Sans Tamil/Sinhala subset to just the characters this section shows. */
-function useSectionFonts(enabled: boolean) {
-    useEffect(() => {
-        if (!enabled || document.getElementById(FONT_LINK_ID)) return;
-        const chars = Array.from(
-            new Set(
-                LANGUAGES.filter((l) => l.code !== 'en')
-                    .flatMap((l) => [l.label, l.frequency, l.timing])
-                    .join(''),
-            ),
-        ).join('');
-        const link = document.createElement('link');
-        link.id = FONT_LINK_ID;
-        link.rel = 'stylesheet';
-        link.href =
-            'https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@500;600&family=Noto+Sans+Tamil:wght@500;600&display=swap&text=' +
-            encodeURIComponent(chars);
-        document.head.appendChild(link);
-    }, [enabled]);
+/** Self-hosted Noto Sans Tamil/Sinhala woff2 fonts are loaded via unicode-range automatically */
+function useSectionFonts(_enabled: boolean) {
+    // Fonts are self-hosted in /fonts/*.woff2 and downloaded automatically by browser unicode-range detection
 }
 
 interface TileProps {

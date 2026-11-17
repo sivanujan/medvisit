@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Seo;
 
+use App\Models\BookingToken;
 use App\Models\ClinicPage;
+use App\Models\Doctor;
+use App\Models\DoctorSession;
+use App\Models\Patient;
 use App\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -38,10 +42,10 @@ class TenantSeoTest extends TestCase
         $this->assertStringContainsString("Allow: /\n", $body);
         $this->assertStringContainsString("Allow: /p/\n", $body);
         $this->assertStringContainsString("Allow: /book\n", $body);
-        $this->assertStringContainsString("Allow: /queue\n", $body);
         $this->assertStringContainsString("Allow: /share-image.png\n", $body);
 
-        // Must disallow staff/private areas
+        // Must disallow queue and staff/private areas
+        $this->assertStringContainsString("Disallow: /queue\n", $body);
         $this->assertStringContainsString("Disallow: /dashboard\n", $body);
         $this->assertStringContainsString("Disallow: /admin\n", $body);
         $this->assertStringContainsString("Disallow: /reception\n", $body);
@@ -182,5 +186,67 @@ class TenantSeoTest extends TestCase
 
         $xml = $response->getContent() ?: '';
         $this->assertStringNotContainsString('<loc>', $xml);
+    }
+
+    public function test_public_queue_and_token_status_pages_have_noindex_header_and_meta(): void
+    {
+        $slug = 'carequeue'.substr(md5(uniqid()), 0, 8);
+        $tenant = Tenant::factory()->create([
+            'name' => 'Care Queue Clinic',
+            'subdomain' => $slug,
+            'status' => 'active',
+            'website_published' => true,
+        ]);
+
+        $baseDomain = config('medvisit.base_domain', 'medvisit.localhost');
+        $domain = "{$slug}.{$baseDomain}";
+
+        // 1. GET /queue
+        $queueResponse = $this->get("http://{$domain}:8000/queue");
+        $queueResponse->assertStatus(200);
+        $this->assertStringContainsString('noindex', (string) $queueResponse->headers->get('X-Robots-Tag'));
+        $queueResponse->assertSee('<meta name="robots" content="noindex, nofollow" head-key="robots">', false);
+
+        // 2. GET /tokens/{token}/status
+        $doctor = Doctor::factory()->create(['tenant_id' => $tenant->id]);
+        $session = DoctorSession::factory()->create([
+            'tenant_id' => $tenant->id,
+            'doctor_id' => $doctor->id,
+        ]);
+        $patient = Patient::factory()->create(['tenant_id' => $tenant->id]);
+        $token = BookingToken::factory()->create([
+            'tenant_id' => $tenant->id,
+            'doctor_session_id' => $session->id,
+            'patient_id' => $patient->id,
+            'status' => 'booked',
+            'signed_cancel_token' => 'test-cancel-token-xyz',
+        ]);
+
+        $tokenResponse = $this->get("http://{$domain}:8000/tokens/{$token->signed_cancel_token}/status");
+        $tokenResponse->assertStatus(200);
+        $this->assertStringContainsString('noindex', (string) $tokenResponse->headers->get('X-Robots-Tag'));
+        $tokenResponse->assertSee('<meta name="robots" content="noindex, nofollow" head-key="robots">', false);
+    }
+
+    public function test_tenant_robots_txt_disallows_book_when_online_booking_disabled(): void
+    {
+        $slug = 'nobook'.substr(md5(uniqid()), 0, 8);
+        $tenant = Tenant::factory()->create([
+            'name' => 'No Book Clinic',
+            'subdomain' => $slug,
+            'status' => 'active',
+            'website_published' => true,
+            'online_booking_enabled' => false,
+        ]);
+
+        $baseDomain = config('medvisit.base_domain', 'medvisit.localhost');
+        $domain = "{$slug}.{$baseDomain}";
+
+        $response = $this->get("http://{$domain}:8000/robots.txt");
+        $response->assertStatus(200);
+
+        $body = $response->getContent() ?: '';
+        $this->assertStringContainsString("Disallow: /book\n", $body);
+        $this->assertStringNotContainsString("Allow: /book\n", $body);
     }
 }

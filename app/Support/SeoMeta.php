@@ -599,8 +599,9 @@ class SeoMeta
         $canonical = $tenant->url('/book'.($doctor ? "/{$doctor->slug}" : ''));
         $ogImage = $doctor?->photo_url ?: ($tenant->website_share_image ?: $tenant->url('/share-image.png'));
 
+        $isBookingEnabled = (bool) ($tenant->online_booking_enabled ?? true);
         $robots = null;
-        if ((bool) $tenant->is_demo || ! ($tenant->website_published ?? true) || $tenant->status !== 'active') {
+        if ((bool) $tenant->is_demo || ! ($tenant->website_published ?? true) || $tenant->status !== 'active' || ! $isBookingEnabled) {
             $robots = 'noindex, nofollow';
         }
 
@@ -611,6 +612,40 @@ class SeoMeta
             ogType: 'website',
             ogImage: $ogImage,
             robots: $robots,
+        );
+    }
+
+    /**
+     * Clinic Live Queue ({clinic}.medvisit.lk/queue) SEO (Always noindex)
+     */
+    public static function forTenantQueue(Tenant $tenant): self
+    {
+        $clinicName = ClinicWebsite::clinicName($tenant);
+
+        return new self(
+            title: "Live Queue Status — {$clinicName}",
+            description: "Live queue display and current token numbers at {$clinicName}.",
+            canonical: $tenant->url('/queue'),
+            ogType: 'website',
+            ogImage: $tenant->website_share_image ?: $tenant->url('/share-image.png'),
+            robots: 'noindex, nofollow',
+        );
+    }
+
+    /**
+     * Clinic Token Status ({clinic}.medvisit.lk/tokens/{token}/status) SEO (Always noindex)
+     */
+    public static function forTenantTokenStatus(Tenant $tenant): self
+    {
+        $clinicName = ClinicWebsite::clinicName($tenant);
+
+        return new self(
+            title: "Appointment Token Status — {$clinicName}",
+            description: "Appointment token details and real-time status at {$clinicName}.",
+            canonical: $tenant->url('/'),
+            ogType: 'website',
+            ogImage: $tenant->website_share_image ?: $tenant->url('/share-image.png'),
+            robots: 'noindex, nofollow',
         );
     }
 
