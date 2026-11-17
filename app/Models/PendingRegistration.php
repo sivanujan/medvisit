@@ -32,6 +32,7 @@ class PendingRegistration extends Model
         'verified_at',
         'phone_verified_at',
         'phone_signed_token',
+        'referral_code',
         'payload',
         'ip_address',
     ];

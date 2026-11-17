@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import { Head, router } from '@inertiajs/react';
 import {
     ArrowLeft,
@@ -96,15 +97,9 @@ export default function TemplatePreview({
     const handleApply = () => {
         if (loading) return;
         setLoading(true);
-        fetch(`/website/templates/${template.slug}/apply`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
-            },
-        })
-            .then((res) => res.json())
-            .then((data) => {
+        axios.post(`/website/templates/${template.slug}/apply`)
+            .then((res) => {
+                const data = res.data;
                 setLoading(false);
                 if (data.ok) {
                     alert(data.message || (template.tier === 'premium' ? `⚠️ Notice: "${template.name}" is under development. Applied to your website draft for free preview and testing!` : 'Template applied to your website draft!'));
@@ -113,9 +108,9 @@ export default function TemplatePreview({
                     alert(data.message || 'Could not apply template.');
                 }
             })
-            .catch(() => {
+            .catch((err) => {
                 setLoading(false);
-                alert('An unexpected error occurred while applying the template.');
+                alert(err.response?.data?.message || 'An unexpected error occurred while applying the template.');
             });
     };
 
@@ -125,15 +120,9 @@ export default function TemplatePreview({
             return;
         }
         setLoading(true);
-        fetch(`/website/templates/${template.slug}/claim-free`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
-            },
-        })
-            .then((res) => res.json())
-            .then((data) => {
+        axios.post(`/website/templates/${template.slug}/claim-free`)
+            .then((res) => {
+                const data = res.data;
                 setLoading(false);
                 if (data.ok) {
                     alert(data.message || 'Claimed successfully!');
@@ -142,9 +131,9 @@ export default function TemplatePreview({
                     alert(data.message || 'Could not claim template.');
                 }
             })
-            .catch(() => {
+            .catch((err) => {
                 setLoading(false);
-                alert('Could not claim template.');
+                alert(err.response?.data?.message || 'Could not claim template.');
             });
     };
 
@@ -154,19 +143,12 @@ export default function TemplatePreview({
             return;
         }
         setLoading(true);
-        fetch(`/website/templates/${template.slug}/checkout`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
-            },
-            body: JSON.stringify({
-                terms_accepted: true,
-                terms_version: '2026-10-28',
-            }),
+        axios.post(`/website/templates/${template.slug}/checkout`, {
+            terms_accepted: true,
+            terms_version: '2026-10-28',
         })
-            .then((res) => res.json())
-            .then((data) => {
+            .then((res) => {
+                const data = res.data;
                 setLoading(false);
                 if (data.payment_url) {
                     window.location.href = data.payment_url;
@@ -174,9 +156,9 @@ export default function TemplatePreview({
                     alert(data.message || 'Unable to generate checkout payment session.');
                 }
             })
-            .catch(() => {
+            .catch((err) => {
                 setLoading(false);
-                alert('Payment initiation failed.');
+                alert(err.response?.data?.message || 'Payment initiation failed.');
             });
     };
 

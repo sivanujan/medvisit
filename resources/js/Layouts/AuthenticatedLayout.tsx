@@ -41,6 +41,7 @@ import {
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import ThemeToggle from '@/Components/Common/ThemeToggle';
 import BannerStack from '@/Components/Common/BannerStack';
+import OfflineBanner from '@/Components/Offline/OfflineBanner';
 import DemoTopBanner from '@/Components/Demo/DemoTopBanner';
 import CommandPaletteModal from '@/Components/Layout/CommandPaletteModal';
 import NotificationDropdown from '@/Components/Layout/NotificationDropdown';
@@ -1339,6 +1340,7 @@ export default function AuthenticatedLayout({
                 <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col">
                     {/* Standardized Page Content Body: max-w-[1440px], px-4 mobile / px-6 sm / px-8 lg */}
                     <main className="flex-1 w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6 min-w-0">
+                        <OfflineBanner />
                         <BannerStack />
                         <LaunchOfferBanner
                             isLaunchOffer={planGate?.is_launch_offer}

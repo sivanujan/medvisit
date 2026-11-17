@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
+import axios from 'axios';
 import { Head, router } from '@inertiajs/react';
 import grapesjs from 'grapesjs';
 import 'grapesjs/dist/css/grapes.min.css';
@@ -522,34 +523,19 @@ function PageBuilderInner({
         const endpoint = isPublish
             ? `/website/builder/${page.id}/publish`
             : `/website/builder/${page.id}/save`;
-        const csrfToken =
-            (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
 
         try {
-            const res = await fetch(endpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    Accept: 'application/json',
-                },
-                body: JSON.stringify({
-                    content_json: projectData,
-                    html,
-                    css,
-                    theme_preset: pageTheme,
-                    header_config: headerConfig,
-                    footer_config: footerConfig,
-                }),
+            const res = await axios.post(endpoint, {
+                content_json: projectData,
+                html,
+                css,
+                theme_preset: pageTheme,
+                header_config: headerConfig,
+                footer_config: footerConfig,
             });
 
-            if (res.status === 404) {
-                handlePageDeleted();
-                return false;
-            }
-
-            const data = await res.json();
-            if (res.ok && data.ok) {
+            const data = res.data;
+            if (data?.ok) {
                 setSaveState('ok');
                 setIsDirty(false);
                 setLastSavedTime(
@@ -563,8 +549,12 @@ function PageBuilderInner({
             setSaveState('error');
             setTimeout(() => setSaveState(null), 4000);
             return false;
-        } catch (err) {
+        } catch (err: any) {
             console.error('Save error:', err);
+            if (err.response?.status === 404) {
+                handlePageDeleted();
+                return false;
+            }
             setSaveState('error');
             setTimeout(() => setSaveState(null), 4000);
             return false;
@@ -576,10 +566,9 @@ function PageBuilderInner({
     // Fetch Revisions
     const fetchRevisions = async () => {
         try {
-            const res = await fetch(`/website/builder/${page.id}/revisions`);
-            const data = await res.json();
-            if (res.ok && data.revisions) {
-                setRevisionsList(data.revisions);
+            const res = await axios.get(`/website/builder/${page.id}/revisions`);
+            if (res.data?.revisions) {
+                setRevisionsList(res.data.revisions);
             }
         } catch (err) {
             console.error('Revisions fetch error:', err);
@@ -591,20 +580,10 @@ function PageBuilderInner({
         if (!editorInstance.current) return;
         setRevertingRevision(rev.id);
 
-        const csrfToken =
-            (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
-
         try {
-            const res = await fetch(`/website/builder/${page.id}/revert/${rev.id}`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': csrfToken,
-                    Accept: 'application/json',
-                },
-            });
-
-            const data = await res.json();
-            if (res.ok && data.ok) {
+            const res = await axios.post(`/website/builder/${page.id}/revert/${rev.id}`);
+            const data = res.data;
+            if (data?.ok) {
                 // The server already saved the restored revision as the draft, so this is not an unsaved edit.
                 loadGuardRef.current.run(() => {
                     if (data.html) {

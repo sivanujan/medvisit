@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { AlertTriangle, Info, Bell, ShieldAlert, X, ArrowRight, UserCheck } from 'lucide-react';
 import { usePage } from '@inertiajs/react';
 
@@ -55,13 +56,7 @@ export default function BannerStack() {
     const handleDismissSetupBanner = async () => {
         setSetupDismissed(true);
         try {
-            await fetch('/setup/dismiss-banner', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
-                },
-            });
+            await axios.post('/setup/dismiss-banner');
         } catch {
             // ignore
         }
@@ -69,11 +64,8 @@ export default function BannerStack() {
 
     const fetchBanners = async () => {
         try {
-            const res = await fetch('/api/announcements/active-banners');
-            if (res.ok) {
-                const data = await res.json();
-                setBanners(data.banners || []);
-            }
+            const res = await axios.get('/api/announcements/active-banners');
+            setBanners(res.data.banners || []);
         } catch {
             // ignore network errors
         }
@@ -90,13 +82,7 @@ export default function BannerStack() {
         setDismissedIds(next);
         try {
             localStorage.setItem('medvisit_dismissed_banners', JSON.stringify(next));
-            await fetch(`/api/announcements/${banner.id}/dismiss`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
-                },
-            });
+            await axios.post(`/api/announcements/${banner.id}/dismiss`);
         } catch {
             // ignore
         }

@@ -22,6 +22,7 @@ import {
     Building2,
     Clock,
 } from 'lucide-react';
+import { TextInput, PhoneInput, FormLabel, FormError } from '@/Components/Form';
 
 export interface StaffUserSummary {
     id: number;
@@ -505,87 +506,52 @@ export default function InviteTeamMemberModal({
                                     {step === 1 && (
                                         <div className="space-y-4">
                                             {/* Full name */}
-                                            <div>
-                                                <label className="flex items-center text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                                                    <span>Full name</span>
-                                                    <span
-                                                        className="w-1.5 h-1.5 rounded-full bg-rose-500 ml-1.5 align-middle"
-                                                        title="Required"
-                                                    />
-                                                </label>
-                                                <div className="relative">
-                                                    <User className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                                                    <input
-                                                        ref={nameInputRef}
-                                                        type="text"
-                                                        value={form.data.name}
-                                                        onChange={(e) => {
-                                                            form.setData('name', e.target.value);
-                                                            if (clientErrors.name) {
-                                                                setClientErrors((prev) => ({ ...prev, name: '' }));
-                                                            }
-                                                        }}
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === 'Enter') {
-                                                                e.preventDefault();
-                                                                emailInputRef.current?.focus();
-                                                            }
-                                                        }}
-                                                        placeholder="e.g. Kamal Perera"
-                                                        className={`w-full h-12 pl-11 pr-4 rounded-xl border bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-all ${
-                                                            clientErrors.name
-                                                                ? 'border-rose-500 focus:ring-rose-500/20'
-                                                                : 'border-slate-200 dark:border-white/10 focus:ring-[#1E6FD9]/30 focus:border-[#1E6FD9]'
-                                                        }`}
-                                                    />
-                                                </div>
-                                                {clientErrors.name && (
-                                                    <p className="text-xs text-rose-500 font-medium mt-1">
-                                                        {clientErrors.name}
-                                                    </p>
-                                                )}
-                                            </div>
+                                            <TextInput
+                                                ref={nameInputRef}
+                                                label="Full name"
+                                                required
+                                                leftIcon={<User className="w-4 h-4" />}
+                                                value={form.data.name}
+                                                onChange={(e) => {
+                                                    form.setData('name', e.target.value);
+                                                    if (clientErrors.name) {
+                                                        setClientErrors((prev) => ({ ...prev, name: '' }));
+                                                    }
+                                                }}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                        emailInputRef.current?.focus();
+                                                    }
+                                                }}
+                                                placeholder="e.g. Kamal Perera"
+                                                error={clientErrors.name}
+                                            />
 
                                             {/* Email address */}
                                             <div>
-                                                <label className="flex items-center text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                                                    <span>Email address</span>
-                                                    <span
-                                                        className="w-1.5 h-1.5 rounded-full bg-rose-500 ml-1.5 align-middle"
-                                                        title="Required"
-                                                    />
-                                                </label>
-                                                <div className="relative">
-                                                    <Mail className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                                                    <input
-                                                        ref={emailInputRef}
-                                                        type="email"
-                                                        value={form.data.email}
-                                                        onChange={(e) => {
-                                                            form.setData('email', e.target.value);
-                                                            if (clientErrors.email) {
-                                                                setClientErrors((prev) => ({ ...prev, email: '' }));
-                                                            }
-                                                        }}
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === 'Enter') {
-                                                                e.preventDefault();
-                                                                handleContinue();
-                                                            }
-                                                        }}
-                                                        placeholder="e.g. name@clinic.lk"
-                                                        className={`w-full h-12 pl-11 pr-4 rounded-xl border bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-all ${
-                                                            clientErrors.email
-                                                                ? 'border-rose-500 focus:ring-rose-500/20'
-                                                                : 'border-slate-200 dark:border-white/10 focus:ring-[#1E6FD9]/30 focus:border-[#1E6FD9]'
-                                                        }`}
-                                                    />
-                                                </div>
-                                                {clientErrors.email && (
-                                                    <p className="text-xs text-rose-500 font-medium mt-1">
-                                                        {clientErrors.email}
-                                                    </p>
-                                                )}
+                                                <TextInput
+                                                    ref={emailInputRef}
+                                                    label="Email address"
+                                                    type="email"
+                                                    required
+                                                    leftIcon={<Mail className="w-4 h-4" />}
+                                                    value={form.data.email}
+                                                    onChange={(e) => {
+                                                        form.setData('email', e.target.value);
+                                                        if (clientErrors.email) {
+                                                            setClientErrors((prev) => ({ ...prev, email: '' }));
+                                                        }
+                                                    }}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                            e.preventDefault();
+                                                            handleContinue();
+                                                        }
+                                                    }}
+                                                    placeholder="e.g. name@clinic.lk"
+                                                    error={clientErrors.email}
+                                                />
 
                                                 {/* Conflict Notices */}
                                                 {emailConflict && emailConflict.type === 'member' && (
@@ -622,41 +588,14 @@ export default function InviteTeamMemberModal({
                                             </div>
 
                                             {/* Phone number */}
-                                            <div>
-                                                <label className="flex items-center text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                                                    <span>Phone number</span>
-                                                    <span className="text-xs text-slate-400 dark:text-slate-500 font-normal ml-1.5">
-                                                        · optional
-                                                    </span>
-                                                </label>
-                                                <div className="relative">
-                                                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5 pointer-events-none text-slate-400">
-                                                        <Phone className="w-4 h-4" />
-                                                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 border-r border-slate-200 dark:border-white/10 pr-2">
-                                                            +94
-                                                        </span>
-                                                    </div>
-                                                    <input
-                                                        type="tel"
-                                                        value={form.data.phone.replace(/^\+94/, '')}
-                                                        onChange={(e) => {
-                                                            const digits = e.target.value.replace(/\D/g, '');
-                                                            form.setData('phone', digits ? `+94${digits}` : '');
-                                                        }}
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === 'Enter') {
-                                                                e.preventDefault();
-                                                                handleContinue();
-                                                            }
-                                                        }}
-                                                        placeholder="77 123 4567"
-                                                        className="w-full h-12 pl-20 pr-4 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E6FD9]/30 focus:border-[#1E6FD9] transition-all"
-                                                    />
-                                                </div>
-                                                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                                                    For your records and staff contact.
-                                                </p>
-                                            </div>
+                                            <PhoneInput
+                                                label="Phone number"
+                                                optional
+                                                value={form.data.phone}
+                                                onChange={(normalized) => form.setData('phone', normalized)}
+                                                placeholder="7X XXX XXXX"
+                                                helperText="For your records and staff contact"
+                                            />
                                         </div>
                                     )}
 

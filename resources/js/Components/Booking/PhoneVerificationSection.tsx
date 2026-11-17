@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import axios from 'axios';
 import QRCode from 'qrcode';
 import {
     CheckCircle2,
@@ -87,12 +88,10 @@ export default function PhoneVerificationSection({
         let isCancelled = false;
         const timer = setTimeout(async () => {
             try {
-                const res = await fetch(`/book/verify/check-remembered?phone=${encodeURIComponent(phone)}`, {
-                    headers: { Accept: 'application/json' },
+                const res = await axios.get('/book/verify/check-remembered', {
+                    params: { phone },
                 });
-                if (!res.ok) return;
-                const data = await res.json();
-                if (!isCancelled && data.is_verified) {
+                if (!isCancelled && res.data.is_verified) {
                     setIsVerified(true);
                 }
             } catch (err) {
@@ -162,12 +161,13 @@ export default function PhoneVerificationSection({
 
         const pollTimer = setInterval(async () => {
             try {
-                const res = await fetch(`/book/verify/status?verification_id=${verificationId}&session_id=${sessionId}`, {
-                    headers: { credentials: 'same-origin' },
+                const res = await axios.get('/book/verify/status', {
+                    params: {
+                        verification_id: verificationId,
+                        session_id: sessionId,
+                    },
                 });
-                if (!res.ok) return;
-
-                const data = await res.json();
+                const data = res.data;
                 if (data.is_verified) {
                     setIsVerified(true);
                     setError(null);
@@ -240,22 +240,13 @@ export default function PhoneVerificationSection({
         setDigits(['', '', '', '', '', '']);
 
         try {
-            const csrfToken = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
-            const res = await fetch('/book/verify/start', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                },
-                body: JSON.stringify({
-                    phone,
-                    channel,
-                    session_id: sessionId,
-                }),
+            const res = await axios.post('/book/verify/start', {
+                phone,
+                channel,
+                session_id: sessionId,
             });
 
-            const result = await res.json();
+            const result = res.data;
 
             if (result.already_verified) {
                 setIsVerified(true);
@@ -263,7 +254,7 @@ export default function PhoneVerificationSection({
                 return;
             }
 
-            if (!res.ok || !result.success) {
+            if (!result.success) {
                 setError(result.error || 'Failed to start verification.');
                 setLoading(false);
                 return;
@@ -338,23 +329,15 @@ export default function PhoneVerificationSection({
         setError(null);
 
         try {
-            const csrfToken = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
-            const res = await fetch('/book/verify/check-code', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                },
-                body: JSON.stringify({
-                    verification_id: verificationId,
-                    code: codeToSubmit,
-                }),
+            const res = await axios.post('/book/verify/check-code', {
+                verification_id: verificationId,
+                code: codeToSubmit,
+                phone,
             });
 
-            const result = await res.json();
+            const result = res.data;
 
-            if (!res.ok || !result.success) {
+            if (!result.success) {
                 setError(result.error || 'Invalid code.');
                 if (typeof result.attempts_remaining === 'number') {
                     setAttemptsRemaining(result.attempts_remaining);
@@ -365,7 +348,7 @@ export default function PhoneVerificationSection({
 
             setIsVerified(true);
         } catch (err: any) {
-            setError(err.message || 'Verification failed. Please try again.');
+            setError(err?.response?.data?.message || err.message || 'Verification failed. Please try again.');
         } finally {
             setLoading(false);
         }

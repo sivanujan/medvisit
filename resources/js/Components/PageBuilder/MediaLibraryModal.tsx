@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import axios from 'axios';
+import { compressImageBeforeUpload, ImageValidationError } from '@/Utils/imageCompressor';
 import {
     UploadCloud,
     Image as ImageIcon,
@@ -84,9 +86,9 @@ export default function MediaLibraryModal({
         setLoading(true);
         setError(null);
         try {
-            const res = await fetch('/website/builder/media');
-            const data = await res.json();
-            if (res.ok && data.assets) {
+            const res = await axios.get('/website/builder/media');
+            const data = res.data;
+            if (data.assets) {
                 setAssets(data.assets);
                 if (currentValue) {
                     const match = data.assets.find((a: MediaAsset) => a.src === currentValue || a.url === currentValue);
@@ -179,24 +181,35 @@ export default function MediaLibraryModal({
         setUploading(true);
         setError(null);
 
-        const formData = new FormData();
-        uploadQueue.forEach((file) => formData.append('files[]', file));
-
         try {
-            const csrfToken =
-                (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
+            const formData = new FormData();
+            for (const file of uploadQueue) {
+                const isSvgOrGif =
+                    file.type === 'image/svg+xml' ||
+                    file.type === 'image/gif' ||
+                    file.name.toLowerCase().endsWith('.svg') ||
+                    file.name.toLowerCase().endsWith('.gif');
 
-            const res = await fetch('/website/builder/media/upload', {
-                method: 'POST',
+                if (isSvgOrGif) {
+                    formData.append('files[]', file);
+                } else {
+                    const { file: compressed } = await compressImageBeforeUpload(file, {
+                        maxDimension: 2000,
+                        quality: 0.85,
+                    });
+                    formData.append('files[]', compressed);
+                }
+            }
+
+            const res = await axios.post('/website/builder/media/upload', formData, {
                 headers: {
-                    'X-CSRF-TOKEN': csrfToken,
+                    'Content-Type': 'multipart/form-data',
                     Accept: 'application/json',
                 },
-                body: formData,
             });
 
-            const data = await res.json();
-            if (res.ok && data.ok) {
+            const data = res.data;
+            if (data.ok) {
                 setUploadQueue([]);
                 await fetchAssets();
                 setActiveTab('library');
@@ -206,9 +219,18 @@ export default function MediaLibraryModal({
             } else {
                 setError(data.error || data.message || 'Upload failed. Check file types and sizes.');
             }
-        } catch (err) {
+        } catch (err: unknown) {
             console.error('Upload error:', err);
-            setError('An error occurred while uploading. Please try again.');
+            if (err instanceof ImageValidationError) {
+                setError(err.message);
+            } else if (axios.isAxiosError(err)) {
+                const responseData = err.response?.data as { message?: string; error?: string } | undefined;
+                setError(responseData?.error || responseData?.message || 'An error occurred while uploading. Please try again.');
+            } else if (err instanceof Error) {
+                setError(err.message);
+            } else {
+                setError('An error occurred while uploading. Please try again.');
+            }
         } finally {
             setUploading(false);
         }
@@ -222,32 +244,31 @@ export default function MediaLibraryModal({
         setLoading(true);
         setError(null);
         try {
-            const csrfToken =
-                (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
-
-            const res = await fetch('/website/builder/media/upload', {
-                method: 'POST',
+            const res = await axios.post('/website/builder/media/upload', {
+                url: urlInput.trim(),
+                name: urlNameInput.trim() || undefined,
+            }, {
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
                     Accept: 'application/json',
                 },
-                body: JSON.stringify({
-                    url: urlInput.trim(),
-                    name: urlNameInput.trim() || undefined,
-                }),
             });
 
-            const data = await res.json();
-            if (res.ok && data.ok && data.asset) {
+            const data = res.data;
+            if (data.ok && data.asset) {
                 await fetchAssets();
                 setSelectedAsset(data.asset);
                 setActiveTab('library');
             } else {
                 setError(data.error || 'Failed to save URL asset.');
             }
-        } catch (err) {
-            setError('Failed to link image URL.');
+        } catch (err: unknown) {
+            if (axios.isAxiosError(err)) {
+                const responseData = err.response?.data as { message?: string; error?: string } | undefined;
+                setError(responseData?.error || responseData?.message || 'Failed to link image URL.');
+            } else {
+                setError('Failed to link image URL.');
+            }
         } finally {
             setLoading(false);
         }
@@ -257,19 +278,14 @@ export default function MediaLibraryModal({
     const handleDelete = async (asset: MediaAsset) => {
         setDeleting(true);
         try {
-            const csrfToken =
-                (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
-
-            const res = await fetch(`/website/builder/media/${asset.id}`, {
-                method: 'DELETE',
+            const res = await axios.delete(`/website/builder/media/${asset.id}`, {
                 headers: {
-                    'X-CSRF-TOKEN': csrfToken,
                     Accept: 'application/json',
                 },
             });
 
-            const data = await res.json();
-            if (res.ok && data.ok) {
+            const data = res.data;
+            if (data.ok) {
                 setAssets((prev) => prev.filter((a) => a.id !== asset.id));
                 if (selectedAsset?.id === asset.id) {
                     setSelectedAsset(null);
@@ -278,8 +294,13 @@ export default function MediaLibraryModal({
             } else {
                 setError(data.error || 'Failed to delete asset.');
             }
-        } catch (err) {
-            setError('An error occurred while deleting asset.');
+        } catch (err: unknown) {
+            if (axios.isAxiosError(err)) {
+                const responseData = err.response?.data as { message?: string; error?: string } | undefined;
+                setError(responseData?.error || responseData?.message || 'An error occurred while deleting asset.');
+            } else {
+                setError('An error occurred while deleting asset.');
+            }
         } finally {
             setDeleting(false);
         }
@@ -290,24 +311,18 @@ export default function MediaLibraryModal({
         if (!selectedAsset) return;
         setSavingMeta(true);
         try {
-            const csrfToken =
-                (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
-
-            const res = await fetch(`/website/builder/media/${selectedAsset.id}`, {
-                method: 'PATCH',
+            const res = await axios.patch(`/website/builder/media/${selectedAsset.id}`, {
+                name: editingName,
+                alt_text: editingAlt,
+            }, {
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
                     Accept: 'application/json',
                 },
-                body: JSON.stringify({
-                    name: editingName,
-                    alt_text: editingAlt,
-                }),
             });
 
-            const data = await res.json();
-            if (res.ok && data.ok) {
+            const data = res.data;
+            if (data.ok) {
                 setAssets((prev) =>
                     prev.map((a) =>
                         a.id === selectedAsset.id
@@ -319,7 +334,7 @@ export default function MediaLibraryModal({
                     prev ? { ...prev, name: editingName, alt: editingAlt } : null
                 );
             }
-        } catch (err) {
+        } catch (err: unknown) {
             console.error('Error saving meta:', err);
         } finally {
             setSavingMeta(false);

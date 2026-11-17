@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import { Head, router } from '@inertiajs/react';
 import {
     Sparkles,
@@ -162,34 +163,14 @@ export default function SetupIndex({
         }
 
         try {
-            const res = await fetch(`/setup/step/${stepId}`, {
-                method: 'POST',
+            const res = await axios.post(`/setup/step/${stepId}`, payload, {
                 headers: {
                     'Content-Type': 'application/json',
                     Accept: 'application/json',
-                    'X-CSRF-TOKEN': getCsrfToken(),
                 },
-                body: JSON.stringify(payload),
             });
 
-            const data = await res.json();
-
-            if (!res.ok) {
-                if (data.errors) {
-                    const mapped: Record<string, string> = {};
-                    Object.keys(data.errors).forEach((k) => {
-                        mapped[k] = Array.isArray(data.errors[k])
-                            ? data.errors[k][0]
-                            : data.errors[k];
-                    });
-                    setErrors(mapped);
-                } else {
-                    setErrors({ general: data.message || 'Validation error saving step.' });
-                }
-                setSaving(false);
-                return false;
-            }
-
+            const data = res.data;
             const next = data.next_step || stepId + 1;
             setCurrentStep(next);
             setHighestUnlockedStep((prev) => Math.max(prev, next));
@@ -197,7 +178,28 @@ export default function SetupIndex({
             window.scrollTo({ top: 0, behavior: 'smooth' });
             return true;
         } catch (err: unknown) {
-            setErrors({ general: 'Network error. Please try again.' });
+            console.error('Save step error:', err);
+            if (axios.isAxiosError(err)) {
+                const status = err.response?.status;
+                const responseData = err.response?.data as { message?: string; errors?: Record<string, string | string[]> } | undefined;
+
+                if (status === 419) {
+                    setErrors({ general: 'Your session has expired. Please refresh the page and try again.' });
+                } else if (responseData?.errors) {
+                    const mapped: Record<string, string> = {};
+                    Object.keys(responseData.errors).forEach((k) => {
+                        const val = responseData.errors![k];
+                        mapped[k] = Array.isArray(val) ? val[0] : val;
+                    });
+                    setErrors(mapped);
+                } else {
+                    setErrors({ general: responseData?.message || 'Validation error saving step.' });
+                }
+            } else if (err instanceof Error) {
+                setErrors({ general: err.message });
+            } else {
+                setErrors({ general: 'Network error. Please try again.' });
+            }
             setSaving(false);
             return false;
         }
@@ -209,26 +211,30 @@ export default function SetupIndex({
         setErrors({});
 
         try {
-            const res = await fetch('/setup/complete', {
-                method: 'POST',
+            await axios.post('/setup/complete', {}, {
                 headers: {
                     'Content-Type': 'application/json',
                     Accept: 'application/json',
-                    'X-CSRF-TOKEN': getCsrfToken(),
                 },
             });
-
-            const data = await res.json();
-            if (!res.ok) {
-                setErrors({ general: data.message || 'Could not complete setup.' });
-                setSaving(false);
-                return;
-            }
 
             setIsCompleted(true);
             setSaving(false);
         } catch (err: unknown) {
-            setErrors({ general: 'Network error. Please try again.' });
+            console.error('Complete setup error:', err);
+            if (axios.isAxiosError(err)) {
+                const status = err.response?.status;
+                const responseData = err.response?.data as { message?: string } | undefined;
+                if (status === 419) {
+                    setErrors({ general: 'Your session has expired. Please refresh the page and try again.' });
+                } else {
+                    setErrors({ general: responseData?.message || 'Could not complete setup.' });
+                }
+            } else if (err instanceof Error) {
+                setErrors({ general: err.message });
+            } else {
+                setErrors({ general: 'Network error. Please try again.' });
+            }
             setSaving(false);
         }
     };

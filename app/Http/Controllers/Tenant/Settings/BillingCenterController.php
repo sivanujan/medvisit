@@ -27,6 +27,8 @@ use App\Services\Billing\CreditNotePdfService;
 use App\Services\Billing\SubscriptionNotificationService;
 use App\Services\Billing\SubscriptionProrationService;
 use App\Services\Billing\SubscriptionReceiptPdfService;
+use App\Services\Referrals\ReferralCreditService;
+use App\Services\Referrals\ReferralService;
 use App\Services\Refunds\RefundEligibilityService;
 use App\Services\TelegramNotificationService;
 use Carbon\Carbon;
@@ -183,6 +185,10 @@ class BillingCenterController extends Controller
                     'refundable_amount_cents' => $transaction?->refundable_amount_cents ?? 0,
                     'latest_refund' => $refundSummary,
                     'can_request_refund' => $canRequestRefund,
+                    'credit_cents' => $inv->credit_cents,
+                    'formatted_credit' => $inv->formatted_credit,
+                    'discount_cents' => $inv->discount_cents,
+                    'original_amount_cents' => $inv->original_amount_cents,
                 ];
             });
 
@@ -299,6 +305,8 @@ class BillingCenterController extends Controller
             'paymentHistory' => $invoices,
             'upcomingInvoice' => $upcomingInvoice,
             'incidents' => $incidents,
+            'referralsEnabled' => app(ReferralService::class)->isEnabled(),
+            'referralCreditBalance' => app(ReferralService::class)->isEnabled() ? app(ReferralCreditService::class)->getBalance($tenant) : 0,
         ]);
     }
 

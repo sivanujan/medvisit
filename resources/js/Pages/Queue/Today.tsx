@@ -37,8 +37,10 @@ import {
     Timer,
     Flame,
     Sparkles,
+    Printer,
 } from 'lucide-react';
 import TvPairingModal from './Components/TvPairingModal';
+import PrintTodayQueueModal from '@/Components/Queue/PrintTodayQueueModal';
 
 interface SessionItem {
     id: number;
@@ -221,6 +223,7 @@ export default function TodayQueueIndex({
     // Live TV connection status
     const [isTvConnected, setIsTvConnected] = useState(false);
     const [tvPairingOpen, setTvPairingOpen] = useState(false);
+    const [printModalOpen, setPrintModalOpen] = useState(false);
     const lastTvHeartbeatRef = useRef<number>(0);
     const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
 
@@ -620,6 +623,17 @@ export default function TodayQueueIndex({
                     subtitle="Run today's channeling sessions."
                     actions={
                         <div className="flex items-center gap-2">
+                            {/* Print Today's Token List Button */}
+                            <button
+                                type="button"
+                                onClick={() => setPrintModalOpen(true)}
+                                className="group inline-flex items-center gap-2 px-3.5 py-2.5 rounded-2xl text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 shadow-xs transition-all hover:scale-[1.02] cursor-pointer"
+                                title="Print today's patient token list (works offline)"
+                            >
+                                <Printer className="w-4 h-4 text-[#1E6FD9]" />
+                                <span>Print today&apos;s list</span>
+                            </button>
+
                             {/* TV Display Button with Live Connection Indicator */}
                             <button
                                 type="button"
@@ -1741,6 +1755,15 @@ export default function TodayQueueIndex({
             <TvPairingModal
                 isOpen={tvPairingOpen}
                 onClose={() => setTvPairingOpen(false)}
+            />
+
+            {/* Print Today's Queue Modal */}
+            <PrintTodayQueueModal
+                isOpen={printModalOpen}
+                onClose={() => setPrintModalOpen(false)}
+                activeSession={activeSession}
+                tokens={tokens}
+                allSessions={todaySessions}
             />
         </AuthenticatedLayout>
     );

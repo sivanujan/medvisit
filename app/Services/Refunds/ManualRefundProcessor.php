@@ -12,6 +12,7 @@ use App\Models\Subscription;
 use App\Models\TemplatePurchase;
 use App\Services\AuditLogger;
 use App\Services\Billing\CreditNotePdfService;
+use App\Services\Referrals\ReferralService;
 use App\Services\SequenceService;
 use App\Services\Templates\TemplateService;
 use App\Support\ClinicWebsite;
@@ -145,7 +146,14 @@ class ManualRefundProcessor implements RefundProcessor
                 }
             }
 
-            // 5. Audit Logging
+            // 5. Referral program refund clawback & credit restoration
+            try {
+                app(ReferralService::class)->onInvoiceRefunded($lockedRequest, $approvedAmountCents);
+            } catch (\Throwable $e) {
+                Log::error("ManualRefundProcessor: Referral refund hook error: {$e->getMessage()}");
+            }
+
+            // 6. Audit Logging
             try {
                 AuditLogger::log('subscription.refund_completed', [
                     'tenant_id' => $lockedRequest->tenant_id,

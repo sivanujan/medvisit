@@ -1,5 +1,6 @@
 import React, { ReactNode, useId, useRef, useState } from 'react';
 import axios from 'axios';
+import { compressImageBeforeUpload, ImageValidationError } from '@/Utils/imageCompressor';
 import { ImagePlus, Link2, Loader2, Trash2 } from 'lucide-react';
 
 const inputClass =
@@ -149,19 +150,33 @@ export function ImageField({ label, value, onChange, hint }: { label: string; va
     const [error, setError] = useState<string | null>(null);
     const [link, setLink] = useState('');
 
-    const upload = async (file: File) => {
+    const upload = async (rawFile: File) => {
         setBusy(true);
         setError(null);
         try {
+            const { file } = await compressImageBeforeUpload(rawFile, {
+                maxDimension: 2000,
+                quality: 0.85,
+            });
             const form = new FormData();
             form.append('file', file);
-            const { data } = await axios.post('/website/builder/media/upload', form, { headers: { Accept: 'application/json' } });
-            const url = data?.data?.[0];
+            const { data } = await axios.post('/website/builder/media/upload', form, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                    Accept: 'application/json',
+                },
+            });
+            const url = data?.data?.[0] || data?.assets?.[0]?.url;
             if (url) onChange(url);
         } catch (e: any) {
-            setError(e?.response?.data?.message || 'The image could not be uploaded. Use a JPG, PNG or WebP under 5 MB.');
+            if (e instanceof ImageValidationError) {
+                setError(e.message);
+            } else {
+                setError(e?.response?.data?.message || 'The image could not be uploaded. Use a JPG, PNG or WebP under 5 MB.');
+            }
         } finally {
             setBusy(false);
+            if (fileRef.current) fileRef.current.value = '';
         }
     };
 

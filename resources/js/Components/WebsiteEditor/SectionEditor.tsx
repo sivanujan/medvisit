@@ -388,11 +388,10 @@ export default function SectionEditor({ section, onChange, clinic }: Props) {
                                 return (
                                     <div
                                         key={key}
-                                        className={`rounded-xl border p-3 transition ${
-                                            dayData.open
-                                                ? 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'
-                                                : 'border-slate-200/60 dark:border-slate-800/60 bg-slate-50/50 dark:bg-slate-900/30 opacity-70'
-                                        }`}
+                                        className={`rounded-xl border p-3 transition ${dayData.open
+                                            ? 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'
+                                            : 'border-slate-200/60 dark:border-slate-800/60 bg-slate-50/50 dark:bg-slate-900/30 opacity-70'
+                                            }`}
                                     >
                                         <div className="flex items-center justify-between gap-3">
                                             <span className="text-xs font-semibold text-slate-900 dark:text-slate-100 w-24">
@@ -409,11 +408,10 @@ export default function SectionEditor({ section, onChange, clinic }: Props) {
                                                                 : dayData.ranges;
                                                         updateDay({ ...dayData, open: nowOpen, ranges });
                                                     }}
-                                                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
-                                                        dayData.open
-                                                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
-                                                            : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
-                                                    }`}
+                                                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition ${dayData.open
+                                                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                                        : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                                                        }`}
                                                 >
                                                     {dayData.open ? 'Open' : 'Closed'}
                                                 </button>

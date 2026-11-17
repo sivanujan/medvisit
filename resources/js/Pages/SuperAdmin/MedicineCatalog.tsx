@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import { Head, router, useForm } from '@inertiajs/react';
 import PlatformLayout from '@/Layouts/PlatformLayout';
 import { PageHeader } from '@/Components/UI/PageHeader';
@@ -139,16 +140,8 @@ export default function MedicineCatalog({
 
         setRxTermsLoading(true);
         try {
-            const res = await fetch('/super-admin/medicines/rxterms/search', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
-                },
-                body: JSON.stringify({ term: rxTermsSearchTerm }),
-            });
-            const data = await res.json();
-            setRxTermsResults(data.results || []);
+            const res = await axios.post('/super-admin/medicines/rxterms/search', { term: rxTermsSearchTerm });
+            setRxTermsResults(res.data?.results || []);
             setSelectedRxItem(null);
             setSelectedVariants({});
         } catch (err) {

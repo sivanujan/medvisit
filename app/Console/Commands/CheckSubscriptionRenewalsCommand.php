@@ -10,6 +10,8 @@ use App\Models\PromoCode;
 use App\Models\Subscription;
 use App\Models\SubscriptionInvoice;
 use App\Models\User;
+use App\Services\Referrals\ReferralCreditService;
+use App\Services\Referrals\ReferralService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -124,8 +126,20 @@ class CheckSubscriptionRenewalsCommand extends Command
                 $discountCents = min($planPriceCents, max(0, $discountCents));
                 $finalAmountCents = max(0, $planPriceCents - $discountCents);
 
-                if ($finalAmountCents === 0 && $discountCents > 0) {
+                $creditCents = 0;
+                $referralCreditService = app(ReferralCreditService::class);
+                $referralService = app(ReferralService::class);
+                if ($referralService->isEnabled() && $sub->tenant && $finalAmountCents > 0) {
+                    $availableCredit = $referralCreditService->getBalance($sub->tenant);
+                    if ($availableCredit > 0) {
+                        $creditCents = min($availableCredit, $finalAmountCents);
+                        $finalAmountCents = max(0, $finalAmountCents - $creditCents);
+                    }
+                }
+
+                if ($finalAmountCents === 0 && ($discountCents > 0 || $creditCents > 0)) {
                     // Rs. 0 Renewal Invoice: Mark paid immediately with no receipt number
+                    $paymentMethod = $promoId ? 'promo' : ($creditCents > 0 ? 'credit' : 'free');
                     $invoice = SubscriptionInvoice::create([
                         'tenant_id' => $sub->tenant_id,
                         'subscription_id' => $sub->id,
@@ -133,6 +147,7 @@ class CheckSubscriptionRenewalsCommand extends Command
                         'amount_cents' => 0,
                         'original_amount_cents' => $planPriceCents,
                         'discount_cents' => $discountCents,
+                        'credit_cents' => $creditCents,
                         'promo_code' => $promoCode,
                         'promo_id' => $promoId,
                         'period_start' => $periodStart,
@@ -140,9 +155,19 @@ class CheckSubscriptionRenewalsCommand extends Command
                         'due_date' => $periodStart,
                         'status' => SubscriptionInvoice::STATUS_PAID,
                         'paid_at' => $now,
-                        'payment_method' => 'promo',
+                        'payment_method' => $paymentMethod,
                         'receipt_number' => null, // Never consume receipt number on Rs. 0
                     ]);
+
+                    if ($creditCents > 0) {
+                        $referralCreditService->deductForZeroInvoice($sub->tenant, $invoice, $creditCents);
+                    }
+
+                    try {
+                        $referralService->onInvoicePaid($invoice);
+                    } catch (\Throwable $e) {
+                        Log::error("CheckSubscriptionRenewalsCommand: Referral onInvoicePaid error: {$e->getMessage()}");
+                    }
 
                     // Extend subscription period
                     $sub->update([
@@ -153,23 +178,25 @@ class CheckSubscriptionRenewalsCommand extends Command
                     // Email the clinic
                     $clinicAdmin = User::where('tenant_id', $sub->tenant_id)->first();
                     if ($clinicAdmin) {
+                        $coveredDesc = $promoCode ? "promo code {$promoCode}" : ($creditCents > 0 ? 'referral billing credit' : 'special offer');
                         Mail::to($clinicAdmin->email)->queue(
                             new ZeroAmountInvoiceMail(
                                 $invoice,
                                 (string) ($sub->tenant?->name ?? 'Your Clinic'),
-                                "promo code {$promoCode}",
+                                $coveredDesc,
                                 url('/settings/billing')
                             )
                         );
                     }
                 } else {
-                    SubscriptionInvoice::create([
+                    $invoice = SubscriptionInvoice::create([
                         'tenant_id' => $sub->tenant_id,
                         'subscription_id' => $sub->id,
                         'invoice_number' => SubscriptionInvoice::generateInvoiceNumber(),
                         'amount_cents' => $finalAmountCents,
                         'original_amount_cents' => $planPriceCents,
                         'discount_cents' => $discountCents,
+                        'credit_cents' => $creditCents,
                         'promo_code' => $promoCode,
                         'promo_id' => $promoId,
                         'period_start' => $periodStart,
@@ -177,6 +204,10 @@ class CheckSubscriptionRenewalsCommand extends Command
                         'due_date' => $periodStart,
                         'status' => SubscriptionInvoice::STATUS_UNPAID,
                     ]);
+
+                    if ($creditCents > 0 && $sub->tenant) {
+                        $referralCreditService->reserveForInvoice($sub->tenant, $invoice, $creditCents);
+                    }
                 }
 
                 $invoicesGenerated++;

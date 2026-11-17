@@ -1,4 +1,6 @@
 import React, { useRef, useState } from 'react';
+import axios from 'axios';
+import { compressImageBeforeUpload, ImageValidationError } from '@/Utils/imageCompressor';
 import {
     Palette,
     Upload,
@@ -46,38 +48,70 @@ export default function StepLogoBrand({
     const initial = (tenant.name.trim().charAt(0) || 'C').toUpperCase();
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+        const rawFile = e.target.files?.[0];
+        if (!rawFile) return;
 
         setUploading(true);
         setUploadError(null);
 
         try {
+            // Compress & validate client-side before sending
+            // Logo: max 1024px on long side, preserve PNG transparency, quality ~0.85
+            const { file } = await compressImageBeforeUpload(rawFile, {
+                isLogo: true,
+                maxDimension: 1024,
+                preserveTransparency: true,
+                quality: 0.85,
+            });
+
             const formData = new FormData();
             formData.append('type', 'logo');
             formData.append('file', file);
 
-            const token = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content;
-            const res = await fetch('/setup/upload-photo', {
-                method: 'POST',
+            const res = await axios.post('/setup/upload-photo', formData, {
                 headers: {
+                    'Content-Type': 'multipart/form-data',
                     Accept: 'application/json',
-                    'X-CSRF-TOKEN': token || '',
                 },
-                body: formData,
             });
 
-            const data = await res.json();
-            if (!res.ok) {
-                setUploadError(data.message || data.errors?.file?.[0] || 'Failed to upload logo.');
-            } else if (data.url) {
-                onChange('logo_url', data.url);
+            if (res.data?.url) {
+                onChange('logo_url', res.data.url);
                 onChange('use_initials', false);
+            } else {
+                setUploadError('Unexpected response from server. Please try again.');
             }
         } catch (err: unknown) {
-            setUploadError('Network error uploading file. Please try again.');
+            console.error('Logo upload error:', err);
+            if (err instanceof ImageValidationError) {
+                setUploadError(err.message);
+            } else if (axios.isAxiosError(err)) {
+                const status = err.response?.status;
+                const responseData = err.response?.data as { message?: string; errors?: Record<string, string[]> } | undefined;
+
+                if (status === 413) {
+                    setUploadError(responseData?.message || 'The file is too large for the server (HTTP 413). Please choose a smaller image.');
+                } else if (status === 419) {
+                    setUploadError('Your session has expired. Please refresh the page and try again.');
+                } else if (responseData?.errors?.file?.[0]) {
+                    setUploadError(responseData.errors.file[0]);
+                } else if (responseData?.message) {
+                    setUploadError(responseData.message);
+                } else if (!window.navigator.onLine) {
+                    setUploadError('You appear to be offline. Please reconnect to the internet and try again.');
+                } else {
+                    setUploadError('Failed to upload logo. Please check your connection and try again.');
+                }
+            } else if (err instanceof Error) {
+                setUploadError(err.message);
+            } else {
+                setUploadError('Network error uploading file. Please try again.');
+            }
         } finally {
             setUploading(false);
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
         }
     };
 

@@ -476,6 +476,42 @@ class VisualPageBuilderTest extends TestCase
         Storage::disk('public')->assertMissing($asset->path);
     }
 
+    public function test_svg_upload_is_sanitized_and_malicious_code_stripped(): void
+    {
+        Storage::fake('public');
+
+        $maliciousSvg = <<<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" onload="alert('XSS OnLoad')">
+    <circle cx="50" cy="50" r="40" fill="green" />
+    <script type="text/javascript">alert('XSS Script');</script>
+    <a href="javascript:alert('XSS Link')">
+        <text x="10" y="20">Click</text>
+    </a>
+</svg>
+SVG;
+
+        $file = UploadedFile::fake()->createWithContent('graphic.svg', $maliciousSvg);
+
+        $uploadResponse = $this->actingAs($this->adminA)
+            ->post("http://{$this->tenantA->subdomain}.{$this->baseDomain}/website/builder/media/upload", [
+                'files' => [$file],
+            ]);
+
+        $uploadResponse->assertOk();
+        $uploadResponse->assertJson(['ok' => true]);
+
+        $asset = ClinicMediaAsset::where('tenant_id', $this->tenantA->id)->where('original_name', 'graphic.svg')->first();
+        $this->assertNotNull($asset);
+
+        // Verify the file saved to storage has been stripped of script, onload, and javascript:
+        $storedContent = Storage::disk('public')->get($asset->path);
+        $this->assertNotNull($storedContent);
+        $this->assertStringNotContainsString('<script', strtolower($storedContent));
+        $this->assertStringNotContainsString('onload', strtolower($storedContent));
+        $this->assertStringNotContainsString('javascript:', strtolower($storedContent));
+        $this->assertStringContainsString('<circle', $storedContent);
+    }
+
     public function test_public_landing_renders_published_builder_page(): void
     {
         ClinicPage::create([

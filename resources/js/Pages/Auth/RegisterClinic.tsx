@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, FormEventHandler, KeyboardEvent } from 'react';
+import axios from 'axios';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -53,6 +54,10 @@ interface Props {
         free_period_text: string;
     } | null;
     inviteError?: string | null;
+    referral?: {
+        code: string;
+        clinic_name: string;
+    } | null;
 }
 
 interface SubdomainCheckResult {
@@ -82,6 +87,7 @@ export default function RegisterClinic({
     legalVersions,
     invite,
     inviteError,
+    referral,
 }: Props) {
     const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
     const [showPassword, setShowPassword] = useState(false);
@@ -161,6 +167,7 @@ export default function RegisterClinic({
         registration_token: '',
         phone_token: '',
         invite_token: invite?.token || '',
+        referral_code: referral?.code || '',
     });
 
     // Restore draft from sessionStorage on mount (excluding passwords & tokens)
@@ -251,29 +258,16 @@ export default function RegisterClinic({
         let isMounted = true;
         setCheckingSubdomain(true);
 
-        const csrfToken =
-            (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
-
-        fetch('/check-subdomain', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': csrfToken,
-                Accept: 'application/json',
-            },
-            body: JSON.stringify({
-                subdomain: debouncedSubdomain,
-                clinic_name: data.clinic_name,
-                city: data.city,
-            }),
+        axios.post('/check-subdomain', {
+            subdomain: debouncedSubdomain,
+            clinic_name: data.clinic_name,
+            city: data.city,
+        }, {
+            headers: { Accept: 'application/json' },
         })
             .then((res) => {
-                if (!res.ok) throw new Error(`Status ${res.status}`);
-                return res.json();
-            })
-            .then((resData: SubdomainCheckResult) => {
                 if (isMounted) {
-                    setSubdomainResult(resData);
+                    setSubdomainResult(res.data);
                     setCheckingSubdomain(false);
                 }
             })
@@ -477,38 +471,16 @@ export default function RegisterClinic({
         }
 
         setSendingCode(true);
-        const csrfToken =
-            (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
 
         try {
-            const res = await fetch('/register/send-code', {
-                method: 'POST',
+            const res = await axios.post('/register/send-code', data, {
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
                     Accept: 'application/json',
                 },
-                body: JSON.stringify(data),
             });
 
-            const isJson = res.headers.get('content-type')?.includes('application/json');
-            const resData = isJson ? await res.json().catch(() => ({})) : {};
-
-            if (!res.ok) {
-                if (res.status === 419) {
-                    setOtpError('Session expired. Please refresh the page and try again.');
-                } else if (res.status === 422 && resData.errors) {
-                    Object.entries(resData.errors).forEach(([field, msgs]) => {
-                        const firstMsg = Array.isArray(msgs) ? msgs[0] : (msgs as string);
-                        setError(field as any, firstMsg);
-                    });
-                } else {
-                    setOtpError(resData?.message || `Failed to send verification code (Status ${res.status}).`);
-                }
-                setSendingCode(false);
-                return;
-            }
-
+            const resData = res.data;
             setData('registration_token', resData.token);
             setExpirySeconds(resData.expires_in_seconds || 600);
             setResendCooldown(resData.resend_cooldown_seconds || 60);
@@ -527,9 +499,25 @@ export default function RegisterClinic({
             setTimeout(() => {
                 inputRefs.current[0]?.focus();
             }, 150);
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('[handleSendCode error]', err);
-            setOtpError(err?.message ? `Failed: ${err.message}` : 'Network error while requesting verification code. Please try again.');
+            if (axios.isAxiosError(err)) {
+                const status = err.response?.status;
+                const resData = err.response?.data as { message?: string; errors?: Record<string, string | string[]> } | undefined;
+
+                if (status === 419) {
+                    setOtpError('Session expired. Please refresh the page and try again.');
+                } else if (status === 422 && resData?.errors) {
+                    Object.entries(resData.errors).forEach(([field, msgs]) => {
+                        const firstMsg = Array.isArray(msgs) ? msgs[0] : (msgs as string);
+                        setError(field as any, firstMsg);
+                    });
+                } else {
+                    setOtpError(resData?.message || `Failed to send verification code (Status ${status}).`);
+                }
+            } else {
+                setOtpError('Failed to send verification code. Please try again.');
+            }
             setSendingCode(false);
         }
     };
@@ -555,30 +543,14 @@ export default function RegisterClinic({
                 bodyPayload.mobile = targetPhone;
             }
 
-            const res = await fetch('/register/send-phone-otp', {
-                method: 'POST',
+            const res = await axios.post('/register/send-phone-otp', bodyPayload, {
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
                     Accept: 'application/json',
                 },
-                body: JSON.stringify(bodyPayload),
             });
 
-            const isJson = res.headers.get('content-type')?.includes('application/json');
-            const resData = isJson ? await res.json().catch(() => ({})) : {};
-
-            if (!res.ok) {
-                if (res.status === 419) {
-                    setPhoneOtpError('Session expired. Please refresh the page and try again.');
-                } else {
-                    setPhoneOtpError(resData?.message || `Failed to send phone OTP (Status ${res.status}).`);
-                }
-                if (resData?.locked) setPhoneIsLocked(true);
-                setPhoneSendingCode(false);
-                return;
-            }
-
+            const resData = res.data;
             setPhoneExpirySeconds(resData.expires_in_seconds || 300);
             setPhoneResendCooldown(resData.resend_cooldown_seconds || 60);
             if (resData.dev_code) {
@@ -598,9 +570,20 @@ export default function RegisterClinic({
             setTimeout(() => {
                 phoneInputRefs.current[0]?.focus();
             }, 150);
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('[handleSendPhoneOtp error]', err);
-            setPhoneOtpError(err?.message ? `Failed: ${err.message}` : 'Network error while requesting SMS OTP.');
+            if (axios.isAxiosError(err)) {
+                const status = err.response?.status;
+                const resData = err.response?.data as { message?: string; locked?: boolean } | undefined;
+                if (status === 419) {
+                    setPhoneOtpError('Session expired. Please refresh the page and try again.');
+                } else {
+                    setPhoneOtpError(resData?.message || `Failed to send phone OTP (Status ${status}).`);
+                }
+                if (resData?.locked) setPhoneIsLocked(true);
+            } else {
+                setPhoneOtpError('Failed to request SMS OTP. Please try again.');
+            }
             setPhoneSendingCode(false);
         }
     };
@@ -613,38 +596,11 @@ export default function RegisterClinic({
         setVerifyingCode(true);
         setOtpError(null);
 
-        const csrfToken =
-            (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
-
         try {
-            const res = await fetch('/register/verify-code', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    Accept: 'application/json',
-                },
-                body: JSON.stringify({
-                    token: data.registration_token,
-                    code,
-                }),
+            await axios.post('/register/verify-code', {
+                token: data.registration_token,
+                code,
             });
-
-            const isJson = res.headers.get('content-type')?.includes('application/json');
-            const resData = isJson ? await res.json().catch(() => ({})) : {};
-
-            if (!res.ok) {
-                if (res.status === 419) {
-                    setOtpError('Session expired. Please refresh the page and try again.');
-                } else {
-                    setOtpError(resData?.message || 'Incorrect verification code.');
-                }
-                if (resData?.locked) {
-                    setIsLocked(true);
-                }
-                setVerifyingCode(false);
-                return;
-            }
 
             setIsVerified(true);
             setOtpSuccess('Email verified successfully!');
@@ -658,7 +614,17 @@ export default function RegisterClinic({
             }
         } catch (err: any) {
             console.error('[handleVerifyCode error]', err);
-            setOtpError(err?.message ? `Failed: ${err.message}` : 'Network error while verifying code. Please try again.');
+            const status = err.response?.status;
+            const resData = err.response?.data || {};
+
+            if (status === 419) {
+                setOtpError('Session expired. Please refresh the page and try again.');
+            } else {
+                setOtpError(resData?.message || err.message || 'Incorrect verification code.');
+            }
+            if (resData?.locked) {
+                setIsLocked(true);
+            }
             setVerifyingCode(false);
         }
     };
@@ -671,41 +637,12 @@ export default function RegisterClinic({
         setPhoneVerifyingCode(true);
         setPhoneOtpError(null);
 
-        const csrfToken =
-            (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
-
         try {
-            const res = await fetch('/register/verify-phone-otp', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    Accept: 'application/json',
-                },
-                body: JSON.stringify({
-                    token: data.registration_token,
-                    code,
-                }),
+            const res = await axios.post('/register/verify-phone-otp', {
+                token: data.registration_token,
+                code,
             });
-
-            const isJson = res.headers.get('content-type')?.includes('application/json');
-            const resData = isJson ? await res.json().catch(() => ({})) : {};
-
-            if (!res.ok) {
-                if (res.status === 419) {
-                    setPhoneOtpError('Session expired. Please refresh the page and try again.');
-                } else {
-                    setPhoneOtpError(resData?.message || 'Incorrect SMS code.');
-                }
-                if (resData?.locked) {
-                    setPhoneIsLocked(true);
-                }
-                if (resData?.attempts_remaining !== undefined) {
-                    setPhoneAttemptsRemaining(resData.attempts_remaining);
-                }
-                setPhoneVerifyingCode(false);
-                return;
-            }
+            const resData = res.data;
 
             setPhoneIsVerified(true);
             setData('phone_token', resData.phone_token);
@@ -721,7 +658,20 @@ export default function RegisterClinic({
             }
         } catch (err: any) {
             console.error('[handleVerifyPhoneOtp error]', err);
-            setPhoneOtpError(err?.message ? `Failed: ${err.message}` : 'Network error while verifying SMS OTP.');
+            const status = err.response?.status;
+            const resData = err.response?.data || {};
+
+            if (status === 419) {
+                setPhoneOtpError('Session expired. Please refresh the page and try again.');
+            } else {
+                setPhoneOtpError(resData?.message || err.message || 'Incorrect SMS code.');
+            }
+            if (resData?.locked) {
+                setPhoneIsLocked(true);
+            }
+            if (resData?.attempts_remaining !== undefined) {
+                setPhoneAttemptsRemaining(resData.attempts_remaining);
+            }
             setPhoneVerifyingCode(false);
         }
     };
@@ -740,34 +690,12 @@ export default function RegisterClinic({
 
         setResendingCode(true);
         setOtpError(null);
-        const csrfToken =
-            (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
 
         try {
-            const res = await fetch('/register/resend-code', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    Accept: 'application/json',
-                },
-                body: JSON.stringify({
-                    token: data.registration_token,
-                }),
+            const res = await axios.post('/register/resend-code', {
+                token: data.registration_token,
             });
-
-            const isJson = res.headers.get('content-type')?.includes('application/json');
-            const resData = isJson ? await res.json().catch(() => ({})) : {};
-
-            if (!res.ok) {
-                if (res.status === 419) {
-                    setOtpError('Session expired. Please refresh the page and try again.');
-                } else {
-                    setOtpError(resData?.message || 'Failed to resend code.');
-                }
-                setResendingCode(false);
-                return;
-            }
+            const resData = res.data;
 
             setExpirySeconds(resData.expires_in_seconds || 600);
             setResendCooldown(resData.resend_cooldown_seconds || 60);
@@ -785,7 +713,14 @@ export default function RegisterClinic({
             }, 100);
         } catch (err: any) {
             console.error('[handleResendCode error]', err);
-            setOtpError(err?.message ? `Failed: ${err.message}` : 'Network error while resending code.');
+            const status = err.response?.status;
+            const resData = err.response?.data || {};
+
+            if (status === 419) {
+                setOtpError('Session expired. Please refresh the page and try again.');
+            } else {
+                setOtpError(resData?.message || err.message || 'Failed to resend code.');
+            }
             setResendingCode(false);
         }
     };
@@ -1141,6 +1076,15 @@ export default function RegisterClinic({
                                         transition={{ duration: 0.2 }}
                                         className="space-y-4"
                                     >
+                                        {referral && (
+                                            <div className="flex items-center gap-2.5 rounded-xl border border-primary/20 bg-primary/5 px-3.5 py-2.5 text-xs text-primary dark:border-primary/30 dark:bg-primary/10">
+                                                <Sparkles className="h-4 w-4 shrink-0 text-primary" />
+                                                <span>
+                                                    Referred by <strong className="font-semibold text-slate-900 dark:text-white">{referral.clinic_name}</strong>
+                                                </span>
+                                            </div>
+                                        )}
+
                                         <div className="space-y-1">
                                             <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
                                                 <Building2 className="w-5 h-5 text-primary" />

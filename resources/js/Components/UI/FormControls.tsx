@@ -11,11 +11,11 @@ export function GlassLabel({
     return (
         <label
             htmlFor={htmlFor}
-            className={`block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 ${className}`}
+            className={`block text-[13px] font-medium text-slate-700 dark:text-slate-300 mb-1.5 ${className}`}
             {...props}
         >
             {children}
-            {required && <span className="text-accent ml-1 font-black">*</span>}
+            {required && <span className="text-[#FF7A59] ml-1 font-bold">*</span>}
         </label>
     );
 }
@@ -55,14 +55,14 @@ export const GlassInput = forwardRef<HTMLInputElement, GlassInputProps>(function
             <input
                 ref={ref}
                 type={type}
-                className={`w-full px-3.5 py-2.5 rounded-xl text-sm transition-all duration-200 outline-none
+                className={`h-11 w-full px-3.5 rounded-xl text-[15px] transition-all duration-200 outline-none
                     bg-white/80 hover:bg-white focus:bg-white dark:bg-slate-900/60 dark:hover:bg-slate-900/80 dark:focus:bg-slate-900/90
                     text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500
                     backdrop-blur-md
                     border ${
                         error
                             ? 'border-rose-400 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/15'
-                            : 'border-slate-200/90 dark:border-white/10 focus:border-primary focus:ring-4 focus:ring-primary/15'
+                            : 'border-slate-200/90 dark:border-white/10 focus:border-[#1E6FD9] focus:ring-4 focus:ring-[#1E6FD9]/15'
                     }
                     shadow-xs ${icon ? 'pl-10' : ''} ${className}`}
                 {...props}

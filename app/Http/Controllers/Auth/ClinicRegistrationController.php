@@ -22,6 +22,7 @@ use App\Rules\SubdomainRule;
 use App\Services\AuditLogger;
 use App\Services\PhoneVerification\PhoneVerificationService;
 use App\Services\PlatformSettingsService;
+use App\Services\Referrals\ReferralService;
 use App\Services\TelegramNotificationService;
 use App\Services\TurnstileService;
 use Illuminate\Http\JsonResponse;
@@ -110,6 +111,21 @@ class ClinicRegistrationController extends Controller
             }
         }
 
+        $referralData = null;
+        $referralService = app(ReferralService::class);
+        if ($referralService->isEnabled()) {
+            $refCode = $referralService->getReferralCodeFromRequest($request);
+            if ($refCode) {
+                $referrer = $referralService->findTenantByReferralCode($refCode);
+                if ($referrer) {
+                    $referralData = [
+                        'code' => $refCode,
+                        'clinic_name' => $referrer->name,
+                    ];
+                }
+            }
+        }
+
         return Inertia::render('Auth/RegisterClinic', [
             'districts' => ClinicRegistrationRequest::DISTRICTS,
             'clinicTypes' => ClinicRegistrationRequest::CLINIC_TYPES,
@@ -124,6 +140,7 @@ class ClinicRegistrationController extends Controller
             ]),
             'invite' => $inviteData,
             'inviteError' => $inviteError,
+            'referral' => $referralData,
         ]);
     }
 
@@ -296,6 +313,8 @@ class ClinicRegistrationController extends Controller
 
         $code = sprintf('%06d', random_int(100000, 999999));
         $token = Str::random(40);
+        $refCode = $request->input('referral_code')
+            ?: $request->cookie(ReferralService::COOKIE_NAME);
 
         $pending = new PendingRegistration([
             'email' => $email,
@@ -306,6 +325,7 @@ class ClinicRegistrationController extends Controller
             'expires_at' => now()->addMinutes(10),
             'resend_available_at' => now()->addSeconds(60),
             'ip_address' => $ip,
+            'referral_code' => $refCode ? strtolower(trim((string) $refCode)) : null,
         ]);
         $pending->setEncryptedPayload($validated);
         $pending->save();
@@ -1026,6 +1046,28 @@ class ClinicRegistrationController extends Controller
                 'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),
             ]);
+
+            // Referral Program: Link referral if registration was referred
+            $referralCode = $pending->referral_code
+                ?: $request->input('referral_code')
+                ?: $request->cookie(ReferralService::COOKIE_NAME);
+
+            if ($referralCode) {
+                try {
+                    app(ReferralService::class)->recordReferralRegistration(
+                        (string) $referralCode,
+                        $tenant,
+                        [
+                            'email' => $user->email,
+                            'phone' => $user->phone,
+                            'clinic_phone' => $tenant->phone,
+                            'ip_address' => $request->ip(),
+                        ]
+                    );
+                } catch (\Throwable $e) {
+                    Log::error("ClinicRegistrationController: Referral recording error: {$e->getMessage()}");
+                }
+            }
 
             // Clean up the verified pending registration
             $pending->delete();

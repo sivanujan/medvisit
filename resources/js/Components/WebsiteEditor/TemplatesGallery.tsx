@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import {
     Sparkles,
     Check,
@@ -77,14 +78,9 @@ export default function TemplatesGallery({ onTemplateApplied }: Props) {
 
     const fetchGallery = () => {
         setLoading(true);
-        fetch('/website/templates', {
-            headers: {
-                Accept: 'application/json',
-            },
-        })
-            .then((res) => res.json())
-            .then((data: GalleryData) => {
-                setGallery(data);
+        axios.get('/website/templates')
+            .then((res) => {
+                setGallery(res.data);
                 setLoading(false);
             })
             .catch(() => {
@@ -99,15 +95,9 @@ export default function TemplatesGallery({ onTemplateApplied }: Props) {
     const handleApply = (template: GalleryTemplate) => {
         if (actionLoading) return;
         setActionLoading(true);
-        fetch(`/website/templates/${template.slug}/apply`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
-            },
-        })
-            .then((res) => res.json())
-            .then((data) => {
+        axios.post(`/website/templates/${template.slug}/apply`)
+            .then((res) => {
+                const data = res.data;
                 setActionLoading(false);
                 if (data.ok) {
                     alert(data.message || (template.tier === 'premium' ? `⚠️ Notice: "${template.name}" is currently under development. Applied to your website draft for free preview and testing!` : `${template.name} applied to draft!`));
@@ -119,9 +109,9 @@ export default function TemplatesGallery({ onTemplateApplied }: Props) {
                     alert(data.message || 'Could not apply template.');
                 }
             })
-            .catch(() => {
+            .catch((err) => {
                 setActionLoading(false);
-                alert('Could not apply template.');
+                alert(err.response?.data?.message || 'Could not apply template.');
             });
     };
 
@@ -131,15 +121,9 @@ export default function TemplatesGallery({ onTemplateApplied }: Props) {
             return;
         }
         setActionLoading(true);
-        fetch('/website/templates/revert', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
-            },
-        })
-            .then((res) => res.json())
-            .then((data) => {
+        axios.post('/website/templates/revert')
+            .then((res) => {
+                const data = res.data;
                 setActionLoading(false);
                 if (data.ok) {
                     alert(data.message || 'Reverted to previous design!');
@@ -151,9 +135,9 @@ export default function TemplatesGallery({ onTemplateApplied }: Props) {
                     alert(data.message || 'Could not revert design.');
                 }
             })
-            .catch(() => {
+            .catch((err) => {
                 setActionLoading(false);
-                alert('Could not revert design.');
+                alert(err.response?.data?.message || 'Could not revert design.');
             });
     };
 
@@ -163,15 +147,9 @@ export default function TemplatesGallery({ onTemplateApplied }: Props) {
             return;
         }
         setActionLoading(true);
-        fetch(`/website/templates/${template.slug}/claim-free`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
-            },
-        })
-            .then((res) => res.json())
-            .then((data) => {
+        axios.post(`/website/templates/${template.slug}/claim-free`)
+            .then((res) => {
+                const data = res.data;
                 setActionLoading(false);
                 if (data.ok) {
                     alert(data.message || 'Free template claimed successfully!');
@@ -180,28 +158,21 @@ export default function TemplatesGallery({ onTemplateApplied }: Props) {
                     alert(data.message || 'Could not claim free template.');
                 }
             })
-            .catch(() => {
+            .catch((err) => {
                 setActionLoading(false);
-                alert('Could not claim free template.');
+                alert(err.response?.data?.message || 'Could not claim free template.');
             });
     };
 
     const handleStartCheckout = () => {
         if (!selectedTemplate || !termsAccepted) return;
         setActionLoading(true);
-        fetch(`/website/templates/${selectedTemplate.slug}/checkout`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
-            },
-            body: JSON.stringify({
-                terms_accepted: true,
-                terms_version: '2026-10-28',
-            }),
+        axios.post(`/website/templates/${selectedTemplate.slug}/checkout`, {
+            terms_accepted: true,
+            terms_version: '2026-10-28',
         })
-            .then((res) => res.json())
-            .then((data) => {
+            .then((res) => {
+                const data = res.data;
                 setActionLoading(false);
                 if (data.payment_url) {
                     window.location.href = data.payment_url;
@@ -209,9 +180,9 @@ export default function TemplatesGallery({ onTemplateApplied }: Props) {
                     alert(data.message || 'Unable to start checkout.');
                 }
             })
-            .catch(() => {
+            .catch((err) => {
                 setActionLoading(false);
-                alert('Checkout failed.');
+                alert(err.response?.data?.message || 'Checkout failed.');
             });
     };
 

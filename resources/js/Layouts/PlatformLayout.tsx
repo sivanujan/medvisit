@@ -30,6 +30,7 @@ import {
     AlertTriangle,
     Tag,
     Globe,
+    Gift,
 } from 'lucide-react';
 import { MedVisitIcon } from '@/Components/ApplicationLogo';
 import ThemeToggle from '@/Components/Common/ThemeToggle';
@@ -55,6 +56,7 @@ const PLATFORM_BREADCRUMBS: Record<string, { group: string; page: string }> = {
     '/super-admin/incidents': { group: 'Business', page: 'Platform Incidents' },
     '/super-admin/plans': { group: 'Business', page: 'Subscription Plans' },
     '/super-admin/promotions': { group: 'Business', page: 'Promotions & Invites' },
+    '/super-admin/referrals': { group: 'Business', page: 'Clinic Referrals' },
     '/super-admin/leads': { group: 'Business', page: 'Leads & Demos CRM' },
     '/super-admin/medicines': { group: 'Content', page: 'Global Medicine Catalog' },
     '/super-admin/announcements': { group: 'Content', page: 'Broadcast Announcements' },
@@ -188,6 +190,12 @@ export default function PlatformLayout({
                     name: 'Promotions & Invites',
                     href: '/super-admin/promotions',
                     icon: Tag,
+                    badge: undefined,
+                },
+                {
+                    name: 'Clinic Referrals',
+                    href: '/super-admin/referrals',
+                    icon: Gift,
                     badge: undefined,
                 },
                 {

@@ -43,6 +43,7 @@ class SubscriptionInvoice extends Model
         'amount_cents',
         'original_amount_cents',
         'discount_cents',
+        'credit_cents',
         'promo_code',
         'promo_id',
         'invite_id',
@@ -61,6 +62,7 @@ class SubscriptionInvoice extends Model
         'amount_cents' => 'integer',
         'original_amount_cents' => 'integer',
         'discount_cents' => 'integer',
+        'credit_cents' => 'integer',
         'period_start' => 'datetime',
         'period_end' => 'datetime',
         'due_date' => 'datetime',
@@ -91,6 +93,16 @@ class SubscriptionInvoice extends Model
     public function transactions(): HasMany
     {
         return $this->hasMany(PaymentTransaction::class, 'invoice_id');
+    }
+
+    public function billingCredits(): HasMany
+    {
+        return $this->hasMany(TenantBillingCredit::class, 'invoice_id');
+    }
+
+    public function getFormattedCreditAttribute(): string
+    {
+        return 'Rs. '.number_format($this->credit_cents / 100, 2);
     }
 
     public function getFormattedAmountAttribute(): string

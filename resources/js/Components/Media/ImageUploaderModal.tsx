@@ -16,6 +16,7 @@ import {
     ExternalLink,
 } from 'lucide-react';
 import axios from 'axios';
+import { compressImageBeforeUpload, ImageValidationError } from '@/Utils/imageCompressor';
 
 export type UploaderType = 'logo' | 'avatar' | 'doctor';
 
@@ -93,32 +94,37 @@ export default function ImageUploaderModal({
         setCroppedAreaPixels(croppedAreaPixels);
     }, []);
 
-    // Handle Client File Selection with validation
-    const handleFileSelected = (file: File) => {
+    // Handle Client File Selection with compression & validation
+    const handleFileSelected = async (file: File) => {
         setErrorMessage(null);
         setSuccessMessage(null);
 
-        const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
-        if (!allowedTypes.includes(file.type.toLowerCase())) {
-            setErrorMessage('Invalid file type. Only PNG, JPEG, and WebP images are allowed. SVG and GIF are blocked for security.');
-            return;
-        }
+        try {
+            const { file: compressedFile } = await compressImageBeforeUpload(file, {
+                isLogo: type === 'logo',
+                maxDimension: type === 'logo' ? 1024 : 2000,
+                preserveTransparency: type === 'logo',
+                quality: 0.85,
+            });
 
-        const maxBytes = 5 * 1024 * 1024;
-        if (file.size > maxBytes) {
-            setErrorMessage(`File is too large (${(file.size / (1024 * 1024)).toFixed(1)} MB). Maximum allowed size is 5 MB.`);
-            return;
+            setSelectedFile(compressedFile);
+            const reader = new FileReader();
+            reader.onload = () => {
+                setImageSrc(reader.result as string);
+                setCrop({ x: 0, y: 0 });
+                setZoom(1);
+                setRotation(0);
+            };
+            reader.readAsDataURL(compressedFile);
+        } catch (err: unknown) {
+            if (err instanceof ImageValidationError) {
+                setErrorMessage(err.message);
+            } else if (err instanceof Error) {
+                setErrorMessage(err.message);
+            } else {
+                setErrorMessage('Could not process the selected image. Please try another.');
+            }
         }
-
-        setSelectedFile(file);
-        const reader = new FileReader();
-        reader.onload = () => {
-            setImageSrc(reader.result as string);
-            setCrop({ x: 0, y: 0 });
-            setZoom(1);
-            setRotation(0);
-        };
-        reader.readAsDataURL(file);
     };
 
     // Drag and Drop

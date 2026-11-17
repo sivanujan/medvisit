@@ -20,7 +20,6 @@ class HtmlSanitizer
         'tr', 'th', 'td', 'b', 'strong', 'i', 'em', 'u', 'mark', 'small',
         'sub', 'sup', 'code', 'pre', 'figure', 'figcaption', 'iframe',
         'details', 'summary',
-        'svg', 'path', 'g', 'circle', 'rect', 'polyline', 'polygon', 'line', 'use',
     ];
 
     /**

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import axios from 'axios';
 import { Head, Link, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import GlassCard from '@/Components/UI/GlassCard';
@@ -336,25 +337,15 @@ export default function SuppliersIndex({ suppliers, stats, tabCounts, filters }:
     const checkDuplicateSupplier = async (supplierName: string, supplierPhone: string): Promise<boolean> => {
         if (!supplierName.trim()) return false;
         try {
-            const res = await fetch(route('tenant.pharmacy.suppliers.check-duplicate'), {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Accept: 'application/json',
-                    'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
-                },
-                body: JSON.stringify({
-                    name: supplierName.trim(),
-                    phone: supplierPhone.trim() || undefined,
-                    exclude_id: editingSupplier?.id,
-                }),
+            const res = await axios.post(route('tenant.pharmacy.suppliers.check-duplicate'), {
+                name: supplierName.trim(),
+                phone: supplierPhone.trim() || undefined,
+                exclude_id: editingSupplier?.id,
             });
-            if (res.ok) {
-                const data = await res.json();
-                if (data.is_duplicate && data.existing_supplier) {
-                    setDuplicateWarning(data.existing_supplier);
-                    return true;
-                }
+            const data = res.data;
+            if (data?.is_duplicate && data?.existing_supplier) {
+                setDuplicateWarning(data.existing_supplier);
+                return true;
             }
         } catch (err) {
             console.error('Duplicate check error', err);

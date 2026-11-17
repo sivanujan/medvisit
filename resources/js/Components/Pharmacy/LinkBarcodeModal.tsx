@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import GlassModal from '@/Components/UI/GlassModal';
 import { GlassLabel, GlassInput, GlassError } from '@/Components/UI/FormControls';
 import {
@@ -215,26 +216,14 @@ export default function LinkBarcodeModal({
                 payload.manufacturer = newManufacturer.trim() || null;
             }
 
-            const response = await fetch('/pharmacy/barcodes/link', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Accept: 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                },
-                body: JSON.stringify(payload),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || 'Failed to link barcode.');
-            }
+            const response = await axios.post('/pharmacy/barcodes/link', payload);
+            const data = response.data;
 
             onSuccess(data);
             onClose();
         } catch (err: any) {
-            setError(err.message || 'An unexpected error occurred while linking barcode.');
+            const data = err.response?.data;
+            setError(data?.message || err.message || 'An unexpected error occurred while linking barcode.');
         } finally {
             setSubmitting(false);
         }

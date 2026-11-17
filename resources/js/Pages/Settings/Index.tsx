@@ -20,6 +20,7 @@ import {
 import { SettingsPageProps, SettingsSectionKey } from './types';
 import SettingsNav, { SETTINGS_NAV_GROUPS } from './Components/SettingsNav';
 import UnsavedBar from './Components/UnsavedBar';
+import OfflinePowerBackupTipCard from '@/Components/Offline/OfflinePowerBackupTipCard';
 
 // Sections
 import ProfileSection from './Sections/ProfileSection';
@@ -315,6 +316,9 @@ export default function SettingsCentre({
                         )}
                     </div>
                 </div>
+
+                {/* 4G Router & Mini-UPS Power Backup Tip Card */}
+                <OfflinePowerBackupTipCard />
 
                 {/* Main Body: Desktop Left Nav + Right Content; Mobile List -> Detail */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">

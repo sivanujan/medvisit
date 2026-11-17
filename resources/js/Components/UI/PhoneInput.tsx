@@ -86,9 +86,9 @@ export const PhoneInput = forwardRef<HTMLInputElement, PhoneInputProps>(function
 
     return (
         <div className="relative w-full">
-            <div className="flex items-center rounded-xl border border-slate-200/90 dark:border-white/10 bg-white/80 dark:bg-slate-900/60 backdrop-blur-md overflow-hidden transition-all duration-200 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/15 shadow-xs">
+            <div className="h-11 flex items-center rounded-xl border border-slate-200/90 dark:border-white/10 bg-white/80 dark:bg-slate-900/60 backdrop-blur-md overflow-hidden transition-all duration-200 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/15 shadow-xs">
                 {/* Fixed Sri Lanka Dial Code Badge */}
-                <div className="flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-100/70 dark:bg-slate-800/60 border-r border-slate-200/80 dark:border-white/10 text-slate-700 dark:text-slate-300 select-none text-xs font-bold tracking-wider">
+                <div className="h-full flex items-center gap-1.5 px-3.5 bg-slate-100/70 dark:bg-slate-800/60 border-r border-slate-200/80 dark:border-white/10 text-slate-700 dark:text-slate-300 select-none text-[13px] font-semibold tracking-wide shrink-0">
                     <Phone className="w-3.5 h-3.5 text-primary" />
                     <span>+94</span>
                 </div>
@@ -104,7 +104,7 @@ export const PhoneInput = forwardRef<HTMLInputElement, PhoneInputProps>(function
                     value={display}
                     onChange={handleChange}
                     placeholder={placeholder}
-                    className={`flex-1 px-3.5 py-2.5 text-sm bg-transparent outline-none text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 border-none focus:ring-0 ${
+                    className={`h-full flex-1 px-3.5 text-[15px] bg-transparent outline-none text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 border-none focus:ring-0 ${
                         error ? 'text-rose-600' : ''
                     } ${className}`}
                 />

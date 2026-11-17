@@ -407,4 +407,57 @@ class ClinicRegistrationTest extends TestCase
         $user = User::where('email', 'phone-norm@testclinic.lk')->first();
         $this->assertNotNull($user);
     }
+
+    public function test_registration_redirects_to_success_page_and_renders_auto_login(): void
+    {
+        Notification::fake();
+
+        $token = 'test-token-success-redirect';
+        $phoneToken = 'signed-phone-token-redirect-123456';
+        PendingRegistration::create([
+            'email' => 'redirect@testclinic.lk',
+            'phone' => '+94779998877',
+            'token' => $token,
+            'code_hash' => Hash::make('123456'),
+            'attempts' => 0,
+            'expires_at' => now()->addMinutes(10),
+            'verified_at' => now(),
+            'phone_verified_at' => now(),
+            'phone_signed_token' => $phoneToken,
+            'payload' => Crypt::encryptString(json_encode([])),
+        ]);
+
+        $payload = [
+            'clinic_name' => 'Redirect Verification Clinic',
+            'clinic_type' => 'medical centre',
+            'district' => 'Colombo',
+            'city' => 'Colombo 07',
+            'address' => '77 Horton Place',
+            'clinic_phone' => '011 233 4455',
+            'subdomain' => 'redir-clinic',
+            'name' => 'Dr. Redirect',
+            'email' => 'redirect@testclinic.lk',
+            'mobile' => '077 999 8877',
+            'password' => 'Passw0rd123!',
+            'password_confirmation' => 'Passw0rd123!',
+            'terms' => true,
+            'agreement_authority' => true,
+            'registration_token' => $token,
+            'phone_token' => $phoneToken,
+        ];
+
+        $response = $this->post('/register', $payload);
+        $response->assertSessionHasNoErrors();
+        $response->assertRedirect(route('register.success'));
+
+        // Follow redirect and assert Inertia success screen
+        $successResponse = $this->get(route('register.success'));
+        $successResponse->assertOk();
+        $successResponse->assertInertia(fn ($page) => $page
+            ->component('Auth/RegisterClinicSuccess')
+            ->has('registration.clinic_name')
+            ->has('registration.subdomain')
+            ->has('registration.auto_login_url')
+        );
+    }
 }

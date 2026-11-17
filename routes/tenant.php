@@ -12,6 +12,7 @@ use App\Http\Controllers\Tenant\BookingTokenController;
 use App\Http\Controllers\Tenant\ChannelingCalendarController;
 use App\Http\Controllers\Tenant\ClinicBrandingController;
 use App\Http\Controllers\Tenant\ClinicPageController;
+use App\Http\Controllers\Tenant\ClinicReferralController;
 use App\Http\Controllers\Tenant\ClinicSettingsController;
 use App\Http\Controllers\Tenant\ClinicSetupController;
 use App\Http\Controllers\Tenant\ClinicShareImageController;
@@ -285,6 +286,12 @@ Route::middleware([
             ->name('tenant.billing.subscribe');
         Route::get('/billing/inactive', fn () => redirect()->route('tenant.subscription.inactive'))
             ->name('tenant.billing.inactive');
+
+        // Clinic Referral Program (behind REFERRALS_ENABLED flag)
+        Route::get('/referrals', [ClinicReferralController::class, 'index'])
+            ->name('tenant.referrals.index');
+        Route::get('/settings/billing/referrals', [ClinicReferralController::class, 'index'])
+            ->name('tenant.settings.billing.referrals');
 
         // Clinic Settings -> Billing Center (Clinic Admin only)
         Route::prefix('settings/billing')->name('tenant.settings.billing')->group(function () {

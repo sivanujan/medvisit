@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import { Head, router } from '@inertiajs/react';
 import PlatformLayout from '@/Layouts/PlatformLayout';
 import {
@@ -87,18 +88,10 @@ export default function SystemHealthIndex({
         setCommandOutput(null);
 
         try {
-            const res = await fetch('/super-admin/system-health/run-command', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
-                },
-                body: JSON.stringify({ command: cmd }),
-            });
-            const data = await res.json();
-            setCommandOutput(data.output || 'Command executed.');
-        } catch {
-            setCommandOutput('Error triggering command execution.');
+            const res = await axios.post('/super-admin/system-health/run-command', { command: cmd });
+            setCommandOutput(res.data?.output || 'Command executed.');
+        } catch (err: any) {
+            setCommandOutput(err.response?.data?.message || 'Error triggering command execution.');
         } finally {
             setRunningCommand(null);
         }

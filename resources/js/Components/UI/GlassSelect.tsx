@@ -308,7 +308,7 @@ export default function GlassSelect({
                 aria-haspopup="listbox"
                 aria-expanded={isOpen}
                 aria-label={ariaLabel || placeholder}
-                className={`w-full flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl text-sm transition-all duration-200 outline-none select-none text-left
+                className={`h-11 w-full flex items-center justify-between gap-2 px-3.5 rounded-xl text-[15px] font-normal transition-all duration-200 outline-none select-none text-left
                     bg-white/90 hover:bg-white dark:bg-slate-900/90 dark:hover:bg-slate-900
                     text-slate-900 dark:text-slate-100
                     backdrop-blur-md

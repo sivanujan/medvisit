@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import axios from 'axios';
 import { Head, router, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { PageHeader } from '@/Components/UI/PageHeader';
@@ -432,13 +433,7 @@ export default function Consultation({
         }
 
         // Record template usage in background
-        fetch(`/doctor/templates/${tpl.id}/apply`, {
-            method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
-                'Accept': 'application/json',
-            },
-        }).catch(() => {});
+        axios.post(`/doctor/templates/${tpl.id}/apply`).catch(() => {});
 
         const templateItems: PrescriptionItemState[] = tpl.items.map((it) => ({
             clinic_medicine_id: it.clinic_medicine_id,

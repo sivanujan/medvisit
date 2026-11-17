@@ -1,0 +1,701 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MedVisit — Smart Clinic Management for Sri Lanka (9:16 Reels/Status)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<style>
+:root {
+  --primary: #1E6FD9;
+  --secondary: #0E9E8F;
+  --accent: #FF7A59;
+  --bg-deep: #070B14;
+  --bg-card: rgba(16, 26, 46, 0.82);
+  --card-border: rgba(255, 255, 255, 0.14);
+  --text-white: #FFFFFF;
+  --text-muted: #94A3B8;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  width: 100%; height: 100%;
+  background: #000;
+  overflow: hidden;
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: var(--text-white);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 1080x1920 fixed stage scaled to window */
+#stage {
+  position: fixed;
+  left: 50%; top: 50%;
+  width: 1080px; height: 1920px;
+  transform: translate(-50%, -50%) scale(1);
+  overflow: hidden;
+  background: var(--bg-deep);
+}
+
+#world {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+
+.bg-layer { position: absolute; inset: 0; pointer-events: none; }
+.ambient-glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(140px);
+  opacity: 0.5;
+  mix-blend-mode: screen;
+}
+.glow-blue { top: -100px; left: -100px; width: 900px; height: 900px; background: radial-gradient(circle, var(--primary) 0%, transparent 70%); }
+.glow-teal { bottom: -150px; right: -150px; width: 1000px; height: 1000px; background: radial-gradient(circle, var(--secondary) 0%, transparent 70%); }
+.glow-accent { top: 45%; left: 30%; width: 700px; height: 700px; background: radial-gradient(circle, var(--accent) 0%, transparent 70%); opacity: 0.25; }
+
+.grid-overlay {
+  position: absolute;
+  inset: 0;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 80px 80px;
+  pointer-events: none;
+}
+.vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, transparent 55%, rgba(4, 7, 15, 0.88) 100%);
+  z-index: 40;
+}
+#fx-canvas { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+
+/* Portrait Headlines */
+.headline-box {
+  position: absolute;
+  top: 150px;
+  left: 60px;
+  right: 60px;
+  text-align: center;
+  z-index: 30;
+  pointer-events: none;
+}
+.tag-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 22px;
+  border-radius: 999px;
+  background: rgba(30, 111, 217, 0.18);
+  border: 1px solid rgba(30, 111, 217, 0.4);
+  font-size: 22px;
+  font-weight: 600;
+  color: #7BB3FD;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+.tag-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--secondary); box-shadow: 0 0 12px var(--secondary); }
+.main-title {
+  font-size: 56px;
+  font-weight: 700;
+  line-height: 1.22;
+  letter-spacing: -0.02em;
+  color: #FFFFFF;
+  text-shadow: 0 4px 30px rgba(0, 0, 0, 0.7);
+}
+.main-title .highlight { color: #60A5FA; }
+.main-title .hl-teal { color: #38E2D0; }
+
+.scene {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  visibility: hidden;
+  will-change: opacity, transform;
+}
+
+.glass-panel {
+  background: var(--bg-card);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid var(--card-border);
+  border-radius: 32px;
+  box-shadow: 0 35px 85px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+/* SCENE 1 */
+#scene-1 .stage-center {
+  position: absolute;
+  left: 50%; top: 58%;
+  transform: translate(-50%, -50%);
+  width: 920px;
+  display: flex;
+  flex-direction: column;
+  gap: 35px;
+  align-items: center;
+}
+.paper-register-card {
+  width: 100%;
+  padding: 44px;
+  background: #FDFBF7;
+  color: #1E293B;
+  border-radius: 26px;
+  box-shadow: 0 35px 80px rgba(0, 0, 0, 0.7);
+  transform: rotate(-2deg);
+  border-left: 16px solid #94A3B8;
+}
+.paper-title { font-size: 26px; font-weight: 700; color: #334155; border-bottom: 2px solid #CBD5E1; padding-bottom: 14px; margin-bottom: 22px; display: flex; justify-content: space-between; }
+.paper-row { display: flex; justify-content: space-between; padding: 16px 10px; border-bottom: 1px dashed #CBD5E1; font-size: 22px; font-family: monospace; color: #475569; }
+.paper-row.strike { text-decoration: line-through; color: #EF4444; }
+.chaotic-call-card {
+  width: 100%;
+  padding: 32px;
+  background: rgba(239, 68, 68, 0.14);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 26px;
+  backdrop-filter: blur(20px);
+}
+
+/* SCENE 2 */
+#scene-2 .reveal-wrap {
+  position: absolute;
+  left: 50%; top: 52%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  width: 960px;
+}
+.brand-tagline { font-size: 48px; font-weight: 700; color: #FFFFFF; margin-top: 25px; line-height: 1.25; }
+.brand-subtext { font-size: 28px; color: #38E2D0; font-weight: 500; margin-top: 18px; }
+.lanka-pill { display: inline-flex; align-items: center; gap: 12px; margin-top: 35px; padding: 14px 32px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 999px; font-size: 24px; }
+
+/* SCENE 3 */
+#scene-3 .booking-wrap {
+  position: absolute;
+  left: 50%; top: 58%;
+  transform: translate(-50%, -50%);
+  width: 720px;
+}
+.phone-mockup {
+  width: 100%;
+  height: 1120px;
+  background: #0D1527;
+  border: 10px solid #233352;
+  border-radius: 60px;
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.8), 0 0 60px rgba(30, 111, 217, 0.3);
+  padding: 36px 32px;
+  position: relative;
+  overflow: hidden;
+}
+.phone-notch { width: 180px; height: 28px; background: #233352; border-radius: 14px; margin: 0 auto 30px; }
+.doctor-select-card { background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 28px; padding: 26px; margin-bottom: 24px; }
+.doctor-name { font-size: 28px; font-weight: 700; color: #FFFFFF; }
+.doctor-spec { font-size: 20px; color: #38E2D0; margin-top: 4px; }
+.session-time-pill { display: inline-block; padding: 8px 16px; background: rgba(30, 111, 217, 0.25); border: 1px solid rgba(30, 111, 217, 0.4); border-radius: 12px; font-size: 18px; color: #93C5FD; margin-top: 16px; font-weight: 600; }
+.phone-input-box { background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 18px; padding: 20px 24px; font-size: 24px; color: #FFFFFF; font-family: monospace; margin-top: 20px; }
+.otp-modal-card {
+  position: absolute;
+  inset: 24px; top: 120px;
+  background: rgba(14, 22, 38, 0.97);
+  border: 1px solid rgba(30, 111, 217, 0.45);
+  border-radius: 44px;
+  padding: 48px 36px;
+  backdrop-filter: blur(30px);
+  opacity: 0;
+  transform: translateY(50px);
+}
+.otp-badge { display: inline-flex; align-items: center; gap: 8px; padding: 8px 18px; background: rgba(14, 158, 143, 0.2); border: 1px solid rgba(14, 158, 143, 0.4); border-radius: 999px; color: #38E2D0; font-size: 18px; font-weight: 600; margin-bottom: 24px; }
+.otp-digits { display: flex; gap: 14px; justify-content: center; margin: 40px 0; }
+.otp-box { width: 75px; height: 90px; background: rgba(255, 255, 255, 0.08); border: 2px solid rgba(255, 255, 255, 0.2); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 42px; font-weight: 700; color: #FFFFFF; }
+.otp-box.filled { border-color: #38E2D0; background: rgba(14, 158, 143, 0.25); color: #38E2D0; box-shadow: 0 0 20px rgba(56, 226, 208, 0.4); }
+.booking-confirmed-pill { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 22px; border-radius: 20px; background: linear-gradient(135deg, #0E9E8F, #106259); color: #FFFFFF; font-size: 22px; font-weight: 700; opacity: 0; transform: scale(0.9); }
+
+/* SCENE 4 */
+#scene-4 .queue-ecosystem {
+  position: absolute;
+  left: 50%; top: 57%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  gap: 35px;
+  width: 940px;
+}
+.clinic-tv-display {
+  width: 100%;
+  background: #0B1322;
+  border: 6px solid #1E2D48;
+  border-radius: 36px;
+  padding: 36px;
+  box-shadow: 0 35px 90px rgba(0, 0, 0, 0.8);
+}
+.now-serving-box {
+  background: linear-gradient(135deg, rgba(30, 111, 217, 0.18), rgba(14, 158, 143, 0.18));
+  border: 2px solid rgba(56, 226, 208, 0.4);
+  border-radius: 28px;
+  padding: 30px;
+  text-align: center;
+  margin-top: 24px;
+}
+.now-token-number { font-size: 120px; font-weight: 800; color: var(--accent); line-height: 1; margin: 10px 0; text-shadow: 0 0 45px rgba(255, 122, 89, 0.5); }
+.patient-tracker-phone {
+  width: 100%;
+  background: #0D1627;
+  border: 6px solid #233352;
+  border-radius: 36px;
+  padding: 34px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.8);
+}
+.tracker-status-callout { margin-top: 20px; padding: 20px; border-radius: 20px; background: rgba(14, 158, 143, 0.28); border: 2px solid #13B5A4; color: #5EEAD4; font-size: 24px; font-weight: 700; text-align: center; }
+
+/* SCENE 5 */
+#scene-5 .tools-stack {
+  position: absolute;
+  left: 50%; top: 58%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+  width: 920px;
+}
+.tool-card { padding: 32px 36px; }
+.tool-header-pill { display: inline-flex; align-items: center; gap: 10px; padding: 6px 18px; border-radius: 999px; font-size: 16px; font-weight: 700; margin-bottom: 12px; }
+.pill-blue { background: rgba(30, 111, 217, 0.2); border: 1px solid rgba(30, 111, 217, 0.4); color: #93C5FD; }
+.pill-teal { background: rgba(14, 158, 143, 0.2); border: 1px solid rgba(14, 158, 143, 0.4); color: #5EEAD4; }
+.pill-accent { background: rgba(255, 122, 89, 0.2); border: 1px solid rgba(255, 122, 89, 0.4); color: #FFA38C; }
+.tool-title { font-size: 26px; font-weight: 700; color: #FFFFFF; }
+.tool-row-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.08); font-size: 19px; }
+
+/* SCENE 6 */
+#scene-6 .cta-wrap {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  width: 940px;
+}
+.cta-headline { font-size: 64px; font-weight: 800; color: #FFFFFF; margin: 30px 0 15px; text-shadow: 0 4px 40px rgba(0, 0, 0, 0.8); }
+.cta-subline { font-size: 28px; color: #94A3B8; font-weight: 500; margin-bottom: 45px; }
+.contact-grid { display: flex; flex-direction: column; gap: 20px; align-items: center; margin-top: 30px; }
+.contact-chip { display: flex; align-items: center; justify-content: center; gap: 16px; width: 680px; padding: 20px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 22px; font-size: 26px; font-weight: 600; color: #FFFFFF; }
+.contact-chip.main-web { background: linear-gradient(135deg, rgba(30, 111, 217, 0.85), rgba(14, 158, 143, 0.85)); font-size: 30px; }
+
+/* Debug UI */
+#ui {
+  position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%); display: none;
+  align-items: center; gap: 16px; padding: 14px 28px; border-radius: 20px;
+  background: rgba(14, 20, 32, 0.95); border: 1px solid rgba(255, 255, 255, 0.15); font-size: 16px; color: #CBD5E1; z-index: 100;
+}
+#ui.on { display: flex; }
+#ui button { background: #1E2D4A; color: #FFFFFF; border: none; padding: 10px 20px; border-radius: 12px; font-family: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
+#scrub { width: 360px; accent-color: var(--primary); cursor: pointer; }
+#clock { font-variant-numeric: tabular-nums; min-width: 6.5ch; text-align: right; font-weight: 600; color: #38E2D0; }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <div id="world">
+    <div class="bg-layer">
+      <div class="ambient-glow glow-blue"></div>
+      <div class="ambient-glow glow-teal"></div>
+      <div class="ambient-glow glow-accent"></div>
+      <div class="grid-overlay"></div>
+    </div>
+    <canvas id="fx-canvas" width="1080" height="1920"></canvas>
+
+    <!-- Global Headlines per Scene -->
+    <div class="headline-box" id="hl-box-1" style="opacity:0;">
+      <div class="tag-badge"><span class="tag-dot"></span> Sri Lanka Healthcare</div>
+      <h1 class="main-title">Still managing your clinic <span class="highlight">on paper?</span></h1>
+    </div>
+
+    <div class="headline-box" id="hl-box-2" style="opacity:0;">
+      <div class="tag-badge"><span class="tag-dot"></span> Sri Lanka Healthcare</div>
+      <h1 class="main-title">Modern platform <span class="hl-teal">for growing clinics</span></h1>
+    </div>
+
+    <div class="headline-box" id="hl-box-3" style="opacity:0;">
+      <div class="tag-badge"><span class="tag-dot"></span> Online Booking</div>
+      <h1 class="main-title">Fast online booking with <span class="highlight">SMS OTP</span></h1>
+    </div>
+
+    <div class="headline-box" id="hl-box-4" style="opacity:0;">
+      <div class="tag-badge"><span class="tag-dot"></span> Live Queue Sync</div>
+      <h1 class="main-title">Live token queue on <span class="hl-teal">TV and phone</span></h1>
+    </div>
+
+    <div class="headline-box" id="hl-box-5" style="opacity:0;">
+      <div class="tag-badge"><span class="tag-dot"></span> Clinic Tools</div>
+      <h1 class="main-title">Digital records, Rx & <span class="highlight">SMS updates</span></h1>
+    </div>
+
+    <!-- SCENE 1: HOOK (0 - 4.2s) -->
+    <section class="scene" id="scene-1">
+      <div class="stage-center">
+        <div class="paper-register-card" id="paper-card">
+          <div class="paper-title">
+            <span>PATIENT REGISTER</span>
+            <span>TODAY</span>
+          </div>
+          <div class="paper-row">
+            <span>01. Nimal Perera</span>
+            <span style="color:#059669; font-weight:700;">DONE</span>
+          </div>
+          <div class="paper-row strike">
+            <span>02. Kamalanathan S.</span>
+            <span style="font-weight:700;">NO SHOW</span>
+          </div>
+          <div class="paper-row">
+            <span>03. Fatima Rameez</span>
+            <span style="color:#D97706; font-weight:700;">WAITING 45 MINS</span>
+          </div>
+          <div class="paper-row">
+            <span>04. Sunil Jayasinghe</span>
+            <span style="color:#DC2626; font-weight:700;">DISPUTED TURN?</span>
+          </div>
+        </div>
+
+        <div class="chaotic-call-card" id="call-card">
+          <div style="display:flex; align-items:center; gap:12px; color:#F87171; font-size:22px; font-weight:700;">
+            <span style="width:14px; height:14px; border-radius:50%; background:#EF4444;"></span>
+            Incoming Call #18: "Is Dr. Silva in?"
+          </div>
+          <p style="font-size:18px; color:#CBD5E1; margin-top:10px;">Waiting room crowded · Disorganized queues</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCENE 2: BRAND REVEAL (4.2 - 7.5s) -->
+    <section class="scene" id="scene-2">
+      <div class="reveal-wrap">
+        <div id="logo-icon-wrap" style="display:inline-block; margin-bottom:20px;">
+          <svg viewBox="-40 -40 840 280" width="700" height="235" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="54" cy="42" r="22" fill="#1E6FD9" />
+            <circle cx="146" cy="42" r="22" fill="#13B5A4" />
+            <rect x="14" y="74" width="80" height="110" rx="26" fill="#1E6FD9" />
+            <rect x="106" y="74" width="80" height="110" rx="26" fill="#13B5A4" />
+            <path d="M40 150 Q100 188 160 150" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" />
+            <path d="M88 86 h24 a4 4 0 0 1 4 4 v18 h18 a4 4 0 0 1 4 4 v24 a4 4 0 0 1 -4 4 h-18 v18 a4 4 0 0 1 -4 4 h-24 a4 4 0 0 1 -4 -4 v-18 h-18 a4 4 0 0 1 -4 -4 v-24 a4 4 0 0 1 4 -4 h18 v-18 a4 4 0 0 1 4 -4 z" fill="#FF7A59" stroke="#FFFFFF" stroke-width="6" stroke-linejoin="round" />
+            <path fill="#1E6FD9" d="M342.84 59.76V144.0H322.32V93.48L303.48 144.0H286.92L267.96 93.36V144.0H247.44V59.76H271.68L295.32 118.08L318.72 59.76Z M417.96 115.44H371.52Q372.0 121.68 375.54 124.98Q379.08 128.28 384.24 128.28Q391.92 128.28 394.92 121.8H416.76Q415.08 128.4 410.7 133.68Q406.32 138.96 399.72 141.96Q393.12 144.96 384.96 144.96Q375.12 144.96 367.44 140.76Q359.76 136.56 355.44 128.76Q351.12 120.96 351.12 110.52Q351.12 100.08 355.38 92.28Q359.64 84.48 367.32 80.28Q375.0 76.08 384.96 76.08Q394.68 76.08 402.24 80.16Q409.8 84.24 414.06 91.8Q418.32 99.36 418.32 109.44Q418.32 112.32 417.96 115.44ZM397.32 104.04Q397.32 98.76 393.72 95.64Q390.12 92.52 384.72 92.52Q379.56 92.52 376.02 95.52Q372.48 98.52 371.64 104.04Z M452.16 76.08Q458.76 76.08 464.22 78.84Q469.68 81.6 472.8 86.28V55.2H493.32V144.0H472.8V134.4Q469.92 139.2 464.58 142.08Q459.24 144.96 452.16 144.96Q443.88 144.96 437.16 140.7Q430.44 136.44 426.54 128.58Q422.64 120.72 422.64 110.4Q422.64 100.08 426.54 92.28Q430.44 84.48 437.16 80.28Q443.88 76.08 452.16 76.08ZM458.16 93.96Q452.04 93.96 447.78 98.34Q443.52 102.72 443.52 110.4Q443.52 118.08 447.78 122.58Q452.04 127.08 458.16 127.08Q464.28 127.08 468.54 122.64Q472.8 118.2 472.8 110.52Q472.8 102.84 468.54 98.4Q464.28 93.96 458.16 93.96Z" />
+            <path fill="#0E9E8F" d="M584.88 59.76 555.0 144.0H529.32L499.44 59.76H521.28L542.16 123.36L563.16 59.76Z M589.08 59.04Q589.08 54.24 592.5 51.06Q595.92 47.88 601.32 47.88Q606.6 47.88 610.02 51.06Q613.44 54.24 613.44 59.04Q613.44 63.72 610.02 66.9Q606.6 70.08 601.32 70.08Q595.92 70.08 592.5 66.9Q589.08 63.72 589.08 59.04ZM611.52 77.04V144.0H591.0V77.04Z M620.4 122.04H640.68Q641.04 125.52 643.92 127.68Q646.8 129.84 651.0 129.84Q654.84 129.84 656.94 128.34Q659.04 126.84 659.04 124.44Q659.04 121.56 656.04 120.18Q653.04 118.8 646.32 117.12Q639.12 115.44 634.32 113.58Q629.52 111.72 626.04 107.7Q622.56 103.68 622.56 96.84Q622.56 91.08 625.74 86.34Q628.92 81.6 635.1 78.84Q641.28 76.08 649.8 76.08Q662.4 76.08 669.66 82.32Q676.92 88.56 678.0 98.88H659.04Q658.56 95.4 655.98 93.36Q653.4 91.32 649.2 91.32Q645.6 91.32 643.68 92.7Q641.76 94.08 641.76 96.48Q641.76 99.36 644.82 100.8Q647.88 102.24 654.36 103.68Q661.8 105.6 666.48 107.46Q671.16 109.32 674.7 113.46Q678.24 117.6 678.36 124.56Q678.36 130.44 675.06 135.06Q671.76 139.68 665.58 142.32Q659.4 144.96 651.24 144.96Q642.48 144.96 635.64 141.96Q628.8 138.96 624.84 133.74Q620.88 128.52 620.4 122.04Z M686.64 59.04Q686.64 54.24 690.06 51.06Q693.48 47.88 698.88 47.88Q704.16 47.88 707.58 51.06Q711.0 54.24 711.0 59.04Q711.0 63.72 707.58 66.9Q704.16 70.08 698.88 70.08Q693.48 70.08 690.06 66.9Q686.64 63.72 686.64 59.04ZM709.08 77.04V144.0H688.56V77.04Z M758.88 126.6V144.0H748.44Q737.28 144.0 731.04 138.54Q724.8 133.08 724.8 120.72V94.08H716.64V77.04H724.8V60.72H745.32V77.04H758.76V94.08H745.32V120.96Q745.32 123.96 746.76 125.28Q748.2 126.6 751.56 126.6Z" />
+          </svg>
+        </div>
+        <div class="brand-tagline">Smart clinic management for Sri Lanka</div>
+        <div class="brand-subtext">Online Bookings · Live TV Queues · EMR</div>
+        <div class="lanka-pill">
+          <span>🇱🇰 Built for Sri Lankan Healthcare</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCENE 3: ONLINE BOOKING WITH SMS OTP (7.5 - 13.5s) -->
+    <section class="scene" id="scene-3">
+      <div class="booking-wrap">
+        <div class="phone-mockup" id="booking-phone">
+          <div class="phone-notch"></div>
+          <div style="font-size:24px; font-weight:700; color:#FFFFFF; margin-bottom:24px;">Book Channeling Token</div>
+
+          <div class="doctor-select-card">
+            <div class="doctor-name">Dr. K. Silva</div>
+            <div class="doctor-spec">Consultant Physician · MBBS, MD</div>
+            <div class="session-time-pill">Today: 5:00 PM – 8:00 PM · Suite 2</div>
+            <div style="margin-top:16px; font-size:18px; color:#38E2D0; font-weight:600;">8 Available Tokens</div>
+          </div>
+
+          <div style="font-size:18px; color:#94A3B8; margin-top:20px;">Patient Mobile Number</div>
+          <div class="phone-input-box">077 123 4567</div>
+
+          <div style="margin-top:30px; padding:20px; background:#1E6FD9; border-radius:18px; text-align:center; font-weight:700; font-size:22px;">
+            Request SMS OTP
+          </div>
+
+          <div class="otp-modal-card" id="sms-otp-card">
+            <div class="otp-badge">✉ SMS VERIFICATION</div>
+            <h3 style="font-size:28px; font-weight:700; color:#FFFFFF;">Enter Verification Code</h3>
+            <p style="font-size:18px; color:#94A3B8; margin-top:8px;">6-digit code sent via SMS to 077 ••• 4567</p>
+
+            <div class="otp-digits">
+              <div class="otp-box" id="otp-1">4</div>
+              <div class="otp-box" id="otp-2">8</div>
+              <div class="otp-box" id="otp-3">2</div>
+              <div class="otp-box" id="otp-4">9</div>
+              <div class="otp-box" id="otp-5">1</div>
+              <div class="otp-box" id="otp-6">0</div>
+            </div>
+
+            <div class="booking-confirmed-pill" id="otp-verified-pill">
+              <span>✓ Phone Verified · Token #14 Confirmed</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCENE 4: REAL-TIME LIVE QUEUE (13.5 - 19.5s) -->
+    <section class="scene" id="scene-4">
+      <div class="queue-ecosystem">
+        <div class="clinic-tv-display" id="clinic-tv">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <div style="font-size:26px; font-weight:700;">Apex Healthcare Clinic</div>
+              <div style="font-size:18px; color:#94A3B8;">General OPD · Room 2</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; padding:6px 16px; background:rgba(239,68,68,0.2); border:1px solid #EF4444; border-radius:999px; color:#F87171; font-weight:700; font-size:16px;">
+              ● LIVE
+            </div>
+          </div>
+
+          <div class="now-serving-box">
+            <div style="font-size:22px; font-weight:600; color:#93C5FD; text-transform:uppercase;">🔔 Now Serving</div>
+            <div class="now-token-number" id="tv-token-display">14</div>
+            <div style="font-size:22px; font-weight:600; color:#E2E8F0;">Dr. K. Silva · Room 2</div>
+          </div>
+        </div>
+
+        <div class="patient-tracker-phone" id="patient-tracker">
+          <div style="font-size:16px; color:#38E2D0; font-weight:600; margin-bottom:12px;">● Live Waiting Lounge Status</div>
+          <div style="font-size:18px; color:#94A3B8;">Appointment Token</div>
+          <div style="font-size:72px; font-weight:800; color:#FFFFFF; line-height:1.1;">#14</div>
+          <div class="tracker-status-callout" id="tracker-callout">
+            <span>✓ Now called to Room 2</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCENE 5: DOCTOR TOOLS & SMS UPDATES (19.5 - 25.0s) -->
+    <section class="scene" id="scene-5">
+      <div class="tools-stack">
+        <div class="glass-panel tool-card" id="tool-emr">
+          <div class="tool-header-pill pill-blue">PATIENT RECORD (EMR)</div>
+          <div class="tool-title">Nimal Perera · #MED-1042</div>
+          <div class="tool-row-item">
+            <span>Age / Vitals:</span>
+            <span style="font-weight:700; color:#38E2D0;">42M · BP 120/80</span>
+          </div>
+        </div>
+
+        <div class="glass-panel tool-card" id="tool-rx">
+          <div class="tool-header-pill pill-teal">DIGITAL PRESCRIPTION</div>
+          <div class="tool-title">Rx Medicines</div>
+          <div class="tool-row-item">
+            <span>Amoxicillin 500mg</span>
+            <span style="font-weight:700; color:#FFFFFF;">1 tab tds · In Stock ✓</span>
+          </div>
+        </div>
+
+        <div class="glass-panel tool-card" id="tool-sms">
+          <div class="tool-header-pill pill-accent">SMS UPDATES</div>
+          <div class="tool-title">Patient SMS Sent</div>
+          <div style="font-size:18px; color:#CBD5E1; margin-top:8px;">
+            "Token #14 called to Suite 2. Rx ready."
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCENE 6: CALL TO ACTION (25.0 - 30.0s) -->
+    <section class="scene" id="scene-6">
+      <div class="cta-wrap">
+        <svg viewBox="-40 -40 840 280" width="540" height="180" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="54" cy="42" r="22" fill="#1E6FD9" />
+          <circle cx="146" cy="42" r="22" fill="#13B5A4" />
+          <rect x="14" y="74" width="80" height="110" rx="26" fill="#1E6FD9" />
+          <rect x="106" y="74" width="80" height="110" rx="26" fill="#13B5A4" />
+          <path d="M40 150 Q100 188 160 150" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" />
+          <path d="M88 86 h24 a4 4 0 0 1 4 4 v18 h18 a4 4 0 0 1 4 4 v24 a4 4 0 0 1 -4 4 h-18 v18 a4 4 0 0 1 -4 4 h-24 a4 4 0 0 1 -4 -4 v-18 h-18 a4 4 0 0 1 -4 -4 v-24 a4 4 0 0 1 4 -4 h18 v-18 a4 4 0 0 1 4 -4 z" fill="#FF7A59" stroke="#FFFFFF" stroke-width="6" stroke-linejoin="round" />
+          <path fill="#1E6FD9" d="M342.84 59.76V144.0H322.32V93.48L303.48 144.0H286.92L267.96 93.36V144.0H247.44V59.76H271.68L295.32 118.08L318.72 59.76Z M417.96 115.44H371.52Q372.0 121.68 375.54 124.98Q379.08 128.28 384.24 128.28Q391.92 128.28 394.92 121.8H416.76Q415.08 128.4 410.7 133.68Q406.32 138.96 399.72 141.96Q393.12 144.96 384.96 144.96Q375.12 144.96 367.44 140.76Q359.76 136.56 355.44 128.76Q351.12 120.96 351.12 110.52Q351.12 100.08 355.38 92.28Q359.64 84.48 367.32 80.28Q375.0 76.08 384.96 76.08Q394.68 76.08 402.24 80.16Q409.8 84.24 414.06 91.8Q418.32 99.36 418.32 109.44Q418.32 112.32 417.96 115.44ZM397.32 104.04Q397.32 98.76 393.72 95.64Q390.12 92.52 384.72 92.52Q379.56 92.52 376.02 95.52Q372.48 98.52 371.64 104.04Z M452.16 76.08Q458.76 76.08 464.22 78.84Q469.68 81.6 472.8 86.28V55.2H493.32V144.0H472.8V134.4Q469.92 139.2 464.58 142.08Q459.24 144.96 452.16 144.96Q443.88 144.96 437.16 140.7Q430.44 136.44 426.54 128.58Q422.64 120.72 422.64 110.4Q422.64 100.08 426.54 92.28Q430.44 84.48 437.16 80.28Q443.88 76.08 452.16 76.08ZM458.16 93.96Q452.04 93.96 447.78 98.34Q443.52 102.72 443.52 110.4Q443.52 118.08 447.78 122.58Q452.04 127.08 458.16 127.08Q464.28 127.08 468.54 122.64Q472.8 118.2 472.8 110.52Q472.8 102.84 468.54 98.4Q464.28 93.96 458.16 93.96Z" />
+          <path fill="#0E9E8F" d="M584.88 59.76 555.0 144.0H529.32L499.44 59.76H521.28L542.16 123.36L563.16 59.76Z M589.08 59.04Q589.08 54.24 592.5 51.06Q595.92 47.88 601.32 47.88Q606.6 47.88 610.02 51.06Q613.44 54.24 613.44 59.04Q613.44 63.72 610.02 66.9Q606.6 70.08 601.32 70.08Q595.92 70.08 592.5 66.9Q589.08 63.72 589.08 59.04ZM611.52 77.04V144.0H591.0V77.04Z M620.4 122.04H640.68Q641.04 125.52 643.92 127.68Q646.8 129.84 651.0 129.84Q654.84 129.84 656.94 128.34Q659.04 126.84 659.04 124.44Q659.04 121.56 656.04 120.18Q653.04 118.8 646.32 117.12Q639.12 115.44 634.32 113.58Q629.52 111.72 626.04 107.7Q622.56 103.68 622.56 96.84Q622.56 91.08 625.74 86.34Q628.92 81.6 635.1 78.84Q641.28 76.08 649.8 76.08Q662.4 76.08 669.66 82.32Q676.92 88.56 678.0 98.88H659.04Q658.56 95.4 655.98 93.36Q653.4 91.32 649.2 91.32Q645.6 91.32 643.68 92.7Q641.76 94.08 641.76 96.48Q641.76 99.36 644.82 100.8Q647.88 102.24 654.36 103.68Q661.8 105.6 666.48 107.46Q671.16 109.32 674.7 113.46Q678.24 117.6 678.36 124.56Q678.36 130.44 675.06 135.06Q671.76 139.68 665.58 142.32Q659.4 144.96 651.24 144.96Q642.48 144.96 635.64 141.96Q628.8 138.96 624.84 133.74Q620.88 128.52 620.4 122.04Z M686.64 59.04Q686.64 54.24 690.06 51.06Q693.48 47.88 698.88 47.88Q704.16 47.88 707.58 51.06Q711.0 54.24 711.0 59.04Q711.0 63.72 707.58 66.9Q704.16 70.08 698.88 70.08Q693.48 70.08 690.06 66.9Q686.64 63.72 686.64 59.04ZM709.08 77.04V144.0H688.56V77.04Z M758.88 126.6V144.0H748.44Q737.28 144.0 731.04 138.54Q724.8 133.08 724.8 120.72V94.08H716.64V77.04H724.8V60.72H745.32V77.04H758.76V94.08H745.32V120.96Q745.32 123.96 746.76 125.28Q748.2 126.6 751.56 126.6Z" />
+        </svg>
+
+        <h2 class="cta-headline" id="cta-dynamic-headline">Launching soon · medvisit.lk</h2>
+        <p class="cta-subline">Transforming Sri Lankan clinic management & online booking</p>
+
+        <div class="contact-grid">
+          <div class="contact-chip main-web">
+            <span>🌐 medvisit.lk</span>
+          </div>
+          <div class="contact-chip">
+            <span>✉ hello@medvisit.lk</span>
+          </div>
+          <div class="contact-chip">
+            <span>📞 070 129 1688</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <div class="vignette"></div>
+</div>
+
+<div id="ui">
+  <button id="btn-play">Pause</button>
+  <button id="btn-restart">Restart</button>
+  <input id="scrub" type="range" min="0" max="1000" value="0">
+  <span id="clock">0.00s</span>
+</div>
+
+<script>
+const CTA_HEADLINE = "Launching soon · medvisit.lk";
+document.getElementById('cta-dynamic-headline').textContent = CTA_HEADLINE;
+
+const W = 1080, H = 1920;
+const DURATION = 30.0;
+
+function resizeStage() {
+  const stage = document.getElementById('stage');
+  const sw = window.innerWidth / W;
+  const sh = window.innerHeight / H;
+  const s = Math.min(sw, sh);
+  stage.style.transform = `translate(-50%, -50%) scale(${s})`;
+}
+window.addEventListener('resize', resizeStage);
+resizeStage();
+
+const params = new URLSearchParams(window.location.search);
+const isDebug = params.has('debug');
+const isClean = params.has('clean');
+
+if (isDebug) {
+  document.getElementById('ui').classList.add('on');
+}
+
+// Particle Canvas
+const fxCanvas = document.getElementById('fx-canvas');
+const fxCtx = fxCanvas.getContext('2d');
+const NUM_PARTICLES = 30;
+const particleSeeds = [];
+for (let i = 0; i < NUM_PARTICLES; i++) {
+  particleSeeds.push({
+    x: (i * 123.5) % W,
+    y: (i * 87.3) % H,
+    radius: 4 + ((i * 7) % 12),
+    speed: 18 + ((i * 5) % 25),
+    color: i % 3 === 0 ? 'rgba(30, 111, 217, 0.35)' : (i % 3 === 1 ? 'rgba(14, 158, 143, 0.35)' : 'rgba(255, 122, 89, 0.25)')
+  });
+}
+
+function renderParticles(t) {
+  fxCtx.clearRect(0, 0, W, H);
+  for (let i = 0; i < NUM_PARTICLES; i++) {
+    const p = particleSeeds[i];
+    const curY = (p.y - t * p.speed) % H;
+    const y = curY < 0 ? curY + H : curY;
+    const curX = p.x + Math.sin(t * 0.8 + i) * 20;
+
+    fxCtx.beginPath();
+    fxCtx.arc(curX, y, p.radius, 0, Math.PI * 2);
+    fxCtx.fillStyle = p.color;
+    fxCtx.fill();
+  }
+}
+
+const tl = gsap.timeline({
+  paused: true,
+  onUpdate: () => {
+    const t = tl.time();
+    renderParticles(t);
+    if (isDebug) {
+      document.getElementById('clock').textContent = t.toFixed(2) + 's';
+      document.getElementById('scrub').value = (t / DURATION) * 1000;
+    }
+  },
+  onComplete: () => {
+    if (!isClean) tl.play(0);
+  }
+});
+
+function showScene(id, inAt, outAt, dur = 0.5) {
+  tl.set(id, { visibility: 'visible' }, inAt);
+  tl.fromTo(id, { opacity: 0 }, { opacity: 1, duration: dur, ease: 'power2.out' }, inAt);
+  if (outAt !== null) {
+    tl.to(id, { opacity: 0, duration: dur, ease: 'power2.in' }, outAt - dur);
+    tl.set(id, { visibility: 'hidden' }, outAt);
+  }
+}
+
+function showHeadline(id, inAt, outAt, dur = 0.45) {
+  tl.set(id, { opacity: 0, y: -25 }, inAt);
+  tl.to(id, { opacity: 1, y: 0, duration: dur, ease: 'power3.out' }, inAt);
+  if (outAt !== null) {
+    tl.to(id, { opacity: 0, y: -15, duration: 0.35, ease: 'power2.in' }, outAt - 0.35);
+  }
+}
+
+// Timeline bindings
+showScene('#scene-1', 0.0, 4.2);
+showHeadline('#hl-box-1', 0.2, 4.0);
+tl.fromTo('#paper-card', { opacity: 0, scale: 0.9, y: 40 }, { opacity: 1, scale: 1, y: 0, duration: 0.8, ease: 'power3.out' }, 0.1);
+tl.fromTo('#call-card', { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.7, ease: 'back.out(1.5)' }, 0.5);
+
+showScene('#scene-2', 4.2, 7.5);
+showHeadline('#hl-box-2', 4.3, 7.3);
+tl.fromTo('#logo-icon-wrap', { opacity: 0, scale: 0.75, y: 40 }, { opacity: 1, scale: 1, y: 0, duration: 0.85, ease: 'back.out(1.8)' }, 4.3);
+tl.fromTo('.brand-tagline', { opacity: 0, y: 25 }, { opacity: 1, y: 0, duration: 0.65, ease: 'power3.out' }, 4.7);
+tl.fromTo('.brand-subtext', { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.55, ease: 'power3.out' }, 5.0);
+tl.fromTo('.lanka-pill', { opacity: 0, scale: 0.85 }, { opacity: 1, scale: 1, duration: 0.5, ease: 'back.out(1.7)' }, 5.3);
+
+showScene('#scene-3', 7.5, 13.5);
+showHeadline('#hl-box-3', 7.6, 13.3);
+tl.fromTo('#booking-phone', { opacity: 0, y: 80, scale: 0.92 }, { opacity: 1, y: 0, scale: 1, duration: 0.9, ease: 'power3.out' }, 7.6);
+tl.to('#sms-otp-card', { opacity: 1, y: 0, duration: 0.6, ease: 'back.out(1.7)' }, 9.4);
+const otpDigits = ['#otp-1', '#otp-2', '#otp-3', '#otp-4', '#otp-5', '#otp-6'];
+otpDigits.forEach((box, idx) => {
+  tl.to(box, { scale: 1.15, duration: 0.12, yoyo: true, repeat: 1, className: '+=filled', ease: 'power2.out' }, 10.3 + (idx * 0.16));
+});
+tl.to('#otp-verified-pill', { opacity: 1, scale: 1, duration: 0.45, ease: 'back.out(2)' }, 11.5);
+
+showScene('#scene-4', 13.5, 19.5);
+showHeadline('#hl-box-4', 13.6, 19.3);
+tl.fromTo('#clinic-tv', { opacity: 0, y: -40 }, { opacity: 1, y: 0, duration: 0.75, ease: 'power3.out' }, 13.6);
+tl.fromTo('#patient-tracker', { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.75, ease: 'power3.out' }, 14.0);
+tl.fromTo('#tv-token-display', { scale: 0.75, opacity: 0.4 }, { scale: 1.1, opacity: 1, duration: 0.35, ease: 'back.out(2.2)' }, 15.2);
+tl.to('#tv-token-display', { scale: 1, duration: 0.25 }, 15.55);
+tl.fromTo('#tracker-callout', { opacity: 0, scale: 0.85 }, { opacity: 1, scale: 1, duration: 0.45, ease: 'back.out(2)' }, 15.8);
+
+showScene('#scene-5', 19.5, 25.0);
+showHeadline('#hl-box-5', 19.6, 24.8);
+tl.fromTo('#tool-emr', { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.55, ease: 'power3.out' }, 19.7);
+tl.fromTo('#tool-rx', { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.55, ease: 'power3.out' }, 20.2);
+tl.fromTo('#tool-sms', { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.55, ease: 'power3.out' }, 20.7);
+
+showScene('#scene-6', 25.0, null);
+tl.fromTo('#scene-6 .cta-wrap svg', { opacity: 0, scale: 0.75, y: 25 }, { opacity: 1, scale: 1, y: 0, duration: 0.7, ease: 'back.out(1.8)' }, 25.1);
+tl.fromTo('#cta-dynamic-headline', { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.65, ease: 'power3.out' }, 25.5);
+tl.fromTo('.cta-subline', { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.55, ease: 'power3.out' }, 25.8);
+tl.fromTo('.contact-chip', { opacity: 0, y: 25, scale: 0.9 }, { opacity: 1, y: 0, scale: 1, duration: 0.5, stagger: 0.15, ease: 'back.out(1.5)' }, 26.1);
+tl.to({}, { duration: 2.0 }, 28.0);
+
+window.OPENER = {
+  W: W,
+  H: H,
+  DURATION: DURATION,
+  ready: true,
+  tl: tl,
+  seek: (t) => { tl.time(t); }
+};
+
+if (!isClean) tl.play();
+else tl.pause(0);
+
+const scrubEl = document.getElementById('scrub');
+const btnPlay = document.getElementById('btn-play');
+const btnRestart = document.getElementById('btn-restart');
+scrubEl.addEventListener('input', (e) => {
+  tl.pause();
+  btnPlay.textContent = 'Play';
+  tl.time((Number(e.target.value) / 1000) * DURATION);
+});
+btnPlay.addEventListener('click', () => {
+  if (tl.paused()) { tl.play(); btnPlay.textContent = 'Pause'; }
+  else { tl.pause(); btnPlay.textContent = 'Play'; }
+});
+btnRestart.addEventListener('click', () => { tl.restart(); btnPlay.textContent = 'Pause'; });
+</script>
+</body>
+</html>

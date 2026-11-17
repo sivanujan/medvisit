@@ -1,4 +1,6 @@
 import React, { useRef, useState } from 'react';
+import axios from 'axios';
+import { compressImageBeforeUpload, ImageValidationError } from '@/Utils/imageCompressor';
 import {
     Camera,
     Upload,
@@ -35,37 +37,69 @@ export default function StepCoverPhoto({
     const [uploadError, setUploadError] = useState<string | null>(null);
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+        const rawFile = e.target.files?.[0];
+        if (!rawFile) return;
 
         setUploading(true);
         setUploadError(null);
 
         try {
+            // Compress & validate client-side before sending
+            // Cover: max 2000px on long side, re-encoded to WebP/JPEG ~0.85
+            const { file } = await compressImageBeforeUpload(rawFile, {
+                isLogo: false,
+                maxDimension: 2000,
+                preserveTransparency: false,
+                quality: 0.85,
+            });
+
             const formData = new FormData();
             formData.append('type', 'cover');
             formData.append('file', file);
 
-            const token = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content;
-            const res = await fetch('/setup/upload-photo', {
-                method: 'POST',
+            const res = await axios.post('/setup/upload-photo', formData, {
                 headers: {
+                    'Content-Type': 'multipart/form-data',
                     Accept: 'application/json',
-                    'X-CSRF-TOKEN': token || '',
                 },
-                body: formData,
             });
 
-            const data = await res.json();
-            if (!res.ok) {
-                setUploadError(data.message || data.errors?.file?.[0] || 'Failed to upload photo.');
-            } else if (data.url) {
-                onChange('cover_photo_url', data.url);
+            if (res.data?.url) {
+                onChange('cover_photo_url', res.data.url);
+            } else {
+                setUploadError('Unexpected response from server. Please try again.');
             }
         } catch (err: unknown) {
-            setUploadError('Network error uploading file. Please try again.');
+            console.error('Cover photo upload error:', err);
+            if (err instanceof ImageValidationError) {
+                setUploadError(err.message);
+            } else if (axios.isAxiosError(err)) {
+                const status = err.response?.status;
+                const responseData = err.response?.data as { message?: string; errors?: Record<string, string[]> } | undefined;
+
+                if (status === 413) {
+                    setUploadError(responseData?.message || 'The file is too large for the server (HTTP 413). Please choose a smaller image.');
+                } else if (status === 419) {
+                    setUploadError('Your session has expired. Please refresh the page and try again.');
+                } else if (responseData?.errors?.file?.[0]) {
+                    setUploadError(responseData.errors.file[0]);
+                } else if (responseData?.message) {
+                    setUploadError(responseData.message);
+                } else if (!window.navigator.onLine) {
+                    setUploadError('You appear to be offline. Please reconnect to the internet and try again.');
+                } else {
+                    setUploadError('Failed to upload cover photo. Please check your connection and try again.');
+                }
+            } else if (err instanceof Error) {
+                setUploadError(err.message);
+            } else {
+                setUploadError('Network error uploading file. Please try again.');
+            }
         } finally {
             setUploading(false);
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
         }
     };
 

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import axios from 'axios';
 import { Head, Link, useForm, router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { PageHeader } from '@/Components/UI/PageHeader';
@@ -38,6 +39,7 @@ import {
     HelpCircle,
     Globe,
     MessageSquare,
+    Gift,
 } from 'lucide-react';
 
 interface CurrentPlanInfo {
@@ -87,6 +89,8 @@ interface PaymentHistoryItem {
     description: string;
     amount_cents: number;
     formatted_amount: string;
+    credit_cents?: number;
+    formatted_credit?: string;
     issue_date?: string | null;
     paid_at?: string | null;
     status: 'paid' | 'unpaid' | 'void' | 'failed';
@@ -163,6 +167,8 @@ interface BillingCenterProps {
         is_scheduled_downgrade: boolean;
     } | null;
     incidents?: PlatformIncidentItem[];
+    referralsEnabled?: boolean;
+    referralCreditBalance?: number;
 }
 
 /**
@@ -215,6 +221,8 @@ export default function BillingCenter({
     paymentHistory = [],
     upcomingInvoice,
     incidents = [],
+    referralsEnabled = false,
+    referralCreditBalance = 0,
 }: BillingCenterProps) {
     // Modals & Drawers state
     const { planGate } = usePage<any>().props;
@@ -277,31 +285,17 @@ export default function BillingCenter({
         }));
 
         try {
-            const token = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content;
-            const res = await fetch('/settings/billing/refund-preview', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': token || '',
-                },
-                body: JSON.stringify({
-                    payment_id: paymentId,
-                    reason,
-                    platform_incident_id: incidentId ? parseInt(incidentId, 10) : null,
-                    reason_details: details,
-                }),
+            const res = await axios.post('/settings/billing/refund-preview', {
+                payment_id: paymentId,
+                reason,
+                platform_incident_id: incidentId ? parseInt(incidentId, 10) : null,
+                reason_details: details,
             });
 
-            if (res.ok) {
-                const data = await res.json();
-                setEligibilityPreview({
-                    loading: false,
-                    ...data,
-                });
-            } else {
-                setEligibilityPreview(null);
-            }
+            setEligibilityPreview({
+                loading: false,
+                ...res.data,
+            });
         } catch {
             setEligibilityPreview(null);
         }
@@ -505,6 +499,37 @@ export default function BillingCenter({
                     title="Subscription & billing"
                     subtitle="Your plan, payments and receipts."
                 />
+
+                {/* Refer a Clinic Promotion Banner */}
+                {referralsEnabled && (
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/20 backdrop-blur-md">
+                        <div className="flex items-start gap-3.5">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/20 text-primary">
+                                <Gift className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                    Refer a Clinic & Earn Subscription Credit
+                                    {referralCreditBalance > 0 && (
+                                        <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400">
+                                            Rs. {(referralCreditBalance / 100).toLocaleString()} available
+                                        </span>
+                                    )}
+                                </h4>
+                                <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                                    Invite colleague practices to MedVisit and earn billing credits toward your monthly subscription.
+                                </p>
+                            </div>
+                        </div>
+                        <Link
+                            href={route('tenant.referrals.index')}
+                            className="inline-flex items-center gap-1.5 self-start sm:self-auto rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90 shrink-0"
+                        >
+                            Refer a clinic
+                            <ArrowUpRight className="h-4 w-4" />
+                        </Link>
+                    </div>
+                )}
 
                 {/* Unpaid Invoice Alert Banner */}
                 {actions.has_unpaid_invoice && (
@@ -1044,6 +1069,11 @@ export default function BillingCenter({
                                                     <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                                                         Invoice {inv.invoice_number}
                                                         {inv.receipt_number && ` · Receipt ${inv.receipt_number}`}
+                                                        {inv.credit_cents && inv.credit_cents > 0 ? (
+                                                            <span className="text-emerald-600 dark:text-emerald-400 ml-1.5 font-medium">
+                                                                · Referral credit: -Rs. {(inv.credit_cents / 100).toFixed(2)}
+                                                            </span>
+                                                        ) : null}
                                                     </div>
                                                 </td>
                                                 <td className="py-3.5 px-3 font-semibold text-slate-900 dark:text-white whitespace-nowrap">

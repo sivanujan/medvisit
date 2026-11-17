@@ -15,6 +15,8 @@ use App\Models\SubscriptionInvoice;
 use App\Services\AuditLogger;
 use App\Services\Billing\PromoCodeService;
 use App\Services\Payments\SubscriptionPaymentService;
+use App\Services\Referrals\ReferralCreditService;
+use App\Services\Referrals\ReferralService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -73,6 +75,10 @@ class SubscriptionBillingController extends Controller
         }
 
         $statusParam = $request->query('status');
+        $referralService = app(ReferralService::class);
+        $referralCreditBalance = ($referralService->isEnabled() && $tenant)
+            ? app(ReferralCreditService::class)->getBalance($tenant)
+            : 0;
 
         return Inertia::render('Subscription/Subscribe', [
             'tenant' => [
@@ -82,6 +88,8 @@ class SubscriptionBillingController extends Controller
                 'phone' => $tenant->phone,
                 'logo_url' => $tenant->logo_url,
             ],
+            'referralCreditBalance' => $referralCreditBalance,
+            'referralsEnabled' => $referralService->isEnabled(),
             'subscription' => $subscription ? [
                 'id' => $subscription->id,
                 'status' => $subscription->status,
@@ -200,6 +208,19 @@ class SubscriptionBillingController extends Controller
             $finalAmountCents = $calc['final_amount_cents'];
         }
 
+        // Apply referral billing credit if enabled
+        $creditCents = 0;
+        $referralCreditService = app(ReferralCreditService::class);
+        $referralService = app(ReferralService::class);
+
+        if ($referralService->isEnabled() && $finalAmountCents > 0) {
+            $availableCredit = $referralCreditService->getBalance($tenant);
+            if ($availableCredit > 0) {
+                $creditCents = min($availableCredit, $finalAmountCents);
+                $finalAmountCents = max(0, $finalAmountCents - $creditCents);
+            }
+        }
+
         $subscription = $tenant->subscription;
         if (! $subscription) {
             $subscription = Subscription::create([
@@ -231,6 +252,7 @@ class SubscriptionBillingController extends Controller
                 'amount_cents' => $finalAmountCents,
                 'original_amount_cents' => $planPriceCents,
                 'discount_cents' => $discountCents,
+                'credit_cents' => $creditCents,
                 'promo_code' => $promo?->code,
                 'promo_id' => $promo?->id,
                 'period_start' => $now,
@@ -243,6 +265,7 @@ class SubscriptionBillingController extends Controller
                 'amount_cents' => $finalAmountCents,
                 'original_amount_cents' => $planPriceCents,
                 'discount_cents' => $discountCents,
+                'credit_cents' => $creditCents,
                 'promo_code' => $promo?->code,
                 'promo_id' => $promo?->id,
             ]);
@@ -255,12 +278,23 @@ class SubscriptionBillingController extends Controller
 
         // RS. 0 INVOICE PATH: Skip Payments.lk checkout completely
         if ($finalAmountCents === 0) {
+            $paymentMethod = $promo ? 'promo' : ($creditCents > 0 ? 'credit' : 'free');
             $invoice->update([
                 'status' => SubscriptionInvoice::STATUS_PAID,
                 'paid_at' => $now,
-                'payment_method' => 'promo',
+                'payment_method' => $paymentMethod,
                 'receipt_number' => null, // Never consume a receipt number on Rs. 0
             ]);
+
+            if ($creditCents > 0) {
+                $referralCreditService->deductForZeroInvoice($tenant, $invoice, $creditCents);
+            }
+
+            try {
+                $referralService->onInvoicePaid($invoice);
+            } catch (\Throwable $e) {
+                Log::error("SubscriptionBillingController: Referral onInvoicePaid error: {$e->getMessage()}");
+            }
 
             if ($redemption) {
                 $promoService->activate($redemption, $invoice);
@@ -305,6 +339,10 @@ class SubscriptionBillingController extends Controller
         }
 
         // STANDARD PAID PATH: Payments.lk checkout
+        if ($creditCents > 0) {
+            $referralCreditService->reserveForInvoice($tenant, $invoice, $creditCents);
+        }
+
         $successUrl = route('tenant.subscription.return');
         $cancelUrl = $request->boolean('from_suspended') || $request->input('return_to_suspended')
             ? route('tenant.suspended', ['status' => 'cancelled'])
@@ -427,6 +465,11 @@ class SubscriptionBillingController extends Controller
                             'checkout_id' => $checkoutId,
                             'amount_cents' => $latestInvoice->amount_cents,
                         ], $checkout['raw'] ?? []);
+
+                        app(ReferralCreditService::class)->releaseReservation(
+                            $latestInvoice,
+                            'Checkout cancelled, expired or failed'
+                        );
                     }
 
                     return response()->json([

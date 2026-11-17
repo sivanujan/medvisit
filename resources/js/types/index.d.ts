@@ -27,5 +27,12 @@ export type PageProps<
         success?: string | null;
         error?: string | null;
     };
+    offline?: {
+        enabled: boolean;
+        phase_0: boolean;
+        phase_1: boolean;
+        phase_2: boolean;
+        ping_interval_seconds: number;
+    };
     publicConfig?: import('@/Config/medvisitPublic').PublicConfig;
 };

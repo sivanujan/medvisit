@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import { Head, router, usePage } from '@inertiajs/react';
 import PlatformLayout from '@/Layouts/PlatformLayout';
 import {
@@ -110,8 +111,8 @@ export default function AdminsIndex({
         setRecoveryCodes(null);
         setVerificationCode('');
         try {
-            const res = await fetch('/super-admin/admins/2fa/setup');
-            const data = await res.json();
+            const res = await axios.get('/super-admin/admins/2fa/setup');
+            const data = res.data;
             setSetupSecret(data.secret);
             setSetupQrUrl(data.qr_code_url);
             setSetup2faOpen(true);
@@ -126,23 +127,16 @@ export default function AdminsIndex({
         e.preventDefault();
         setSetupError(null);
         try {
-            const res = await fetch('/super-admin/admins/2fa/confirm', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
-                },
-                body: JSON.stringify({ code: verificationCode }),
-            });
-            const data = await res.json();
-            if (res.ok && data.success) {
+            const res = await axios.post('/super-admin/admins/2fa/confirm', { code: verificationCode });
+            const data = res.data;
+            if (data.success) {
                 setRecoveryCodes(data.recovery_codes);
                 router.reload({ only: ['my2fa', 'superAdmins'] });
             } else {
                 setSetupError(data.message || 'Verification failed.');
             }
-        } catch {
-            setSetupError('Network error confirming 2FA.');
+        } catch (err: any) {
+            setSetupError(err.response?.data?.message || 'Network error confirming 2FA.');
         }
     };
 
@@ -150,45 +144,31 @@ export default function AdminsIndex({
         e.preventDefault();
         setDisableError(null);
         try {
-            const res = await fetch('/super-admin/admins/2fa/disable', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
-                },
-                body: JSON.stringify({ password: disablePassword, code: disableCode }),
-            });
-            const data = await res.json();
-            if (res.ok && data.success) {
+            const res = await axios.post('/super-admin/admins/2fa/disable', { password: disablePassword, code: disableCode });
+            const data = res.data;
+            if (data.success) {
                 setDisable2faOpen(false);
                 router.reload({ only: ['my2fa', 'superAdmins'] });
             } else {
                 setDisableError(data.message || 'Disable 2FA failed.');
             }
-        } catch {
-            setDisableError('Error disabling 2FA.');
+        } catch (err: any) {
+            setDisableError(err.response?.data?.message || 'Error disabling 2FA.');
         }
     };
 
     const handleRegenerateCodes = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const res = await fetch('/super-admin/admins/2fa/recovery-codes', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
-                },
-                body: JSON.stringify({ password: regenPassword }),
-            });
-            const data = await res.json();
-            if (res.ok && data.success) {
+            const res = await axios.post('/super-admin/admins/2fa/recovery-codes', { password: regenPassword });
+            const data = res.data;
+            if (data.success) {
                 setRegenCodes(data.recovery_codes);
             } else {
                 alert(data.message || 'Password verification failed.');
             }
-        } catch {
-            alert('Failed regenerating recovery codes.');
+        } catch (err: any) {
+            alert(err.response?.data?.message || 'Failed regenerating recovery codes.');
         }
     };
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import axios from 'axios';
 import { Head, Link, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import GlassCard from '@/Components/UI/GlassCard';
@@ -292,6 +293,12 @@ export default function StockImportIndex() {
             return;
         }
 
+        const maxBytes = 5 * 1024 * 1024;
+        if (file.size > maxBytes) {
+            setUploadError(`File size (${(file.size / (1024 * 1024)).toFixed(1)}MB) exceeds the 5MB limit. Please upload a smaller spreadsheet.`);
+            return;
+        }
+
         setUploading(true);
         setUploadError(null);
 
@@ -302,18 +309,15 @@ export default function StockImportIndex() {
         }
 
         try {
-            const csrfToken = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content;
-            const res = await fetch(route('tenant.pharmacy.import.preview'), {
-                method: 'POST',
+            const res = await axios.post(route('tenant.pharmacy.import.preview'), formData, {
                 headers: {
-                    'X-CSRF-TOKEN': csrfToken || '',
+                    'Content-Type': 'multipart/form-data',
                     Accept: 'application/json',
                 },
-                body: formData,
             });
 
-            const data = await res.json();
-            if (!res.ok || !data.success) {
+            const data = res.data;
+            if (!data.success) {
                 setUploadError(data.message || 'Failed to process import file.');
                 setUploading(false);
                 return;
@@ -385,26 +389,22 @@ export default function StockImportIndex() {
         }, 300);
 
         try {
-            const csrfToken = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content;
-            const res = await fetch(route('tenant.pharmacy.import.confirm'), {
-                method: 'POST',
+            const res = await axios.post(route('tenant.pharmacy.import.confirm'), {
+                rows: rowsToImport,
+                file_hash: fileHash,
+                file_name: file?.name || 'Stock_Import',
+            }, {
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken || '',
                     Accept: 'application/json',
                 },
-                body: JSON.stringify({
-                    rows: rowsToImport,
-                    file_hash: fileHash,
-                    file_name: file?.name || 'Stock_Import',
-                }),
             });
 
             clearInterval(progressTimer);
             setImportProgress(100);
 
-            const data = await res.json();
-            if (!res.ok || !data.success) {
+            const data = res.data;
+            if (!data.success) {
                 throw new Error(data.message || 'Failed to complete stock import.');
             }
 

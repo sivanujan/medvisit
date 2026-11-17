@@ -102,16 +102,35 @@ systemctl restart fail2ban
 - **Google Chrome**: 156.0.8078.73 (headless support for Spatie Browsershot / ChromiumPdfService)
 
 ### 3.2 PHP 8.5 Configuration (`/etc/php/8.5/mods-available/99-medvisit.ini`)
-- `memory_limit = 512M`
-- `upload_max_filesize = 20M`
-- `post_max_size = 25M`
-- `max_execution_time = 120`
-- `date.timezone = UTC`
-- `expose_php = Off`
-- `opcache.enable = 1`
-- `curl.cainfo = /etc/ssl/certs/ca-certificates.crt`
-- `openssl.cafile = /etc/ssl/certs/ca-certificates.crt`
-- Activated via `phpenmod 99-medvisit` and restarted `php8.5-fpm`.
+In Debian/Ubuntu PHP, files in `/etc/php/8.5/mods-available/` activated via `phpenmod` are linked into both FPM (`/etc/php/8.5/fpm/conf.d/`) and CLI (`/etc/php/8.5/cli/conf.d/`). Because `conf.d` entries are evaluated after base `php.ini`, setting directives in `99-medvisit.ini` acts as the single source of truth and prevents conflicts or overwrites during package updates.
+
+**Directives in `/etc/php/8.5/mods-available/99-medvisit.ini`:**
+```ini
+memory_limit = 512M
+upload_max_filesize = 20M
+post_max_size = 25M
+max_execution_time = 120
+date.timezone = UTC
+expose_php = Off
+opcache.enable = 1
+curl.cainfo = /etc/ssl/certs/ca-certificates.crt
+openssl.cafile = /etc/ssl/certs/ca-certificates.crt
+```
+
+**Commands to set and activate:**
+```bash
+# 1. Write or verify /etc/php/8.5/mods-available/99-medvisit.ini:
+sudo tee -a /etc/php/8.5/mods-available/99-medvisit.ini << 'EOF'
+upload_max_filesize = 20M
+post_max_size = 25M
+EOF
+
+# 2. Enable module across FPM and CLI (creates symlinks in conf.d/):
+sudo phpenmod 99-medvisit
+
+# 3. Restart PHP 8.5 FPM:
+sudo systemctl restart php8.5-fpm
+```
 
 ### 3.3 PostgreSQL 18 Tuning (`/etc/postgresql/18/main/conf.d/99-medvisit.conf`)
 - `listen_addresses = 'localhost'`
@@ -212,6 +231,21 @@ php artisan migrate --force
 - FastCGI backend: `unix:/run/php/php8.5-fpm.sock`.
 - Cloudflare Real IP restoration: `/etc/nginx/conf.d/cloudflare-realip.conf`.
 - Reverb WebSocket proxy: `/app` and `/apps` locations proxied to `http://127.0.0.1:8080`.
+- Client upload limit: `client_max_body_size 20M;` added inside server block(s) to allow photo uploads up to 20MB payload envelope without 413 entity errors.
+- SVG Security Headers (Defense-in-depth against stored XSS / script execution):
+  ```nginx
+  location ~* \.svg$ {
+      add_header Content-Type "image/svg+xml" always;
+      add_header X-Content-Type-Options "nosniff" always;
+      add_header Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'" always;
+  }
+  ```
+
+**Reload & Apply Web Server / PHP Changes:**
+```bash
+# Test Nginx syntax and reload, then restart PHP-FPM:
+sudo nginx -t && sudo systemctl reload nginx && sudo systemctl restart php8.5-fpm
+```
 
 ### 6.2 Supervisor Daemons (`/etc/supervisor/conf.d/medvisit.conf`)
 - `medvisit-worker-default`: 2 worker processes running `queue:work redis --queue=default`.

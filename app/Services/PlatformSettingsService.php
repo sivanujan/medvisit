@@ -53,6 +53,15 @@ class PlatformSettingsService
         'launch_offer.free_months' => 3,
         'launch_offer.end_date' => null,
         'launch_offer.sms_cap' => 500,
+        // Referral Program
+        'referrals.enabled' => false,
+        'referrals.qualifying_invoices' => 2,
+        'referrals.approval_required' => false,
+        'referrals.annual_cap_multiplier' => 12,
+        'referrals.credit_expiry_months' => 12,
+        'referrals.welcome_benefit_enabled' => false,
+        'referrals.welcome_benefit_type' => 'extra_trial_days',
+        'referrals.welcome_benefit_value' => 14,
     ];
 
     /**

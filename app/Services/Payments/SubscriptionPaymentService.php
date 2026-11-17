@@ -14,6 +14,8 @@ use App\Models\TenantSmsTopup;
 use App\Services\AuditLogger;
 use App\Services\Billing\PromoCodeService;
 use App\Services\Billing\SubscriptionNotificationService;
+use App\Services\Referrals\ReferralCreditService;
+use App\Services\Referrals\ReferralService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -123,6 +125,13 @@ class SubscriptionPaymentService
                 'payment_method' => $method,
                 'receipt_number' => $receiptNumber,
             ]);
+
+            // Process referral program qualifications or credit confirmations
+            try {
+                app(ReferralService::class)->onInvoicePaid($invoice);
+            } catch (\Throwable $e) {
+                Log::error("SubscriptionPaymentService: Referral hook error: {$e->getMessage()}");
+            }
 
             // Activate promo code redemption if present
             if ($invoice->promo_id) {
@@ -357,6 +366,13 @@ class SubscriptionPaymentService
                     ->where('tenant_id', $invoice->tenant_id)
                     ->where('status', PromoCodeRedemption::STATUS_RESERVED)
                     ->update(['status' => PromoCodeRedemption::STATUS_RELEASED]);
+            }
+
+            // Release any reserved billing credit
+            try {
+                app(ReferralCreditService::class)->releaseReservation($invoice, 'Payment failed');
+            } catch (\Throwable $e) {
+                Log::warning("SubscriptionPaymentService: Error releasing credit reservation: {$e->getMessage()}");
             }
 
             Log::info("SubscriptionPaymentService: Recorded failed payment transaction for invoice [{$reference}]");

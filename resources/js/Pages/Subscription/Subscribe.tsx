@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { Head, router, usePage } from '@inertiajs/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -142,40 +143,15 @@ export default function Subscribe({
             endpoint = '/dev/preview/validate-promo';
         }
 
-        const csrfToken =
-            (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
-
         try {
-            const res = await fetch(endpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    'X-Requested-With': 'XMLHttpRequest',
-                    Accept: 'application/json',
-                },
-                body: JSON.stringify({
-                    code,
-                    plan_slug: planSlug,
-                }),
+            const res = await axios.post(endpoint, {
+                code,
+                plan_slug: planSlug,
             });
 
-            if (res.redirected) {
-                setPromoError('Session or gateway redirect encountered. Please try again.');
-                setAppliedPromo(null);
-                setApplyingPromo(false);
-                return;
-            }
+            const data = res.data;
 
-            let data: any = null;
-            try {
-                const text = await res.text();
-                data = JSON.parse(text);
-            } catch {
-                data = null;
-            }
-
-            if (!res.ok || !data || !data.code || typeof data.discount_cents === 'undefined') {
+            if (!data || !data.code || typeof data.discount_cents === 'undefined') {
                 const errMsg =
                     data?.message ||
                     data?.errors?.code?.[0] ||
@@ -199,7 +175,14 @@ export default function Subscribe({
             setPromoError(null);
             setApplyingPromo(false);
         } catch (err: any) {
-            setPromoError(err?.message || 'Network error validating promo code.');
+            const data = err.response?.data;
+            const errMsg =
+                data?.message ||
+                data?.errors?.code?.[0] ||
+                data?.errors?.plan_slug?.[0] ||
+                err?.message ||
+                'Network error validating promo code.';
+            setPromoError(errMsg);
             setAppliedPromo(null);
             setApplyingPromo(false);
         }

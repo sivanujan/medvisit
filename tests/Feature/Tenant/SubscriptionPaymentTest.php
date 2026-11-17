@@ -144,6 +144,48 @@ class SubscriptionPaymentTest extends TestCase
         $this->assertTrue(in_array($response->status(), [302, 409], true));
     }
 
+    public function test_billing_upgrade_initiates_checkout_and_redirects_to_paymentslk_gateway(): void
+    {
+        $tenant = Tenant::factory()->active()->create([
+            'id' => 'upg-clinic',
+            'name' => 'Upgrade Clinic',
+            'subdomain' => 'upgclinic',
+            'plan' => 'basic',
+        ]);
+
+        $basicPlan = Plan::where('slug', 'basic')->first() ?? Plan::first();
+        $proPlan = Plan::where('slug', 'pro')->first() ?? Plan::where('price_cents', '>', $basicPlan->price_cents)->first();
+
+        Subscription::create([
+            'tenant_id' => $tenant->id,
+            'plan_id' => $basicPlan->id,
+            'status' => Subscription::STATUS_ACTIVE,
+            'current_period_start' => now()->subDays(10),
+            'current_period_end' => now()->addDays(20),
+        ]);
+
+        $admin = User::factory()->clinicAdmin()->create([
+            'tenant_id' => $tenant->id,
+            'email' => 'admin@upgclinic.lk',
+        ]);
+
+        $response = $this->actingAs($admin)->post("http://upgclinic.{$this->baseDomain}/settings/billing/upgrade", [
+            'plan_id' => $proPlan->id,
+        ]);
+
+        // Returns Inertia 409 location redirect or 302 to Payments.lk hosted gateway
+        $this->assertTrue(in_array($response->status(), [302, 409], true));
+        $location = $response->headers->get('X-Inertia-Location') ?: $response->headers->get('Location');
+        $this->assertNotEmpty($location);
+        $this->assertStringContainsString('payments.lk', $location);
+
+        // Verify invoice was created
+        $invoice = SubscriptionInvoice::where('tenant_id', $tenant->id)->latest('id')->first();
+        $this->assertNotNull($invoice);
+        $this->assertEquals($proPlan->price_cents, $invoice->amount_cents);
+        $this->assertEquals(SubscriptionInvoice::STATUS_UNPAID, $invoice->status);
+    }
+
     public function test_webhook_payment_succeeded_activates_subscription_with_exact_checks(): void
     {
         $tenant = Tenant::factory()->pendingPayment()->create([

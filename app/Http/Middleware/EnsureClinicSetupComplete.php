@@ -21,6 +21,7 @@ class EnsureClinicSetupComplete
         'tenant.setup.step',
         'tenant.setup.save',
         'tenant.setup.complete',
+        'tenant.setup.upload_photo',
         'tenant.setup.test_print',
         'tenant.setup.dismiss_banner',
         'tenant.subscription.subscribe',

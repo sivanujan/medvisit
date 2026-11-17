@@ -46,6 +46,7 @@ import {
     DirectoryFilters,
 } from './types';
 import { PatientDetailSlideOver } from './Components/PatientDetailSlideOver';
+import RegisterPatientModal from './Components/RegisterPatientModal';
 
 interface PaginatedData<T> {
     data: T[];
@@ -1026,201 +1027,26 @@ export default function PatientsIndex({
             />
 
             {/* REGISTER / EDIT PATIENT MODAL */}
-            <GlassModal
+            <RegisterPatientModal
                 isOpen={isCreateModalOpen}
                 onClose={() => setIsCreateModalOpen(false)}
-                title={editingPatient ? `Edit ${editingPatient.name}` : 'Register patient'}
-                subtitle="Enter identity, contact, location, and clinical safety allergies."
-                maxWidth="max-w-2xl"
-            >
-                <form onSubmit={handleFormSubmit} className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                Patient full name *
-                            </label>
-                            <input
-                                type="text"
-                                required
-                                value={form.data.name}
-                                onChange={(e) => form.setData('name', e.target.value)}
-                                placeholder="e.g. Sunil Shantha"
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary font-medium"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                Mobile phone (+94) *
-                            </label>
-                            <PhoneInput
-                                value={form.data.phone}
-                                onChange={(normalized) => form.setData('phone', normalized)}
-                                placeholder="7X XXX XXXX"
-                                required
-                            />
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div>
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                Sri Lankan NIC no.
-                            </label>
-                            <input
-                                type="text"
-                                value={form.data.nic}
-                                onChange={(e) => form.setData('nic', e.target.value)}
-                                placeholder="199012345678 or 901234567V"
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary font-medium"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                Gender
-                            </label>
-                            <GlassSelect
-                                value={form.data.gender}
-                                onChange={(e) => form.setData('gender', e.target.value)}
-                                options={[
-                                    { value: 'male', label: 'Male' },
-                                    { value: 'female', label: 'Female' },
-                                    { value: 'other', label: 'Other' },
-                                ]}
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                Date of birth
-                            </label>
-                            <input
-                                type="date"
-                                value={form.data.date_of_birth}
-                                onChange={(e) => form.setData('date_of_birth', e.target.value)}
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary font-medium"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                Sri Lankan district
-                            </label>
-                            <GlassSelect
-                                value={form.data.district}
-                                onChange={(e) => form.setData('district', e.target.value)}
-                                searchable={true}
-                                options={allDistricts.map((d) => ({ value: d, label: d }))}
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                Town / City
-                            </label>
-                            <input
-                                type="text"
-                                value={form.data.city}
-                                onChange={(e) => form.setData('city', e.target.value)}
-                                placeholder="e.g. Nugegoda / Dehiwala"
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary font-medium"
-                            />
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                            Residential address
-                        </label>
-                        <input
-                            type="text"
-                            value={form.data.address}
-                            onChange={(e) => form.setData('address', e.target.value)}
-                            placeholder="e.g. No. 42, Temple Road"
-                            className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary font-medium"
-                        />
-                    </div>
-
-                    {/* Allergies & Notes */}
-                    <div className="p-3.5 rounded-2xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-200/50 dark:border-rose-900/30 space-y-3">
-                        <div>
-                            <label className="block text-xs font-bold text-rose-700 dark:text-rose-300 mb-1 flex items-center gap-1.5">
-                                <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
-                                Known allergies (drugs / foods)
-                            </label>
-                            <input
-                                type="text"
-                                value={form.data.allergies}
-                                onChange={(e) => form.setData('allergies', e.target.value)}
-                                placeholder="e.g. Penicillin, Aspirin, Sulfa drugs, Peanuts"
-                                className="w-full text-xs rounded-xl border border-rose-200 dark:border-rose-800/40 bg-white dark:bg-slate-900 py-1.5 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-rose-500 font-medium"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                Clinical notes / chronic conditions
-                            </label>
-                            <textarea
-                                rows={2}
-                                value={form.data.notes}
-                                onChange={(e) => form.setData('notes', e.target.value)}
-                                placeholder="e.g. Type 2 Diabetic, Hypertensive on medication"
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-1.5 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary font-medium"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Emergency Contact */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                Emergency contact name
-                            </label>
-                            <input
-                                type="text"
-                                value={form.data.emergency_contact_name}
-                                onChange={(e) => form.setData('emergency_contact_name', e.target.value)}
-                                placeholder="e.g. S. Shantha (Spouse)"
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary font-medium"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                Emergency contact phone
-                            </label>
-                            <input
-                                type="text"
-                                value={form.data.emergency_contact_phone}
-                                onChange={(e) => form.setData('emergency_contact_phone', e.target.value)}
-                                placeholder="07X XXX XXXX"
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-primary font-medium"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-white/10">
-                        <button
-                            type="button"
-                            onClick={() => setIsCreateModalOpen(false)}
-                            className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-400"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={form.processing}
-                            className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-600 shadow-md disabled:opacity-50 transition-colors"
-                        >
-                            {form.processing ? 'Saving...' : editingPatient ? 'Update patient' : 'Save patient'}
-                        </button>
-                    </div>
-                </form>
-            </GlassModal>
+                editingPatient={editingPatient}
+                allDistricts={allDistricts}
+                onSuccess={(savedData, action) => {
+                    setIsCreateModalOpen(false);
+                    if (action === 'save_and_issue_token') {
+                        setAssignDrawerPatient(savedData);
+                        setAssignDrawerOpen(true);
+                    }
+                    router.reload();
+                }}
+                onViewPatient={(patientId) => {
+                    const match = patients.data.find((p) => p.id === patientId);
+                    if (match) {
+                        openPatientSlideOver(match);
+                    }
+                }}
+            />
 
             {/* ASSIGN DOCTOR DRAWER (ISSUE TOKEN) */}
             <AssignDoctorDrawer

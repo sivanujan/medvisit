@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { Head, Link, router } from '@inertiajs/react';
 import PlatformLayout from '@/Layouts/PlatformLayout';
 import {
@@ -135,24 +136,15 @@ export default function AnnouncementsIndex({
         if (!composeOpen) return;
         const timer = setTimeout(async () => {
             try {
-                const res = await fetch('/super-admin/announcements/audience-count', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
-                    },
-                    body: JSON.stringify({
-                        audience_type: formData.audience_type,
-                        target_clinic_ids: formData.target_clinic_ids,
-                        target_plans: formData.target_plans,
-                        target_statuses: formData.target_statuses,
-                        target_recipient_roles: formData.target_recipient_roles,
-                    }),
+                const res = await axios.post('/super-admin/announcements/audience-count', {
+                    audience_type: formData.audience_type,
+                    target_clinic_ids: formData.target_clinic_ids,
+                    target_plans: formData.target_plans,
+                    target_statuses: formData.target_statuses,
+                    target_recipient_roles: formData.target_recipient_roles,
                 });
-                if (res.ok) {
-                    const data = await res.json();
-                    setAudienceSummary(data.summary || `${data.clinics_count} clinics · ${data.people_count} people`);
-                }
+                const data = res.data;
+                setAudienceSummary(data.summary || `${data.clinics_count} clinics · ${data.people_count} people`);
             } catch {
                 setAudienceSummary('Unable to calculate recipients');
             }
@@ -192,21 +184,14 @@ export default function AnnouncementsIndex({
         setTestSendLoading(true);
         setTestSendFeedback(null);
         try {
-            const res = await fetch('/super-admin/announcements/test-send', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
-                },
-                body: JSON.stringify({
-                    title: formData.title || 'Untitled Test',
-                    message: formData.message || '<p>No content entered</p>',
-                    type: formData.type,
-                    cta_label: formData.cta_label,
-                    cta_url: formData.cta_url,
-                }),
+            const res = await axios.post('/super-admin/announcements/test-send', {
+                title: formData.title || 'Untitled Test',
+                message: formData.message || '<p>No content entered</p>',
+                type: formData.type,
+                cta_label: formData.cta_label,
+                cta_url: formData.cta_url,
             });
-            const data = await res.json();
+            const data = res.data;
             setTestSendFeedback(data.message || 'Test email dispatched.');
         } catch {
             setTestSendFeedback('Failed sending test email.');

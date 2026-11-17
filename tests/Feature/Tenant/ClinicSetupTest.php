@@ -11,7 +11,9 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Services\Plans\PlanGate;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class ClinicSetupTest extends TestCase
@@ -519,5 +521,53 @@ class ClinicSetupTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertSessionHas('setup_banner_dismissed', true);
+    }
+
+    public function test_admin_can_upload_logo_during_setup_without_grace(): void
+    {
+        Storage::fake(config('filesystems.default', 'public'));
+
+        $tenant = Tenant::factory()->active()->create([
+            'id' => 'upload-clinic',
+            'subdomain' => 'uploadcli',
+            'setup_completed_at' => null,
+            'setup_grace_until' => null,
+        ]);
+
+        $admin = User::factory()->clinicAdmin()->create(['tenant_id' => $tenant->id]);
+
+        $file = UploadedFile::fake()->image('logo.png', 100, 100);
+
+        $response = $this->actingAs($admin)->post("http://uploadcli.{$this->baseDomain}/setup/upload-photo", [
+            'type' => 'logo',
+            'file' => $file,
+        ], ['Accept' => 'application/json']);
+
+        $response->assertStatus(200);
+        $response->assertJsonStructure(['success', 'url', 'logo_url']);
+    }
+
+    public function test_admin_can_upload_cover_photo_during_setup_without_grace(): void
+    {
+        Storage::fake(config('filesystems.default', 'public'));
+
+        $tenant = Tenant::factory()->active()->create([
+            'id' => 'cover-clinic',
+            'subdomain' => 'covercli',
+            'setup_completed_at' => null,
+            'setup_grace_until' => null,
+        ]);
+
+        $admin = User::factory()->clinicAdmin()->create(['tenant_id' => $tenant->id]);
+
+        $file = UploadedFile::fake()->image('cover.jpg', 800, 450);
+
+        $response = $this->actingAs($admin)->post("http://covercli.{$this->baseDomain}/setup/upload-photo", [
+            'type' => 'cover',
+            'file' => $file,
+        ], ['Accept' => 'application/json']);
+
+        $response->assertStatus(200);
+        $response->assertJsonStructure(['success', 'url', 'cover_photo_url']);
     }
 }

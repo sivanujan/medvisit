@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\ClinicAnnouncementController;
 use App\Http\Controllers\Auth\TwoFactorChallengeController;
+use App\Http\Controllers\MediaServeController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicDemoController;
 use App\Http\Controllers\PublicDirectoryController;
@@ -21,6 +22,7 @@ use App\Http\Controllers\SuperAdmin\PlatformDashboardController;
 use App\Http\Controllers\SuperAdmin\PlatformIncidentController;
 use App\Http\Controllers\SuperAdmin\PlatformSettingsController;
 use App\Http\Controllers\SuperAdmin\PromotionManagementController;
+use App\Http\Controllers\SuperAdmin\ReferralManagementController;
 use App\Http\Controllers\SuperAdmin\RefundManagementController;
 use App\Http\Controllers\SuperAdmin\ReservedSubdomainController;
 use App\Http\Controllers\SuperAdmin\SubscriptionManagementController;
@@ -36,6 +38,7 @@ use App\Models\PromoCode;
 use App\Models\Tenant;
 use App\Models\TvPairingCode;
 use App\Services\Billing\PromoCodeService;
+use App\Services\Referrals\ReferralService;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Http\Request;
@@ -70,6 +73,19 @@ Route::domain('{central_domain}')
                 'phpVersion' => PHP_VERSION,
             ]);
         })->name('home');
+
+        // Referral link redirect
+        Route::get('/r/{code}', function (Request $request) {
+            $code = (string) $request->route('code');
+            $referralService = app(ReferralService::class);
+            if (! $referralService->isEnabled()) {
+                return redirect()->route('register');
+            }
+
+            $cookie = $referralService->createReferralCookie($code);
+
+            return redirect()->route('register', ['ref' => $code])->withCookie($cookie);
+        })->name('referral.link');
 
         // Public Interactive Demo Hub (/demo)
         Route::get('/demo', [PublicDemoController::class, 'index'])->name('public.demo');
@@ -248,6 +264,20 @@ Route::domain('{central_domain}')
                     ->name('super_admin.promotions.invites.revoke');
                 Route::get('/super-admin/promotions/redemptions/export', [PromotionManagementController::class, 'exportRedemptionsCsv'])
                     ->name('super_admin.promotions.redemptions.export');
+
+                // Clinic Referrals Management & Credit Ledger
+                Route::get('/super-admin/referrals', [ReferralManagementController::class, 'index'])
+                    ->name('super_admin.referrals.index');
+                Route::post('/super-admin/referrals/{referral}/approve', [ReferralManagementController::class, 'approve'])
+                    ->name('super_admin.referrals.approve');
+                Route::post('/super-admin/referrals/{referral}/reject', [ReferralManagementController::class, 'reject'])
+                    ->name('super_admin.referrals.reject');
+                Route::post('/super-admin/referrals/clinics/{tenant}/edit-code', [ReferralManagementController::class, 'editCode'])
+                    ->name('super_admin.referrals.edit_code');
+                Route::post('/super-admin/referrals/settings', [ReferralManagementController::class, 'updateSettings'])
+                    ->name('super_admin.referrals.settings');
+                Route::get('/super-admin/referrals/export', [ReferralManagementController::class, 'exportCsv'])
+                    ->name('super_admin.referrals.export');
 
                 // Reserved Subdomains
                 Route::get('/super-admin/reserved-subdomains', [ReservedSubdomainController::class, 'index'])
@@ -921,6 +951,37 @@ Route::domain('{central_domain}')
                     'incidents' => [],
                 ]);
             })->name('dev.preview.billing');
+
+            Route::get('/dev/preview/form-modals', function () {
+                return Inertia::render('Dev/FormModalsShowcase', [
+                    'allDistricts' => [
+                        'Ampara', 'Anuradhapura', 'Badulla', 'Batticaloa', 'Colombo',
+                        'Galle', 'Gampaha', 'Hambantota', 'Jaffna', 'Kalutara',
+                        'Kandy', 'Kegalle', 'Kilinochchi', 'Kurunegala', 'Mannar',
+                        'Matale', 'Matara', 'Monaragala', 'Mullaitivu', 'Nuwara Eliya',
+                        'Polonnaruwa', 'Puttalam', 'Ratnapura', 'Trincomalee', 'Vavuniya',
+                    ],
+                    'specialties' => [
+                        'General Physician', 'Cardiologist', 'Dermatologist', 'Pediatrician',
+                        'Neurologist', 'Gynecologist', 'Orthopedic Surgeon', 'ENT Surgeon',
+                        'Psychiatrist', 'Ophthalmologist', 'Endocrinologist',
+                    ],
+                    'eligibleUsers' => [
+                        ['id' => 1, 'name' => 'Dr. Sunil Shantha', 'email' => 'sunil@medvisit.lk'],
+                        ['id' => 2, 'name' => 'Dr. K. Silva', 'email' => 'silva@medvisit.lk'],
+                    ],
+                    'doctors' => [
+                        [
+                            'id' => 1,
+                            'name' => 'Sunil Shantha',
+                            'title' => 'Dr.',
+                            'full_title' => 'Dr. Sunil Shantha',
+                            'specialty' => 'Cardiologist',
+                            'token_code' => 'SS',
+                        ],
+                    ],
+                ]);
+            })->name('dev.preview.form_modals');
         }
 
         require __DIR__.'/auth.php';
@@ -935,3 +996,8 @@ Route::post('/webhooks/whatsapp', [WhatsAppWebhookController::class, 'handle'])
 // Payments.lk Hosted Checkout Webhook (External gateway callbacks, no CSRF, no tenancy identification)
 Route::post('/webhooks/paymentslk', [PaymentsLkWebhookController::class, 'handle'])
     ->name('webhooks.paymentslk');
+
+// Public Media Assets Delivery (Strict security headers for SVGs & media)
+Route::get('/storage/media/{tenantId}/{filename}', [MediaServeController::class, 'show'])
+    ->where('filename', '.*')
+    ->name('media.serve');

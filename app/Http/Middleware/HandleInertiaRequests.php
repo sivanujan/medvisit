@@ -213,6 +213,13 @@ class HandleInertiaRequests extends Middleware
                 'port' => config('broadcasting.connections.reverb.options.port') ?? env('REVERB_PORT', 8080),
                 'scheme' => config('broadcasting.connections.reverb.options.scheme') ?? env('REVERB_SCHEME', 'http'),
             ],
+            'offline' => [
+                'enabled' => (bool) config('offline.enabled', false),
+                'phase_0' => (bool) (config('offline.enabled', false) && config('offline.phases.phase_0', false)),
+                'phase_1' => (bool) (config('offline.enabled', false) && config('offline.phases.phase_1', false)),
+                'phase_2' => (bool) (config('offline.enabled', false) && config('offline.phases.phase_2', false)),
+                'ping_interval_seconds' => (int) config('offline.ping_interval_seconds', 15),
+            ],
         ];
     }
 }

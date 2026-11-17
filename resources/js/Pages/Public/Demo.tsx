@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import { Head, Link } from '@inertiajs/react';
 import LandingNav from '@/Components/Landing/LandingNav';
 import ApplicationLogo from '@/Components/ApplicationLogo';
@@ -179,20 +180,11 @@ export default function DemoPage({
                 consent: consent,
             };
 
-            const response = await fetch('/demo/start', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Accept: 'application/json',
-                    'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
-                },
-                body: JSON.stringify(payload),
-            });
+            const res = await axios.post('/demo/start', payload);
+            const data = res.data;
 
-            const data = await response.json();
-
-            if (!response.ok || !data.success) {
-                const err = data.errors ? Object.values(data.errors)[0] : data.message || 'Unable to launch demo sandbox.';
+            if (!data?.success) {
+                const err = data?.errors ? Object.values(data.errors)[0] : data?.message || 'Unable to launch demo sandbox.';
                 setErrorMessage(Array.isArray(err) ? err[0] : err);
                 setIsSubmitting(false);
                 return;
@@ -201,7 +193,9 @@ export default function DemoPage({
             // Redirect into the demo sandbox signed URL
             window.location.href = data.redirect_url;
         } catch (err: any) {
-            setErrorMessage('Network error while connecting to the demo clinic. Please try again.');
+            const data = err.response?.data;
+            const errorMsg = data?.message || (data?.errors ? Object.values(data.errors)[0] : null) || 'Network error while connecting to the demo clinic. Please try again.';
+            setErrorMessage(Array.isArray(errorMsg) ? errorMsg[0] : errorMsg);
             setIsSubmitting(false);
         }
     };

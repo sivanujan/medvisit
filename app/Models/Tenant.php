@@ -6,6 +6,7 @@ use App\Services\Plans\PlanGate;
 use App\Support\SiteKit;
 use App\Support\TokenHelper;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -31,6 +32,9 @@ class Tenant extends BaseTenant
         'postal_code',
         'legacy_address',
         'plan',
+        'referral_code',
+        'referral_code_edited_at',
+        'referral_code_edited_by',
         'status',
         'trial_ends_at',
         'trial_ending_reminder_sent_at',
@@ -62,6 +66,7 @@ class Tenant extends BaseTenant
         'trial_ends_at' => 'datetime',
         'trial_ending_reminder_sent_at' => 'datetime',
         'trial_ended_reminder_sent_at' => 'datetime',
+        'referral_code_edited_at' => 'datetime',
         'fee_settings' => 'array',
         'is_demo' => 'boolean',
         'online_booking_enabled' => 'boolean',
@@ -639,5 +644,60 @@ class Tenant extends BaseTenant
         }
 
         return max(0, $limit);
+    }
+
+    public function referralsMade(): HasMany
+    {
+        return $this->hasMany(ClinicReferral::class, 'referrer_tenant_id');
+    }
+
+    public function referralReceived(): HasOne
+    {
+        return $this->hasOne(ClinicReferral::class, 'referred_tenant_id');
+    }
+
+    public function billingCredits(): HasMany
+    {
+        return $this->hasMany(TenantBillingCredit::class, 'tenant_id');
+    }
+
+    /**
+     * Get the clinic's effective referral code (custom code if set, otherwise subdomain).
+     */
+    public function getEffectiveReferralCodeAttribute(): string
+    {
+        return (string) ($this->referral_code ?: $this->subdomain);
+    }
+
+    /**
+     * Check if clinic has paid at least one real cash subscription invoice.
+     */
+    public function hasPaidAtLeastOneInvoice(): bool
+    {
+        return $this->subscriptionInvoices()
+            ->where('status', SubscriptionInvoice::STATUS_PAID)
+            ->where('amount_cents', '>', 0)
+            ->exists();
+    }
+
+    /**
+     * Check if clinic is demo or complimentary plan.
+     */
+    public function isCompOrDemo(): bool
+    {
+        return (bool) $this->is_demo || $this->plan === 'comp';
+    }
+
+    /**
+     * Active available billing credit balance in cents.
+     */
+    public function activeBillingCreditBalance(): int
+    {
+        $latest = $this->billingCredits()->latest('id')->first();
+        if (! $latest) {
+            return 0;
+        }
+
+        return max(0, (int) $latest->balance_after_cents);
     }
 }

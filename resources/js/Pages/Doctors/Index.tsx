@@ -56,6 +56,8 @@ import {
 } from '@/Utils/doctorColors';
 
 // Sub-modals
+import { TextInput as FormTextInput, Select as FormSelect, DateInput as FormDateInput, FormLabel } from '@/Components/Form';
+import DoctorFormModal from './Components/DoctorFormModal';
 import GenerateSessionsModal from './Components/GenerateSessionsModal';
 import LogLeaveModal from './Components/LogLeaveModal';
 import DuplicateTemplateModal from './Components/DuplicateTemplateModal';
@@ -1951,278 +1953,36 @@ export default function DoctorsIndex({
             />
 
             {/* 6. Create / Edit Doctor Modal */}
-            <GlassModal
+            <DoctorFormModal
                 isOpen={isDoctorModalOpen}
                 onClose={() => setIsDoctorModalOpen(false)}
-                title={editingDoctor ? `Edit ${editingDoctor.full_title}` : 'Add New Doctor'}
-                subtitle="Configure doctor credentials, SLMC number, fee split, and payout preferences"
-                maxWidth="max-w-2xl"
-            >
-                <form onSubmit={handleDoctorSubmit} className="space-y-4">
-                    {/* Basic details */}
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                        <div className="sm:col-span-1">
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                Title *
-                            </label>
-                            <input
-                                type="text"
-                                required
-                                value={doctorForm.data.title}
-                                onChange={(e) => doctorForm.setData('title', e.target.value)}
-                                placeholder="Dr. / Prof."
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-[#1E6FD9] outline-none"
-                            />
-                        </div>
-
-                        <div className="sm:col-span-3">
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                Full Name *
-                            </label>
-                            <input
-                                type="text"
-                                required
-                                value={doctorForm.data.name}
-                                onChange={(e) => doctorForm.setData('name', e.target.value)}
-                                placeholder="e.g. Sivakumar"
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-[#1E6FD9] outline-none"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div className="sm:col-span-1">
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                Medical Specialty *
-                            </label>
-                            <GlassSelect
-                                value={doctorForm.data.specialty}
-                                onChange={(e) => doctorForm.setData('specialty', e.target.value)}
-                                placeholder="Select Specialty"
-                                searchable={true}
-                                options={specialties.map((s) => ({ value: s, label: s }))}
-                            />
-                        </div>
-
-                        <div className="sm:col-span-1">
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                SLMC Registration
-                            </label>
-                            <input
-                                type="text"
-                                value={doctorForm.data.slmc_number}
-                                onChange={(e) => doctorForm.setData('slmc_number', e.target.value)}
-                                placeholder="e.g. 18429"
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-[#1E6FD9] outline-none"
-                            />
-                            <span className="text-[10px] text-slate-400 mt-0.5 block">
-                                Numbers only
-                            </span>
-                        </div>
-
-                        <div className="sm:col-span-1">
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                Token Code (Prefix)
-                            </label>
-                            <input
-                                type="text"
-                                maxLength={5}
-                                value={doctorForm.data.token_code}
-                                onChange={(e) => doctorForm.setData('token_code', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-                                placeholder="e.g. SV"
-                                className="w-full text-xs font-mono font-bold uppercase rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-[#1E6FD9] outline-none"
-                            />
-                            <span className="text-[10px] text-slate-400 mt-0.5 block">
-                                2–3 letters (e.g. SV-01)
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* Warning if editing token_code and future bookings exist */}
-                    {editingDoctor && (editingDoctor.future_bookings_count ?? 0) > 0 && doctorForm.data.token_code !== (editingDoctor.token_code || '') && (
-                        <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200 text-xs">
-                            <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                            <div>
-                                <span className="font-bold block">Future Bookings Notice</span>
-                                <span>
-                                    Dr. {editingDoctor.name} has <strong>{editingDoctor.future_bookings_count}</strong> upcoming booked tokens. Changing this code affects only new sessions created in the future; already booked tokens keep their snapshotted prefix.
-                                </span>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Fee Configuration Block */}
-                    <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/40 border border-slate-200/80 dark:border-white/10 space-y-3">
-                        <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                                Consultation Fee & Payout Configuration
-                            </span>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={doctorForm.data.use_clinic_default_fees}
-                                    onChange={(e) => doctorForm.setData('use_clinic_default_fees', e.target.checked)}
-                                    className="rounded border-slate-300 text-[#1E6FD9] focus:ring-[#1E6FD9]"
-                                />
-                                <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                                    Use clinic default fee settings
-                                </span>
-                            </label>
-                        </div>
-
-                        {!doctorForm.data.use_clinic_default_fees && (
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                                <div>
-                                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                                        Doctor Fee (LKR)
-                                    </label>
-                                    <input
-                                        type="number"
-                                        step="50"
-                                        value={doctorForm.data.doctor_fee_lkr}
-                                        onChange={(e) => {
-                                            const docVal = parseFloat(e.target.value) || 0;
-                                            doctorForm.setData({
-                                                ...doctorForm.data,
-                                                doctor_fee_lkr: docVal,
-                                                total_fee_lkr: docVal + doctorForm.data.clinic_fee_lkr,
-                                            });
-                                        }}
-                                        className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-1.5 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-[#1E6FD9] outline-none"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                                        Clinic Fee (LKR)
-                                    </label>
-                                    <input
-                                        type="number"
-                                        step="50"
-                                        value={doctorForm.data.clinic_fee_lkr}
-                                        onChange={(e) => {
-                                            const clnVal = parseFloat(e.target.value) || 0;
-                                            doctorForm.setData({
-                                                ...doctorForm.data,
-                                                clinic_fee_lkr: clnVal,
-                                                total_fee_lkr: doctorForm.data.doctor_fee_lkr + clnVal,
-                                            });
-                                        }}
-                                        className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-1.5 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-[#1E6FD9] outline-none"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                                        Total Patient Fee (LKR)
-                                    </label>
-                                    <input
-                                        type="number"
-                                        readOnly
-                                        value={doctorForm.data.total_fee_lkr}
-                                        className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800 py-1.5 px-3 text-slate-600 dark:text-slate-400 font-bold"
-                                    />
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                            <div>
-                                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                                    Average Consultation Time (Minutes) *
-                                </label>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    max="120"
-                                    required
-                                    value={doctorForm.data.avg_consultation_minutes}
-                                    onChange={(e) => doctorForm.setData('avg_consultation_minutes', parseInt(e.target.value) || 15)}
-                                    className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 py-1.5 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-[#1E6FD9] outline-none"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                                    Link to Clinic Portal User
-                                </label>
-                                <GlassSelect
-                                    value={doctorForm.data.user_id ? String(doctorForm.data.user_id) : ''}
-                                    onChange={(e) => doctorForm.setData('user_id', e.target.value)}
-                                    placeholder="-- No Portal User Linked --"
-                                    options={[
-                                        { value: '', label: '-- No Portal User Linked --' },
-                                        ...eligibleUsers.map((u) => ({
-                                            value: String(u.id),
-                                            label: `${u.name} (${u.email})`,
-                                        })),
-                                    ]}
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Bio */}
-                    <div>
-                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                            Doctor Bio / Qualifications
-                        </label>
-                        <textarea
-                            rows={2}
-                            value={doctorForm.data.bio}
-                            onChange={(e) => doctorForm.setData('bio', e.target.value)}
-                            placeholder="e.g. MBBS (Colombo), MD (Cardiology), FRCP (UK) - Senior Consultant"
-                            className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-[#1E6FD9] outline-none"
-                        />
-                    </div>
-
-                    <div className="flex items-center gap-2 pt-2">
-                        <input
-                            type="checkbox"
-                            id="is_active_checkbox"
-                            checked={doctorForm.data.is_active}
-                            onChange={(e) => doctorForm.setData('is_active', e.target.checked)}
-                            className="rounded border-slate-300 text-[#1E6FD9] focus:ring-[#1E6FD9]"
-                        />
-                        <label htmlFor="is_active_checkbox" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                            Doctor is active and accepting channeled appointments
-                        </label>
-                    </div>
-
-                    <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-200 dark:border-white/10">
-                        <button
-                            type="button"
-                            onClick={() => setIsDoctorModalOpen(false)}
-                            className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-white/10"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={doctorForm.processing}
-                            className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#1E6FD9] hover:bg-blue-600 shadow-md shadow-blue-500/20 disabled:opacity-50 transition-all cursor-pointer"
-                        >
-                            {doctorForm.processing ? 'Saving...' : editingDoctor ? 'Update doctor' : 'Save doctor'}
-                        </button>
-                    </div>
-                </form>
-            </GlassModal>
+                editingDoctor={editingDoctor}
+                specialties={specialties}
+                eligibleUsers={eligibleUsers}
+                existingDoctors={doctors}
+                defaultClinicFeeLkr={feeSettings?.default_clinic_fee_lkr || 500}
+                onSuccess={(msg) => {
+                    if (msg) showToast(msg);
+                    router.reload({ only: ['doctors'] });
+                }}
+            />
 
             {/* 7. Create / Edit Weekly Template Modal */}
             <GlassModal
                 isOpen={isTemplateModalOpen}
                 onClose={() => setIsTemplateModalOpen(false)}
-                title={editingTemplate ? 'Edit Weekly Template' : 'Add Weekly Template'}
+                title={editingTemplate ? 'Edit weekly template' : 'Add weekly template'}
                 subtitle="Configure recurring session times, doctor, room, and patient token limit"
                 maxWidth="max-w-lg"
             >
                 <form onSubmit={handleTemplateSubmit} className="space-y-4">
                     <div>
-                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                            Doctor *
-                        </label>
-                        <GlassSelect
+                        <FormSelect
+                            label="Doctor"
+                            required
                             value={templateForm.data.doctor_id}
                             onChange={(e) => templateForm.setData('doctor_id', e.target.value)}
-                            placeholder="Select Doctor"
+                            placeholder="Select doctor..."
                             options={doctors.map((d) => ({
                                 value: d.id,
                                 label: `${d.full_title} (${d.specialty})`,
@@ -2231,27 +1991,22 @@ export default function DoctorsIndex({
                     </div>
 
                     <div>
-                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                            Template Title *
-                        </label>
-                        <input
-                            type="text"
+                        <FormTextInput
+                            label="Template title"
                             required
                             value={templateForm.data.title}
                             onChange={(e) => templateForm.setData('title', e.target.value)}
-                            placeholder="e.g. Evening Consultation"
-                            className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-[#1E6FD9] outline-none"
+                            placeholder="e.g. Evening consultation"
                         />
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                         <div>
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                Day of Week *
-                            </label>
-                            <GlassSelect
+                            <FormSelect
+                                label="Day of week"
+                                required
                                 value={templateForm.data.day_of_week}
-                                onChange={(e) => templateForm.setData('day_of_week', parseInt(e.target.value))}
+                                onChange={(e) => templateForm.setData('day_of_week', parseInt(e.target.value, 10))}
                                 options={WEEK_DAYS.map((d) => ({
                                     value: d.id,
                                     label: d.label,
@@ -2260,58 +2015,46 @@ export default function DoctorsIndex({
                         </div>
 
                         <div>
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                Start Time *
-                            </label>
-                            <input
+                            <FormTextInput
+                                label="Start time"
                                 type="time"
                                 required
                                 value={templateForm.data.start_time}
                                 onChange={(e) => templateForm.setData('start_time', e.target.value)}
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-[#1E6FD9] outline-none"
                             />
                         </div>
 
                         <div>
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                End Time *
-                            </label>
-                            <input
+                            <FormTextInput
+                                label="End time"
                                 type="time"
                                 required
                                 value={templateForm.data.end_time}
                                 onChange={(e) => templateForm.setData('end_time', e.target.value)}
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-[#1E6FD9] outline-none"
                             />
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                         <div>
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                Room / Suite
-                            </label>
-                            <input
-                                type="text"
+                            <FormTextInput
+                                label="Room / suite"
+                                optional
                                 value={templateForm.data.room_number}
                                 onChange={(e) => templateForm.setData('room_number', e.target.value)}
                                 placeholder="Suite 1"
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-[#1E6FD9] outline-none"
                             />
                         </div>
 
                         <div>
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                Max Patients / Tokens *
-                            </label>
-                            <input
+                            <FormTextInput
+                                label="Max patients / tokens"
                                 type="number"
                                 min="1"
                                 max="100"
                                 required
                                 value={templateForm.data.max_patients}
-                                onChange={(e) => templateForm.setData('max_patients', parseInt(e.target.value) || 20)}
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-[#1E6FD9] outline-none"
+                                onChange={(e) => templateForm.setData('max_patients', parseInt(e.target.value, 10) || 20)}
                             />
                         </div>
                     </div>
@@ -2339,19 +2082,18 @@ export default function DoctorsIndex({
             <GlassModal
                 isOpen={isOneOffModalOpen}
                 onClose={() => setIsOneOffModalOpen(false)}
-                title="Schedule One-Off Session"
+                title="Schedule one-off session"
                 subtitle="Create a single ad-hoc channeling session outside the regular weekly templates"
                 maxWidth="max-w-md"
             >
                 <form onSubmit={handleOneOffSubmit} className="space-y-4">
                     <div>
-                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                            Doctor *
-                        </label>
-                        <GlassSelect
+                        <FormSelect
+                            label="Doctor"
+                            required
                             value={oneOffForm.data.doctor_id}
                             onChange={(e) => oneOffForm.setData('doctor_id', e.target.value)}
-                            placeholder="Select Doctor"
+                            placeholder="Select doctor..."
                             options={doctors.map((d) => ({
                                 value: d.id,
                                 label: `${d.full_title} (${d.specialty})`,
@@ -2360,70 +2102,57 @@ export default function DoctorsIndex({
                     </div>
 
                     <div>
-                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                            Session Date *
-                        </label>
-                        <input
-                            type="date"
+                        <FormDateInput
+                            label="Session date"
                             required
+                            allowFutureDates={true}
+                            showAgeBadge={false}
                             value={oneOffForm.data.session_date}
-                            onChange={(e) => oneOffForm.setData('session_date', e.target.value)}
-                            className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-[#0E9E8F] outline-none"
+                            onChange={(iso) => oneOffForm.setData('session_date', iso)}
                         />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-3.5">
                         <div>
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                Start Time *
-                            </label>
-                            <input
+                            <FormTextInput
+                                label="Start time"
                                 type="time"
                                 required
                                 value={oneOffForm.data.start_time}
                                 onChange={(e) => oneOffForm.setData('start_time', e.target.value)}
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-[#0E9E8F] outline-none"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                End Time *
-                            </label>
-                            <input
+                            <FormTextInput
+                                label="End time"
                                 type="time"
                                 required
                                 value={oneOffForm.data.end_time}
                                 onChange={(e) => oneOffForm.setData('end_time', e.target.value)}
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-[#0E9E8F] outline-none"
                             />
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-3.5">
                         <div>
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                Room / Suite
-                            </label>
-                            <input
-                                type="text"
+                            <FormTextInput
+                                label="Room / suite"
+                                optional
                                 value={oneOffForm.data.room_number}
                                 onChange={(e) => oneOffForm.setData('room_number', e.target.value)}
                                 placeholder="Consultation Suite 1"
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-[#0E9E8F] outline-none"
                             />
                         </div>
+
                         <div>
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                Max Tokens *
-                            </label>
-                            <input
+                            <FormTextInput
+                                label="Max tokens"
                                 type="number"
                                 min="1"
                                 max="100"
                                 required
                                 value={oneOffForm.data.max_tokens}
-                                onChange={(e) => oneOffForm.setData('max_tokens', parseInt(e.target.value) || 20)}
-                                className="w-full text-xs rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 py-2 px-3 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-[#0E9E8F] outline-none"
+                                onChange={(e) => oneOffForm.setData('max_tokens', parseInt(e.target.value, 10) || 20)}
                             />
                         </div>
                     </div>

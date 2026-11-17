@@ -21,6 +21,7 @@ use App\Services\Templates\TemplateService;
 use App\Support\ClinicWebsite;
 use App\Support\HtmlSanitizer;
 use App\Support\SiteKit;
+use App\Support\SvgSanitizer;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -29,6 +30,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -615,9 +617,23 @@ class ClinicWebsiteController extends Controller
         $createdAssets = [];
 
         foreach ($uploadedFiles as $file) {
-            $extension = $file->getClientOriginalExtension();
+            $extension = strtolower($file->getClientOriginalExtension());
             $filename = Str::uuid()->toString().'.'.$extension;
-            $path = $file->storeAs("media/{$tenantId}", $filename, 'public');
+            $isSvg = $extension === 'svg' || str_contains(strtolower($file->getClientMimeType() ?: ''), 'svg');
+
+            if ($isSvg) {
+                $rawContent = file_get_contents($file->getRealPath());
+                $cleaned = SvgSanitizer::sanitize($rawContent);
+                if (! $cleaned) {
+                    throw ValidationException::withMessages([
+                        'file' => ['The uploaded SVG file is invalid or could not be verified as safe.'],
+                    ]);
+                }
+                $path = "media/{$tenantId}/{$filename}";
+                Storage::disk('public')->put($path, $cleaned);
+            } else {
+                $path = $file->storeAs("media/{$tenantId}", $filename, 'public');
+            }
             $url = Storage::disk('public')->url($path);
 
             $dimensions = null;
