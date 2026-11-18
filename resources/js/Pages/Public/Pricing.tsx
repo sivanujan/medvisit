@@ -160,7 +160,11 @@ export default function Pricing({ config = defaultPublicConfig, plans: propPlans
                 </h1>
 
                 <p className="mt-4 text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl mx-auto">
-                    MedVisit is a clinic management and patient token system for Sri Lankan clinics. Choose the plan that fits your clinic. All prices are in Sri Lankan Rupees (LKR), billed monthly per clinic.
+                    MedVisit is a clinic management and patient token system for Sri Lankan clinics. Choose the plan that fits your clinic. All prices are in Sri Lankan Rupees (LKR), billed monthly per clinic.{' '}
+                    <Link href="/features" className="text-primary hover:underline font-semibold inline-flex items-center gap-1">
+                        <span>See what each feature does</span>
+                        <ArrowRight className="w-3.5 h-3.5 inline" />
+                    </Link>
                 </p>
             </div>
 
@@ -367,8 +371,8 @@ export default function Pricing({ config = defaultPublicConfig, plans: propPlans
                         </p>
                         <p className="text-xs font-semibold text-primary dark:text-blue-400 pt-1 flex items-center gap-1.5 justify-center sm:justify-start">
                             <span>Contact us via WhatsApp:</span>
-                            <a href="https://wa.me/94701291688" target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80">
-                                070 129 1688
+                            <a href="https://wa.me/94755745341" target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80">
+                                075 574 5341
                             </a>
                             <span className="text-slate-400">·</span>
                             <a href="mailto:hello@medvisit.lk" className="underline hover:opacity-80">

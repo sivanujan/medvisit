@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ $seo['lang'] ?? str_replace('_', '-', app()->getLocale()) }}">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -18,6 +18,11 @@
         @if(!empty($seo['canonical']))
             <link rel="canonical" href="{{ $seo['canonical'] }}" head-key="canonical">
         @endif
+        @if(!empty($seo['hreflangs']))
+            @foreach($seo['hreflangs'] as $hLang => $hHref)
+                <link rel="alternate" hreflang="{{ $hLang }}" href="{{ $hHref }}" head-key="hreflang-{{ $hLang }}">
+            @endforeach
+        @endif
         @if(!empty($seo['robots']))
             <meta name="robots" content="{{ $seo['robots'] }}" head-key="robots">
         @endif
@@ -25,7 +30,7 @@
         {{-- Open Graph & Twitter Meta Tags --}}
         @if(!empty($seo))
             <meta property="og:site_name" content="MedVisit" head-key="og:site_name">
-            <meta property="og:locale" content="en_LK" head-key="og:locale">
+            <meta property="og:locale" content="{{ $seo['og_locale'] ?? 'en_LK' }}" head-key="og:locale">
             <meta property="og:type" content="{{ $seo['og_type'] ?? 'website' }}" head-key="og:type">
             <meta property="og:title" content="{{ $seo['og_title'] ?? $seo['title'] ?? $serverTitle }}" head-key="og:title">
             <meta property="og:description" content="{{ $seo['og_description'] ?? $seo['description'] ?? '' }}" head-key="og:description">

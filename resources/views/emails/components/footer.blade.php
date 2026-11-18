@@ -9,7 +9,9 @@
 
     $supportEmail = $platformSettings?->get('general.support_email', config('medvisit_public.business.support_email', 'support@medvisit.lk')) ?? 'support@medvisit.lk';
     $supportPhone = $platformSettings?->get('general.support_phone', config('medvisit_public.business.phone_display', '070 129 1688')) ?? '070 129 1688';
-    $supportWhatsApp = $platformSettings?->get('general.support_whatsapp', config('medvisit_public.business.phone_display', '070 129 1688')) ?? '070 129 1688';
+    $supportWhatsApp = $platformSettings?->get('general.support_whatsapp', config('medvisit.contact.whatsapp.display', config('medvisit_public.business.whatsapp_display', '075 574 5341'))) ?? '075 574 5341';
+    $supportWhatsAppRaw = preg_replace('/[^0-9]/', '', (string) $supportWhatsApp);
+    $supportWhatsAppDigits = str_starts_with($supportWhatsAppRaw, '94') ? $supportWhatsAppRaw : ('94' . ltrim($supportWhatsAppRaw, '0'));
 @endphp
 
 <table border="0" cellpadding="0" cellspacing="0" width="100%" role="presentation">
@@ -38,7 +40,7 @@
                     Help &amp; Support: 
                     <a href="mailto:{{ $supportEmail }}" style="color: #1E6FD9; text-decoration: none;">{{ $supportEmail }}</a>
                     @if (!empty($supportWhatsApp))
-                        · WhatsApp: <a href="https://wa.me/{{ preg_replace('/[^0-9]/', '', $supportWhatsApp) }}" target="_blank" style="color: #0E9E8F; text-decoration: none; font-weight: 500;">{{ $supportWhatsApp }}</a>
+                        · WhatsApp: <a href="https://wa.me/{{ $supportWhatsAppDigits }}" target="_blank" style="color: #0E9E8F; text-decoration: none; font-weight: 500;">{{ $supportWhatsApp }}</a>
                     @endif
                 </div>
 

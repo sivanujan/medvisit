@@ -77,7 +77,7 @@ export default function PublicHeader({ progressPercent }: Props) {
     const { props } = usePage<PageProps>();
     const user = props.auth?.user;
     const business = (props.publicConfig || defaultPublicConfig).business;
-    const whatsappUrl = business.whatsapp_url || 'https://wa.me/94701291688';
+    const whatsappUrl = business.whatsapp_url || 'https://wa.me/94755745341';
     const phoneDisplay = business.phone_display || '070 129 1688';
     const phoneHref = business.phone_raw ? `tel:${business.phone_raw}` : 'tel:+94701291688';
 
@@ -91,11 +91,13 @@ export default function PublicHeader({ progressPercent }: Props) {
           ? 'demo'
           : pathname === '/find' || pathname.startsWith('/clinics') || pathname.startsWith('/doctors')
             ? 'find'
-            : pathname === '/pricing'
-              ? 'pricing'
-              : onResourcePage
-                ? 'resources'
-                : null;
+            : pathname === '/features' || pathname.endsWith('/features')
+              ? 'features'
+              : pathname === '/pricing'
+                ? 'pricing'
+                : onResourcePage
+                  ? 'resources'
+                  : null;
 
     const anchor = (id: string) => (onLanding ? `#${id}` : `/#${id}`);
 
@@ -254,18 +256,16 @@ export default function PublicHeader({ progressPercent }: Props) {
                                     } as CSSProperties
                                 }
                             />
-                            {SECTIONS.map((s) => (
-                                <li key={s.id}>
-                                    <NavAnchor
-                                        href={anchor(s.id)}
-                                        data-nav={s.id}
-                                        aria-current={active === s.id ? 'location' : undefined}
-                                        className={itemClass(s.id)}
-                                    >
-                                        {s.label}
-                                    </NavAnchor>
-                                </li>
-                            ))}
+                            <li>
+                                <Link
+                                    href="/features"
+                                    data-nav="features"
+                                    aria-current={active === 'features' ? 'page' : undefined}
+                                    className={itemClass('features')}
+                                >
+                                    Features
+                                </Link>
+                            </li>
                             <li>
                                 <Link
                                     href="/find"
@@ -502,7 +502,7 @@ export default function PublicHeader({ progressPercent }: Props) {
                         <ul className="space-y-1">
                             {[
                                 { key: 'find' as NavKey, label: 'Find Care', href: '/find' },
-                                { key: 'features' as NavKey, label: 'Features', href: anchor('features') },
+                                { key: 'features' as NavKey, label: 'Features', href: '/features' },
                                 { key: 'pricing' as NavKey, label: 'Pricing', href: '/pricing' },
                                 { key: 'faq' as NavKey, label: 'FAQ', href: anchor('faq') },
                             ].map((item) => (

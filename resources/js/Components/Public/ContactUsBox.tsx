@@ -12,7 +12,7 @@ export default function ContactUsBox({ business = defaultPublicConfig.business, 
     const generalEmail = business.general_email || 'hello@medvisit.lk';
     const displayPhone = business.phone_display || '070 129 1688';
     const telHref = business.phone_raw ? `tel:${business.phone_raw}` : 'tel:+94701291688';
-    const whatsappUrl = business.whatsapp_url || 'https://wa.me/94701291688';
+    const whatsappUrl = business.whatsapp_url || 'https://wa.me/94755745341';
 
     return (
         <section

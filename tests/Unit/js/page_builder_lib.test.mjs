@@ -129,7 +129,7 @@ import { presetColors, applyPreset, parseColorVar, colorVar, nextCustomColorId, 
 
 test('presetColors mirrors the theme palettes and rejects unknown keys', () => {
   assert.deepEqual(presetColors('ocean-blue'), { primary: '#1E6FD9', secondary: '#0F172A', accent: '#F59E0B', text: '#334155' });
-  assert.equal(Object.keys(THEME_COLORS).length, 5);
+  assert.equal(Object.keys(THEME_COLORS).length, 6);
   assert.equal(presetColors('nope'), null);
 });
 

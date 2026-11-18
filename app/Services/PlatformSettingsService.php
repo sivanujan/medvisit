@@ -16,7 +16,7 @@ class PlatformSettingsService
         'general.platform_name' => 'MedVisit Platform',
         'general.support_email' => 'support@medvisit.lk',
         'general.support_phone' => '070 129 1688',
-        'general.support_whatsapp' => '070 129 1688',
+        'general.support_whatsapp' => '075 574 5341',
         // Signups
         'signups.open' => true,
         'signups.trial_days' => 30,

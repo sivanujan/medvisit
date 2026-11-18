@@ -6,6 +6,7 @@ use App\Http\Controllers\MediaServeController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicDemoController;
 use App\Http\Controllers\PublicDirectoryController;
+use App\Http\Controllers\PublicFeaturesController;
 use App\Http\Controllers\PublicLegalController;
 use App\Http\Controllers\PublicTemplateShowcaseController;
 use App\Http\Controllers\SuperAdmin\AdminUserController;
@@ -96,6 +97,9 @@ Route::domain('{central_domain}')
 
         // Public Pricing & Legal Pages (Payment Gateway Compliance & Merchant Review)
         Route::get('/pricing', [PublicLegalController::class, 'pricing'])->name('pricing');
+        Route::get('/features', [PublicFeaturesController::class, 'index'])->name('public.features');
+        Route::get('/ta/features', [PublicFeaturesController::class, 'tamil'])->name('public.features.ta');
+        Route::get('/si/features', [PublicFeaturesController::class, 'sinhala'])->name('public.features.si');
         Route::get('/templates', [PublicTemplateShowcaseController::class, 'index'])->name('templates.index');
         Route::get('/templates/{slug}/demo-preview', [PublicTemplateShowcaseController::class, 'demoPreview'])->name('templates.demo-preview');
         Route::get('/terms', [PublicLegalController::class, 'terms'])->name('terms');

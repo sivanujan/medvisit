@@ -364,6 +364,9 @@ class PublicDirectoryController extends Controller
         $staticPages = [
             '/find',
             '/pricing',
+            '/features',
+            '/ta/features',
+            '/si/features',
             '/terms',
             '/refund-policy',
             '/dispute-policy',

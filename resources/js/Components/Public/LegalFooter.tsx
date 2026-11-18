@@ -19,7 +19,7 @@ export default function LegalFooter({ className = '', isTenantContext = false }:
     const generalEmail = business.general_email || 'hello@medvisit.lk';
     const displayPhone = business.phone_display || '070 129 1688';
     const telHref = business.phone_raw ? `tel:${business.phone_raw}` : 'tel:+94701291688';
-    const whatsappUrl = business.whatsapp_url || 'https://wa.me/94701291688';
+    const whatsappUrl = business.whatsapp_url || 'https://wa.me/94755745341';
 
     // Detect if we're on a tenant subdomain
     const isTenant = isTenantContext || !!props.tenant?.subdomain;
@@ -87,6 +87,7 @@ export default function LegalFooter({ className = '', isTenantContext = false }:
                             Product
                         </h4>
                         <ul className="space-y-2">
+                            <li>{renderLink('Features', '/features')}</li>
                             <li>{renderLink('Pricing & Plans', '/pricing')}</li>
                             <li>
                                 <a
@@ -161,7 +162,7 @@ export default function LegalFooter({ className = '', isTenantContext = false }:
                                     className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-600/10 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-semibold hover:bg-emerald-600/20 transition-colors"
                                 >
                                     <MessageSquare className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                                    <span>WhatsApp: wa.me/94701291688</span>
+                                    <span>WhatsApp: wa.me/94755745341</span>
                                 </a>
                             </li>
                         </ul>

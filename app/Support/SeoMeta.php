@@ -29,6 +29,9 @@ class SeoMeta
         public string $twitterCard = 'summary_large_image',
         public ?string $robots = null,
         public array $jsonLd = [],
+        public ?string $lang = 'en',
+        public ?string $ogLocale = 'en_LK',
+        public array $hreflangs = [],
     ) {
         $this->ogTitle = $this->ogTitle ?: $this->title;
         $this->ogDescription = $this->ogDescription ?: $this->description;
@@ -282,6 +285,78 @@ class SeoMeta
             canonical: $canonical,
             ogType: 'website',
             ogImage: self::defaultOgImage(),
+        );
+    }
+
+    /**
+     * Features Page (/features, /ta/features, /si/features) SEO
+     */
+    public static function forFeatures(string $lang = 'en'): self
+    {
+        $normalizedLang = match ($lang) {
+            'ta' => 'ta',
+            'si' => 'si',
+            default => 'en',
+        };
+
+        $hreflangs = [
+            'en' => self::centralUrl('/features'),
+            'ta' => self::centralUrl('/ta/features'),
+            'si' => self::centralUrl('/si/features'),
+            'x-default' => self::centralUrl('/features'),
+        ];
+
+        $path = match ($normalizedLang) {
+            'ta' => '/ta/features',
+            'si' => '/si/features',
+            default => '/features',
+        };
+
+        $canonical = self::centralUrl($path);
+
+        $title = (string) trans('features.meta.title', [], $normalizedLang);
+        if ($title === 'features.meta.title') {
+            $title = match ($normalizedLang) {
+                'ta' => 'அம்சங்கள் — டோக்கன் முதல் பற்றுச்சீட்டு வரை உங்கள் கிளினிக்கிற்கு தேவையான அனைத்தும் | MedVisit',
+                'si' => 'විශේෂාංග — ටෝකන් පතේ සිට රිසිට්පත දක්වා ඔබේ සායනයට අවශ්‍ය සියල්ල | MedVisit',
+                default => 'Features — Everything Your Clinic Needs, From Token to Receipt | MedVisit',
+            };
+        }
+
+        $description = (string) trans('features.meta.description', [], $normalizedLang);
+        if ($description === 'features.meta.description') {
+            $description = match ($normalizedLang) {
+                'ta' => 'MedVisit மருத்துவமனை மென்பொருள்: நேரலை டோக்கன் வரிசை, TV அழைப்பு, மருத்துவர் நேர அட்டவணை, தமிழ்/சிங்களம்/ஆங்கில மருந்துச் சீட்டுகள், LKR கட்டண பற்றுச்சீட்டுகள் மற்றும் மருந்தகம்.',
+                'si' => 'MedVisit සායන කළමනාකරණ මෘදුකාංගය: සජීවී ටෝකන් පෝලිම, TV තිර ඇමතුම්, වෛද්‍ය කාලසටහන්, සිංහල/දෙමළ/ඉංග්‍රීසි බෙහෙත් වට්ටෝරු, LKR බිල්පත් සහ ඖෂධාල කළමනාකරණය.',
+                default => 'Explore MedVisit clinic software: live token queues, TV calling, doctor schedules, digital prescriptions in English/Tamil/Sinhala, billing receipts in LKR, and pharmacy dispensing.',
+            };
+        }
+
+        $ogLocale = match ($normalizedLang) {
+            'ta' => 'ta_LK',
+            'si' => 'si_LK',
+            default => 'en_LK',
+        };
+
+        $webPageSchema = [
+            '@context' => 'https://schema.org',
+            '@type' => 'WebPage',
+            'name' => $title,
+            'description' => $description,
+            'url' => $canonical,
+            'inLanguage' => $normalizedLang,
+        ];
+
+        return new self(
+            title: $title,
+            description: $description,
+            canonical: $canonical,
+            ogType: 'website',
+            ogImage: self::defaultOgImage(),
+            jsonLd: [$webPageSchema],
+            lang: $normalizedLang,
+            ogLocale: $ogLocale,
+            hreflangs: $hreflangs,
         );
     }
 
@@ -751,6 +826,9 @@ class SeoMeta
             'twitter_card' => $this->twitterCard,
             'robots' => $this->robots,
             'json_ld' => $this->jsonLd,
+            'lang' => $this->lang,
+            'og_locale' => $this->ogLocale,
+            'hreflangs' => $this->hreflangs,
         ];
     }
 

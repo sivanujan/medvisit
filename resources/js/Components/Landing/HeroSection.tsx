@@ -58,6 +58,13 @@ export default function HeroSection({ getStartedHref }: Props) {
                         >
                             View pricing
                         </Link>
+                        <span className="text-slate-300 dark:text-slate-700">·</span>
+                        <Link
+                            href="/features"
+                            className="inline-flex items-center text-sm font-semibold text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary-300 underline underline-offset-4 transition"
+                        >
+                            What it does
+                        </Link>
                     </div>
                     <p className="mt-5 text-sm text-[color:var(--lp-muted)]">
                         Monthly plans per clinic, billed in rupees.

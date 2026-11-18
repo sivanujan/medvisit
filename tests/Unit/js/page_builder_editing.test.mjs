@@ -290,8 +290,8 @@ test('block search matches category and needs every word', () => {
 import { whatsappHref, telHref, starsHtml, MORE_WIDGETS, moreWidgetHtml } from '../../../resources/js/Components/PageBuilder/lib/moreWidgets.ts';
 
 test('whatsappHref normalises Sri Lankan numbers and encodes the message', () => {
-    assert.equal(whatsappHref('070 129 1688', 'Hi, I want to book'), 'https://wa.me/94701291688?text=Hi%2C%20I%20want%20to%20book');
-    assert.equal(whatsappHref('+94 70 129 1688', ''), 'https://wa.me/94701291688');
+    assert.equal(whatsappHref('075 574 5341', 'Hi, I want to book'), 'https://wa.me/94755745341?text=Hi%2C%20I%20want%20to%20book');
+    assert.equal(whatsappHref('+94 75 574 5341', ''), 'https://wa.me/94755745341');
 });
 
 test('telHref builds an international tel: link', () => {

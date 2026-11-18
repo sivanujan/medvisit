@@ -285,7 +285,7 @@ class TenantSuspendedController extends Controller
                 'general_email' => $business['general_email'] ?? 'hello@medvisit.lk',
                 'phone' => $business['phone_display'] ?? '070 129 1688',
                 'phone_raw' => $business['phone_raw'] ?? '+94701291688',
-                'whatsapp_url' => $business['whatsapp_url'] ?? 'https://wa.me/94701291688',
+                'whatsapp_url' => $business['whatsapp_url'] ?? config('medvisit.contact.whatsapp.link', 'https://wa.me/94755745341'),
                 'support_hours' => $supportHours,
                 'is_online' => $supportChatService->isOnline(),
             ],

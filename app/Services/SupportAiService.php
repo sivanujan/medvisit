@@ -29,7 +29,7 @@ class SupportAiService
         // In demo sandbox, provide canned simulated support response without LLM calls
         if ($conversation->tenant_id && ($conversation->tenant_id === config('demo.tenant_id', 'demo') || $conversation->tenant?->is_demo)) {
             return [
-                'content' => '👋 You are testing the MedVisit public sandbox demo. AI and support assistance are simulated here. If you have any real questions or would like to schedule a personalized onboarding call, message us directly on WhatsApp at 070 129 1688 or visit medvisit.lk.',
+                'content' => '👋 You are testing the MedVisit public sandbox demo. AI and support assistance are simulated here. If you have any real questions or would like to schedule a personalized onboarding call, message us directly on WhatsApp at 075 574 5341 or visit medvisit.lk.',
                 'needs_handoff' => false,
                 'handoff_reason' => null,
             ];

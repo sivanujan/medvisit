@@ -7,6 +7,8 @@ return [
         'public' => [
             'home',
             'pricing',
+            'features*',
+            'public.features*',
             'directory.*',
             'find.*',
             'templates.*',

@@ -123,7 +123,7 @@ class DemoGuardsTest extends TestCase
         $reply = $aiService->generateReply($conversation);
 
         $this->assertStringContainsString('MedVisit public sandbox demo', $reply['content']);
-        $this->assertStringContainsString('070 129 1688', $reply['content']);
+        $this->assertStringContainsString('075 574 5341', $reply['content']);
         $this->assertFalse($reply['needs_handoff']);
     }
 

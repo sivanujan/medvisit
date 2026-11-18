@@ -234,8 +234,8 @@ return [
     */
     'custom_domain_service' => [
         'enabled' => true,
-        'contact_whatsapp' => '070 129 1688',
-        'contact_whatsapp_link' => 'https://wa.me/94701291688',
+        'contact_whatsapp' => '075 574 5341',
+        'contact_whatsapp_link' => 'https://wa.me/94755745341',
         'contact_email' => 'hello@medvisit.lk',
         'cname_target' => 'medvisit.lk',
     ],

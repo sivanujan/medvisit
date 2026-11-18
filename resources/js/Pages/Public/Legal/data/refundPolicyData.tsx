@@ -7,7 +7,7 @@ export const refundPolicyData: PolicyPageData = {
     title: 'Refund and Cancellation Policy',
     eyebrow: 'Merchant Policy',
     description: 'MedVisit Refund and Cancellation Policy for clinic subscriptions billed in LKR.',
-    lastUpdated: '28 October 2026',
+    lastUpdated: '17 November 2026',
     readingTime: '3 min read',
     tokenMotif: 'REF-02',
     keyPoints: [
@@ -150,6 +150,8 @@ export const refundPolicyData: PolicyPageData = {
                 const generalEmail = business.general_email || 'hello@medvisit.lk';
                 const displayPhone = business.phone_display || '070 129 1688';
                 const telHref = business.phone_raw ? `tel:${business.phone_raw}` : 'tel:+94701291688';
+                const whatsappDisplay = business.whatsapp_display || '075 574 5341';
+                const whatsappUrl = business.whatsapp_url || 'https://wa.me/94755745341';
 
                 return (
                     <p>
@@ -159,9 +161,13 @@ export const refundPolicyData: PolicyPageData = {
                         </a>. General enquiries: email{' '}
                         <a href={`mailto:${generalEmail}`} className="text-secondary font-medium underline">
                             {generalEmail}
-                        </a>. Call or WhatsApp{' '}
+                        </a>. Call{' '}
                         <a href={telHref} className="text-slate-800 dark:text-slate-200 font-medium">
                             {displayPhone}
+                        </a>{' '}
+                        or WhatsApp{' '}
+                        <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-600 dark:text-emerald-400 font-medium">
+                            {whatsappDisplay}
                         </a>.
                     </p>
                 );

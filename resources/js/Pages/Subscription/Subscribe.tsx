@@ -379,11 +379,10 @@ export default function Subscribe({
                                                 setClientError(null);
                                             }
                                         }}
-                                        className={`relative rounded-3xl p-5 sm:p-6 transition-all duration-300 cursor-pointer flex flex-col justify-between select-none ${
-                                            isSelected
-                                                ? 'bg-white/95 dark:bg-slate-900/90 border-2 border-primary shadow-xl shadow-primary/15 -translate-y-1'
-                                                : 'bg-white/70 dark:bg-slate-900/60 border border-slate-200/90 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 hover:bg-white/90 dark:hover:bg-slate-900/80 shadow-md'
-                                        }`}
+                                        className={`relative rounded-3xl p-5 sm:p-6 transition-all duration-300 cursor-pointer flex flex-col justify-between select-none ${isSelected
+                                            ? 'bg-white/95 dark:bg-slate-900/90 border-2 border-primary shadow-xl shadow-primary/15 -translate-y-1'
+                                            : 'bg-white/70 dark:bg-slate-900/60 border border-slate-200/90 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 hover:bg-white/90 dark:hover:bg-slate-900/80 shadow-md'
+                                            }`}
                                     >
                                         {/* Ribbon for Pro */}
                                         {plan.badge && (
@@ -399,11 +398,10 @@ export default function Subscribe({
                                                     {plan.name}
                                                 </h3>
                                                 <div
-                                                    className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                                                        isSelected
-                                                            ? 'bg-primary text-white scale-105 shadow-xs'
-                                                            : 'border-2 border-slate-300 dark:border-slate-700'
-                                                    }`}
+                                                    className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${isSelected
+                                                        ? 'bg-primary text-white scale-105 shadow-xs'
+                                                        : 'border-2 border-slate-300 dark:border-slate-700'
+                                                        }`}
                                                 >
                                                     {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                                                 </div>
@@ -432,11 +430,10 @@ export default function Subscribe({
 
                                         <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
                                             <span
-                                                className={`font-semibold ${
-                                                    isSelected
-                                                        ? 'text-primary'
-                                                        : 'text-slate-400 dark:text-slate-500'
-                                                }`}
+                                                className={`font-semibold ${isSelected
+                                                    ? 'text-primary'
+                                                    : 'text-slate-400 dark:text-slate-500'
+                                                    }`}
                                             >
                                                 {isSelected ? 'Selected plan' : 'Select plan'}
                                             </span>
@@ -480,12 +477,12 @@ export default function Subscribe({
                                 <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
                                     Available as a separate service with fully managed SSL and DNS. Contact us via WhatsApp{' '}
                                     <a
-                                        href="https://wa.me/94701291688"
+                                        href="https://wa.me/94755745341"
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="font-semibold text-teal-600 dark:text-teal-400 underline hover:opacity-80"
                                     >
-                                        070 129 1688
+                                        075 574 5341
                                     </a>{' '}
                                     or{' '}
                                     <a
@@ -700,13 +697,12 @@ export default function Subscribe({
                                     <button
                                         type="submit"
                                         disabled={isSubmitting || !termsAccepted}
-                                        className={`group relative w-full h-12 sm:h-12.5 px-6 rounded-xl font-semibold text-sm sm:text-base flex items-center justify-center gap-2.5 transition-all duration-200 ${
-                                            termsAccepted && !isSubmitting
-                                                ? appliedPromo && appliedPromo.final_amount_cents === 0
-                                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-[0_4px_16px_rgba(14,158,143,0.35)] cursor-pointer border border-emerald-500/50'
-                                                    : 'bg-primary hover:bg-primary-600 text-white shadow-[0_4px_16px_rgba(30,111,217,0.35),inset_0_1px_0_rgba(255,255,255,0.25)] hover:shadow-[0_6px_20px_rgba(30,111,217,0.45),inset_0_1px_0_rgba(255,255,255,0.3)] hover:-translate-y-0.5 active:translate-y-0 cursor-pointer border border-primary-500/50'
-                                                : 'bg-slate-100 dark:bg-slate-800/80 text-slate-400 dark:text-slate-500 cursor-not-allowed border border-slate-200/80 dark:border-slate-700/60 shadow-xs'
-                                        }`}
+                                        className={`group relative w-full h-12 sm:h-12.5 px-6 rounded-xl font-semibold text-sm sm:text-base flex items-center justify-center gap-2.5 transition-all duration-200 ${termsAccepted && !isSubmitting
+                                            ? appliedPromo && appliedPromo.final_amount_cents === 0
+                                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-[0_4px_16px_rgba(14,158,143,0.35)] cursor-pointer border border-emerald-500/50'
+                                                : 'bg-primary hover:bg-primary-600 text-white shadow-[0_4px_16px_rgba(30,111,217,0.35),inset_0_1px_0_rgba(255,255,255,0.25)] hover:shadow-[0_6px_20px_rgba(30,111,217,0.45),inset_0_1px_0_rgba(255,255,255,0.3)] hover:-translate-y-0.5 active:translate-y-0 cursor-pointer border border-primary-500/50'
+                                            : 'bg-slate-100 dark:bg-slate-800/80 text-slate-400 dark:text-slate-500 cursor-not-allowed border border-slate-200/80 dark:border-slate-700/60 shadow-xs'
+                                            }`}
                                     >
                                         {isSubmitting ? (
                                             <>

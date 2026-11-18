@@ -646,8 +646,8 @@ export default function BillingCenter({
                                                 (currentPlan?.period_start && currentPlan?.period_end
                                                     ? `${currentPlan.period_start} – ${currentPlan.period_end}`
                                                     : currentPlan?.period_end
-                                                    ? `Until ${currentPlan.period_end}`
-                                                    : 'Active')}
+                                                        ? `Until ${currentPlan.period_end}`
+                                                        : 'Active')}
                                         </strong>
                                     </span>
                                 </div>
@@ -725,9 +725,8 @@ export default function BillingCenter({
                                         </>
                                     ) : (
                                         <>
-                                            <span className={`text-2xl font-extrabold tracking-tight ${
-                                                isDueSoon ? 'text-[#FF7A59]' : isOverdue ? 'text-rose-500' : 'text-slate-900 dark:text-white'
-                                            }`}>
+                                            <span className={`text-2xl font-extrabold tracking-tight ${isDueSoon ? 'text-[#FF7A59]' : isOverdue ? 'text-rose-500' : 'text-slate-900 dark:text-white'
+                                                }`}>
                                                 {daysRemaining}
                                             </span>
                                             <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
@@ -836,8 +835,8 @@ export default function BillingCenter({
                                 </p>
                                 <p className="text-xs font-semibold text-[#1E6FD9] dark:text-[#3b82f6] mt-1.5 flex items-center gap-1.5">
                                     <span>Contact us via WhatsApp:</span>
-                                    <a href="https://wa.me/94701291688" target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80">
-                                        070 129 1688
+                                    <a href="https://wa.me/94755745341" target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80">
+                                        075 574 5341
                                     </a>
                                     <span className="text-slate-400">·</span>
                                     <a href="mailto:hello@medvisit.lk" className="underline hover:opacity-80">
@@ -1010,11 +1009,10 @@ export default function BillingCenter({
                             <button
                                 type="submit"
                                 disabled={!isBillingFormDirty || billingForm.processing}
-                                className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium text-xs transition shadow-sm ${
-                                    isBillingFormDirty && !billingForm.processing
-                                        ? 'bg-[#1E6FD9] hover:bg-[#1557b0] text-white cursor-pointer'
-                                        : 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-500 cursor-not-allowed opacity-60'
-                                }`}
+                                className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium text-xs transition shadow-sm ${isBillingFormDirty && !billingForm.processing
+                                    ? 'bg-[#1E6FD9] hover:bg-[#1557b0] text-white cursor-pointer'
+                                    : 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-500 cursor-not-allowed opacity-60'
+                                    }`}
                             >
                                 <Save className="w-4 h-4" />
                                 <span>{billingForm.processing ? 'Saving...' : 'Save'}</span>
@@ -1452,13 +1450,12 @@ export default function BillingCenter({
                                     className={`relative flex flex-col justify-between p-5 sm:p-6 rounded-2xl transition-all duration-200 select-none ${
                                         // Current plan first on mobile
                                         isCurrent ? 'order-first md:order-none' : ''
-                                    } ${
-                                        isCurrent
+                                        } ${isCurrent
                                             ? 'border-2 border-[#0E9E8F] dark:border-[#0E9E8F] bg-[#0E9E8F]/[0.03] dark:bg-[#0E9E8F]/[0.06] cursor-default'
                                             : isSelected
-                                            ? 'border-2 border-[#1E6FD9] dark:border-[#1E6FD9] ring-2 ring-[#1E6FD9]/30 bg-blue-50/50 dark:bg-blue-950/30 shadow-md cursor-pointer'
-                                            : 'border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-800/40 hover:-translate-y-1 hover:shadow-lg hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer'
-                                    }`}
+                                                ? 'border-2 border-[#1E6FD9] dark:border-[#1E6FD9] ring-2 ring-[#1E6FD9]/30 bg-blue-50/50 dark:bg-blue-950/30 shadow-md cursor-pointer'
+                                                : 'border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-800/40 hover:-translate-y-1 hover:shadow-lg hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer'
+                                        }`}
                                 >
                                     {/* Top Selected Badge */}
                                     {isSelected && !isCurrent && (
@@ -1529,11 +1526,10 @@ export default function BillingCenter({
                                                     e.stopPropagation();
                                                     setSelectedPlanId(p.id);
                                                 }}
-                                                className={`w-full py-2.5 px-4 rounded-xl text-xs font-semibold transition shadow-xs cursor-pointer ${
-                                                    isSelected
-                                                        ? 'bg-[#1E6FD9] text-white ring-2 ring-[#1E6FD9]/40'
-                                                        : 'bg-[#1E6FD9] hover:bg-[#1557b0] text-white'
-                                                }`}
+                                                className={`w-full py-2.5 px-4 rounded-xl text-xs font-semibold transition shadow-xs cursor-pointer ${isSelected
+                                                    ? 'bg-[#1E6FD9] text-white ring-2 ring-[#1E6FD9]/40'
+                                                    : 'bg-[#1E6FD9] hover:bg-[#1557b0] text-white'
+                                                    }`}
                                             >
                                                 Upgrade to {p.name}
                                             </button>
@@ -1544,11 +1540,10 @@ export default function BillingCenter({
                                                     e.stopPropagation();
                                                     setSelectedPlanId(p.id);
                                                 }}
-                                                className={`w-full py-2.5 px-4 rounded-xl text-xs font-semibold transition cursor-pointer border ${
-                                                    isSelected
-                                                        ? 'border-[#1E6FD9] text-[#1E6FD9] bg-blue-50/50 dark:bg-blue-950/40 ring-1 ring-[#1E6FD9]'
-                                                        : 'border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
-                                                }`}
+                                                className={`w-full py-2.5 px-4 rounded-xl text-xs font-semibold transition cursor-pointer border ${isSelected
+                                                    ? 'border-[#1E6FD9] text-[#1E6FD9] bg-blue-50/50 dark:bg-blue-950/40 ring-1 ring-[#1E6FD9]'
+                                                    : 'border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                                    }`}
                                             >
                                                 Switch to {p.name}
                                             </button>
@@ -1632,19 +1627,18 @@ export default function BillingCenter({
                             <button
                                 type="submit"
                                 disabled={!planChangeConsent || isSubmittingPlanChange}
-                                className={`px-5 py-2.5 rounded-xl font-semibold text-xs text-white transition shadow-sm cursor-pointer ${
-                                    planChangeConsent && !isSubmittingPlanChange
-                                        ? activeSelectedPlan.is_upgrade
-                                            ? 'bg-[#1E6FD9] hover:bg-[#1557b0]'
-                                            : 'bg-[#0E9E8F] hover:bg-[#0b8074]'
-                                        : 'bg-slate-400 dark:bg-slate-700 cursor-not-allowed opacity-50'
-                                }`}
+                                className={`px-5 py-2.5 rounded-xl font-semibold text-xs text-white transition shadow-sm cursor-pointer ${planChangeConsent && !isSubmittingPlanChange
+                                    ? activeSelectedPlan.is_upgrade
+                                        ? 'bg-[#1E6FD9] hover:bg-[#1557b0]'
+                                        : 'bg-[#0E9E8F] hover:bg-[#0b8074]'
+                                    : 'bg-slate-400 dark:bg-slate-700 cursor-not-allowed opacity-50'
+                                    }`}
                             >
                                 {isSubmittingPlanChange
                                     ? 'Processing...'
                                     : activeSelectedPlan.is_upgrade
-                                    ? `Continue to payment — ${activeSelectedPlan.formatted_price}`
-                                    : `Schedule switch to ${activeSelectedPlan.name}`}
+                                        ? `Continue to payment — ${activeSelectedPlan.formatted_price}`
+                                        : `Schedule switch to ${activeSelectedPlan.name}`}
                             </button>
                         ) : null}
                     </div>
@@ -1847,15 +1841,14 @@ export default function BillingCenter({
 
                     {/* Live Eligibility Preview Card */}
                     {eligibilityPreview && (
-                        <div className={`p-3.5 rounded-xl border text-xs transition ${
-                            eligibilityPreview.loading
-                                ? 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 text-slate-500'
-                                : eligibilityPreview.eligible
+                        <div className={`p-3.5 rounded-xl border text-xs transition ${eligibilityPreview.loading
+                            ? 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 text-slate-500'
+                            : eligibilityPreview.eligible
                                 ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
                                 : eligibilityPreview.requires_manual_review
-                                ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200'
-                                : 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-200'
-                        }`}>
+                                    ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200'
+                                    : 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-200'
+                            }`}>
                             {eligibilityPreview.loading ? (
                                 <div className="flex items-center gap-2">
                                     <Clock className="w-4 h-4 animate-spin text-[#1E6FD9]" />
@@ -1876,8 +1869,8 @@ export default function BillingCenter({
                                                 {eligibilityPreview.eligible
                                                     ? 'Eligible under Refund Policy'
                                                     : eligibilityPreview.requires_manual_review
-                                                    ? 'Requires Administrator Review'
-                                                    : 'Not Eligible Under Standard Policy'}
+                                                        ? 'Requires Administrator Review'
+                                                        : 'Not Eligible Under Standard Policy'}
                                             </span>
                                         </div>
                                         {eligibilityPreview.eligible_amount_cents > 0 && (
@@ -1952,11 +1945,10 @@ export default function BillingCenter({
                         <button
                             type="submit"
                             disabled={!refundForm.data.acknowledged_policy || refundForm.data.reason_details.length < 10 || refundForm.processing}
-                            className={`px-5 py-2.5 rounded-xl font-semibold text-xs text-white transition shadow-sm ${
-                                refundForm.data.acknowledged_policy && refundForm.data.reason_details.length >= 10 && !refundForm.processing
-                                    ? 'bg-[#1E6FD9] hover:bg-[#1557b0] cursor-pointer'
-                                    : 'bg-slate-400 dark:bg-slate-700 cursor-not-allowed opacity-60'
-                            }`}
+                            className={`px-5 py-2.5 rounded-xl font-semibold text-xs text-white transition shadow-sm ${refundForm.data.acknowledged_policy && refundForm.data.reason_details.length >= 10 && !refundForm.processing
+                                ? 'bg-[#1E6FD9] hover:bg-[#1557b0] cursor-pointer'
+                                : 'bg-slate-400 dark:bg-slate-700 cursor-not-allowed opacity-60'
+                                }`}
                         >
                             {refundForm.processing ? 'Submitting...' : 'Submit refund request'}
                         </button>
@@ -2026,18 +2018,16 @@ export default function BillingCenter({
                                     <div
                                         key={pack.id}
                                         onClick={() => setSelectedSmsPack(pack.id as any)}
-                                        className={`p-4 rounded-2xl border transition cursor-pointer flex items-center justify-between ${
-                                            isSelected
-                                                ? 'bg-[#1E6FD9]/10 border-[#1E6FD9] ring-2 ring-[#1E6FD9]/30'
-                                                : 'bg-slate-50/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-                                        }`}
+                                        className={`p-4 rounded-2xl border transition cursor-pointer flex items-center justify-between ${isSelected
+                                            ? 'bg-[#1E6FD9]/10 border-[#1E6FD9] ring-2 ring-[#1E6FD9]/30'
+                                            : 'bg-slate-50/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                                            }`}
                                     >
                                         <div className="flex items-center gap-3">
-                                            <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                                                isSelected
-                                                    ? 'border-[#1E6FD9] bg-[#1E6FD9]'
-                                                    : 'border-slate-400 dark:border-slate-600'
-                                            }`}>
+                                            <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${isSelected
+                                                ? 'border-[#1E6FD9] bg-[#1E6FD9]'
+                                                : 'border-slate-400 dark:border-slate-600'
+                                                }`}>
                                                 {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                                             </div>
                                             <div>

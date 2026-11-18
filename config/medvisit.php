@@ -20,6 +20,24 @@ return [
         ],
     ],
 
+    // Contact numbers (Single source of truth)
+    'contact' => [
+        'whatsapp' => [
+            'number' => env('MEDVISIT_WHATSAPP_NUMBER', '0755745341'),
+            'display' => '075 574 5341',
+            'e164' => '+94755745341',
+            'raw' => '94755745341',
+            'link' => 'https://wa.me/94755745341',
+        ],
+        'phone' => [
+            'number' => env('MEDVISIT_PHONE_NUMBER', '0701291688'),
+            'display' => '070 129 1688',
+            'e164' => '+94 70 129 1688',
+            'raw' => '+94701291688',
+            'link' => 'tel:+94701291688',
+        ],
+    ],
+
     // Prelaunch redirect mode: when true, homepage is excluded from sitemap and redirects to /coming
     'prelaunch_mode' => (bool) env('PRELAUNCH_MODE', false),
 

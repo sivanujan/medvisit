@@ -14,15 +14,15 @@ return [
     |
     */
     'versions' => [
-        'terms' => '2026-10-28',
-        'privacy' => '2026-10-27',
-        'refund' => '2026-10-28',
-        'dispute' => '2026-10-21',
+        'terms' => '2026-11-17',
+        'privacy' => '2026-11-17',
+        'refund' => '2026-11-17',
+        'dispute' => '2026-11-17',
     ],
 
     // Top-level aliases for direct access
-    'terms_version' => '2026-10-28',
-    'privacy_version' => '2026-10-27',
-    'refund_version' => '2026-10-28',
-    'dispute_version' => '2026-10-21',
+    'terms_version' => '2026-11-17',
+    'privacy_version' => '2026-11-17',
+    'refund_version' => '2026-11-17',
+    'dispute_version' => '2026-11-17',
 ];

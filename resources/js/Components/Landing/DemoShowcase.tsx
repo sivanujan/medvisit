@@ -478,7 +478,7 @@ export default function DemoShowcase({ turnstileSiteKey }: DemoShowcaseProps) {
                                 </p>
                                 <div className="pt-2">
                                     <a
-                                        href="https://wa.me/94701291688"
+                                        href="https://wa.me/94755745341"
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 transition"
@@ -582,13 +582,13 @@ export default function DemoShowcase({ turnstileSiteKey }: DemoShowcaseProps) {
 
                                 <div className="text-center pt-2">
                                     <a
-                                        href="https://wa.me/94701291688"
+                                        href="https://wa.me/94755745341"
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="text-xs text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 font-semibold inline-flex items-center gap-1 transition"
                                     >
                                         <MessageCircle className="w-3.5 h-3.5 text-emerald-500" />
-                                        <span>Chat on WhatsApp instead (070 129 1688)</span>
+                                        <span>Chat on WhatsApp instead (075 574 5341)</span>
                                     </a>
                                 </div>
                             </form>
