@@ -1,0 +1,140 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Test & Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: medvisit_test
+          POSTGRES_USER: medvisit_ci
+          POSTGRES_PASSWORD: ci_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: medvisit_test
+      DB_USERNAME: medvisit_ci
+      DB_PASSWORD: ci_password
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
+      CHROME_PATH: /usr/bin/google-chrome
+      LARAVEL_PDF_CHROME_PATH: /usr/bin/google-chrome
+      BROWSERSHOT_TIMEOUT: 90
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup PHP 8.5
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_pgsql, pgsql, redis, intl, gd, imagick, mbstring, bcmath, zip, exif, pcntl
+          coverage: none
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v6
+        with:
+          path: ~/.composer/cache
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v6
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-npm-
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build frontend assets (TypeScript check & Vite build)
+        run: npm run build
+
+      - name: Initialize CI environment configuration
+        run: cp .env.ci .env
+
+      - name: Generate application key
+        run: php artisan key:generate --force
+
+      - name: Run database migrations
+        run: php artisan migrate --force
+
+      - name: Install system fonts and dependencies for Chromium PDF rendering
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-liberation fonts-noto-core fonts-noto-color-emoji fonts-lklug-sinhala fonts-indic
+
+      - name: Verify Google Chrome installation
+        run: |
+          google-chrome --version
+          google-chrome --headless --no-sandbox --disable-dev-shm-usage --dump-dom about:blank
+
+      - name: Run main test suite (excluding Chromium PDF tests)
+        run: php artisan test --exclude-group=chromium
+
+      - name: Run Chromium PDF tests (with automatic retry)
+        run: php artisan test --group=chromium || php artisan test --group=chromium
+
+      - name: Verify code style with Laravel Pint
+        run: vendor/bin/pint --test
+
+      - name: Security audit (Composer)
+        run: |
+          composer audit --format=json > composer-audit.json || true
+          php .github/scripts/check-composer-audit.php composer-audit.json
+
+      - name: Security audit (npm)
+        run: npm audit --audit-level=high || true
+
+      - name: Upload error logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: laravel-logs
+          path: storage/logs/*.log
+          if-no-files-found: ignore

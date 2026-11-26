@@ -1,0 +1,99 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force deploy even if CI gate check cannot be verified (--force)'
+        required: false
+        default: 'false'
+        type: boolean
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Production Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # HARD-DISABLED by default for safety until repository secrets and server keys are configured.
+    # To enable: Change 'if: false' to 'if: true' below.
+    if: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Verify CI passed for target commit
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMIT_SHA: ${{ github.sha }}
+          FORCE_DEPLOY: ${{ inputs.force }}
+        run: |
+          if [ "$FORCE_DEPLOY" = "true" ]; then
+            echo "⚠️ Force deployment requested. Skipping CI check."
+            exit 0
+          fi
+
+          echo "Verifying CI workflow status for commit $COMMIT_SHA..."
+          
+          # Query GitHub API for workflow runs on this commit
+          STATUS=$(gh api -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/actions/runs?head_sha=${COMMIT_SHA}&event=push" \
+            --jq '.workflow_runs[] | select(.name=="CI") | .conclusion' | head -n 1)
+
+          if [ -z "$STATUS" ]; then
+            # Check pull_request event runs if push run not found
+            STATUS=$(gh api -H "Accept: application/vnd.github+json" \
+              "/repos/${{ github.repository }}/actions/runs?head_sha=${COMMIT_SHA}" \
+              --jq '.workflow_runs[] | select(.name=="CI") | .conclusion' | head -n 1)
+          fi
+
+          echo "Latest CI status: ${STATUS:-not found}"
+
+          if [ "$STATUS" != "success" ]; then
+            echo "❌ Deployment rejected: The 'CI' workflow has not succeeded for commit $COMMIT_SHA (status: '$STATUS')."
+            echo "Please ensure CI passes or dispatch with force=true if emergency deployment is necessary."
+            exit 1
+          fi
+
+          echo "✅ CI check verified: commit $COMMIT_SHA passed CI."
+
+      - name: Configure SSH key and execute deployment
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          FORCE_FLAG: ${{ inputs.force == true && '--force' || '' }}
+        run: |
+          if [ -z "$SSH_PRIVATE_KEY" ] || [ -z "$DEPLOY_HOST" ] || [ -z "$DEPLOY_USER" ]; then
+            echo "❌ Missing deployment secrets (DEPLOY_SSH_KEY, DEPLOY_HOST, or DEPLOY_USER)."
+            echo "Please configure these in GitHub Repository Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          # Set up known_hosts to prevent MITM attacks
+          if [ -n "$DEPLOY_KNOWN_HOSTS" ]; then
+            echo "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+            chmod 644 ~/.ssh/known_hosts
+          else
+            ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+
+          # Load private SSH key
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+
+          echo "🚀 Triggering deploy.sh on $DEPLOY_HOST as $DEPLOY_USER..."
+          ssh -i ~/.ssh/id_deploy \
+            -o BatchMode=yes \
+            -o ConnectTimeout=15 \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" "/var/www/medvisit/deploy.sh ${FORCE_FLAG}"
+
+          echo "✅ Remote deployment completed successfully."

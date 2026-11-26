@@ -287,5 +287,238 @@ sudo nginx -t && sudo systemctl reload nginx && sudo systemctl restart php8.5-fp
 - **WebSocket Gateway**: Reverb active and listening on port 8080 with Nginx proxy.
 - **Chromium PDF Service**: Spatie Browsershot verified generating PDFs in headless Google Chrome 156 under user `www-data` with `--no-sandbox`.
 
+---
+
+## 8. CI Pipeline, Deployment Tooling & Rollback Guide
+
+### 8.1 Continuous Integration (GitHub Actions)
+
+The CI pipeline runs automatically on all branches and pull requests to `main`. It runs on `ubuntu-latest` with a 30-minute safety timeout and concurrency cancellation for older commits on the same branch.
+
+- **Workflow File**: `.github/workflows/ci.yml`
+- **Services Spun Up**:
+  - **PostgreSQL 18** (`postgres:18-alpine`): Creates test database `medvisit_test` with health checks (`pg_isready`).
+  - **Redis 8** (`redis:8-alpine`): Health checked via `redis-cli ping`.
+- **Environment**: Initialized from committed `.env.ci` containing safe dummy credentials, faked communication/payment gateways, testing Turnstile keys, and feature flags disabled.
+- **Checks Enforced**:
+  1. **PHP 8.5 setup** with extensions: `pdo_pgsql`, `pgsql`, `redis`, `intl`, `gd`, `imagick`, `mbstring`, `bcmath`, `zip`, `exif`, `pcntl`.
+  2. **Dependency caching**: Composer (`~/.composer/cache`) and npm (`~/.npm`).
+  3. **Node 22 LTS**: Installs dependencies via `npm ci`.
+  4. **TypeScript & Frontend Bundle Check**: Runs `npm run build` (`tsc && vite build`). Fails on any TypeScript compile errors.
+  5. **Database Migrations**: Runs `php artisan migrate --force` against the live PostgreSQL 18 test container (including `pg_trgm`).
+  6. **Automated Test Suite**: Executes `php artisan test` across all feature and unit tests (815 tests, zero network dependencies, faked external services).
+  7. **Chromium PDF Generation**: HarfBuzz Unicode text extraction tests (`UnicodePdfRenderQaTest`) run in CI using Google Chrome and system Indic/Sinhala/Tamil fonts (`fonts-noto-core`, `fonts-lklug-sinhala`, `fonts-indic`). The test is marked with `#[Group('chromium')]`.
+  8. **Code Style Verification**: `vendor/bin/pint --test` ensures adherence to Laravel coding standards.
+  9. **Security Audits**:
+     - `composer audit`: Fails the build if any advisory with severity **high** or **critical** is detected.
+     - `npm audit --audit-level=high`: Reports high/critical JavaScript package advisories without breaking the build.
+  10. **Error Log Capture**: If any test fails, `storage/logs/*.log` is uploaded as an artifact for instant diagnosis.
+
+### 8.2 Reading a Failed CI Run
+
+If a pull request check fails:
+1. Click **Details** next to the red cross on GitHub to view the CI run.
+2. Locate the failed step:
+   - **`Build frontend assets`**: Look for TypeScript compiler errors or Vite build failures.
+   - **`Run test suite`**: Click on the failed test output to see the assertion difference and stack trace.
+   - **`Verify code style with Laravel Pint`**: Run `vendor/bin/pint` locally to auto-fix formatting, then commit.
+   - **`Security audit (Composer)`**: A high or critical CVE advisory was reported for an installed package. Run `composer update <vendor/package>` to patch the package.
+3. Download the **`laravel-logs`** artifact from the run summary page if an uncaught server exception occurred.
+
+### 8.3 Feature Branch & Release Workflow
+
+```
+[Local Feature Branch]  -->  Push to origin/feature-xxx
+                                    |
+                                    v
+                            [Open PR to main]
+                                    |
+                                    v
+                           [GitHub Actions CI] (Green)
+                                    |
+                                    v
+                        [Merge PR into main]
+                                    |
+                                    v
+                     [Production Deploy via deploy.sh]
+```
+
+1. Create a branch: `git checkout -b feature/my-feature`
+2. Make changes, run `vendor/bin/pint --dirty --format agent`, and verify tests pass.
+3. Push: `git push -u origin feature/my-feature`
+4. Open a pull request against `main`.
+5. Wait for the **CI** workflow to pass (green checkmark).
+6. Merge the PR.
+7. Deploy on the production server (or dispatch the deploy workflow once enabled).
+
+### 8.4 One-Time Server Setup for Safer Deployments
+
+Run these configuration steps once on `medvisit-prod` (`62.171.156.211`):
+
+#### 1. Create the Database Backup Directory
+```bash
+sudo mkdir -p /var/backups/medvisit
+sudo chown -R deploy:deploy /var/backups/medvisit
+sudo chmod 750 /var/backups/medvisit
+```
+
+#### 2. Configure Sudoers Permissions for the `deploy` User
+To allow the `deploy` user to restart supervisor workers and refresh storage/cache permissions without interactive password prompts, configure `/etc/sudoers.d/deploy`:
+
+```bash
+sudo visudo -f /etc/sudoers.d/deploy
+```
+Add the following line (preserving any existing sudo permissions):
+```sudoers
+deploy ALL=(ALL) NOPASSWD: /usr/bin/supervisorctl restart medvisit-worker-default\:* medvisit-worker-pdfs\:* medvisit-reverb, /bin/chown -R deploy\:www-data /var/www/medvisit/storage /var/www/medvisit/bootstrap/cache, /bin/chmod -R ug+rwX /var/www/medvisit/storage /var/www/medvisit/bootstrap/cache
+```
+Then verify permissions on the sudoers file:
+```bash
+sudo chmod 440 /etc/sudoers.d/deploy
+```
+
+#### 3. Configure Deployment Keys in `.env` (Use `nano`, never `echo`)
+> [!IMPORTANT]
+> Never use `echo "SECRET" >> .env` as it leaves sensitive secrets in your bash shell history (`~/.bash_history`). Always edit `.env` interactively using `nano`.
+
+Generate a maintenance bypass secret:
+```bash
+openssl rand -hex 16
+```
+Copy the generated secret, open `.env`:
+```bash
+nano /var/www/medvisit/.env
+```
+Add the deployment variables:
+```ini
+# Deployment & Maintenance Configuration
+DEPLOY_MAINTENANCE_SECRET=your_generated_32_character_secret_here
+
+# Optional: GitHub Actions CI verification token
+# Fine-grained PAT: Repository "sivanujan/medvisit", Permission: "Actions: Read-only"
+GITHUB_CI_CHECK_TOKEN=github_pat_xxxx
+
+# Optional: Dedicated clinic subdomain for post-deploy smoke checks
+SMOKE_TEST_SUBDOMAIN=cityhealth.medvisit.lk
+```
+Save and exit (`Ctrl+O`, `Enter`, `Ctrl+X`), then verify file permissions:
+```bash
+chmod 640 /var/www/medvisit/.env
+```
+
+### 8.5 Required GitHub Repository Settings (Branch Protection for Solo Developers)
+
+To ensure code stability on production while keeping the workflow agile for a single developer:
+
+1. Navigate to: **GitHub Repo $\rightarrow$ Settings $\rightarrow$ Branches** (or **Rulesets**).
+2. Add a branch protection rule for pattern: `main`
+3. Configure the following settings:
+   - **Require a pull request before merging**: Checked.
+     - **Required approvals**: **`0`** (Allows merging your own PRs once status checks pass, without requiring a second reviewer).
+   - **Require status checks to pass before merging**: Checked.
+     - **Status check name**: **`Test & Build`** (from `ci.yml`).
+     - **Require branches to be up to date before merging**: Checked.
+   - **Do not allow force pushes**: Checked (Blocks destructive history overwrites on `main`).
+   - **Do not allow deletions**: Checked (Protects the `main` branch from accidental deletion).
+4. Save changes.
+
+### 8.6 Deployment Architecture & Safety Mechanisms
+
+The deployment script (`deploy.sh`) incorporates several defense-in-depth safety layers:
+
+1. **Pre-Update Maintenance Timing**:
+   The script inspects pending changes *before* touching application code:
+   `git diff --name-only "$PREV_COMMIT" "$TARGET_COMMIT" -- database/migrations`
+   - If migrations exist: The application is immediately put into maintenance mode (`php artisan down --secret="..." --render="errors::503"`) *before* code, composer, or npm updates occur. It is only brought back up after migrations and caches are primed.
+   - If no migrations exist: Deployment proceeds with **zero downtime** (maintenance mode is never activated).
+2. **Atomic Frontend Asset Swap**:
+   Assets are built into a temporary staging directory (`public/build_tmp_$$`) via `npx vite build --outDir`. Once compilation succeeds, Linux's atomic `rename()` (`mv`) swaps the directory into `public/build` instantaneously. Users never encounter broken chunks or mismatched `manifest.json` files while assets are compiling.
+3. **Automated Pre-Deploy Snapshots**:
+   Before updating code, a full compressed snapshot (`pg_dump | gzip -9`) is saved to `/var/backups/medvisit/pre-deploy-YYYYmmdd-HHMMSS-<sha>.sql.gz`. The script automatically rotates snapshots to retain the 5 most recent backups.
+4. **Non-Fatal Permission Refreshes**:
+   Only `storage` and `bootstrap/cache` permissions are updated via `sudo -n`. If sudo privileges are absent, the script issues a warning and proceeds without breaking deployments.
+
+### 8.7 Manual Deploy Button (`.github/workflows/deploy.yml`)
+
+A workflow dispatch button is included in `.github/workflows/deploy.yml` to trigger deployments from GitHub.
+
+**By default, it is hard-disabled (`if: false`)** to prevent accidental runs until credentials are added.
+
+#### To Enable the Deploy Button:
+
+1. **Create a dedicated restricted SSH key on the server**:
+   ```bash
+   ssh-keygen -t ed25519 -f ~/.ssh/github_deploy -C "github-actions-deploy"
+   ```
+2. **Restrict the key in `/home/deploy/.ssh/authorized_keys`**:
+   Prepend forced command options so this key can ONLY execute `deploy.sh`:
+   ```
+   command="/var/www/medvisit/deploy.sh",no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty ssh-ed25519 AAAA... github-actions-deploy
+   ```
+3. **Add Secrets in GitHub** (**Settings $\rightarrow$ Secrets and variables $\rightarrow$ Actions**):
+   - `DEPLOY_HOST`: `62.171.156.211`
+   - `DEPLOY_USER`: `deploy`
+   - `DEPLOY_SSH_KEY`: The private key contents (`~/.ssh/github_deploy`)
+   - `DEPLOY_KNOWN_HOSTS`: Output of `ssh-keyscan -H 62.171.156.211`
+4. **Enable the job**:
+   In `.github/workflows/deploy.yml`, change `if: false` to `if: true`.
+5. Now you can click **Actions $\rightarrow$ Deploy $\rightarrow$ Run workflow** to deploy the current `main` branch. It will verify that the commit passed CI before logging into the server.
+
+### 8.8 Rollback Procedures
+
+If an issue occurs after a deployment:
+
+#### Scenario A: The deployment script `deploy.sh` failed mid-run
+The script automatically traps any error, deactivates maintenance mode (`php artisan up`), cleans up temporary build folders, prints the exact git rollback command with the previous commit SHA, and leaves the pre-deploy database snapshot untouched.
+
+#### Scenario B: Manual code rollback
+To roll back code to the previous working commit:
+```bash
+cd /var/www/medvisit
+
+# 1. Reset code to previous commit
+git reset --hard <PREVIOUS_COMMIT_SHA>
+
+# 2. Re-install matching production dependencies & rebuild frontend
+composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
+npm ci --prefer-offline --no-audit
+npm run build
+
+# 3. Refresh and warm framework caches
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+php artisan event:cache
+
+# 4. Restart supervisor workers
+sudo supervisorctl restart medvisit-worker-default:* medvisit-worker-pdfs:* medvisit-reverb
+```
+
+#### Scenario C: Restoring the pre-deploy database backup (Only if migrations corrupted data)
+> [!CAUTION]
+> Restoring a database backup replaces all data in the database with the pre-deploy state. Only execute this if migrations introduced data corruption or broke schema compatibility. Do NOT restore blindly if real patients, tokens, or payments were recorded during the deployment window.
+
+```bash
+# 1. Stop background workers to prevent database writes
+sudo supervisorctl stop medvisit-worker-default:* medvisit-worker-pdfs:* medvisit-reverb
+
+# 2. Put the application into maintenance mode
+php artisan down --render="errors::503"
+
+# 3. Terminate active PostgreSQL connections, drop and recreate the database
+sudo -u postgres psql -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'medvisit' AND pid <> pg_backend_pid();"
+sudo -u postgres dropdb medvisit
+sudo -u postgres createdb -O medvisit medvisit
+sudo -u postgres psql -d medvisit -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
+
+# 4. Restore the pre-deploy snapshot (enter DB password when prompted)
+gunzip -c /var/backups/medvisit/pre-deploy-YYYYmmdd-HHMMSS-<target_sha>.sql.gz | psql -h 127.0.0.1 -p 5432 -U medvisit -d medvisit -W
+
+# 5. Bring application back online and restart background workers
+php artisan up
+sudo supervisorctl start medvisit-worker-default:* medvisit-worker-pdfs:* medvisit-reverb
+```
+
+
 
 
