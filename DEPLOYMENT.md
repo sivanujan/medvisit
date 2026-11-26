@@ -287,5 +287,177 @@ sudo nginx -t && sudo systemctl reload nginx && sudo systemctl restart php8.5-fp
 - **WebSocket Gateway**: Reverb active and listening on port 8080 with Nginx proxy.
 - **Chromium PDF Service**: Spatie Browsershot verified generating PDFs in headless Google Chrome 156 under user `www-data` with `--no-sandbox`.
 
+---
+
+## 8. CI Pipeline, Deployment Tooling & Rollback Guide
+
+### 8.1 Continuous Integration (GitHub Actions)
+
+The CI pipeline runs automatically on all branches and pull requests to `main`. It runs on `ubuntu-latest` with a 30-minute safety timeout and concurrency cancellation for older commits on the same branch.
+
+- **Workflow File**: `.github/workflows/ci.yml`
+- **Services Spun Up**:
+  - **PostgreSQL 18** (`postgres:18-alpine`): Creates test database `medvisit_test` with health checks (`pg_isready`).
+  - **Redis 8** (`redis:8-alpine`): Health checked via `redis-cli ping`.
+- **Environment**: Initialized from committed `.env.ci` containing safe dummy credentials, faked communication/payment gateways, testing Turnstile keys, and feature flags disabled.
+- **Checks Enforced**:
+  1. **PHP 8.5 setup** with extensions: `pdo_pgsql`, `pgsql`, `redis`, `intl`, `gd`, `imagick`, `mbstring`, `bcmath`, `zip`, `exif`, `pcntl`.
+  2. **Dependency caching**: Composer (`~/.composer/cache`) and npm (`~/.npm`).
+  3. **Node 22 LTS**: Installs dependencies via `npm ci`.
+  4. **TypeScript & Frontend Bundle Check**: Runs `npm run build` (`tsc && vite build`). Fails on any TypeScript compile errors.
+  5. **Database Migrations**: Runs `php artisan migrate --force` against the live PostgreSQL 18 test container (including `pg_trgm`).
+  6. **Automated Test Suite**: Executes `php artisan test` across all feature and unit tests (815 tests, zero network dependencies, faked external services).
+  7. **Chromium PDF Generation**: HarfBuzz Unicode text extraction tests (`UnicodePdfRenderQaTest`) run in CI using Google Chrome and system Indic/Sinhala/Tamil fonts (`fonts-noto-core`, `fonts-lklug-sinhala`, `fonts-indic`). The test is marked with `#[Group('chromium')]`.
+  8. **Code Style Verification**: `vendor/bin/pint --test` ensures adherence to Laravel coding standards.
+  9. **Security Audits**:
+     - `composer audit`: Fails the build if any advisory with severity **high** or **critical** is detected.
+     - `npm audit --audit-level=high`: Reports high/critical JavaScript package advisories without breaking the build.
+  10. **Error Log Capture**: If any test fails, `storage/logs/*.log` is uploaded as an artifact for instant diagnosis.
+
+### 8.2 Reading a Failed CI Run
+
+If a pull request check fails:
+1. Click **Details** next to the red cross on GitHub to view the CI run.
+2. Locate the failed step:
+   - **`Build frontend assets`**: Look for TypeScript compiler errors or Vite build failures.
+   - **`Run test suite`**: Click on the failed test output to see the assertion difference and stack trace.
+   - **`Verify code style with Laravel Pint`**: Run `vendor/bin/pint` locally to auto-fix formatting, then commit.
+   - **`Security audit (Composer)`**: A high or critical CVE advisory was reported for an installed package. Run `composer update <vendor/package>` to patch the package.
+3. Download the **`laravel-logs`** artifact from the run summary page if an uncaught server exception occurred.
+
+### 8.3 Feature Branch & Release Workflow
+
+```
+[Local Feature Branch]  -->  Push to origin/feature-xxx
+                                    |
+                                    v
+                            [Open PR to main]
+                                    |
+                                    v
+                           [GitHub Actions CI] (Green)
+                                    |
+                                    v
+                        [Merge PR into main]
+                                    |
+                                    v
+                     [Production Deploy via deploy.sh]
+```
+
+1. Create a branch: `git checkout -b feature/my-feature`
+2. Make changes, run `vendor/bin/pint --dirty --format agent`, and verify tests pass.
+3. Push: `git push -u origin feature/my-feature`
+4. Open a pull request against `main`.
+5. Wait for the **CI** workflow to pass (green checkmark).
+6. Merge the PR.
+7. Deploy on the production server (or dispatch the deploy workflow once enabled).
+
+### 8.4 One-Time Server Setup for Safer Deployments
+
+Run these commands once as root/deploy on `medvisit-prod` (`62.171.156.211`):
+
+```bash
+# 1. Create the pre-deploy backup directory owned by deploy
+sudo mkdir -p /var/backups/medvisit
+sudo chown -R deploy:deploy /var/backups/medvisit
+sudo chmod 750 /var/backups/medvisit
+
+# 2. Generate a maintenance mode bypass secret and append to .env
+MAINT_SECRET=$(openssl rand -hex 16)
+echo "DEPLOY_MAINTENANCE_SECRET=${MAINT_SECRET}" >> /var/www/medvisit/.env
+
+# 3. (Optional) Add a fine-grained GitHub token for the deploy.sh CI gate
+# Create a fine-grained GitHub PAT: Repository: sivanujan/medvisit, Permissions: Actions (Read-Only)
+echo "GITHUB_CI_CHECK_TOKEN=github_pat_xxxx" >> /var/www/medvisit/.env
+
+# 4. Verify file permissions on .env
+chmod 640 /var/www/medvisit/.env
+```
+
+### 8.5 Required GitHub Repository Settings (Branch Protection)
+
+To prevent accidental breaks on production, configure branch rules on GitHub:
+
+1. Navigate to: **GitHub Repo $\rightarrow$ Settings $\rightarrow$ Branches** (or **Rulesets**).
+2. Add a rule for branch name pattern: `main`
+3. Check the following options:
+   - **Require a pull request before merging**
+     - Require review approvals (at least 1 approval).
+     - Dismiss stale pull request approvals when new commits are pushed.
+   - **Require status checks to pass before merging**
+     - Require branches to be up to date before merging.
+     - Search and select status check: **`Test & Build`** (from `ci.yml`).
+   - **Do not allow force pushes** (Block force pushes to `main`).
+   - **Do not allow deletions** (Prevent deleting the `main` branch).
+4. Save changes.
+
+### 8.6 Manual Deploy Button (`.github/workflows/deploy.yml`)
+
+A workflow dispatch button is included in `.github/workflows/deploy.yml` to trigger deployments from GitHub.
+
+**By default, it is hard-disabled (`if: false`)** to prevent accidental runs until credentials are added.
+
+#### To Enable the Deploy Button:
+
+1. **Create a dedicated restricted SSH key on the server**:
+   ```bash
+   ssh-keygen -t ed25519 -f ~/.ssh/github_deploy -C "github-actions-deploy"
+   ```
+2. **Restrict the key in `/home/deploy/.ssh/authorized_keys`**:
+   Prepend forced command options so this key can ONLY execute `deploy.sh`:
+   ```
+   command="/var/www/medvisit/deploy.sh",no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty ssh-ed25519 AAAA... github-actions-deploy
+   ```
+3. **Add Secrets in GitHub** (**Settings $\rightarrow$ Secrets and variables $\rightarrow$ Actions**):
+   - `DEPLOY_HOST`: `62.171.156.211`
+   - `DEPLOY_USER`: `deploy`
+   - `DEPLOY_SSH_KEY`: The private key contents (`~/.ssh/github_deploy`)
+   - `DEPLOY_KNOWN_HOSTS`: Output of `ssh-keyscan -H 62.171.156.211`
+4. **Enable the job**:
+   In `.github/workflows/deploy.yml`, change `if: false` to `if: true`.
+5. Now you can click **Actions $\rightarrow$ Deploy $\rightarrow$ Run workflow** to deploy the current `main` branch. It will verify that the commit passed CI before logging into the server.
+
+### 8.7 Rollback Procedures
+
+If an issue occurs after a deployment:
+
+#### Scenario A: The deployment script `deploy.sh` failed mid-run
+The script automatically traps any error, deactivates maintenance mode (`php artisan up`), prints the exact git rollback command with the previous commit SHA, and leaves the pre-deploy database snapshot untouched.
+
+#### Scenario B: Manual code rollback
+To roll back code to the previous working commit:
+```bash
+cd /var/www/medvisit
+
+# 1. Reset code to previous commit
+git reset --hard <PREVIOUS_COMMIT_SHA>
+
+# 2. Re-install matching production dependencies & rebuild frontend
+composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
+npm ci --prefer-offline --no-audit
+npm run build
+
+# 3. Refresh and warm framework caches
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+php artisan event:cache
+
+# 4. Restart supervisor workers
+sudo supervisorctl restart medvisit-worker-default:* medvisit-worker-pdfs:* medvisit-reverb
+```
+
+#### Scenario C: Restoring the pre-deploy database backup
+If migrations caused data corruption or schema incompatibility:
+```bash
+# 1. Check existing pre-deploy snapshots in /var/backups/medvisit
+ls -l /var/backups/medvisit/
+
+# 2. Restore the database from the snapshot created immediately before deployment:
+gunzip -c /var/backups/medvisit/pre-deploy-YYYYmmdd-HHMMSS-<target_sha>.sql.gz | psql -h 127.0.0.1 -U medvisit -d medvisit
+```
+> [!WARNING]
+> Only restore the database backup if necessary and after inspecting whether new live tenant data or payments were recorded during the incident.
+
+
 
 
