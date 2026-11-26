@@ -17,6 +17,7 @@ use App\Services\Refunds\ManualRefundProcessor;
 use GuzzleHttp\Client;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Http\Middleware\TrustHosts;
 use Illuminate\Mail\Transport\ResendTransport;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -40,6 +41,8 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton(RefundProcessor::class, ManualRefundProcessor::class);
+
+        $this->app->bind(TrustHosts::class, \App\Http\Middleware\TrustHosts::class);
     }
 
     /**
@@ -49,7 +52,7 @@ class AppServiceProvider extends ServiceProvider
     {
         Vite::prefetch(concurrency: 3);
 
-        $host = request()->getHost();
+        $host = $this->app->has('request') ? rescue(fn () => request()->getHost(), null, false) : null;
         $centralDomains = config('tenancy.central_domains', [
             config('medvisit.base_domain', 'medvisit.localhost'),
             'medvisit.localhost',

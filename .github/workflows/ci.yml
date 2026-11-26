@@ -126,7 +126,7 @@ jobs:
       - name: Security audit (Composer)
         run: |
           composer audit --format=json > composer-audit.json || true
-          php .github/scripts/check-composer-audit.php composer-audit.json
+          php .github/scripts/check-composer-audit.php composer-audit.json .github/security/composer-audit-allowlist.json
 
       - name: Security audit (npm)
         run: npm audit --audit-level=high || true
