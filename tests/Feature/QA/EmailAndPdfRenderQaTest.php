@@ -14,8 +14,13 @@ use App\Services\Billing\SubscriptionReceiptPdfService;
 use App\Services\SampleMailFactory;
 use Database\Seeders\QaScenarioSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
+/**
+ * @group chromium
+ */
+#[Group('chromium')]
 class EmailAndPdfRenderQaTest extends TestCase
 {
     use RefreshDatabase;
