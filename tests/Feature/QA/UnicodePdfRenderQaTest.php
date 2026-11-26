@@ -23,9 +23,14 @@ use App\Models\User;
 use App\Services\Pdf\ChromiumPdfService;
 use Database\Seeders\QaScenarioSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\Group;
 use Smalot\PdfParser\Parser;
 use Tests\TestCase;
 
+/**
+ * @group chromium
+ */
+#[Group('chromium')]
 class UnicodePdfRenderQaTest extends TestCase
 {
     use RefreshDatabase;

@@ -89,10 +89,10 @@ class ChromiumPdfService
 
         // Standard Linux server locations (Ubuntu / Debian / DigitalOcean Droplets)
         $linuxCandidates = [
-            '/usr/bin/chromium-browser',
-            '/usr/bin/chromium',
             '/usr/bin/google-chrome',
             '/usr/bin/google-chrome-stable',
+            '/usr/bin/chromium',
+            '/usr/bin/chromium-browser',
             '/snap/bin/chromium',
         ];
 
@@ -131,6 +131,10 @@ class ChromiumPdfService
         if (is_dir($nodeModulesPath)) {
             $bs->setNodeModulePath($nodeModulesPath);
         }
+
+        $timeout = (int) (env('BROWSERSHOT_TIMEOUT') ?: 90);
+        $bs->timeout($timeout);
+        $bs->setOption('protocolTimeout', $timeout * 1000);
 
         $bs->noSandbox()
             ->showBackground()

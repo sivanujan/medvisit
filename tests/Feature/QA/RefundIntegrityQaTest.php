@@ -23,6 +23,7 @@ use App\Services\Refunds\RefundEligibilityService;
 use Carbon\Carbon;
 use Database\Seeders\QaScenarioSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
 class RefundIntegrityQaTest extends TestCase
@@ -228,7 +229,10 @@ class RefundIntegrityQaTest extends TestCase
 
     /**
      * 4. Credit note generation and PDF rendering.
+     *
+     * @group chromium
      */
+    #[Group('chromium')]
     public function test_credit_note_generation_and_pdf(): void
     {
         [$payment, $invoice] = $this->createPaidTransaction(900000, now(), 'CN');
