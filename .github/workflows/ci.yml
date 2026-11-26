@@ -115,23 +115,7 @@ jobs:
       - name: Security audit (Composer)
         run: |
           composer audit --format=json > composer-audit.json || true
-          php -r '
-          $data = json_decode(file_get_contents("composer-audit.json"), true);
-          $hasHighOrCritical = false;
-          foreach ($data["advisories"] ?? [] as $pkg => $advisories) {
-              foreach ($advisories as $adv) {
-                  $sev = strtolower($adv["severity"] ?? "");
-                  if ($sev === "high" || $sev === "critical") {
-                      echo "::error::High/Critical vulnerability in {$pkg}: {$adv[\"title\"]} ({$adv[\"cve\"]})\n";
-                      $hasHighOrCritical = true;
-                  }
-              }
-          }
-          if ($hasHighOrCritical) {
-              exit(1);
-          }
-          echo "No high or critical vulnerabilities found in Composer packages.\n";
-          '
+          php .github/scripts/check-composer-audit.php composer-audit.json
 
       - name: Security audit (npm)
         run: npm audit --audit-level=high || true
