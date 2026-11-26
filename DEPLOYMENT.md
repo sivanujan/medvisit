@@ -353,44 +353,92 @@ If a pull request check fails:
 
 ### 8.4 One-Time Server Setup for Safer Deployments
 
-Run these commands once as root/deploy on `medvisit-prod` (`62.171.156.211`):
+Run these configuration steps once on `medvisit-prod` (`62.171.156.211`):
 
+#### 1. Create the Database Backup Directory
 ```bash
-# 1. Create the pre-deploy backup directory owned by deploy
 sudo mkdir -p /var/backups/medvisit
 sudo chown -R deploy:deploy /var/backups/medvisit
 sudo chmod 750 /var/backups/medvisit
+```
 
-# 2. Generate a maintenance mode bypass secret and append to .env
-MAINT_SECRET=$(openssl rand -hex 16)
-echo "DEPLOY_MAINTENANCE_SECRET=${MAINT_SECRET}" >> /var/www/medvisit/.env
+#### 2. Configure Sudoers Permissions for the `deploy` User
+To allow the `deploy` user to restart supervisor workers and refresh storage/cache permissions without interactive password prompts, configure `/etc/sudoers.d/deploy`:
 
-# 3. (Optional) Add a fine-grained GitHub token for the deploy.sh CI gate
-# Create a fine-grained GitHub PAT: Repository: sivanujan/medvisit, Permissions: Actions (Read-Only)
-echo "GITHUB_CI_CHECK_TOKEN=github_pat_xxxx" >> /var/www/medvisit/.env
+```bash
+sudo visudo -f /etc/sudoers.d/deploy
+```
+Add the following line (preserving any existing sudo permissions):
+```sudoers
+deploy ALL=(ALL) NOPASSWD: /usr/bin/supervisorctl restart medvisit-worker-default\:* medvisit-worker-pdfs\:* medvisit-reverb, /bin/chown -R deploy\:www-data /var/www/medvisit/storage /var/www/medvisit/bootstrap/cache, /bin/chmod -R ug+rwX /var/www/medvisit/storage /var/www/medvisit/bootstrap/cache
+```
+Then verify permissions on the sudoers file:
+```bash
+sudo chmod 440 /etc/sudoers.d/deploy
+```
 
-# 4. Verify file permissions on .env
+#### 3. Configure Deployment Keys in `.env` (Use `nano`, never `echo`)
+> [!IMPORTANT]
+> Never use `echo "SECRET" >> .env` as it leaves sensitive secrets in your bash shell history (`~/.bash_history`). Always edit `.env` interactively using `nano`.
+
+Generate a maintenance bypass secret:
+```bash
+openssl rand -hex 16
+```
+Copy the generated secret, open `.env`:
+```bash
+nano /var/www/medvisit/.env
+```
+Add the deployment variables:
+```ini
+# Deployment & Maintenance Configuration
+DEPLOY_MAINTENANCE_SECRET=your_generated_32_character_secret_here
+
+# Optional: GitHub Actions CI verification token
+# Fine-grained PAT: Repository "sivanujan/medvisit", Permission: "Actions: Read-only"
+GITHUB_CI_CHECK_TOKEN=github_pat_xxxx
+
+# Optional: Dedicated clinic subdomain for post-deploy smoke checks
+SMOKE_TEST_SUBDOMAIN=cityhealth.medvisit.lk
+```
+Save and exit (`Ctrl+O`, `Enter`, `Ctrl+X`), then verify file permissions:
+```bash
 chmod 640 /var/www/medvisit/.env
 ```
 
-### 8.5 Required GitHub Repository Settings (Branch Protection)
+### 8.5 Required GitHub Repository Settings (Branch Protection for Solo Developers)
 
-To prevent accidental breaks on production, configure branch rules on GitHub:
+To ensure code stability on production while keeping the workflow agile for a single developer:
 
 1. Navigate to: **GitHub Repo $\rightarrow$ Settings $\rightarrow$ Branches** (or **Rulesets**).
-2. Add a rule for branch name pattern: `main`
-3. Check the following options:
-   - **Require a pull request before merging**
-     - Require review approvals (at least 1 approval).
-     - Dismiss stale pull request approvals when new commits are pushed.
-   - **Require status checks to pass before merging**
-     - Require branches to be up to date before merging.
-     - Search and select status check: **`Test & Build`** (from `ci.yml`).
-   - **Do not allow force pushes** (Block force pushes to `main`).
-   - **Do not allow deletions** (Prevent deleting the `main` branch).
+2. Add a branch protection rule for pattern: `main`
+3. Configure the following settings:
+   - **Require a pull request before merging**: Checked.
+     - **Required approvals**: **`0`** (Allows merging your own PRs once status checks pass, without requiring a second reviewer).
+   - **Require status checks to pass before merging**: Checked.
+     - **Status check name**: **`Test & Build`** (from `ci.yml`).
+     - **Require branches to be up to date before merging**: Checked.
+   - **Do not allow force pushes**: Checked (Blocks destructive history overwrites on `main`).
+   - **Do not allow deletions**: Checked (Protects the `main` branch from accidental deletion).
 4. Save changes.
 
-### 8.6 Manual Deploy Button (`.github/workflows/deploy.yml`)
+### 8.6 Deployment Architecture & Safety Mechanisms
+
+The deployment script (`deploy.sh`) incorporates several defense-in-depth safety layers:
+
+1. **Pre-Update Maintenance Timing**:
+   The script inspects pending changes *before* touching application code:
+   `git diff --name-only "$PREV_COMMIT" "$TARGET_COMMIT" -- database/migrations`
+   - If migrations exist: The application is immediately put into maintenance mode (`php artisan down --secret="..." --render="errors::503"`) *before* code, composer, or npm updates occur. It is only brought back up after migrations and caches are primed.
+   - If no migrations exist: Deployment proceeds with **zero downtime** (maintenance mode is never activated).
+2. **Atomic Frontend Asset Swap**:
+   Assets are built into a temporary staging directory (`public/build_tmp_$$`) via `npx vite build --outDir`. Once compilation succeeds, Linux's atomic `rename()` (`mv`) swaps the directory into `public/build` instantaneously. Users never encounter broken chunks or mismatched `manifest.json` files while assets are compiling.
+3. **Automated Pre-Deploy Snapshots**:
+   Before updating code, a full compressed snapshot (`pg_dump | gzip -9`) is saved to `/var/backups/medvisit/pre-deploy-YYYYmmdd-HHMMSS-<sha>.sql.gz`. The script automatically rotates snapshots to retain the 5 most recent backups.
+4. **Non-Fatal Permission Refreshes**:
+   Only `storage` and `bootstrap/cache` permissions are updated via `sudo -n`. If sudo privileges are absent, the script issues a warning and proceeds without breaking deployments.
+
+### 8.7 Manual Deploy Button (`.github/workflows/deploy.yml`)
 
 A workflow dispatch button is included in `.github/workflows/deploy.yml` to trigger deployments from GitHub.
 
@@ -416,12 +464,12 @@ A workflow dispatch button is included in `.github/workflows/deploy.yml` to trig
    In `.github/workflows/deploy.yml`, change `if: false` to `if: true`.
 5. Now you can click **Actions $\rightarrow$ Deploy $\rightarrow$ Run workflow** to deploy the current `main` branch. It will verify that the commit passed CI before logging into the server.
 
-### 8.7 Rollback Procedures
+### 8.8 Rollback Procedures
 
 If an issue occurs after a deployment:
 
 #### Scenario A: The deployment script `deploy.sh` failed mid-run
-The script automatically traps any error, deactivates maintenance mode (`php artisan up`), prints the exact git rollback command with the previous commit SHA, and leaves the pre-deploy database snapshot untouched.
+The script automatically traps any error, deactivates maintenance mode (`php artisan up`), cleans up temporary build folders, prints the exact git rollback command with the previous commit SHA, and leaves the pre-deploy database snapshot untouched.
 
 #### Scenario B: Manual code rollback
 To roll back code to the previous working commit:
@@ -446,17 +494,30 @@ php artisan event:cache
 sudo supervisorctl restart medvisit-worker-default:* medvisit-worker-pdfs:* medvisit-reverb
 ```
 
-#### Scenario C: Restoring the pre-deploy database backup
-If migrations caused data corruption or schema incompatibility:
-```bash
-# 1. Check existing pre-deploy snapshots in /var/backups/medvisit
-ls -l /var/backups/medvisit/
+#### Scenario C: Restoring the pre-deploy database backup (Only if migrations corrupted data)
+> [!CAUTION]
+> Restoring a database backup replaces all data in the database with the pre-deploy state. Only execute this if migrations introduced data corruption or broke schema compatibility. Do NOT restore blindly if real patients, tokens, or payments were recorded during the deployment window.
 
-# 2. Restore the database from the snapshot created immediately before deployment:
-gunzip -c /var/backups/medvisit/pre-deploy-YYYYmmdd-HHMMSS-<target_sha>.sql.gz | psql -h 127.0.0.1 -U medvisit -d medvisit
+```bash
+# 1. Stop background workers to prevent database writes
+sudo supervisorctl stop medvisit-worker-default:* medvisit-worker-pdfs:* medvisit-reverb
+
+# 2. Put the application into maintenance mode
+php artisan down --render="errors::503"
+
+# 3. Terminate active PostgreSQL connections, drop and recreate the database
+sudo -u postgres psql -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'medvisit' AND pid <> pg_backend_pid();"
+sudo -u postgres dropdb medvisit
+sudo -u postgres createdb -O medvisit medvisit
+sudo -u postgres psql -d medvisit -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
+
+# 4. Restore the pre-deploy snapshot (enter DB password when prompted)
+gunzip -c /var/backups/medvisit/pre-deploy-YYYYmmdd-HHMMSS-<target_sha>.sql.gz | psql -h 127.0.0.1 -p 5432 -U medvisit -d medvisit -W
+
+# 5. Bring application back online and restart background workers
+php artisan up
+sudo supervisorctl start medvisit-worker-default:* medvisit-worker-pdfs:* medvisit-reverb
 ```
-> [!WARNING]
-> Only restore the database backup if necessary and after inspecting whether new live tenant data or payments were recorded during the incident.
 
 
 
